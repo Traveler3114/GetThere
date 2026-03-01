@@ -1,107 +1,114 @@
-using System;
-using System.Threading.Tasks;
+using GetThere.Services;
+using GetThereShared.Models;
 using Microsoft.Maui.Controls;
+using System;
 
 namespace GetThere.Pages;
 
 public partial class RegistrationPage : ContentPage
 {
-	public RegistrationPage()
-	{
-		InitializeComponent();
-	}
+    private readonly AuthService _authService;
 
-	private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
-	{
-		bool show = e.Value;
-		PasswordEntry.IsPassword = !show;
-		ConfirmPasswordEntry.IsPassword = !show;
-	}
+    public RegistrationPage()
+    {
+        InitializeComponent();
+        _authService = Application.Current!.Handler.MauiContext!.Services.GetRequiredService<AuthService>();
+    }
 
-	private async void RegisterButton_Clicked(object sender, EventArgs e)
-	{
-		ErrorLabel.IsVisible = false;
+    private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
+    {
+        bool show = e.Value;
+        PasswordEntry.IsPassword = !show;
+        ConfirmPasswordEntry.IsPassword = !show;
+    }
 
-		string fullName = FullNameEntry.Text?.Trim();
-		string email = EmailEntry.Text?.Trim();
-		string phone = PhoneEntry.Text?.Trim();
-		string password = PasswordEntry.Text ?? string.Empty;
-		string confirm = ConfirmPasswordEntry.Text ?? string.Empty;
+    private async void RegisterButton_Clicked(object sender, EventArgs e)
+    {
+        ErrorLabel.IsVisible = false;
 
-		if (string.IsNullOrWhiteSpace(fullName))
-		{
-			ShowError("Please enter your full name.");
-			return;
-		}
+        string fullName = FullNameEntry.Text?.Trim() ?? string.Empty;
+        string email = EmailEntry.Text?.Trim() ?? string.Empty;
+        string password = PasswordEntry.Text ?? string.Empty;
+        string confirm = ConfirmPasswordEntry.Text ?? string.Empty;
 
-		if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
-		{
-			ShowError("Please enter a valid email address.");
-			return;
-		}
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            ShowError("Please enter your full name.");
+            return;
+        }
 
-		if (password.Length < 6)
-		{
-			ShowError("Password must be at least 6 characters.");
-			return;
-		}
+        if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+        {
+            ShowError("Please enter a valid email address.");
+            return;
+        }
 
-		if (password != confirm)
-		{
-			ShowError("Passwords do not match.");
-			return;
-		}
+        if (password.Length < 8)
+        {
+            ShowError("Password must be at least 8 characters.");
+            return;
+        }
 
-		// Simulate registration
-		BusyIndicator.IsVisible = true;
-		BusyIndicator.IsRunning = true;
-		RegisterButton.IsEnabled = false;
+        if (password != confirm)
+        {
+            ShowError("Passwords do not match.");
+            return;
+        }
 
-		try
-		{
-			await Task.Delay(1200); // Simulate network
+        BusyIndicator.IsVisible = true;
+        BusyIndicator.IsRunning = true;
+        RegisterButton.IsEnabled = false;
 
-			// TODO: call backend API to register user. For now, navigate to login page.
-			await DisplayAlert("Success", "Account created successfully.", "OK");
-			// Navigate to LoginPage if present
-			if (Application.Current?.MainPage != null)
-			{
-				await Navigation.PushAsync(new LoginPage());
-			}
-		}
-		catch (Exception ex)
-		{
-			ShowError("Registration failed. " + ex.Message);
-		}
-		finally
-		{
-			BusyIndicator.IsRunning = false;
-			BusyIndicator.IsVisible = false;
-			RegisterButton.IsEnabled = true;
-		}
-	}
+        try
+        {
+            string username = email.Split('@')[0];
 
-	private void ShowError(string message)
-	{
-		ErrorLabel.Text = message;
-		ErrorLabel.IsVisible = true;
-	}
+            var (success, message) = await _authService.RegisterAsync(
+                username, email, password, fullName);
 
-	private static bool IsValidEmail(string email)
-	{
-		try
-		{
-			var addr = new System.Net.Mail.MailAddress(email);
-			return addr.Address == email;
-		}
-		catch
-		{
-			return false;
-		}
-	}
+            if (success)
+            {
+                await DisplayAlert("Success", "Account created successfully.", "OK");
+                await Navigation.PushAsync(new LoginPage());
+            }
+            else
+            {
+                ShowError("Registration failed. " + message);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError("Registration failed. " + ex.Message);
+        }
+        finally
+        {
+            BusyIndicator.IsRunning = false;
+            BusyIndicator.IsVisible = false;
+            RegisterButton.IsEnabled = true;
+        }
+    }
 
-	private async void LoginButton_Clicked(object sender, EventArgs e)
-	{
-		await Navigation.PushAsync(new LoginPage());
-	}
+    private async void LoginButton_Clicked(object sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new LoginPage());
+    }
+
+    private void ShowError(string message)
+    {
+        ErrorLabel.Text = message;
+        ErrorLabel.IsVisible = true;
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

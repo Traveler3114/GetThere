@@ -1,84 +1,94 @@
-using System;
-using System.Threading.Tasks;
+using GetThere.Services;
 using Microsoft.Maui.Controls;
+using System;
 
 namespace GetThere.Pages;
 
 public partial class LoginPage : ContentPage
 {
-	public LoginPage()
-	{
-		InitializeComponent();
-	}
+    private readonly AuthService _authService;
 
-	private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
-	{
-		PasswordEntry.IsPassword = !e.Value;
-	}
+    public LoginPage()
+    {
+        InitializeComponent();
+        _authService = Application.Current!.Handler.MauiContext!.Services.GetRequiredService<AuthService>();
+    }
 
-	private async void LoginButton_Clicked(object sender, EventArgs e)
-	{
-		ErrorLabel.IsVisible = false;
+    private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
+    {
+        PasswordEntry.IsPassword = !e.Value;
+    }
 
-		string email = EmailEntry.Text?.Trim();
-		string password = PasswordEntry.Text ?? string.Empty;
+    private async void LoginButton_Clicked(object sender, EventArgs e)
+    {
+        ErrorLabel.IsVisible = false;
 
-		if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
-		{
-			ShowError("Please enter a valid email address.");
-			return;
-		}
+        string email = EmailEntry.Text?.Trim() ?? string.Empty;
+        string password = PasswordEntry.Text ?? string.Empty;
 
-		if (password.Length < 6)
-		{
-			ShowError("Password must be at least 6 characters.");
-			return;
-		}
+        if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+        {
+            ShowError("Please enter a valid email address.");
+            return;
+        }
 
-		BusyIndicator.IsVisible = true;
-		BusyIndicator.IsRunning = true;
-		LoginButton.IsEnabled = false;
+        if (password.Length < 8)
+        {
+            ShowError("Password must be at least 8 characters.");
+            return;
+        }
 
-		try
-		{
-			await Task.Delay(900);
-			// TODO: Authenticate with backend
-			await DisplayAlert("Success", "Logged in successfully.", "OK");
-			// Navigate to main page or shell
-		}
-		catch (Exception ex)
-		{
-			ShowError("Login failed. " + ex.Message);
-		}
-		finally
-		{
-			BusyIndicator.IsRunning = false;
-			BusyIndicator.IsVisible = false;
-			LoginButton.IsEnabled = true;
-		}
-	}
+        BusyIndicator.IsVisible = true;
+        BusyIndicator.IsRunning = true;
+        LoginButton.IsEnabled = false;
 
-	private async void RegisterButton_Clicked(object sender, EventArgs e)
-	{
-		await Navigation.PushAsync(new RegistrationPage());
-	}
+        try
+        {
+            var user = await _authService.LoginAsync(email, password);
 
-	private void ShowError(string message)
-	{
-		ErrorLabel.Text = message;
-		ErrorLabel.IsVisible = true;
-	}
+            if (user != null)
+            {
+                await DisplayAlert("Success", $"Welcome back, {user.FullName ?? user.Username}!", "OK");
+                // TODO: Navigate to main app page
+            }
+            else
+            {
+                ShowError("Invalid email or password.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError("Login failed. " + ex.Message);
+        }
+        finally
+        {
+            BusyIndicator.IsRunning = false;
+            BusyIndicator.IsVisible = false;
+            LoginButton.IsEnabled = true;
+        }
+    }
 
-	private static bool IsValidEmail(string email)
-	{
-		try
-		{
-			var addr = new System.Net.Mail.MailAddress(email);
-			return addr.Address == email;
-		}
-		catch
-		{
-			return false;
-		}
-	}
+    private async void RegisterButton_Clicked(object sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new RegistrationPage());
+    }
+
+    private void ShowError(string message)
+    {
+        ErrorLabel.Text = message;
+        ErrorLabel.IsVisible = true;
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
