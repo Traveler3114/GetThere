@@ -22,23 +22,17 @@ namespace GetThereAPI.Controllers
         [HttpPost("register")]
         public async Task<ActionResult> Register(RegisterDto request)
         {
-            // Check if email already exists
             var existingUser = await _userManager.FindByEmailAsync(request.Email);
             if (existingUser != null)
-                return BadRequest(new { message = "Email already in use" });
+                return BadRequest(new OperationResult(false, "Email already in use"));
 
-            var user = new AppUser
-            {
-                Email = request.Email,
-                FullName = request.FullName,
-            };
-
+            var user = new AppUser { Email = request.Email, FullName = request.FullName };
             var result = await _userManager.CreateAsync(user, request.Password);
 
             if (!result.Succeeded)
-                return BadRequest(result.Errors);
+                return BadRequest(new OperationResult(false, string.Join(", ", result.Errors.Select(e => e.Description))));
 
-            return Ok(new { message = "User registered successfully" });
+            return Ok(new OperationResult(true, "User registered successfully"));
         }
 
         // POST /auth/login
@@ -46,24 +40,14 @@ namespace GetThereAPI.Controllers
         public async Task<ActionResult> Login(LoginDto request)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
-
             if (user == null)
-                return Unauthorized(new { message = "Invalid credentials" });
+                return Unauthorized(new OperationResult(false, "Invalid credentials"));
 
             var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, false);
-
             if (!result.Succeeded)
-                return Unauthorized(new { message = "Invalid credentials" });
+                return Unauthorized(new OperationResult(false, "Invalid credentials"));
 
-            // map AppUser to UserDto before sending to MAUI
-            var userDto = new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email!,
-                FullName = user.FullName,
-            };
-
-            return Ok(userDto);
+            return Ok(new OperationResult(true, "Login successful"));
         }
     }
 }

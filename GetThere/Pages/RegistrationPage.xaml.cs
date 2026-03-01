@@ -66,16 +66,15 @@ public partial class RegistrationPage : ContentPage
         try
         {
 
-            var (success, message) = await _authService.RegisterAsync(rdto);
-
-            if (success)
+            var result = await _authService.RegisterAsync(rdto);
+            if (result.Success)
             {
-                await DisplayAlert("Success", "Account created successfully.", "OK");
+                await DisplayAlertAsync("Success", result.Message, "OK");
                 await Navigation.PushAsync(new LoginPage());
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, "Registration failed. " + message);
+                PageUtility.ShowError(ErrorLabel, "Registration failed. " + result.Message);
             }
         }
         catch (Exception ex)

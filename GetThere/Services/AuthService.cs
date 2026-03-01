@@ -13,27 +13,25 @@ public class AuthService
         _httpClient = httpClient;
     }
 
-    public async Task<UserDto?> LoginAsync(LoginDto dto)
+    public async Task<OperationResult> LoginAsync(LoginDto dto)
     {
-
         var response = await _httpClient.PostAsJsonAsync("auth/login", dto);
 
         if (response.IsSuccessStatusCode)
-            return await response.Content.ReadFromJsonAsync<UserDto>();
+            return OperationResult.Ok("Login successful");
 
-        return null;
+        var error = await response.Content.ReadAsStringAsync();
+        return OperationResult.Fail(error);
     }
 
-    public async Task<(bool Success, string Message)> RegisterAsync(RegisterDto dto)
+    public async Task<OperationResult> RegisterAsync(RegisterDto dto)
     {
-
         var response = await _httpClient.PostAsJsonAsync("auth/register", dto);
 
         if (response.IsSuccessStatusCode)
-            return (true, "User registered successfully");
+            return OperationResult.Ok("User registered successfully");
 
-        // Try to extract the error message from the response body
         var error = await response.Content.ReadAsStringAsync();
-        return (false, error);
+        return OperationResult.Fail(error);
     }
 }

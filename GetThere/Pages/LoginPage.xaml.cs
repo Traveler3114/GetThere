@@ -47,16 +47,16 @@ public partial class LoginPage : ContentPage
 
         try
         {
-            var user = await _authService.LoginAsync(loginData);
+            var result = await _authService.LoginAsync(loginData);
 
-            if (user != null)
+            if (result.Success)
             {
-                await DisplayAlert("Success", $"Welcome back, {user.FullName ?? user.Username}!", "OK");
+                await DisplayAlertAsync("Success", "Welcome back!", "OK");
                 // TODO: Navigate to main app page
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, "Invalid email or password.");
+                PageUtility.ShowError(ErrorLabel, "Login failed. " + result.Message);
             }
         }
         catch (Exception ex)
