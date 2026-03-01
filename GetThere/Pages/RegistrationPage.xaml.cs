@@ -1,7 +1,9 @@
 using GetThere.Services;
+using GetThere.Helpers;
 using GetThereShared.Models;
 using Microsoft.Maui.Controls;
 using System;
+using GetThereAPI.Models;
 
 namespace GetThere.Pages;
 
@@ -26,45 +28,45 @@ public partial class RegistrationPage : ContentPage
     {
         ErrorLabel.IsVisible = false;
 
-        string fullName = FullNameEntry.Text?.Trim() ?? string.Empty;
-        string email = EmailEntry.Text?.Trim() ?? string.Empty;
-        string password = PasswordEntry.Text ?? string.Empty;
+        RegisterDto rdto = new RegisterDto
+        {
+            FullName = FullNameEntry.Text?.Trim() ?? string.Empty,
+            Email = EmailEntry.Text?.Trim() ?? string.Empty,
+            Password = PasswordEntry.Text ?? string.Empty,
+        };
+
         string confirm = ConfirmPasswordEntry.Text ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(fullName))
+        if (string.IsNullOrWhiteSpace(rdto.FullName))
         {
-            ShowError("Please enter your full name.");
+            PageUtility.ShowError(ErrorLabel, "Please enter your full name.");
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+        if (string.IsNullOrWhiteSpace(rdto.Email) || !PageUtility.IsValidEmail(rdto.Email))
         {
-            ShowError("Please enter a valid email address.");
+            PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
             return;
         }
 
-        if (password.Length < 8)
+        if (rdto.Password.Length < 8)
         {
-            ShowError("Password must be at least 8 characters.");
+            PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
             return;
         }
 
-        if (password != confirm)
+        if (rdto.Password != confirm)
         {
-            ShowError("Passwords do not match.");
+            PageUtility.ShowError(ErrorLabel, "Passwords do not match.");
             return;
         }
 
-        BusyIndicator.IsVisible = true;
-        BusyIndicator.IsRunning = true;
-        RegisterButton.IsEnabled = false;
+        PageUtility.SetBusy(BusyIndicator, RegisterButton, true);
 
         try
         {
-            string username = email.Split('@')[0];
 
-            var (success, message) = await _authService.RegisterAsync(
-                username, email, password, fullName);
+            var (success, message) = await _authService.RegisterAsync(rdto);
 
             if (success)
             {
@@ -73,42 +75,21 @@ public partial class RegistrationPage : ContentPage
             }
             else
             {
-                ShowError("Registration failed. " + message);
+                PageUtility.ShowError(ErrorLabel, "Registration failed. " + message);
             }
         }
         catch (Exception ex)
         {
-            ShowError("Registration failed. " + ex.Message);
+            PageUtility.ShowError(ErrorLabel, "Registration failed. " + ex.Message);
         }
         finally
         {
-            BusyIndicator.IsRunning = false;
-            BusyIndicator.IsVisible = false;
-            RegisterButton.IsEnabled = true;
+            PageUtility.SetBusy(BusyIndicator, RegisterButton, false);
         }
     }
 
     private async void LoginButton_Clicked(object sender, EventArgs e)
     {
         await Navigation.PushAsync(new LoginPage());
-    }
-
-    private void ShowError(string message)
-    {
-        ErrorLabel.Text = message;
-        ErrorLabel.IsVisible = true;
-    }
-
-    private static bool IsValidEmail(string email)
-    {
-        try
-        {
-            var addr = new System.Net.Mail.MailAddress(email);
-            return addr.Address == email;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

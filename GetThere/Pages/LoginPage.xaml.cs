@@ -1,6 +1,8 @@
 using GetThere.Services;
+using GetThere.Helpers;
 using Microsoft.Maui.Controls;
 using System;
+using GetThereAPI.Models;
 
 namespace GetThere.Pages;
 
@@ -23,28 +25,29 @@ public partial class LoginPage : ContentPage
     {
         ErrorLabel.IsVisible = false;
 
-        string email = EmailEntry.Text?.Trim() ?? string.Empty;
-        string password = PasswordEntry.Text ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+        LoginDto loginData = new LoginDto
         {
-            ShowError("Please enter a valid email address.");
+            Email = EmailEntry.Text?.Trim() ?? string.Empty,
+            Password = PasswordEntry.Text ?? string.Empty
+        };
+
+        if (string.IsNullOrWhiteSpace(loginData.Email) || !PageUtility.IsValidEmail(loginData.Email))
+        {
+            PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
             return;
         }
 
-        if (password.Length < 8)
+        if (loginData.Password.Length < 8)
         {
-            ShowError("Password must be at least 8 characters.");
+            PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
             return;
         }
 
-        BusyIndicator.IsVisible = true;
-        BusyIndicator.IsRunning = true;
-        LoginButton.IsEnabled = false;
+        PageUtility.SetBusy(BusyIndicator, LoginButton, true);
 
         try
         {
-            var user = await _authService.LoginAsync(email, password);
+            var user = await _authService.LoginAsync(loginData);
 
             if (user != null)
             {
@@ -53,42 +56,21 @@ public partial class LoginPage : ContentPage
             }
             else
             {
-                ShowError("Invalid email or password.");
+                PageUtility.ShowError(ErrorLabel, "Invalid email or password.");
             }
         }
         catch (Exception ex)
         {
-            ShowError("Login failed. " + ex.Message);
+            PageUtility.ShowError(ErrorLabel, "Login failed. " + ex.Message);
         }
         finally
         {
-            BusyIndicator.IsRunning = false;
-            BusyIndicator.IsVisible = false;
-            LoginButton.IsEnabled = true;
+            PageUtility.SetBusy(BusyIndicator, LoginButton, false);
         }
     }
 
     private async void RegisterButton_Clicked(object sender, EventArgs e)
     {
         await Navigation.PushAsync(new RegistrationPage());
-    }
-
-    private void ShowError(string message)
-    {
-        ErrorLabel.Text = message;
-        ErrorLabel.IsVisible = true;
-    }
-
-    private static bool IsValidEmail(string email)
-    {
-        try
-        {
-            var addr = new System.Net.Mail.MailAddress(email);
-            return addr.Address == email;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }
