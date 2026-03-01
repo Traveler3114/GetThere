@@ -20,7 +20,7 @@ namespace GetThereAPI.Controllers
 
         // POST /auth/register
         [HttpPost("register")]
-        public async Task<ActionResult> Register(RegisterRequest request)
+        public async Task<ActionResult> Register(RegisterDto request)
         {
             // Check if email already exists
             var existingUser = await _userManager.FindByEmailAsync(request.Email);
@@ -45,7 +45,7 @@ namespace GetThereAPI.Controllers
 
         // POST /auth/login
         [HttpPost("login")]
-        public async Task<ActionResult> Login(LoginRequest request)
+        public async Task<ActionResult> Login(LoginDto request)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
 

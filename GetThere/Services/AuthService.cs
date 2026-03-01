@@ -13,15 +13,10 @@ public class AuthService
         _httpClient = httpClient;
     }
 
-    public async Task<UserDto?> LoginAsync(string email, string password)
+    public async Task<UserDto?> LoginAsync(LoginDto dto)
     {
-        var request = new LoginRequest
-        {
-            Email = email,
-            Password = password
-        };
 
-        var response = await _httpClient.PostAsJsonAsync("auth/login", request);
+        var response = await _httpClient.PostAsJsonAsync("auth/login", dto);
 
         if (response.IsSuccessStatusCode)
             return await response.Content.ReadFromJsonAsync<UserDto>();
@@ -29,19 +24,10 @@ public class AuthService
         return null;
     }
 
-    public async Task<(bool Success, string Message)> RegisterAsync(
-        string username, string email, string password, string? fullName = null, string? city = null)
+    public async Task<(bool Success, string Message)> RegisterAsync(RegisterDto dto)
     {
-        var request = new RegisterRequest
-        {
-            Username = username,
-            Email = email,
-            Password = password,
-            FullName = fullName,
-            City = city
-        };
 
-        var response = await _httpClient.PostAsJsonAsync("auth/register", request);
+        var response = await _httpClient.PostAsJsonAsync("auth/register", dto);
 
         if (response.IsSuccessStatusCode)
             return (true, "User registered successfully");

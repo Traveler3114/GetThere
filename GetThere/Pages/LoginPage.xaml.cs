@@ -2,6 +2,7 @@ using GetThere.Services;
 using GetThere.Helpers;
 using Microsoft.Maui.Controls;
 using System;
+using GetThereAPI.Models;
 
 namespace GetThere.Pages;
 
@@ -24,16 +25,19 @@ public partial class LoginPage : ContentPage
     {
         ErrorLabel.IsVisible = false;
 
-        string email = EmailEntry.Text?.Trim() ?? string.Empty;
-        string password = PasswordEntry.Text ?? string.Empty;
+        LoginDto loginData = new LoginDto
+        {
+            Email = EmailEntry.Text?.Trim() ?? string.Empty,
+            Password = PasswordEntry.Text ?? string.Empty
+        };
 
-        if (string.IsNullOrWhiteSpace(email) || !PageUtility.IsValidEmail(email))
+        if (string.IsNullOrWhiteSpace(loginData.Email) || !PageUtility.IsValidEmail(loginData.Email))
         {
             PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
             return;
         }
 
-        if (password.Length < 8)
+        if (loginData.Password.Length < 8)
         {
             PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
             return;
@@ -43,7 +47,7 @@ public partial class LoginPage : ContentPage
 
         try
         {
-            var user = await _authService.LoginAsync(email, password);
+            var user = await _authService.LoginAsync(loginData);
 
             if (user != null)
             {
