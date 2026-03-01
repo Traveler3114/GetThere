@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="GetThere/GetThere.csproj" />
+  <Project Path="GetThereAPI/GetThereAPI.csproj" />
+  <Project Path="GetThereShared/GetThereShared.csproj" />
+</Solution>
