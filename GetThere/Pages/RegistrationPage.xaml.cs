@@ -1,4 +1,5 @@
 using GetThere.Services;
+using GetThere.Helpers;
 using GetThereShared.Models;
 using Microsoft.Maui.Controls;
 using System;
@@ -33,31 +34,29 @@ public partial class RegistrationPage : ContentPage
 
         if (string.IsNullOrWhiteSpace(fullName))
         {
-            ShowError("Please enter your full name.");
+            PageUtility.ShowError(ErrorLabel, "Please enter your full name.");
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+        if (string.IsNullOrWhiteSpace(email) || !PageUtility.IsValidEmail(email))
         {
-            ShowError("Please enter a valid email address.");
+            PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
             return;
         }
 
         if (password.Length < 8)
         {
-            ShowError("Password must be at least 8 characters.");
+            PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
             return;
         }
 
         if (password != confirm)
         {
-            ShowError("Passwords do not match.");
+            PageUtility.ShowError(ErrorLabel, "Passwords do not match.");
             return;
         }
 
-        BusyIndicator.IsVisible = true;
-        BusyIndicator.IsRunning = true;
-        RegisterButton.IsEnabled = false;
+        PageUtility.SetBusy(BusyIndicator, RegisterButton, true);
 
         try
         {
@@ -73,42 +72,21 @@ public partial class RegistrationPage : ContentPage
             }
             else
             {
-                ShowError("Registration failed. " + message);
+                PageUtility.ShowError(ErrorLabel, "Registration failed. " + message);
             }
         }
         catch (Exception ex)
         {
-            ShowError("Registration failed. " + ex.Message);
+            PageUtility.ShowError(ErrorLabel, "Registration failed. " + ex.Message);
         }
         finally
         {
-            BusyIndicator.IsRunning = false;
-            BusyIndicator.IsVisible = false;
-            RegisterButton.IsEnabled = true;
+            PageUtility.SetBusy(BusyIndicator, RegisterButton, false);
         }
     }
 
     private async void LoginButton_Clicked(object sender, EventArgs e)
     {
         await Navigation.PushAsync(new LoginPage());
-    }
-
-    private void ShowError(string message)
-    {
-        ErrorLabel.Text = message;
-        ErrorLabel.IsVisible = true;
-    }
-
-    private static bool IsValidEmail(string email)
-    {
-        try
-        {
-            var addr = new System.Net.Mail.MailAddress(email);
-            return addr.Address == email;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

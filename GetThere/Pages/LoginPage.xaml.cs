@@ -1,4 +1,5 @@
 using GetThere.Services;
+using GetThere.Helpers;
 using Microsoft.Maui.Controls;
 using System;
 
@@ -26,21 +27,19 @@ public partial class LoginPage : ContentPage
         string email = EmailEntry.Text?.Trim() ?? string.Empty;
         string password = PasswordEntry.Text ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+        if (string.IsNullOrWhiteSpace(email) || !PageUtility.IsValidEmail(email))
         {
-            ShowError("Please enter a valid email address.");
+            PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
             return;
         }
 
         if (password.Length < 8)
         {
-            ShowError("Password must be at least 8 characters.");
+            PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
             return;
         }
 
-        BusyIndicator.IsVisible = true;
-        BusyIndicator.IsRunning = true;
-        LoginButton.IsEnabled = false;
+        PageUtility.SetBusy(BusyIndicator, LoginButton, true);
 
         try
         {
@@ -53,42 +52,21 @@ public partial class LoginPage : ContentPage
             }
             else
             {
-                ShowError("Invalid email or password.");
+                PageUtility.ShowError(ErrorLabel, "Invalid email or password.");
             }
         }
         catch (Exception ex)
         {
-            ShowError("Login failed. " + ex.Message);
+            PageUtility.ShowError(ErrorLabel, "Login failed. " + ex.Message);
         }
         finally
         {
-            BusyIndicator.IsRunning = false;
-            BusyIndicator.IsVisible = false;
-            LoginButton.IsEnabled = true;
+            PageUtility.SetBusy(BusyIndicator, LoginButton, false);
         }
     }
 
     private async void RegisterButton_Clicked(object sender, EventArgs e)
     {
         await Navigation.PushAsync(new RegistrationPage());
-    }
-
-    private void ShowError(string message)
-    {
-        ErrorLabel.Text = message;
-        ErrorLabel.IsVisible = true;
-    }
-
-    private static bool IsValidEmail(string email)
-    {
-        try
-        {
-            var addr = new System.Net.Mail.MailAddress(email);
-            return addr.Address == email;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }
