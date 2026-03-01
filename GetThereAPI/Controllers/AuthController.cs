@@ -29,10 +29,8 @@ namespace GetThereAPI.Controllers
 
             var user = new AppUser
             {
-                UserName = request.Username,
                 Email = request.Email,
                 FullName = request.FullName,
-                City = request.City
             };
 
             var result = await _userManager.CreateAsync(user, request.Password);
@@ -61,10 +59,8 @@ namespace GetThereAPI.Controllers
             var userDto = new UserDto
             {
                 Id = user.Id,
-                Username = user.UserName!,
                 Email = user.Email!,
                 FullName = user.FullName,
-                City = user.City
             };
 
             return Ok(userDto);
