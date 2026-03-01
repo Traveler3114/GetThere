@@ -2,11 +2,37 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="GetThere.Pages.RegistrationPage"
-             Title="RegistrationPage">
-    <VerticalStackLayout>
-        <Label 
-            Text="Welcome to .NET MAUI!"
-            VerticalOptions="Center" 
-            HorizontalOptions="Center" />
-    </VerticalStackLayout>
+             Title="Create account"
+             BackgroundColor="White">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="12">
+            <Label Text="Create your account" FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" />
+
+            <Entry x:Name="FullNameEntry" Placeholder="Full name" Keyboard="Text" />
+            <Entry x:Name="EmailEntry" Placeholder="Email address" Keyboard="Email" />
+            <Entry x:Name="PhoneEntry" Placeholder="Phone (optional)" Keyboard="Telephone" />
+
+            <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" />
+            <Entry x:Name="ConfirmPasswordEntry" Placeholder="Confirm password" IsPassword="True" />
+
+            <HorizontalStackLayout VerticalOptions="Center" Spacing="8">
+                <CheckBox x:Name="ShowPasswordCheckBox" CheckedChanged="ShowPasswordCheckBox_CheckedChanged" />
+                <Label Text="Show password" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <Label x:Name="ErrorLabel" TextColor="Red" IsVisible="False" />
+
+            <Button x:Name="RegisterButton" Text="Register" Clicked="RegisterButton_Clicked" />
+
+            <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" HorizontalOptions="Center" />
+
+            <HorizontalStackLayout HorizontalOptions="Center" Spacing="6">
+                <Label Text="Already have an account?" VerticalOptions="Center" />
+                <Button Text="Log in" Clicked="LoginButton_Clicked" />
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
 </ContentPage>
