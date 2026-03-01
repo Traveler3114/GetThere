@@ -57,13 +57,17 @@ namespace GetThereAPI.Controllers
             if (!result.Succeeded)
                 return Unauthorized(new { message = "Invalid credentials" });
 
-            return Ok(new
+            // map AppUser to UserDto before sending to MAUI
+            var userDto = new UserDto
             {
-                message = "Login successful",
-                userId = user.Id,
-                username = user.UserName,
-                email = user.Email
-            });
+                Id = user.Id,
+                Username = user.UserName!,
+                Email = user.Email!,
+                FullName = user.FullName,
+                City = user.City
+            };
+
+            return Ok(userDto);
         }
     }
 }
