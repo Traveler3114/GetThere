@@ -1,3 +1,5 @@
+using GetThereShared.Enums;
+
 namespace GetThereAPI.Models
 {
     public class Ticket
@@ -7,12 +9,15 @@ namespace GetThereAPI.Models
         public DateTime PurchasedAt { get; set; } = DateTime.UtcNow;
         public DateTime? ValidFrom { get; set; }
         public DateTime? ValidUntil { get; set; }
-        public string? Format { get; set; }
+        public TicketFormat? Format { get; set; }
         public string? Payload { get; set; }
         public string? DisplayInstructions { get; set; }
-        public string Status { get; set; } = "active";
+        public TicketStatus Status { get; set; } = TicketStatus.Active;
 
         public string UserId { get; set; } = string.Empty;
         public AppUser User { get; set; } = null!;
+
+        public int? TransitOperatorId { get; set; }
+        public TransitOperator? TransitOperator { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
 using GetThereAPI.Models;
 using GetThereShared.Models;
+using GetThereShared.Enums;
 
 namespace GetThereAPI.Controllers
 {
@@ -79,10 +80,10 @@ namespace GetThereAPI.Controllers
                 PurchasedAt = DateTime.UtcNow,
                 ValidFrom = validFrom,
                 ValidUntil = validUntil,
-                Format = "qrcode",
+                Format = TicketFormat.QrCode,
                 Payload = Guid.NewGuid().ToString(),
                 DisplayInstructions = "Show QR code to the driver or validator.",
-                Status = "active",
+                Status = TicketStatus.Active,
                 UserId = request.UserId
             };
 

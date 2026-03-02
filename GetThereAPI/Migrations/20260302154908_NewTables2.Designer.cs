@@ -4,6 +4,7 @@ using GetThereAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260302154908_NewTables2")]
+    partial class NewTables2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -110,8 +113,9 @@ namespace GetThereAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("PaymentProviderId")
-                        .HasColumnType("int");
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ProviderTransactionId")
                         .HasColumnType("nvarchar(max)");
@@ -124,48 +128,9 @@ namespace GetThereAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PaymentProviderId");
-
                     b.HasIndex("WalletId");
 
                     b.ToTable("Payments");
-                });
-
-            modelBuilder.Entity("GetThereAPI.Models.PaymentProvider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApiBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApiKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LogoUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WebhookSecret")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("PaymentProviders");
                 });
 
             modelBuilder.Entity("GetThereAPI.Models.Ticket", b =>
@@ -196,9 +161,6 @@ namespace GetThereAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("TransitOperatorId")
-                        .HasColumnType("int");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -211,48 +173,9 @@ namespace GetThereAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TransitOperatorId");
-
                     b.HasIndex("UserId");
 
                     b.ToTable("Tickets");
-                });
-
-            modelBuilder.Entity("GetThereAPI.Models.TransitOperator", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApiBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApiKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LogoUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Region")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("TransitOperators");
                 });
 
             modelBuilder.Entity("GetThereAPI.Models.Wallet", b =>
@@ -451,34 +374,22 @@ namespace GetThereAPI.Migrations
 
             modelBuilder.Entity("GetThereAPI.Models.Payment", b =>
                 {
-                    b.HasOne("GetThereAPI.Models.PaymentProvider", "PaymentProvider")
-                        .WithMany()
-                        .HasForeignKey("PaymentProviderId");
-
                     b.HasOne("GetThereAPI.Models.Wallet", "Wallet")
                         .WithMany()
                         .HasForeignKey("WalletId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("PaymentProvider");
-
                     b.Navigation("Wallet");
                 });
 
             modelBuilder.Entity("GetThereAPI.Models.Ticket", b =>
                 {
-                    b.HasOne("GetThereAPI.Models.TransitOperator", "TransitOperator")
-                        .WithMany()
-                        .HasForeignKey("TransitOperatorId");
-
                     b.HasOne("GetThereAPI.Models.AppUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("TransitOperator");
 
                     b.Navigation("User");
                 });

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
 using GetThereAPI.Models;
 using GetThereShared.Models;
+using GetThereShared.Enums;
 
 namespace GetThereAPI.Controllers
 {
@@ -31,12 +32,12 @@ namespace GetThereAPI.Controllers
             // Save payment record
             var payment = new Payment
             {
-                Provider = "manual",
                 ProviderTransactionId = Guid.NewGuid().ToString(),
                 Amount = request.Amount,
-                Status = "completed",
+                Status = PaymentStatus.Completed,
                 CreatedAt = DateTime.UtcNow,
-                WalletId = wallet.Id
+                WalletId = wallet.Id,
+                PaymentProviderId = request.PaymentProviderId
             };
 
             _context.Payments.Add(payment);

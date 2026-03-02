@@ -4,6 +4,6 @@
     {
         public string UserId { get; set; } = string.Empty;
         public decimal Amount { get; set; }
-        public string? Description { get; set; }
+        public int? PaymentProviderId { get; set; }
     }
 }

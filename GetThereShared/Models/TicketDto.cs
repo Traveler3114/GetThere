@@ -1,3 +1,5 @@
+using GetThereShared.Enums;
+
 namespace GetThereShared.Models
 {
     public class TicketDto
@@ -8,9 +10,11 @@ namespace GetThereShared.Models
         public DateTime PurchasedAt { get; set; }
         public DateTime? ValidFrom { get; set; }
         public DateTime? ValidUntil { get; set; }
-        public string? Format { get; set; }
+        public TicketFormat? Format { get; set; }
         public string? Payload { get; set; }
         public string? DisplayInstructions { get; set; }
-        public string Status { get; set; } = string.Empty;
+        public TicketStatus Status { get; set; } = TicketStatus.Active;
+
+        public int? TransitOperatorId { get; set; }
     }
 }
