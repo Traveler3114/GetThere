@@ -1,9 +1,8 @@
 using GetThere.Services;
 using GetThere.Helpers;
-using GetThereShared.Models;
+using GetThereShared.Dtos;
 using Microsoft.Maui.Controls;
 using System;
-using GetThereAPI.Models;
 
 namespace GetThere.Pages;
 
@@ -11,10 +10,10 @@ public partial class RegistrationPage : ContentPage
 {
     private readonly AuthService _authService;
 
-    public RegistrationPage()
+    public RegistrationPage(AuthService authService)
     {
         InitializeComponent();
-        _authService = Application.Current!.Handler.MauiContext!.Services.GetRequiredService<AuthService>();
+        _authService = authService;
     }
 
     private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
@@ -66,16 +65,16 @@ public partial class RegistrationPage : ContentPage
         try
         {
 
-            var (success, message) = await _authService.RegisterAsync(rdto);
-
-            if (success)
+            var result = await _authService.RegisterAsync(rdto);
+            if (result.Success)
             {
-                await DisplayAlert("Success", "Account created successfully.", "OK");
-                await Navigation.PushAsync(new LoginPage());
+                await DisplayAlertAsync("Success", result.Message, "OK");
+                //await Navigation.PushAsync(new LoginPage());
+                await Shell.Current.GoToAsync("//login");
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, "Registration failed. " + message);
+                PageUtility.ShowError(ErrorLabel, "Registration failed. " + result.Message);
             }
         }
         catch (Exception ex)
@@ -90,6 +89,7 @@ public partial class RegistrationPage : ContentPage
 
     private async void LoginButton_Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new LoginPage());
+        //await Navigation.PushAsync(new LoginPage());
+        await Shell.Current.GoToAsync("//login");
     }
 }

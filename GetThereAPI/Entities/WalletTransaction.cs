@@ -1,11 +1,12 @@
+using GetThereShared.Enums;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace GetThereAPI.Models
+namespace GetThereAPI.Entities
 {
     public class WalletTransaction
     {
         public int Id { get; set; }
-        public string Type { get; set; } = string.Empty; // topup, ticket_purchase, refund
+        public WalletTransactionType Type { get; set; }
 
         [Column(TypeName = "decimal(16,2)")]
         public decimal Amount { get; set; }

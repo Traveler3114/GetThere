@@ -1,10 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
-using GetThere.Services;
+using System.Reflection;
 
 namespace GetThere
 {
     public static class MauiProgram
     {
+        private const string ApiBaseUrl = "https://localhost:7230/";
+
         public static MauiApp CreateMauiApp()
         {
             var builder = MauiApp.CreateBuilder();
@@ -16,17 +18,36 @@ namespace GetThere
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
-            // Register HttpClient pointed at your API base URL
-            builder.Services.AddHttpClient<AuthService>(client =>
-            {
-                // Use 10.0.2.2 for Android emulator (maps to localhost on your dev machine)
-                // Use localhost:7230 for Windows/iOS
-                client.BaseAddress = new Uri("https://localhost:7230/");
-            });
+            var assembly = Assembly.GetExecutingAssembly();
 
-            // Register pages for dependency injection
-            builder.Services.AddTransient<Pages.LoginPage>();
-            builder.Services.AddTransient<Pages.RegistrationPage>();
+            // Auto-register all services in GetThere.Services namespace
+            var serviceTypes = assembly
+                .GetTypes()
+                .Where(t => t.Namespace == "GetThere.Services" && t.IsClass && !t.IsAbstract);
+
+            foreach (var serviceType in serviceTypes)
+            {
+                builder.Services.AddHttpClient(serviceType.Name, client =>
+                {
+                    client.BaseAddress = new Uri(ApiBaseUrl);
+                });
+                builder.Services.AddTransient(serviceType, sp =>
+                {
+                    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                    var httpClient = httpClientFactory.CreateClient(serviceType.Name);
+                    return Activator.CreateInstance(serviceType, httpClient)!;
+                });
+            }
+
+            // Auto-register all pages in GetThere.Pages namespace
+            var pageTypes = assembly
+                .GetTypes()
+                .Where(t => t.Namespace == "GetThere.Pages" && t.IsClass && !t.IsAbstract && t.IsSubclassOf(typeof(ContentPage)));
+
+            foreach (var pageType in pageTypes)
+            {
+                builder.Services.AddTransient(pageType);
+            }
 
 #if DEBUG
             builder.Logging.AddDebug();

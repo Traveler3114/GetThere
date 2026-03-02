@@ -2,7 +2,7 @@ using GetThere.Services;
 using GetThere.Helpers;
 using Microsoft.Maui.Controls;
 using System;
-using GetThereAPI.Models;
+using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
 
@@ -10,10 +10,10 @@ public partial class LoginPage : ContentPage
 {
     private readonly AuthService _authService;
 
-    public LoginPage()
+    public LoginPage(AuthService authService)
     {
         InitializeComponent();
-        _authService = Application.Current!.Handler.MauiContext!.Services.GetRequiredService<AuthService>();
+        _authService = authService;
     }
 
     private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
@@ -47,16 +47,16 @@ public partial class LoginPage : ContentPage
 
         try
         {
-            var user = await _authService.LoginAsync(loginData);
+            var result = await _authService.LoginAsync(loginData);
 
-            if (user != null)
+            if (result.Success)
             {
-                await DisplayAlert("Success", $"Welcome back, {user.FullName ?? user.Username}!", "OK");
+                await DisplayAlertAsync("Success", "Welcome back!", "OK");
                 // TODO: Navigate to main app page
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, "Invalid email or password.");
+                PageUtility.ShowError(ErrorLabel, "Login failed. " + result.Message);
             }
         }
         catch (Exception ex)
@@ -71,6 +71,7 @@ public partial class LoginPage : ContentPage
 
     private async void RegisterButton_Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new RegistrationPage());
+        //await Navigation.PushAsync(new RegistrationPage());
+        await Shell.Current.GoToAsync("registration");
     }
 }
