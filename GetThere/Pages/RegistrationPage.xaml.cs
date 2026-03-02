@@ -11,10 +11,10 @@ public partial class RegistrationPage : ContentPage
 {
     private readonly AuthService _authService;
 
-    public RegistrationPage()
+    public RegistrationPage(AuthService authService)
     {
         InitializeComponent();
-        _authService = Application.Current!.Handler.MauiContext!.Services.GetRequiredService<AuthService>();
+        _authService = authService;
     }
 
     private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
@@ -70,7 +70,8 @@ public partial class RegistrationPage : ContentPage
             if (result.Success)
             {
                 await DisplayAlertAsync("Success", result.Message, "OK");
-                await Navigation.PushAsync(new LoginPage());
+                //await Navigation.PushAsync(new LoginPage());
+                await Shell.Current.GoToAsync("//login");
             }
             else
             {
@@ -89,6 +90,7 @@ public partial class RegistrationPage : ContentPage
 
     private async void LoginButton_Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new LoginPage());
+        //await Navigation.PushAsync(new LoginPage());
+        await Shell.Current.GoToAsync("//login");
     }
 }

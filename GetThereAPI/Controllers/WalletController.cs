@@ -22,29 +22,27 @@ namespace GetThereAPI.Controllers
 
         // GET /wallet/{userId}
         [HttpGet("{userId}")]
-        public async Task<ActionResult<WalletDto>> GetWallet(string userId)
+        public async Task<ActionResult<OperationResult<WalletDto>>> GetWallet(string userId)
         {
             var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
-                return NotFound(OperationResult.Fail("Wallet not found."));
+                return NotFound(OperationResult<WalletDto>.Fail("Wallet not found."));
 
-            var walletDto = new WalletDto
+            return Ok(OperationResult<WalletDto>.Ok(new WalletDto
             {
                 Id = wallet.Id,
                 Balance = wallet.Balance,
                 LastUpdated = wallet.LastUpdated
-            };
-
-            return Ok(walletDto);
+            }));
         }
 
         // GET /wallet/{userId}/transactions
         [HttpGet("{userId}/transactions")]
-        public async Task<ActionResult<IEnumerable<WalletTransactionDto>>> GetTransactions(string userId)
+        public async Task<ActionResult<OperationResult<IEnumerable<WalletTransactionDto>>>> GetTransactions(string userId)
         {
             var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
-                return NotFound(OperationResult.Fail("Wallet not found."));
+                return NotFound(OperationResult<IEnumerable<WalletTransactionDto>>.Fail("Wallet not found."));
 
             var transactions = await _context.WalletTransactions
                 .Where(t => t.WalletId == wallet.Id)
@@ -61,19 +59,19 @@ namespace GetThereAPI.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(transactions);
+            return Ok(OperationResult<IEnumerable<WalletTransactionDto>>.Ok(transactions));
         }
 
         // POST /wallet/topup
         //[HttpPost("topup")]
-        //public async Task<ActionResult<WalletDto>> TopUp(TopUpDto request)
+        //public async Task<ActionResult<OperationResult<WalletDto>>> TopUp(TopUpDto request)
         //{
         //    var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == request.UserId);
         //    if (wallet == null)
-        //        return NotFound(OperationResult.Fail("Wallet not found."));
+        //        return NotFound(OperationResult<WalletDto>.Fail("Wallet not found."));
 
         //    if (request.Amount <= 0)
-        //        return BadRequest(OperationResult.Fail("Amount must be greater than zero."));
+        //        return BadRequest(OperationResult<WalletDto>.Fail("Amount must be greater than zero."));
 
         //    wallet.Balance += request.Amount;
         //    wallet.LastUpdated = DateTime.UtcNow;
@@ -89,12 +87,12 @@ namespace GetThereAPI.Controllers
 
         //    await _context.SaveChangesAsync();
 
-        //    return Ok(new WalletDto
+        //    return Ok(OperationResult<WalletDto>.Ok(new WalletDto
         //    {
         //        Id = wallet.Id,
         //        Balance = wallet.Balance,
         //        LastUpdated = wallet.LastUpdated
-        //    });
+        //    }, "Wallet topped up successfully."));
         //}
     }
 }
