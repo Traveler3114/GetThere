@@ -1,5 +1,4 @@
-﻿using GetThereAPI.Models;
-using GetThereShared.Models;
+﻿using GetThereShared.Dtos;
 using System.Net.Http.Json;
 
 namespace GetThere.Services;

@@ -1,9 +1,11 @@
-namespace GetThereShared.Models
+using GetThereShared.Enums;
+
+namespace GetThereShared.Dtos
 {
     public class WalletTransactionDto
     {
         public int Id { get; set; }
-        public string Type { get; set; } = string.Empty;
+        public WalletTransactionType Type { get; set; }
         public decimal Amount { get; set; }
         public DateTime Timestamp { get; set; }
         public string? Description { get; set; }

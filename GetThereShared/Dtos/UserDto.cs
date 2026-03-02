@@ -1,4 +1,4 @@
-﻿namespace GetThereShared.Models
+﻿namespace GetThereShared.Dtos
 {
     // DTO = Data Transfer Object
     // This is what gets sent over the network between API and MAUI

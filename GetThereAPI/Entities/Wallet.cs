@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace GetThereAPI.Models
+namespace GetThereAPI.Entities
 {
     public class Wallet
     {

@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
-using GetThereAPI.Models;
-using GetThereShared.Models;
+using GetThereAPI.Entities;
+using GetThereShared.Dtos;
 
 namespace GetThereAPI.Controllers
 {

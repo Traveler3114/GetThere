@@ -1,4 +1,4 @@
-﻿namespace GetThereShared.Models
+﻿namespace GetThereShared.Dtos
 {
     public class TopUpDto
     {
