@@ -7,6 +7,7 @@
             InitializeComponent();
 
             Routing.RegisterRoute("registration", typeof(Pages.RegistrationPage));
+            Routing.RegisterRoute("mainpage", typeof(Pages.MainPage));
         }
     }
 }

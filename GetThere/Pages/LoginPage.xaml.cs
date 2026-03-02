@@ -74,4 +74,10 @@ public partial class LoginPage : ContentPage
         //await Navigation.PushAsync(new RegistrationPage());
         await Shell.Current.GoToAsync("registration");
     }
+
+
+    private async void MapButtonClicked(object sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("mainpage");
+    }
 }
