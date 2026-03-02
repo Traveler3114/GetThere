@@ -3,6 +3,7 @@ namespace GetThereShared.Models
     public class TicketDto
     {
         public int Id { get; set; }
+        public string UserId { get; set; } = string.Empty;
         public string TicketType { get; set; } = string.Empty;
         public DateTime PurchasedAt { get; set; }
         public DateTime? ValidFrom { get; set; }
