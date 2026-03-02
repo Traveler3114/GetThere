@@ -24,6 +24,11 @@ namespace GetThere
                 client.BaseAddress = new Uri("https://localhost:7230/");
             });
 
+            builder.Services.AddHttpClient<WalletService>(client =>
+            {
+                client.BaseAddress = new Uri("https://localhost:7230/");
+            });
+
             // Register pages for dependency injection
             builder.Services.AddTransient<Pages.LoginPage>();
             builder.Services.AddTransient<Pages.RegistrationPage>();
