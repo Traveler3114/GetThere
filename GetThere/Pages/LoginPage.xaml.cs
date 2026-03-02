@@ -78,6 +78,6 @@ public partial class LoginPage : ContentPage
 
     private async void MapButtonClicked(object sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("mainpage");
+        await Shell.Current.GoToAsync("map");
     }
 }
