@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+
+    <style>
+        html, body, #map {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+
+
+    <div id="map"></div>
+
+
+
+
+
+    <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+
+    <script>
+        const MAPTILER_KEY = "3mONySRY1DAYg6mgQean";
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
+            center: [15.980820, 45.784044],
+            zoom: 13
+        });
+        map.addControl(new maplibregl.NavigationControl());
+
+
+
+        const marker = new maplibregl.Marker()
+            .setLngLat([15.980820, 45.784044])
+            .addTo(map);
+
+
+    </script>
+
+</body>
+</html>

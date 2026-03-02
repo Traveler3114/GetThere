@@ -29,6 +29,9 @@
                 <Button Text="Create account" Clicked="RegisterButton_Clicked" />
             </HorizontalStackLayout>
 
+            
+            <Button x:Name="MainPage" Text="Map Page" Clicked="MapButtonClicked" />
+
         </VerticalStackLayout>
     </ScrollView>
 
