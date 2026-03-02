@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
-using GetThereAPI.Models;
-using GetThereShared.Models;
+using GetThereAPI.Entities;
+using GetThereShared.Dtos;
 using GetThereShared.Enums;
 
 namespace GetThereAPI.Controllers
@@ -50,7 +50,7 @@ namespace GetThereAPI.Controllers
             _context.WalletTransactions.Add(new WalletTransaction
             {
                 WalletId = wallet.Id,
-                Type = "topup",
+                Type = WalletTransactionType.TopUp,
                 Amount = request.Amount,
                 Timestamp = DateTime.UtcNow,
                 Description = "Manual top-up"

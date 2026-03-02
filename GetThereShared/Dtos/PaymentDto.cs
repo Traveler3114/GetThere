@@ -1,6 +1,6 @@
 using GetThereShared.Enums;
 
-namespace GetThereShared.Models
+namespace GetThereShared.Dtos
 {
     public class PaymentDto
     {

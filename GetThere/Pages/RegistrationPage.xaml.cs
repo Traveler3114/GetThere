@@ -1,9 +1,8 @@
 using GetThere.Services;
 using GetThere.Helpers;
-using GetThereShared.Models;
+using GetThereShared.Dtos;
 using Microsoft.Maui.Controls;
 using System;
-using GetThereAPI.Models;
 
 namespace GetThere.Pages;
 

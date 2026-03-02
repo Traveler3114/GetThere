@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
-using GetThereAPI.Models;
+using GetThereAPI.Entities;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);

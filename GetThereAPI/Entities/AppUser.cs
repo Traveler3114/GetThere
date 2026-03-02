@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace GetThereAPI.Models
+namespace GetThereAPI.Entities
 {
     public class AppUser : IdentityUser
     {

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using GetThereShared.Enums;
 
-namespace GetThereAPI.Models
+namespace GetThereAPI.Entities
 {
     public class Payment
     {

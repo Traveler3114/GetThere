@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace GetThereAPI.Models
+namespace GetThereShared.Dtos
 {
     public class LoginDto
     {

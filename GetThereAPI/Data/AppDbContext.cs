@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using GetThereAPI.Models;
+using GetThereAPI.Entities;
 
 namespace GetThereAPI.Data
 {

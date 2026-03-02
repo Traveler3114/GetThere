@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
-using GetThereAPI.Models;
-using GetThereShared.Models;
+using GetThereAPI.Entities;
+using GetThereShared.Dtos;
 using GetThereShared.Enums;
 
 namespace GetThereAPI.Controllers
@@ -89,28 +89,18 @@ namespace GetThereAPI.Controllers
 
             _context.Tickets.Add(ticket);
 
-            // Record wallet transaction
+            // Record wallet transaction and link to ticket via navigation property
             _context.WalletTransactions.Add(new WalletTransaction
             {
                 WalletId = wallet.Id,
-                Type = "ticket_purchase",
+                Type = WalletTransactionType.TicketPurchase,
                 Amount = ticketInfo.Price,
                 Timestamp = DateTime.UtcNow,
-                Description = $"{request.TicketType} ticket purchase"
+                Description = $"{request.TicketType} ticket purchase",
+                Ticket = ticket  // EF sets TicketId automatically after save
             });
 
             await _context.SaveChangesAsync();
-
-            // Link transaction to ticket after save
-            var transaction = await _context.WalletTransactions
-                .OrderByDescending(t => t.Timestamp)
-                .FirstOrDefaultAsync(t => t.WalletId == wallet.Id && t.Type == "ticket_purchase");
-
-            if (transaction != null)
-            {
-                transaction.TicketId = ticket.Id;
-                await _context.SaveChangesAsync();
-            }
 
             return Ok(OperationResult<TicketDto>.Ok(new TicketDto
             {
