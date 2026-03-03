@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.IdentityModel.JsonWebTokens;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Dtos;
@@ -9,6 +12,7 @@ namespace GetThereAPI.Controllers
 {
     [ApiController]
     [Route("[controller]")]
+    [Authorize] // <-- entire controller requires a valid token
     public class PaymentController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -22,14 +26,16 @@ namespace GetThereAPI.Controllers
         [HttpPost("topup")]
         public async Task<ActionResult<OperationResult<WalletDto>>> TopUp(TopUpDto request)
         {
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == request.UserId);
+            // Read userId from token instead of trusting request.UserId
+            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
                 return NotFound(OperationResult<WalletDto>.Fail("Wallet not found."));
 
             if (request.Amount <= 0)
                 return BadRequest(OperationResult<WalletDto>.Fail("Amount must be greater than zero."));
 
-            // Save payment record
             var payment = new Payment
             {
                 ProviderTransactionId = Guid.NewGuid().ToString(),
@@ -42,11 +48,9 @@ namespace GetThereAPI.Controllers
 
             _context.Payments.Add(payment);
 
-            // Update wallet balance
             wallet.Balance += request.Amount;
             wallet.LastUpdated = DateTime.UtcNow;
 
-            // Record wallet transaction
             _context.WalletTransactions.Add(new WalletTransaction
             {
                 WalletId = wallet.Id,

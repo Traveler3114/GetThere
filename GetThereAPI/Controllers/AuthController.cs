@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereAPI.Services;
 using GetThereShared.Dtos;
 
 namespace GetThereAPI.Controllers
@@ -13,15 +14,21 @@ namespace GetThereAPI.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly SignInManager<AppUser> _signInManager;
         private readonly AppDbContext _context;
+        private readonly TokenService _tokenService;
 
-        public AuthController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, AppDbContext context)
+        public AuthController(
+            UserManager<AppUser> userManager,
+            SignInManager<AppUser> signInManager,
+            AppDbContext context,
+            TokenService tokenService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _context = context;
+            _tokenService = tokenService;
         }
 
-        // POST /auth/register
+        // POST /auth/register — unchanged
         [HttpPost("register")]
         public async Task<ActionResult<OperationResult>> Register(RegisterDto request)
         {
@@ -54,11 +61,14 @@ namespace GetThereAPI.Controllers
             if (!result.Succeeded)
                 return Unauthorized(OperationResult<UserDto>.Fail("Invalid credentials"));
 
+            var token = _tokenService.CreateToken(user);
+
             var userDto = new UserDto
             {
                 Id = user.Id,
                 Email = user.Email!,
-                FullName = user.FullName
+                FullName = user.FullName,
+                Token = token
             };
 
             return Ok(OperationResult<UserDto>.Ok(userDto, "Login successful"));

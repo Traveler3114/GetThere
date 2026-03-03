@@ -1,6 +1,9 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.IdentityModel.JsonWebTokens;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Dtos;
@@ -9,6 +12,7 @@ namespace GetThereAPI.Controllers
 {
     [ApiController]
     [Route("[controller]")]
+    [Authorize] // <-- entire controller requires a valid token
     public class WalletController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -20,10 +24,12 @@ namespace GetThereAPI.Controllers
             _userManager = userManager;
         }
 
-        // GET /wallet/{userId}
-        [HttpGet("{userId}")]
-        public async Task<ActionResult<OperationResult<WalletDto>>> GetWallet(string userId)
+        // GET /wallet  <-- no more {userId} in URL
+        [HttpGet]
+        public async Task<ActionResult<OperationResult<WalletDto>>> GetWallet()
         {
+            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
             var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
                 return NotFound(OperationResult<WalletDto>.Fail("Wallet not found."));
@@ -36,10 +42,12 @@ namespace GetThereAPI.Controllers
             }));
         }
 
-        // GET /wallet/{userId}/transactions
-        [HttpGet("{userId}/transactions")]
-        public async Task<ActionResult<OperationResult<IEnumerable<WalletTransactionDto>>>> GetTransactions(string userId)
+        // GET /wallet/transactions  <-- no more {userId} in URL
+        [HttpGet("transactions")]
+        public async Task<ActionResult<OperationResult<IEnumerable<WalletTransactionDto>>>> GetTransactions()
         {
+            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
             var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
                 return NotFound(OperationResult<IEnumerable<WalletTransactionDto>>.Fail("Wallet not found."));
@@ -61,6 +69,7 @@ namespace GetThereAPI.Controllers
 
             return Ok(OperationResult<IEnumerable<WalletTransactionDto>>.Ok(transactions));
         }
+
 
         // POST /wallet/topup
         //[HttpPost("topup")]

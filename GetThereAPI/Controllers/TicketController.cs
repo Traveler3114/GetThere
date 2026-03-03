@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.IdentityModel.JsonWebTokens;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Dtos;
@@ -9,11 +12,11 @@ namespace GetThereAPI.Controllers
 {
     [ApiController]
     [Route("[controller]")]
+    [Authorize] // <-- entire controller requires a valid token
     public class TicketController : ControllerBase
     {
         private readonly AppDbContext _context;
 
-        // Placeholder ticket types and prices - replace with operator data later
         private static readonly Dictionary<string, (decimal Price, int ValidMinutes)> TicketCatalogue = new()
         {
             { "single",  (1.50m,  90) },
@@ -27,10 +30,13 @@ namespace GetThereAPI.Controllers
             _context = context;
         }
 
-        // GET /ticket/{userId}
-        [HttpGet("{userId}")]
-        public async Task<ActionResult<OperationResult<IEnumerable<TicketDto>>>> GetTickets(string userId)
+        // GET /ticket  <-- no more {userId} in the URL, we read it from the token
+        [HttpGet]
+        public async Task<ActionResult<OperationResult<IEnumerable<TicketDto>>>> GetTickets()
         {
+            // Read the user's ID from the JWT — guaranteed to be theirs
+            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
             var tickets = await _context.Tickets
                 .Where(t => t.UserId == userId)
                 .OrderByDescending(t => t.PurchasedAt)
@@ -56,21 +62,22 @@ namespace GetThereAPI.Controllers
         [HttpPost("purchase")]
         public async Task<ActionResult<OperationResult<TicketDto>>> Purchase(TicketDto request)
         {
+            // Always use the userId from the token, not from the request body
+            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
             if (!TicketCatalogue.TryGetValue(request.TicketType.ToLower(), out var ticketInfo))
                 return BadRequest(OperationResult<TicketDto>.Fail($"Unknown ticket type '{request.TicketType}'."));
 
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == request.UserId);
+            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
             if (wallet == null)
                 return NotFound(OperationResult<TicketDto>.Fail("Wallet not found."));
 
             if (wallet.Balance < ticketInfo.Price)
                 return BadRequest(OperationResult<TicketDto>.Fail("Insufficient wallet balance."));
 
-            // Deduct wallet
             wallet.Balance -= ticketInfo.Price;
             wallet.LastUpdated = DateTime.UtcNow;
 
-            // Create ticket
             var validFrom = DateTime.UtcNow;
             var validUntil = validFrom.AddMinutes(ticketInfo.ValidMinutes);
 
@@ -84,12 +91,11 @@ namespace GetThereAPI.Controllers
                 Payload = Guid.NewGuid().ToString(),
                 DisplayInstructions = "Show QR code to the driver or validator.",
                 Status = TicketStatus.Active,
-                UserId = request.UserId
+                UserId = userId! // from token, not request
             };
 
             _context.Tickets.Add(ticket);
 
-            // Record wallet transaction and link to ticket via navigation property
             _context.WalletTransactions.Add(new WalletTransaction
             {
                 WalletId = wallet.Id,
@@ -97,7 +103,7 @@ namespace GetThereAPI.Controllers
                 Amount = ticketInfo.Price,
                 Timestamp = DateTime.UtcNow,
                 Description = $"{request.TicketType} ticket purchase",
-                Ticket = ticket  // EF sets TicketId automatically after save
+                Ticket = ticket
             });
 
             await _context.SaveChangesAsync();
