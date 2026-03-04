@@ -23,6 +23,9 @@ namespace GetThereAPI.Controllers
         public async Task<ActionResult<OperationResult<WalletDto>>> GetWallet()
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (userId == null)
+                return Unauthorized(OperationResult<WalletDto>.Fail("User ID claim missing or not authenticated."));
+
             var result = await _walletManager.GetWalletAsync(userId);
             return result.Success ? Ok(result) : NotFound(result);
         }
@@ -31,6 +34,9 @@ namespace GetThereAPI.Controllers
         public async Task<ActionResult<OperationResult<IEnumerable<WalletTransactionDto>>>> GetTransactions()
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (userId == null)
+                return Unauthorized(OperationResult<IEnumerable<WalletTransactionDto>>.Fail("User ID claim missing or not authenticated."));
+
             var result = await _walletManager.GetTransactionsAsync(userId);
             return result.Success ? Ok(result) : NotFound(result);
         }

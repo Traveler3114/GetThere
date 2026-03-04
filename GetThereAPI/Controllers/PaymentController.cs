@@ -23,6 +23,9 @@ namespace GetThereAPI.Controllers
         public async Task<ActionResult<OperationResult<WalletDto>>> TopUp(TopUpDto request)
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (userId == null)
+                return Unauthorized(OperationResult<WalletDto>.Fail("User ID claim missing or not authenticated."));
+
             var result = await _paymentManager.TopUpWalletAsync(userId, request);
             return result.Success ? Ok(result) : BadRequest(result);
         }
