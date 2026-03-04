@@ -4,13 +4,13 @@ using GetThereAPI.Entities;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace GetThereAPI.Services;
+namespace GetThereAPI.Managers;
 
-public class TokenService
+public class TokenManager
 {
     private readonly IConfiguration _config;
 
-    public TokenService(IConfiguration config)
+    public TokenManager(IConfiguration config)
     {
         // IConfiguration lets us read from appsettings.json
         _config = config;

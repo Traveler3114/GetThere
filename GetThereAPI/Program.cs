@@ -1,12 +1,13 @@
-using System.Text;
+using GetThereAPI.Data;
+using GetThereAPI.Entities;
+using GetThereAPI.Managers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using GetThereAPI.Data;
-using GetThereAPI.Entities;
-using GetThereAPI.Services;
 using Scalar.AspNetCore;
+using System.Reflection;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,8 +30,17 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// Register our TokenService so controllers can inject it
-builder.Services.AddScoped<TokenService>();
+// Register our TokenManager so controllers can inject it
+var managerTypes = Assembly.GetExecutingAssembly()
+    .GetTypes()
+    .Where(t => t.Namespace == "GetThereAPI.Managers"
+                && t.IsClass
+                && !t.IsAbstract);
+
+foreach (var managerType in managerTypes)
+{
+    builder.Services.AddScoped(managerType);
+}
 
 // Tell ASP.NET "use JWT Bearer as the default way to authenticate"
 builder.Services.AddAuthentication(options =>
