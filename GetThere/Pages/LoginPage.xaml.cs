@@ -52,7 +52,7 @@ public partial class LoginPage : ContentPage
             if (result.Success)
             {
                 await DisplayAlertAsync("Success", "Welcome back!", "OK");
-                // TODO: Navigate to main app page
+                App.GoToApp();
             }
             else
             {
@@ -70,14 +70,12 @@ public partial class LoginPage : ContentPage
     }
 
     private async void RegisterButton_Clicked(object sender, EventArgs e)
-    {
-        //await Navigation.PushAsync(new RegistrationPage());
+    { 
         await Shell.Current.GoToAsync("registration");
     }
 
-
-    private async void MapButtonClicked(object sender, EventArgs e)
-    {
-        await Shell.Current.GoToAsync("map");
-    }
+    //private void LogoutButton_Clicked(object sender, EventArgs e)
+    //{
+    //    App.GoToLogin();
+    //}
 }
