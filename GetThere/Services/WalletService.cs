@@ -12,24 +12,17 @@ public class WalletService
         _httpClient = httpClient;
     }
 
-    public async Task<OperationResult<WalletDto>> GetWalletAsync(string userId)
+    public async Task<OperationResult<WalletDto>> GetWalletAsync()
     {
-        var response = await _httpClient.GetAsync($"wallet/{userId}");
+        var response = await _httpClient.GetAsync("wallet");
         return await response.Content.ReadFromJsonAsync<OperationResult<WalletDto>>()
             ?? OperationResult<WalletDto>.Fail("Unexpected error occurred.");
     }
 
-    public async Task<OperationResult<IEnumerable<WalletTransactionDto>>> GetTransactionsAsync(string userId)
+    public async Task<OperationResult<IEnumerable<WalletTransactionDto>>> GetTransactionsAsync()
     {
-        var response = await _httpClient.GetAsync($"wallet/{userId}/transactions");
+        var response = await _httpClient.GetAsync("wallet/transactions");
         return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<WalletTransactionDto>>>()
             ?? OperationResult<IEnumerable<WalletTransactionDto>>.Fail("Unexpected error occurred.");
     }
-
-    //public async Task<OperationResult<WalletDto>> TopUpAsync(TopUpDto dto)
-    //{
-    //    var response = await _httpClient.PostAsJsonAsync("wallet/topup", dto);
-    //    return await response.Content.ReadFromJsonAsync<OperationResult<WalletDto>>()
-    //        ?? OperationResult<WalletDto>.Fail("Unexpected error occurred.");
-    //}
 }

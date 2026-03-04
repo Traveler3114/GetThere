@@ -12,11 +12,12 @@ public static class PageUtility
     public static void HideError(Label label) =>
         label.IsVisible = false;
 
-    public static void SetBusy(ActivityIndicator indicator, Button button, bool isBusy)
+    public static void SetBusy(ActivityIndicator indicator, Button? button, bool isBusy)
     {
         indicator.IsVisible = isBusy;
         indicator.IsRunning = isBusy;
-        button.IsEnabled = !isBusy;
+        if (button != null)
+            button.IsEnabled = !isBusy;
     }
 
     // Validation

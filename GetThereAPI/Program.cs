@@ -50,21 +50,15 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    // These rules tell the server how to validate incoming tokens
+    options.MapInboundClaims = false; // ← Add this line
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        // Check the token was made by our API
         ValidateIssuer = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
-
-        // Check the token was meant for our app
         ValidateAudience = true,
         ValidAudience = builder.Configuration["Jwt:Audience"],
-
-        // Reject expired tokens
         ValidateLifetime = true,
-
-        // Verify the signature using our secret key
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
