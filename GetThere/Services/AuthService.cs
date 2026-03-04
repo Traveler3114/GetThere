@@ -1,5 +1,7 @@
 ﻿using GetThereShared.Dtos;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 
 namespace GetThere.Services;
 
@@ -34,6 +36,54 @@ public class AuthService
 
     public async Task<string?> GetTokenAsync()
         => await SecureStorage.GetAsync(TokenKey);
+
+    /// <summary>
+    /// Decodes the JWT payload and returns the claims as a dictionary.
+    /// No signature verification — safe to use client-side for display purposes only.
+    /// </summary>
+    public async Task<Dictionary<string, JsonElement>?> GetTokenClaimsAsync()
+    {
+        var token = await GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        try
+        {
+            // JWT = header.payload.signature — we only need the payload
+            var payload = token.Split('.')[1];
+
+            // Base64url → Base64 (fix padding and character replacements)
+            payload = payload.Replace('-', '+').Replace('_', '/');
+            payload = (payload.Length % 4) switch
+            {
+                2 => payload + "==",
+                3 => payload + "=",
+                _ => payload
+            };
+
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Convenience helpers so callers don't need to know claim names.
+    /// </summary>
+    public async Task<string?> GetFullNameAsync()
+    {
+        var claims = await GetTokenClaimsAsync();
+        return claims?.GetValueOrDefault("given_name").GetString();
+    }
+
+    public async Task<string?> GetEmailAsync()
+    {
+        var claims = await GetTokenClaimsAsync();
+        return claims?.GetValueOrDefault("email").GetString();
+    }
 
     public void Logout()
         => SecureStorage.Remove(TokenKey);

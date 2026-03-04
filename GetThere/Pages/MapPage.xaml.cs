@@ -13,10 +13,4 @@ public partial class MapPage : ContentPage
 
         MapWebView.Source = htmlSource;
     }
-
-
-    private async void LoginButton_Clicked(object sender, EventArgs e)
-    {
-        await Shell.Current.GoToAsync("//login");
-    }
 }

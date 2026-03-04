@@ -1,21 +1,26 @@
+using GetThere.Helpers;
 using GetThere.Services;
 using GetThereShared.Dtos;
-using System.Text.Json;
-using System.Text;
-using GetThere.Helpers;
+using GetThereShared.Enums;
 
 namespace GetThere.Pages;
 
 public partial class ProfilePage : ContentPage
 {
     private readonly WalletService _walletService;
+    private readonly TicketService _ticketService;
     private readonly PaymentService _paymentService;
     private readonly AuthService _authService;
 
-    public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService)
+    private IEnumerable<TicketDto> _allTickets = [];
+    private TicketStatus _currentFilter = TicketStatus.Active;
+
+    public ProfilePage(WalletService walletService, TicketService ticketService,
+                       PaymentService paymentService, AuthService authService)
     {
         InitializeComponent();
         _walletService = walletService;
+        _ticketService = ticketService;
         _paymentService = paymentService;
         _authService = authService;
     }
@@ -26,49 +31,32 @@ public partial class ProfilePage : ContentPage
         await LoadProfileAsync();
     }
 
+    // ── Profile header ─────────────────────────────────────────────────────
+
     private async Task LoadProfileAsync()
     {
-        PageUtility.SetBusy(BusyIndicator, TopUpButton, true);
+        WalletBusy.IsVisible = true;
+        WalletBusy.IsRunning = true;
         ErrorLabel.IsVisible = false;
 
         try
         {
-            // Read JWT from SecureStorage and decode the payload (no library needed)
-            var token = await _authService.GetTokenAsync();
-            if (string.IsNullOrEmpty(token))
+            var fullName = await _authService.GetFullNameAsync();
+            var email = await _authService.GetEmailAsync();
+
+            if (fullName == null && email == null)
             {
                 PageUtility.ShowError(ErrorLabel, "Not logged in.");
                 return;
             }
 
-            // JWT is 3 base64 parts: header.payload.signature
-            // We only need the payload (index 1) — no verification needed client-side
-            var payload = token.Split('.')[1];
+            NameLabel.Text = fullName ?? "User";
+            EmailLabel.Text = email ?? string.Empty;
+            AvatarLabel.Text = string.IsNullOrWhiteSpace(fullName)
+                ? "?"
+                : fullName[0].ToString().ToUpper();
 
-            // Base64url -> Base64 padding fix
-            payload = payload.Replace('-', '+').Replace('_', '/');
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            var claims = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
-
-            var fullName = claims?.GetValueOrDefault("given_name").GetString() ?? "User";
-            var email = claims?.GetValueOrDefault("email").GetString() ?? string.Empty;
-
-            NameLabel.Text = fullName;
-            EmailLabel.Text = email;
-            AvatarLabel.Text = string.IsNullOrWhiteSpace(fullName) ? "?" : fullName[0].ToString().ToUpper();
-
-            // Fetch wallet — JWT auto-attached by AuthenticatedHttpHandler
-            var walletResult = await _walletService.GetWalletAsync();
-            if (walletResult.Success && walletResult.Data != null)
-                BalanceLabel.Text = $"€ {walletResult.Data.Balance:F2}";
-            else
-                PageUtility.ShowError(ErrorLabel, walletResult.Message ?? "Failed to load wallet.");
+            await Task.WhenAll(LoadWalletAsync(), LoadTicketsAsync());
         }
         catch (Exception ex)
         {
@@ -76,9 +64,186 @@ public partial class ProfilePage : ContentPage
         }
         finally
         {
-            PageUtility.SetBusy(BusyIndicator, TopUpButton, false);
+            WalletBusy.IsVisible = false;
+            WalletBusy.IsRunning = false;
         }
     }
+
+    // ── Wallet ─────────────────────────────────────────────────────────────
+
+    private async Task LoadWalletAsync()
+    {
+        var result = await _walletService.GetWalletAsync();
+        if (result.Success && result.Data != null)
+        {
+            BalanceLabel.Text = $"€ {result.Data.Balance:F2}";
+            LastUpdatedLabel.Text = $"Updated {result.Data.LastUpdated:dd MMM yyyy, HH:mm}";
+        }
+        else
+        {
+            PageUtility.ShowError(ErrorLabel, result.Message ?? "Failed to load wallet.");
+        }
+    }
+
+    // ── Tickets ────────────────────────────────────────────────────────────
+
+    private async Task LoadTicketsAsync()
+    {
+        TicketsBusy.IsVisible = true;
+        TicketsBusy.IsRunning = true;
+        NoTicketsLabel.IsVisible = false;
+
+        try
+        {
+            var result = await _ticketService.GetTicketsAsync();
+            if (result.Success && result.Data != null)
+            {
+                _allTickets = result.Data;
+                ApplyTicketFilter(_currentFilter);
+            }
+            else
+            {
+                _allTickets = [];
+                NoTicketsLabel.IsVisible = true;
+            }
+        }
+        catch
+        {
+            _allTickets = [];
+            NoTicketsLabel.IsVisible = true;
+        }
+        finally
+        {
+            TicketsBusy.IsVisible = false;
+            TicketsBusy.IsRunning = false;
+        }
+    }
+
+    private void ApplyTicketFilter(TicketStatus filter)
+    {
+        _currentFilter = filter;
+        var filtered = _allTickets.Where(t => t.Status == filter).ToList();
+        TicketsCollection.ItemsSource = filtered;
+        NoTicketsLabel.IsVisible = filtered.Count == 0;
+
+        ResetFilterChips();
+        SetChipActive(filter switch
+        {
+            TicketStatus.Active => ActiveBtn,
+            TicketStatus.Expired => ExpiredBtn,
+            TicketStatus.Used => UsedBtn,
+            _ => ActiveBtn
+        });
+    }
+
+    private void ResetFilterChips()
+    {
+        // Use AppTheme-aware colours so chips look right in dark mode too
+        var inactiveColor = Application.Current!.RequestedTheme == AppTheme.Dark
+            ? Color.FromArgb("#2C2C2E")
+            : Color.FromArgb("#E0E0E0");
+        var inactiveText = Application.Current.RequestedTheme == AppTheme.Dark
+            ? Colors.White
+            : Colors.Black;
+
+        foreach (var btn in new[] { ActiveBtn, ExpiredBtn, UsedBtn })
+        {
+            btn.BackgroundColor = inactiveColor;
+            btn.TextColor = inactiveText;
+        }
+    }
+
+    private static void SetChipActive(Button btn)
+    {
+        btn.BackgroundColor = Color.FromArgb("#4CAF50");
+        btn.TextColor = Colors.White;
+    }
+
+    // ── History ────────────────────────────────────────────────────────────
+
+    private async Task LoadHistoryAsync()
+    {
+        HistoryBusy.IsVisible = true;
+        HistoryBusy.IsRunning = true;
+        NoHistoryLabel.IsVisible = false;
+
+        try
+        {
+            var result = await _walletService.GetTransactionsAsync();
+            if (result.Success && result.Data != null)
+            {
+                var list = result.Data.ToList();
+                HistoryCollection.ItemsSource = list;
+                NoHistoryLabel.IsVisible = list.Count == 0;
+            }
+            else
+            {
+                NoHistoryLabel.IsVisible = true;
+            }
+        }
+        catch
+        {
+            NoHistoryLabel.IsVisible = true;
+        }
+        finally
+        {
+            HistoryBusy.IsVisible = false;
+            HistoryBusy.IsRunning = false;
+        }
+    }
+
+    // ── Segment tab switchers ──────────────────────────────────────────────
+
+    private void TicketsTab_Clicked(object sender, EventArgs e)
+    {
+        TicketsView.IsVisible = true;
+        HistoryView.IsVisible = false;
+        FilterChipsRow.IsVisible = true;   // show filter chips for tickets
+
+        TicketsTabBtn.BackgroundColor = Color.FromArgb("#4CAF50");
+        TicketsTabBtn.TextColor = Colors.White;
+
+        var inactiveColor = Application.Current!.RequestedTheme == AppTheme.Dark
+            ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
+        var inactiveText = Application.Current.RequestedTheme == AppTheme.Dark
+            ? Colors.White : Colors.Black;
+
+        HistoryTabBtn.BackgroundColor = inactiveColor;
+        HistoryTabBtn.TextColor = inactiveText;
+    }
+
+    private async void HistoryTab_Clicked(object sender, EventArgs e)
+    {
+        TicketsView.IsVisible = false;
+        HistoryView.IsVisible = true;
+        FilterChipsRow.IsVisible = false;  // hide filter chips — not relevant for history
+
+        HistoryTabBtn.BackgroundColor = Color.FromArgb("#4CAF50");
+        HistoryTabBtn.TextColor = Colors.White;
+
+        var inactiveColor = Application.Current!.RequestedTheme == AppTheme.Dark
+            ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
+        var inactiveText = Application.Current.RequestedTheme == AppTheme.Dark
+            ? Colors.White : Colors.Black;
+
+        TicketsTabBtn.BackgroundColor = inactiveColor;
+        TicketsTabBtn.TextColor = inactiveText;
+
+        await LoadHistoryAsync();
+    }
+
+    // ── Filter chips ───────────────────────────────────────────────────────
+
+    private void ActiveFilter_Clicked(object sender, EventArgs e)
+        => ApplyTicketFilter(TicketStatus.Active);
+
+    private void ExpiredFilter_Clicked(object sender, EventArgs e)
+        => ApplyTicketFilter(TicketStatus.Expired);
+
+    private void UsedFilter_Clicked(object sender, EventArgs e)
+        => ApplyTicketFilter(TicketStatus.Used);
+
+    // ── Top Up ─────────────────────────────────────────────────────────────
 
     private async void TopUpButton_Clicked(object sender, EventArgs e)
     {
@@ -93,9 +258,13 @@ public partial class ProfilePage : ContentPage
         if (string.IsNullOrWhiteSpace(input))
             return;
 
-        if (!decimal.TryParse(input, out var amount) || amount <= 0)
+        input = input.Replace(',', '.');
+        if (!decimal.TryParse(input,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var amount) || amount <= 0)
         {
-            await DisplayAlert("Invalid Amount", "Please enter a valid positive number.", "OK");
+            await DisplayAlertAsync("Invalid Amount", "Please enter a valid positive number.", "OK");
             return;
         }
 
@@ -110,7 +279,7 @@ public partial class ProfilePage : ContentPage
             if (result.Success && result.Data != null)
             {
                 BalanceLabel.Text = $"€ {result.Data.Balance:F2}";
-                await DisplayAlert("Success", $"€{amount:F2} added to your wallet!", "OK");
+                await DisplayAlertAsync("Success", $"€{amount:F2} added to your wallet!", "OK");
             }
             else
             {
@@ -125,5 +294,13 @@ public partial class ProfilePage : ContentPage
         {
             PageUtility.SetBusy(BusyIndicator, TopUpButton, false);
         }
+    }
+
+    // ── Logout ─────────────────────────────────────────────────────────────
+
+    private void LogoutButton_Clicked(object sender, EventArgs e)
+    {
+        _authService.Logout();
+        App.GoToLogin();
     }
 }

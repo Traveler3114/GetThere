@@ -3,33 +3,125 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="GetThere.Pages.RegistrationPage"
              Title="Create account"
-             BackgroundColor="White">
+             BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
 
     <ScrollView>
         <VerticalStackLayout Padding="24" Spacing="12">
-            <Label Text="Create your account" FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" />
 
-            <Entry x:Name="FullNameEntry" Placeholder="Full name" Keyboard="Text" />
-            <Entry x:Name="EmailEntry" Placeholder="Email address" Keyboard="Email" />
-            <Entry x:Name="PhoneEntry" Placeholder="Phone (optional)" Keyboard="Telephone" />
+            <!-- ── HEADER ── -->
+            <VerticalStackLayout Spacing="6" Margin="0,48,0,24">
+                <Label Text="Create your account"
+                       FontSize="28" FontAttributes="Bold"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                       HorizontalOptions="Center" />
+                <Label Text="It only takes a minute"
+                       FontSize="14" TextColor="Gray"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
 
-            <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" />
-            <Entry x:Name="ConfirmPasswordEntry" Placeholder="Confirm password" IsPassword="True" />
+            <!-- ── PERSONAL DETAILS ── -->
+            <Label Text="PERSONAL DETAILS"
+                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
+                   Margin="4,0,0,0" CharacterSpacing="1" />
 
-            <HorizontalStackLayout VerticalOptions="Center" Spacing="8">
-                <CheckBox x:Name="ShowPasswordCheckBox" CheckedChanged="ShowPasswordCheckBox_CheckedChanged" />
-                <Label Text="Show password" VerticalOptions="Center" />
-            </HorizontalStackLayout>
+            <Entry x:Name="FullNameEntry"
+                   Placeholder="Full name"
+                   Keyboard="Text"
+                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                   PlaceholderColor="Gray" />
 
-            <Label x:Name="ErrorLabel" TextColor="Red" IsVisible="False" />
+            <Entry x:Name="EmailEntry"
+                   Placeholder="Email address"
+                   Keyboard="Email"
+                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                   PlaceholderColor="Gray" />
 
-            <Button x:Name="RegisterButton" Text="Register" Clicked="RegisterButton_Clicked" />
+            <Entry x:Name="PhoneEntry"
+                   Placeholder="Phone (optional)"
+                   Keyboard="Telephone"
+                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                   PlaceholderColor="Gray" />
 
-            <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" HorizontalOptions="Center" />
+            <!-- ── PASSWORD ── -->
+            <Label Text="PASSWORD"
+                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
+                   Margin="4,12,0,0" CharacterSpacing="1" />
 
-            <HorizontalStackLayout HorizontalOptions="Center" Spacing="6">
-                <Label Text="Already have an account?" VerticalOptions="Center" />
-                <Button Text="Log in" Clicked="LoginButton_Clicked" />
+            <!-- Password with eye toggle -->
+            <Grid>
+                <Entry x:Name="PasswordEntry"
+                       Placeholder="Password (min. 8 characters)"
+                       IsPassword="True"
+                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                       PlaceholderColor="Gray" />
+                <Button x:Name="TogglePasswordBtn"
+                        Text="👁"
+                        FontSize="16"
+                        BackgroundColor="Transparent"
+                        TextColor="Gray"
+                        HorizontalOptions="End"
+                        VerticalOptions="Center"
+                        WidthRequest="48" HeightRequest="48"
+                        Padding="0"
+                        Clicked="TogglePassword_Clicked" />
+            </Grid>
+
+            <!-- Confirm password with eye toggle -->
+            <Grid>
+                <Entry x:Name="ConfirmPasswordEntry"
+                       Placeholder="Confirm password"
+                       IsPassword="True"
+                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                       PlaceholderColor="Gray" />
+                <Button x:Name="ToggleConfirmPasswordBtn"
+                        Text="👁"
+                        FontSize="16"
+                        BackgroundColor="Transparent"
+                        TextColor="Gray"
+                        HorizontalOptions="End"
+                        VerticalOptions="Center"
+                        WidthRequest="48" HeightRequest="48"
+                        Padding="0"
+                        Clicked="ToggleConfirmPassword_Clicked" />
+            </Grid>
+
+            <!-- ── ERROR ── -->
+            <Label x:Name="ErrorLabel"
+                   TextColor="Red" FontSize="13"
+                   IsVisible="False"
+                   HorizontalOptions="Center" Margin="0,4,0,0" />
+
+            <!-- ── REGISTER BUTTON ── -->
+            <Button x:Name="RegisterButton"
+                    Text="Create account"
+                    Clicked="RegisterButton_Clicked"
+                    BackgroundColor="#4CAF50" TextColor="White"
+                    CornerRadius="12" FontAttributes="Bold"
+                    HeightRequest="52" Margin="0,8,0,0" />
+
+            <!-- ── BUSY ── -->
+            <ActivityIndicator x:Name="BusyIndicator"
+                               IsRunning="False" IsVisible="False"
+                               Color="#4CAF50"
+                               HorizontalOptions="Center" />
+
+            <!-- ── LOGIN LINK ── -->
+            <HorizontalStackLayout HorizontalOptions="Center"
+                                   Spacing="4" Margin="0,12,0,40">
+                <Label Text="Already have an account?"
+                       VerticalOptions="Center" FontSize="14" TextColor="Gray" />
+                <Label Text="Log in"
+                       VerticalOptions="Center" FontSize="14"
+                       TextColor="#4CAF50" FontAttributes="Bold">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="LoginButton_Clicked" />
+                    </Label.GestureRecognizers>
+                </Label>
             </HorizontalStackLayout>
 
         </VerticalStackLayout>
