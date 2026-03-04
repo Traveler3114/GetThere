@@ -138,13 +138,9 @@ public partial class ProfilePage : ContentPage
 
     private void ResetFilterChips()
     {
-        // Use AppTheme-aware colours so chips look right in dark mode too
-        var inactiveColor = Application.Current!.RequestedTheme == AppTheme.Dark
-            ? Color.FromArgb("#2C2C2E")
-            : Color.FromArgb("#E0E0E0");
-        var inactiveText = Application.Current.RequestedTheme == AppTheme.Dark
-            ? Colors.White
-            : Colors.Black;
+        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
+        var inactiveText = isDark ? Colors.White : Colors.Black;
 
         foreach (var btn in new[] { ActiveBtn, ExpiredBtn, UsedBtn })
         {
@@ -194,37 +190,35 @@ public partial class ProfilePage : ContentPage
 
     // ── Segment tab switchers ──────────────────────────────────────────────
 
-    private void TicketsTab_Clicked(object sender, EventArgs e)
+    private void TicketsTab_Clicked(object? sender, EventArgs e)
     {
         TicketsView.IsVisible = true;
         HistoryView.IsVisible = false;
-        FilterChipsRow.IsVisible = true;   // show filter chips for tickets
+        FilterChipsRow.IsVisible = true;
 
         TicketsTabBtn.BackgroundColor = Color.FromArgb("#4CAF50");
         TicketsTabBtn.TextColor = Colors.White;
 
-        var inactiveColor = Application.Current!.RequestedTheme == AppTheme.Dark
-            ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
-        var inactiveText = Application.Current.RequestedTheme == AppTheme.Dark
-            ? Colors.White : Colors.Black;
+        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
+        var inactiveText = isDark ? Colors.White : Colors.Black;
 
         HistoryTabBtn.BackgroundColor = inactiveColor;
         HistoryTabBtn.TextColor = inactiveText;
     }
 
-    private async void HistoryTab_Clicked(object sender, EventArgs e)
+    private async void HistoryTab_Clicked(object? sender, EventArgs e)
     {
         TicketsView.IsVisible = false;
         HistoryView.IsVisible = true;
-        FilterChipsRow.IsVisible = false;  // hide filter chips — not relevant for history
+        FilterChipsRow.IsVisible = false;
 
         HistoryTabBtn.BackgroundColor = Color.FromArgb("#4CAF50");
         HistoryTabBtn.TextColor = Colors.White;
 
-        var inactiveColor = Application.Current!.RequestedTheme == AppTheme.Dark
-            ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
-        var inactiveText = Application.Current.RequestedTheme == AppTheme.Dark
-            ? Colors.White : Colors.Black;
+        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
+        var inactiveText = isDark ? Colors.White : Colors.Black;
 
         TicketsTabBtn.BackgroundColor = inactiveColor;
         TicketsTabBtn.TextColor = inactiveText;
@@ -234,23 +228,24 @@ public partial class ProfilePage : ContentPage
 
     // ── Filter chips ───────────────────────────────────────────────────────
 
-    private void ActiveFilter_Clicked(object sender, EventArgs e)
+    private void ActiveFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Active);
 
-    private void ExpiredFilter_Clicked(object sender, EventArgs e)
+    private void ExpiredFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Expired);
 
-    private void UsedFilter_Clicked(object sender, EventArgs e)
+    private void UsedFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Used);
 
     // ── Top Up ─────────────────────────────────────────────────────────────
 
-    private async void TopUpButton_Clicked(object sender, EventArgs e)
+    private async void TopUpButton_Clicked(object? sender, EventArgs e)
     {
+        // ── Step 1: Enter amount ───────────────────────────────────────────
         var input = await DisplayPromptAsync(
             "Top Up Wallet",
             "Enter amount to add (€):",
-            accept: "Top Up",
+            accept: "Next",
             cancel: "Cancel",
             placeholder: "e.g. 10.00",
             keyboard: Keyboard.Numeric);
@@ -268,18 +263,77 @@ public partial class ProfilePage : ContentPage
             return;
         }
 
+        // ── Step 2: Load providers ─────────────────────────────────────────
+        PageUtility.SetBusy(BusyIndicator, TopUpButton, true);
+        ErrorLabel.IsVisible = false;
+
+        List<PaymentProviderDto> providers;
+        try
+        {
+            var result = await _paymentService.GetProvidersAsync();
+            if (!result.Success || result.Data == null || !result.Data.Any())
+            {
+                PageUtility.ShowError(ErrorLabel, "No payment providers available.");
+                return;
+            }
+            providers = result.Data.ToList();
+        }
+        catch (Exception ex)
+        {
+            PageUtility.ShowError(ErrorLabel, "Could not load payment providers: " + ex.Message);
+            return;
+        }
+        finally
+        {
+            PageUtility.SetBusy(BusyIndicator, TopUpButton, false);
+        }
+
+        // ── Step 3: Pick a provider ────────────────────────────────────────
+        var converter = new ProviderIconConverter();
+
+        var providerNames = providers
+            .Select(p => $"{converter.Convert(p.Name, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture)}  {p.Name}")
+            .ToArray();
+
+        var chosen = await DisplayActionSheetAsync(
+            $"Pay €{amount:F2} with",
+            "Cancel",
+            null,
+            providerNames);
+
+        if (string.IsNullOrEmpty(chosen) || chosen == "Cancel")
+            return;
+
+        var selectedProvider = providers[Array.IndexOf(providerNames, chosen)];
+
+        // ── Step 4: Confirm ────────────────────────────────────────────────
+        var confirmed = await DisplayAlertAsync(
+            "Confirm Top Up",
+            $"Add €{amount:F2} to your wallet via {selectedProvider.Name}?",
+            "Confirm",
+            "Cancel");
+
+        if (!confirmed)
+            return;
+
+        // ── Step 5: Process ────────────────────────────────────────────────
         PageUtility.SetBusy(BusyIndicator, TopUpButton, true);
         ErrorLabel.IsVisible = false;
 
         try
         {
-            var dto = new TopUpDto { Amount = amount };
+            var dto = new TopUpDto
+            {
+                Amount = amount,
+                PaymentProviderId = selectedProvider.Id
+            };
+
             var result = await _paymentService.TopUpAsync(dto);
 
             if (result.Success && result.Data != null)
             {
                 BalanceLabel.Text = $"€ {result.Data.Balance:F2}";
-                await DisplayAlertAsync("Success", $"€{amount:F2} added to your wallet!", "OK");
+                await DisplayAlertAsync("✅ Success", $"€{amount:F2} added via {selectedProvider.Name}!", "OK");
             }
             else
             {
@@ -298,7 +352,7 @@ public partial class ProfilePage : ContentPage
 
     // ── Logout ─────────────────────────────────────────────────────────────
 
-    private void LogoutButton_Clicked(object sender, EventArgs e)
+    private void LogoutButton_Clicked(object? sender, EventArgs e)
     {
         _authService.Logout();
         App.GoToLogin();

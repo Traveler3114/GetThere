@@ -87,3 +87,25 @@ public class TxTypeToIconConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotImplementedException();
 }
+
+
+/// <summary>
+/// Converts a provider Name string to an emoji icon.
+/// Emoji never stored in DB — mapped client-side from name.
+/// </summary>
+public class ProviderIconConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string name ? name.ToLower() switch
+        {
+            var n when n.Contains("visa") || n.Contains("mastercard") || n.Contains("card") => "💳",
+            var n when n.Contains("paypal") => "🅿️",
+            var n when n.Contains("apple") => "🍎",
+            var n when n.Contains("google") => "🔵",
+            var n when n.Contains("stripe") => "⚡",
+            _ => "💰"
+        } : "💰";
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotImplementedException();
+}

@@ -16,21 +16,21 @@ public partial class RegistrationPage : ContentPage
         _authService = authService;
     }
 
-    private void TogglePassword_Clicked(object sender, EventArgs e)
+    private void TogglePassword_Clicked(object? sender, EventArgs e)
     {
         _passwordVisible = !_passwordVisible;
         PasswordEntry.IsPassword = !_passwordVisible;
         TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
     }
 
-    private void ToggleConfirmPassword_Clicked(object sender, EventArgs e)
+    private void ToggleConfirmPassword_Clicked(object? sender, EventArgs e)
     {
         _confirmPasswordVisible = !_confirmPasswordVisible;
         ConfirmPasswordEntry.IsPassword = !_confirmPasswordVisible;
         ToggleConfirmPasswordBtn.Text = _confirmPasswordVisible ? "🙈" : "👁";
     }
 
-    private async void RegisterButton_Clicked(object sender, EventArgs e)
+    private async void RegisterButton_Clicked(object? sender, EventArgs e)
     {
         PageUtility.HideError(ErrorLabel);
 
@@ -93,6 +93,6 @@ public partial class RegistrationPage : ContentPage
         }
     }
 
-    private async void LoginButton_Clicked(object sender, EventArgs e)
+    private async void LoginButton_Clicked(object? sender, TappedEventArgs e)
         => await Shell.Current.GoToAsync("//login");
 }

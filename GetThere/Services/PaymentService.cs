@@ -1,4 +1,4 @@
-﻿using GetThereShared.Dtos;
+using GetThereShared.Dtos;
 using System.Net.Http.Json;
 
 namespace GetThere.Services;
@@ -10,6 +10,13 @@ public class PaymentService
     public PaymentService(HttpClient httpClient)
     {
         _httpClient = httpClient;
+    }
+
+    public async Task<OperationResult<IEnumerable<PaymentProviderDto>>> GetProvidersAsync()
+    {
+        var response = await _httpClient.GetAsync("payment/providers");
+        return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<PaymentProviderDto>>>()
+            ?? OperationResult<IEnumerable<PaymentProviderDto>>.Fail("Unexpected error occurred.");
     }
 
     public async Task<OperationResult<WalletDto>> TopUpAsync(TopUpDto dto)
