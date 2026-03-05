@@ -5,9 +5,6 @@
         public AppShell()
         {
             InitializeComponent();
-
-            Routing.RegisterRoute("registration", typeof(Pages.RegistrationPage));
-            Routing.RegisterRoute("map", typeof(Pages.MapPage));
         }
     }
 }
