@@ -5,10 +5,35 @@
              Title="MapPage">
 
     <Grid>
-        <WebView x:Name="MapWebView"
-                 HorizontalOptions="Fill"
-                 VerticalOptions="Fill" />
+        <!-- Map WebView -->
+        <HybridWebView x:Name="MapWebView"
+                     HybridRoot="HybridWebViewRoot"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill" />
 
+        <!-- Loading Overlay -->
+        <Grid x:Name="LoadingOverlay"
+              IsVisible="True"
+              BackgroundColor="#80000000"
+              HorizontalOptions="Fill"
+              VerticalOptions="Fill">
+            <VerticalStackLayout
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                Spacing="10">
+                <ActivityIndicator
+                    IsRunning="True"
+                    Color="White"
+                    HeightRequest="50"
+                    WidthRequest="50" />
+                <Label
+                    Text="Loading map..."
+                    TextColor="White"
+                    FontSize="16"
+                    HorizontalOptions="Center" />
+            </VerticalStackLayout>
+        </Grid>
     </Grid>
     
+
 </ContentPage>

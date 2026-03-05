@@ -84,6 +84,15 @@
                 </Label>
             </HorizontalStackLayout>
 
+
+            <!-- ── CONTINUE AS GUEST ── -->
+            <Button x:Name="ConstineAsGuestButton"
+                Text="CONTINUE AS GUEST"
+                Clicked="GuestButton_Clicked"
+                BackgroundColor="#4CAF50" TextColor="White"
+                CornerRadius="12" FontAttributes="Bold"
+                HeightRequest="52" Margin="0,8,0,0" />
+
         </VerticalStackLayout>
     </ScrollView>
 
