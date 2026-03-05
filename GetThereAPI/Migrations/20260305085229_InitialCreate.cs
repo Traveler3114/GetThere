@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class InitalCreate : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -73,7 +73,6 @@ namespace GetThereAPI.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    LogoUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     ApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     WebhookSecret = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -302,12 +301,14 @@ namespace GetThereAPI.Migrations
                     PurchasedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ValidFrom = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ValidUntil = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PricePaid = table.Column<decimal>(type: "decimal(16,2)", nullable: false),
                     Format = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Payload = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     DisplayInstructions = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TicketDefinitionId = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    TransitOperatorId = table.Column<int>(type: "int", nullable: true)
+                    TransitOperatorId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -322,7 +323,8 @@ namespace GetThereAPI.Migrations
                         name: "FK_Tickets_TransitOperators_TransitOperatorId",
                         column: x => x.TransitOperatorId,
                         principalTable: "TransitOperators",
-                        principalColumn: "Id");
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(

@@ -192,9 +192,6 @@ namespace GetThereAPI.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<string>("LogoUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -224,6 +221,9 @@ namespace GetThereAPI.Migrations
                     b.Property<string>("Payload")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("PricePaid")
+                        .HasColumnType("decimal(16,2)");
+
                     b.Property<DateTime>("PurchasedAt")
                         .HasColumnType("datetime2");
 
@@ -231,11 +231,14 @@ namespace GetThereAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("TicketDefinitionId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("TicketType")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("TransitOperatorId")
+                    b.Property<int>("TransitOperatorId")
                         .HasColumnType("int");
 
                     b.Property<string>("UserId")
@@ -527,7 +530,9 @@ namespace GetThereAPI.Migrations
                 {
                     b.HasOne("GetThereAPI.Entities.TransitOperator", "TransitOperator")
                         .WithMany()
-                        .HasForeignKey("TransitOperatorId");
+                        .HasForeignKey("TransitOperatorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("GetThereAPI.Entities.AppUser", "User")
                         .WithMany()
