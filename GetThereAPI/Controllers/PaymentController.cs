@@ -20,7 +20,7 @@ public class PaymentController : ControllerBase
     public PaymentController(PaymentManager paymentManager, AppDbContext context)
     {
         _paymentManager = paymentManager;
-        _context        = context;
+        _context = context;
     }
 
     // GET /payment/providers
@@ -32,8 +32,8 @@ public class PaymentController : ControllerBase
             .OrderBy(p => p.Id)
             .Select(p => new PaymentProviderDto
             {
-                Id      = p.Id,
-                Name    = p.Name,
+                Id = p.Id,
+                Name = p.Name   // just the name — icon is mapped client-side
             })
             .ToListAsync();
 
