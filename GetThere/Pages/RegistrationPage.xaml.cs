@@ -1,14 +1,14 @@
-using GetThere.Services;
 using GetThere.Helpers;
+using GetThere.Services;
 using GetThereShared.Dtos;
-using Microsoft.Maui.Controls;
-using System;
 
 namespace GetThere.Pages;
 
 public partial class RegistrationPage : ContentPage
 {
     private readonly AuthService _authService;
+    private bool _passwordVisible = false;
+    private bool _confirmPasswordVisible = false;
 
     public RegistrationPage(AuthService authService)
     {
@@ -16,18 +16,25 @@ public partial class RegistrationPage : ContentPage
         _authService = authService;
     }
 
-    private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
+    private void TogglePassword_Clicked(object? sender, EventArgs e)
     {
-        bool show = e.Value;
-        PasswordEntry.IsPassword = !show;
-        ConfirmPasswordEntry.IsPassword = !show;
+        _passwordVisible = !_passwordVisible;
+        PasswordEntry.IsPassword = !_passwordVisible;
+        TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
     }
 
-    private async void RegisterButton_Clicked(object sender, EventArgs e)
+    private void ToggleConfirmPassword_Clicked(object? sender, EventArgs e)
     {
-        ErrorLabel.IsVisible = false;
+        _confirmPasswordVisible = !_confirmPasswordVisible;
+        ConfirmPasswordEntry.IsPassword = !_confirmPasswordVisible;
+        ToggleConfirmPasswordBtn.Text = _confirmPasswordVisible ? "🙈" : "👁";
+    }
 
-        RegisterDto rdto = new RegisterDto
+    private async void RegisterButton_Clicked(object? sender, EventArgs e)
+    {
+        PageUtility.HideError(ErrorLabel);
+
+        var rdto = new RegisterDto
         {
             FullName = FullNameEntry.Text?.Trim() ?? string.Empty,
             Email = EmailEntry.Text?.Trim() ?? string.Empty,
@@ -64,17 +71,16 @@ public partial class RegistrationPage : ContentPage
 
         try
         {
-
             var result = await _authService.RegisterAsync(rdto);
+
             if (result.Success)
             {
-                await DisplayAlertAsync("Success", result.Message, "OK");
-                //await Navigation.PushAsync(new LoginPage());
+                await DisplayAlertAsync("Account created", "You can now log in.", "Continue");
                 await Shell.Current.GoToAsync("//login");
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, "Registration failed. " + result.Message);
+                PageUtility.ShowError(ErrorLabel, result.Message ?? "Registration failed.");
             }
         }
         catch (Exception ex)
@@ -87,9 +93,6 @@ public partial class RegistrationPage : ContentPage
         }
     }
 
-    private async void LoginButton_Clicked(object sender, EventArgs e)
-    {
-        //await Navigation.PushAsync(new LoginPage());
-        await Shell.Current.GoToAsync("//login");
-    }
+    private async void LoginButton_Clicked(object? sender, TappedEventArgs e)
+        => await Shell.Current.GoToAsync("//login");
 }

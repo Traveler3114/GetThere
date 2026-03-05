@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Dtos;
+using GetThereAPI.Managers; // WalletManager and TokenManager live here
 
 namespace GetThereAPI.Controllers
 {
@@ -12,13 +12,19 @@ namespace GetThereAPI.Controllers
     {
         private readonly UserManager<AppUser> _userManager;
         private readonly SignInManager<AppUser> _signInManager;
-        private readonly AppDbContext _context;
+        private readonly WalletManager _walletManager;
+        private readonly TokenManager _tokenManager;
 
-        public AuthController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, AppDbContext context)
+        public AuthController(
+            UserManager<AppUser> userManager,
+            SignInManager<AppUser> signInManager,
+            WalletManager walletManager,
+            TokenManager tokenManager)
         {
             _userManager = userManager;
             _signInManager = signInManager;
-            _context = context;
+            _walletManager = walletManager;
+            _tokenManager = tokenManager;
         }
 
         // POST /auth/register
@@ -35,9 +41,7 @@ namespace GetThereAPI.Controllers
             if (!result.Succeeded)
                 return BadRequest(OperationResult.Fail(string.Join(", ", result.Errors.Select(e => e.Description))));
 
-            var wallet = new Wallet { UserId = user.Id, Balance = 0, LastUpdated = DateTime.UtcNow };
-            _context.Wallets.Add(wallet);
-            await _context.SaveChangesAsync();
+            await _walletManager.CreateWalletForUserAsync(user.Id);
 
             return Ok(OperationResult.Ok("User registered successfully"));
         }
@@ -54,11 +58,14 @@ namespace GetThereAPI.Controllers
             if (!result.Succeeded)
                 return Unauthorized(OperationResult<UserDto>.Fail("Invalid credentials"));
 
+            var token = _tokenManager.CreateToken(user);
+
             var userDto = new UserDto
             {
                 Id = user.Id,
                 Email = user.Email!,
-                FullName = user.FullName
+                FullName = user.FullName,
+                Token = token
             };
 
             return Ok(OperationResult<UserDto>.Ok(userDto, "Login successful"));

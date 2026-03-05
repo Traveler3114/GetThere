@@ -1,69 +1,54 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
-using GetThereAPI.Entities;
+using GetThereAPI.Managers;
 using GetThereShared.Dtos;
-using GetThereShared.Enums;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.JsonWebTokens;
+using System.Security.Claims;
 
-namespace GetThereAPI.Controllers
+namespace GetThereAPI.Controllers;
+
+[ApiController]
+[Route("[controller]")]
+[Authorize]
+public class PaymentController : ControllerBase
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class PaymentController : ControllerBase
+    private readonly PaymentManager _paymentManager;
+    private readonly AppDbContext _context;
+
+    public PaymentController(PaymentManager paymentManager, AppDbContext context)
     {
-        private readonly AppDbContext _context;
+        _paymentManager = paymentManager;
+        _context = context;
+    }
 
-        public PaymentController(AppDbContext context)
-        {
-            _context = context;
-        }
-
-        // POST /payment/topup
-        [HttpPost("topup")]
-        public async Task<ActionResult<OperationResult<WalletDto>>> TopUp(TopUpDto request)
-        {
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == request.UserId);
-            if (wallet == null)
-                return NotFound(OperationResult<WalletDto>.Fail("Wallet not found."));
-
-            if (request.Amount <= 0)
-                return BadRequest(OperationResult<WalletDto>.Fail("Amount must be greater than zero."));
-
-            // Save payment record
-            var payment = new Payment
+    // GET /payment/providers
+    [HttpGet("providers")]
+    public async Task<ActionResult<OperationResult<IEnumerable<PaymentProviderDto>>>> GetProviders()
+    {
+        var providers = await _context.PaymentProviders
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Id)
+            .Select(p => new PaymentProviderDto
             {
-                ProviderTransactionId = Guid.NewGuid().ToString(),
-                Amount = request.Amount,
-                Status = PaymentStatus.Completed,
-                CreatedAt = DateTime.UtcNow,
-                WalletId = wallet.Id,
-                PaymentProviderId = request.PaymentProviderId
-            };
+                Id = p.Id,
+                Name = p.Name   // just the name — icon is mapped client-side
+            })
+            .ToListAsync();
 
-            _context.Payments.Add(payment);
+        return Ok(OperationResult<IEnumerable<PaymentProviderDto>>.Ok(providers));
+    }
 
-            // Update wallet balance
-            wallet.Balance += request.Amount;
-            wallet.LastUpdated = DateTime.UtcNow;
+    // POST /payment/topup
+    [HttpPost("topup")]
+    public async Task<ActionResult<OperationResult<WalletDto>>> TopUp(TopUpDto request)
+    {
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (userId == null)
+            return Unauthorized(OperationResult<WalletDto>.Fail("User ID claim missing or not authenticated."));
 
-            // Record wallet transaction
-            _context.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = wallet.Id,
-                Type = WalletTransactionType.TopUp,
-                Amount = request.Amount,
-                Timestamp = DateTime.UtcNow,
-                Description = "Manual top-up"
-            });
-
-            await _context.SaveChangesAsync();
-
-            return Ok(OperationResult<WalletDto>.Ok(new WalletDto
-            {
-                Id = wallet.Id,
-                Balance = wallet.Balance,
-                LastUpdated = wallet.LastUpdated
-            }, "Wallet topped up successfully."));
-        }
+        var result = await _paymentManager.TopUpWalletAsync(userId, request);
+        return result.Success ? Ok(result) : BadRequest(result);
     }
 }

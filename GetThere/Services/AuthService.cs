@@ -1,11 +1,14 @@
 ﻿using GetThereShared.Dtos;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 
 namespace GetThere.Services;
 
 public class AuthService
 {
     private readonly HttpClient _httpClient;
+    private const string TokenKey = "jwt_token";
 
     public AuthService(HttpClient httpClient)
     {
@@ -15,8 +18,13 @@ public class AuthService
     public async Task<OperationResult<UserDto>> LoginAsync(LoginDto dto)
     {
         var response = await _httpClient.PostAsJsonAsync("auth/login", dto);
-        return await response.Content.ReadFromJsonAsync<OperationResult<UserDto>>()
+        var result = await response.Content.ReadFromJsonAsync<OperationResult<UserDto>>()
             ?? OperationResult<UserDto>.Fail("Unexpected error occurred.");
+
+        if (result.Success && result.Data?.Token != null)
+            await SecureStorage.SetAsync(TokenKey, result.Data.Token);
+
+        return result;
     }
 
     public async Task<OperationResult> RegisterAsync(RegisterDto dto)
@@ -25,4 +33,58 @@ public class AuthService
         return await response.Content.ReadFromJsonAsync<OperationResult>()
             ?? OperationResult.Fail("Unexpected error occurred.");
     }
+
+    public async Task<string?> GetTokenAsync()
+        => await SecureStorage.GetAsync(TokenKey);
+
+    /// <summary>
+    /// Decodes the JWT payload and returns the claims as a dictionary.
+    /// No signature verification — safe to use client-side for display purposes only.
+    /// </summary>
+    public async Task<Dictionary<string, JsonElement>?> GetTokenClaimsAsync()
+    {
+        var token = await GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        try
+        {
+            // JWT = header.payload.signature — we only need the payload
+            var payload = token.Split('.')[1];
+
+            // Base64url → Base64 (fix padding and character replacements)
+            payload = payload.Replace('-', '+').Replace('_', '/');
+            payload = (payload.Length % 4) switch
+            {
+                2 => payload + "==",
+                3 => payload + "=",
+                _ => payload
+            };
+
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Convenience helpers so callers don't need to know claim names.
+    /// </summary>
+    public async Task<string?> GetFullNameAsync()
+    {
+        var claims = await GetTokenClaimsAsync();
+        return claims?.GetValueOrDefault("given_name").GetString();
+    }
+
+    public async Task<string?> GetEmailAsync()
+    {
+        var claims = await GetTokenClaimsAsync();
+        return claims?.GetValueOrDefault("email").GetString();
+    }
+
+    public void Logout()
+        => SecureStorage.Remove(TokenKey);
 }

@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-
-namespace GetThere
+﻿namespace GetThere
 {
     public partial class App : Application
     {
@@ -11,7 +9,17 @@ namespace GetThere
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            return new Window(new AppShell());
+            return new Window(new LoginShell());
+        }
+
+        public static void GoToApp()
+        {
+            Current!.Windows[0].Page = new AppShell();
+        }
+
+        public static void GoToLogin()
+        {
+            Current!.Windows[0].Page = new LoginShell();
         }
     }
 }

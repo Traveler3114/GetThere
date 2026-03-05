@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using GetThereAPI.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using GetThereAPI.Entities;
 
 namespace GetThereAPI.Data
 {
@@ -15,6 +15,8 @@ namespace GetThereAPI.Data
         public DbSet<Payment> Payments { get; set; }
         public DbSet<TransitOperator> TransitOperators { get; set; }
         public DbSet<PaymentProvider> PaymentProviders { get; set; }
+        public DbSet<Country> Countries { get; set; }
+        public DbSet<City> Cities { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

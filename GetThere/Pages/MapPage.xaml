@@ -9,16 +9,6 @@
                  HorizontalOptions="Fill"
                  VerticalOptions="Fill" />
 
-        
-        <Button Text="Go Back"
-                Clicked="LoginButton_Clicked"
-                HorizontalOptions="Start"
-                VerticalOptions="Start"
-                Margin="20"
-                BackgroundColor="Black"
-                TextColor="White"
-                ZIndex="100"/>
-
     </Grid>
     
 </ContentPage>

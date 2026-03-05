@@ -1,7 +1,5 @@
-using GetThere.Services;
 using GetThere.Helpers;
-using Microsoft.Maui.Controls;
-using System;
+using GetThere.Services;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -9,6 +7,7 @@ namespace GetThere.Pages;
 public partial class LoginPage : ContentPage
 {
     private readonly AuthService _authService;
+    private bool _passwordVisible = false;
 
     public LoginPage(AuthService authService)
     {
@@ -16,16 +15,18 @@ public partial class LoginPage : ContentPage
         _authService = authService;
     }
 
-    private void ShowPasswordCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
+    private void TogglePassword_Clicked(object? sender, EventArgs e)
     {
-        PasswordEntry.IsPassword = !e.Value;
+        _passwordVisible = !_passwordVisible;
+        PasswordEntry.IsPassword = !_passwordVisible;
+        TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
     }
 
-    private async void LoginButton_Clicked(object sender, EventArgs e)
+    private async void LoginButton_Clicked(object? sender, EventArgs e)
     {
-        ErrorLabel.IsVisible = false;
+        PageUtility.HideError(ErrorLabel);
 
-        LoginDto loginData = new LoginDto
+        var loginData = new LoginDto
         {
             Email = EmailEntry.Text?.Trim() ?? string.Empty,
             Password = PasswordEntry.Text ?? string.Empty
@@ -50,14 +51,9 @@ public partial class LoginPage : ContentPage
             var result = await _authService.LoginAsync(loginData);
 
             if (result.Success)
-            {
-                await DisplayAlertAsync("Success", "Welcome back!", "OK");
-                // TODO: Navigate to main app page
-            }
+                App.GoToApp();
             else
-            {
-                PageUtility.ShowError(ErrorLabel, "Login failed. " + result.Message);
-            }
+                PageUtility.ShowError(ErrorLabel, result.Message ?? "Login failed.");
         }
         catch (Exception ex)
         {
@@ -69,15 +65,6 @@ public partial class LoginPage : ContentPage
         }
     }
 
-    private async void RegisterButton_Clicked(object sender, EventArgs e)
-    {
-        //await Navigation.PushAsync(new RegistrationPage());
-        await Shell.Current.GoToAsync("registration");
-    }
-
-
-    private async void MapButtonClicked(object sender, EventArgs e)
-    {
-        await Shell.Current.GoToAsync("map");
-    }
+    private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
+        => await Shell.Current.GoToAsync("registration");
 }

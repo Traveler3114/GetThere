@@ -12,9 +12,10 @@ public class TicketService
         _httpClient = httpClient;
     }
 
-    public async Task<OperationResult<IEnumerable<TicketDto>>> GetTicketsAsync(string userId)
+    // No userId in the URL — the API reads it from the JWT token
+    public async Task<OperationResult<IEnumerable<TicketDto>>> GetTicketsAsync()
     {
-        var response = await _httpClient.GetAsync($"ticket/{userId}");
+        var response = await _httpClient.GetAsync("ticket");
         return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<TicketDto>>>()
             ?? OperationResult<IEnumerable<TicketDto>>.Fail("Unexpected error occurred.");
     }
