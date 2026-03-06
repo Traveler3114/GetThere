@@ -64,7 +64,34 @@ public partial class OperatorsPage : ContentPage
             o.City,
             o.Country,
             IsInstalled = _gtfsService.IsInstalled(o.Id),
+            SizeText = FormatSize(_gtfsService.GetSizeBytes(o.Id)),
         }).ToList();
+
+        UpdateFilterButtons();
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return string.Empty;
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024):F1} MB";
+    }
+
+    private void UpdateFilterButtons()
+    {
+        var active = Color.FromArgb("#4CAF50");
+        var inactive = Color.FromArgb("#E0E0E0");
+        var activeText = Colors.White;
+        var inactiveText = Color.FromArgb("#333333");
+
+        AllBtn.BackgroundColor = _filter == "All" ? active : inactive;
+        InstalledBtn.BackgroundColor = _filter == "Installed" ? active : inactive;
+        NotInstalledBtn.BackgroundColor = _filter == "Not Installed" ? active : inactive;
+
+        AllBtn.TextColor = _filter == "All" ? activeText : inactiveText;
+        InstalledBtn.TextColor = _filter == "Installed" ? activeText : inactiveText;
+        NotInstalledBtn.TextColor = _filter == "Not Installed" ? activeText : inactiveText;
     }
 
     private void Filter_Clicked(object? sender, EventArgs e)
@@ -82,10 +109,9 @@ public partial class OperatorsPage : ContentPage
         if (sender is not Button btn || btn.CommandParameter == null)
             return;
 
-        var op = btn.CommandParameter as TransitOperatorDto;
-        if (op == null) return;
-        var opId = (int)op.Id;
-        var realOp = _allOperators.First(o => o.Id == opId);
+        var opId = (int)btn.CommandParameter;
+        var realOp = _allOperators.FirstOrDefault(o => o.Id == opId);
+        if (realOp == null) return;
 
         if (_gtfsService.IsInstalled(opId))
         {
@@ -97,12 +123,18 @@ public partial class OperatorsPage : ContentPage
         {
             var progress = new Progress<double>(p => btn.Text = $"{p:P0}");
             btn.IsEnabled = false;
-            try { await _gtfsService.InstallAsync(realOp, progress); }
+            try
+            {
+                await _gtfsService.InstallAsync(realOp, progress);
+            }
             catch (Exception ex)
             {
                 await DisplayAlertAsync("Error", ex.Message, "OK");
             }
-            finally { btn.IsEnabled = true; }
+            finally
+            {
+                btn.IsEnabled = true;
+            }
         }
         ApplyFilter();
     }

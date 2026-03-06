@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:helpers="clr-namespace:GetThere.Helpers"
              x:Class="GetThere.Pages.OperatorsPage"
              Title="Operators">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <helpers:InstallBtnTextConverter x:Key="InstallBtnTextConverter" />
+            <helpers:InstallBtnColorConverter x:Key="InstallBtnColorConverter" />
+        </ResourceDictionary>
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,*,Auto">
         <SearchBar Grid.Row="0" x:Name="SearchBar" Placeholder="Search..." Margin="12,8" TextChanged="SearchBar_TextChanged" />
         <HorizontalStackLayout Grid.Row="1" Margin="12,8" Spacing="8">
-            <Button x:Name="AllBtn" Text="All" Clicked="Filter_Clicked" BackgroundColor="#4CAF50" TextColor="White" />
+            <Button x:Name="AllBtn" Text="All" Clicked="Filter_Clicked" />
             <Button x:Name="InstalledBtn" Text="Installed" Clicked="Filter_Clicked" />
             <Button x:Name="NotInstalledBtn" Text="Not Installed" Clicked="Filter_Clicked" />
         </HorizontalStackLayout>
@@ -20,6 +28,8 @@
                                 <Label Text="{Binding Name}" FontSize="16" FontAttributes="Bold" />
                                 <Label Text="{Binding City}" FontSize="13" TextColor="Gray" />
                                 <Label Text="{Binding Country}" FontSize="12" TextColor="Gray" />
+                                <Label Text="{Binding SizeText}" FontSize="11" TextColor="#4CAF50"
+                                       IsVisible="{Binding IsInstalled}" />
                             </VerticalStackLayout>
                             <Button Grid.Column="1"
                                     Text="{Binding IsInstalled, Converter={StaticResource InstallBtnTextConverter}}"
@@ -27,13 +37,13 @@
                                     TextColor="White"
                                     CornerRadius="8"
                                     Clicked="InstallRemove_Clicked"
-                                    CommandParameter="{Binding .}" />
+                                    CommandParameter="{Binding Id}" />
                         </Grid>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-        <ActivityIndicator Grid.RowSpan="4"
+        <ActivityIndicator Grid.Row="3"
                            x:Name="BusyIndicator"
                            IsRunning="False"
                            IsVisible="False"
