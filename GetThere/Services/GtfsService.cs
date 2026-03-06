@@ -1,31 +1,36 @@
 ﻿using GetThereShared.Dtos;
 using System.IO.Compression;
 using System.Text.Json;
-using System.Net.Http.Json;
+using System.Diagnostics;
+using Google.Protobuf;
 
 namespace GetThere.Services;
 
 public class GtfsService
 {
     private const string InstalledKey = "installed_operator_ids";
+    private const string RealtimeUrlsKey = "realtime_feed_urls";
+
     private readonly HttpClient _http;
 
     public GtfsService(HttpClient http) => _http = http;
 
     // ────────────────────────────
-    // Download/Remove GTFS Static
+    // Install / Remove
     // ────────────────────────────
 
     public async Task<bool> InstallAsync(TransitOperatorDto op, IProgress<double>? progress = null)
     {
         if (string.IsNullOrEmpty(op.GtfsFeedUrl))
             return false;
+
         var dir = GetOperatorDir(op.Id);
         var zipPath = Path.Combine(dir, "gtfs.zip");
         Directory.CreateDirectory(dir);
 
         using var response = await _http.GetAsync(op.GtfsFeedUrl, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
+
         var total = response.Content.Headers.ContentLength ?? -1L;
         var buffer = new byte[81920];
         long downloaded = 0;
@@ -37,10 +42,14 @@ public class GtfsService
         {
             await dest.WriteAsync(buffer.AsMemory(0, read));
             downloaded += read;
-            if (total > 0)
-                progress?.Report((double)downloaded / total);
+            if (total > 0) progress?.Report((double)downloaded / total);
         }
+
         MarkInstalled(op.Id);
+
+        if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
+            SaveRealtimeUrl(op.Id, op.GtfsRealtimeFeedUrl);
+
         return true;
     }
 
@@ -49,10 +58,11 @@ public class GtfsService
         var dir = GetOperatorDir(operatorId);
         if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
         MarkRemoved(operatorId);
+        RemoveRealtimeUrl(operatorId);
     }
 
-    public bool IsInstalled(int operatorId)
-        => GetInstalledIds().Contains(operatorId);
+    public bool IsInstalled(int operatorId) => GetInstalledIds().Contains(operatorId);
+    public bool HasRealtime(int operatorId) => !string.IsNullOrEmpty(GetRealtimeUrl(operatorId));
 
     public string GetOperatorDir(int operatorId)
         => Path.Combine(FileSystem.AppDataDirectory, "gtfs", operatorId.ToString());
@@ -64,7 +74,7 @@ public class GtfsService
     }
 
     // ────────────────────────────
-    // Parse Stops/Routes from Local GTFS
+    // Parse Stops / Routes
     // ────────────────────────────
 
     public async Task<List<GtfsStopDto>> ParseStopsAsync(int operatorId)
@@ -102,54 +112,170 @@ public class GtfsService
         var shapes = await ParseShapesAsync(zip);
         var routeShapeMap = await BuildRouteShapeMapAsync(zip);
         foreach (var route in routes)
-        {
             if (routeShapeMap.TryGetValue(route.RouteId, out var shapeId)
                 && shapes.TryGetValue(shapeId, out var coords))
-            {
                 route.Shape = coords;
-            }
-        }
         return routes;
     }
 
     // ────────────────────────────
-    // Fetch Realtime Vehicles (Proxy API)
+    // Realtime Vehicles
     // ────────────────────────────
 
     public async Task<List<VehiclePositionDto>> GetVehiclesAsync(int operatorId)
     {
-        var result = await _http
-            .GetFromJsonAsync<OperationResult<List<VehiclePositionDto>>>(
-                $"gtfs/{operatorId}/realtime/vehicles");
-        return result?.Data ?? [];
+        var feedUrl = GetRealtimeUrl(operatorId);
+        if (string.IsNullOrEmpty(feedUrl)) return [];
+
+        var bytes = await _http.GetByteArrayAsync(feedUrl);
+        Trace.WriteLine($"[Realtime] Fetched {bytes.Length} bytes from {feedUrl}");
+
+        var result = new List<VehiclePositionDto>();
+        var input = new CodedInputStream(bytes);
+
+        // ZET feed structure (decoded from raw bytes):
+        // FeedMessage: field2(tag18) = repeated FeedEntity
+        // FeedEntity:  field1(tag10) = id string
+        //              field3(tag26) = VehiclePosition  ← ZET uses field3, not field4
+        // VehiclePosition: field1(tag10) = TripDescriptor
+        //                  field2(tag18) = Position
+        //                  field3(tag26) = VehicleDescriptor
+        // TripDescriptor: field1(tag10) = trip_id, field2(tag18) = route_id
+        // Position:       field1(tag13) = latitude (float), field2(tag21) = longitude (float), field3(tag29) = bearing (float)
+        // VehicleDescriptor: field1(tag10) = id, field2(tag18) = label
+
+        uint tag;
+        while ((tag = input.ReadTag()) != 0)
+        {
+            if (tag != 18) { input.SkipLastField(); continue; } // field 2 = entity
+
+            var entityLimit = input.ReadLength();
+            var entityEnd = input.Position + entityLimit;
+            string entityId = string.Empty;
+            VehiclePositionDto? dto = null;
+
+            while (input.Position < entityEnd && (tag = input.ReadTag()) != 0)
+            {
+                switch (tag)
+                {
+                    case 10: entityId = input.ReadString(); break; // field 1 = id
+                    case 26:                                        // field 3 = VehiclePosition (ZET specific)
+                        var vpLimit = input.ReadLength();
+                        var vpEnd = input.Position + vpLimit;
+                        dto = new VehiclePositionDto();
+                        while (input.Position < vpEnd && (tag = input.ReadTag()) != 0)
+                        {
+                            switch (tag)
+                            {
+                                case 10: // field 1 = TripDescriptor
+                                    var tripLimit = input.ReadLength();
+                                    var tripEnd = input.Position + tripLimit;
+                                    while (input.Position < tripEnd && (tag = input.ReadTag()) != 0)
+                                    {
+                                        switch (tag)
+                                        {
+                                            case 10: dto.VehicleId = input.ReadString(); break; // trip_id as fallback id
+                                            case 18: dto.RouteId = input.ReadString(); break; // route_id
+                                            default: input.SkipLastField(); break;
+                                        }
+                                    }
+                                    break;
+                                case 18: // field 2 = Position
+                                    var posLimit = input.ReadLength();
+                                    var posEnd = input.Position + posLimit;
+                                    while (input.Position < posEnd && (tag = input.ReadTag()) != 0)
+                                    {
+                                        switch (tag)
+                                        {
+                                            case 13: dto.Lat = input.ReadFloat(); break; // latitude
+                                            case 21: dto.Lon = input.ReadFloat(); break; // longitude
+                                            case 29: dto.Bearing = input.ReadFloat(); break; // bearing
+                                            default: input.SkipLastField(); break;
+                                        }
+                                    }
+                                    break;
+                                case 26: // field 3 = VehicleDescriptor
+                                    var vdLimit = input.ReadLength();
+                                    var vdEnd = input.Position + vdLimit;
+                                    while (input.Position < vdEnd && (tag = input.ReadTag()) != 0)
+                                    {
+                                        switch (tag)
+                                        {
+                                            case 10: dto.VehicleId = input.ReadString(); break; // id
+                                            case 18: dto.Label = input.ReadString(); break; // label
+                                            default: input.SkipLastField(); break;
+                                        }
+                                    }
+                                    break;
+                                default: input.SkipLastField(); break;
+                            }
+                        }
+                        break;
+                    default: input.SkipLastField(); break;
+                }
+            }
+
+            if (dto != null && dto.Lat != 0 && dto.Lon != 0)
+            {
+                if (string.IsNullOrEmpty(dto.VehicleId)) dto.VehicleId = entityId;
+                result.Add(dto);
+            }
+        }
+
+        Trace.WriteLine($"[Realtime] Parsed {result.Count} vehicles");
+        return result;
     }
 
     // ────────────────────────────
-    // Helpers
+    // Realtime URL cache
     // ────────────────────────────
 
-    private ZipArchive? OpenZip(int operatorId)
+    private void SaveRealtimeUrl(int operatorId, string url)
     {
-        var path = Path.Combine(GetOperatorDir(operatorId), "gtfs.zip");
-        return File.Exists(path) ? ZipFile.OpenRead(path) : null;
+        var map = GetRealtimeUrlMap();
+        map[operatorId] = url;
+        Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
     }
+
+    private void RemoveRealtimeUrl(int operatorId)
+    {
+        var map = GetRealtimeUrlMap();
+        map.Remove(operatorId);
+        Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
+    }
+
+    private string? GetRealtimeUrl(int operatorId)
+    {
+        var map = GetRealtimeUrlMap();
+        return map.TryGetValue(operatorId, out var url) ? url : null;
+    }
+
+    private Dictionary<int, string> GetRealtimeUrlMap()
+    {
+        var json = Preferences.Get(RealtimeUrlsKey, "{}");
+        return JsonSerializer.Deserialize<Dictionary<int, string>>(json) ?? [];
+    }
+
+    // ────────────────────────────
+    // Installed IDs
+    // ────────────────────────────
 
     private HashSet<int> GetInstalledIds()
     {
         var json = Preferences.Get(InstalledKey, "[]");
         return JsonSerializer.Deserialize<HashSet<int>>(json) ?? [];
     }
-    private void MarkInstalled(int id)
+    private void MarkInstalled(int id) { var s = GetInstalledIds(); s.Add(id); Preferences.Set(InstalledKey, JsonSerializer.Serialize(s)); }
+    private void MarkRemoved(int id) { var s = GetInstalledIds(); s.Remove(id); Preferences.Set(InstalledKey, JsonSerializer.Serialize(s)); }
+
+    // ────────────────────────────
+    // Zip / CSV helpers
+    // ────────────────────────────
+
+    private ZipArchive? OpenZip(int operatorId)
     {
-        var set = GetInstalledIds();
-        set.Add(id);
-        Preferences.Set(InstalledKey, JsonSerializer.Serialize(set));
-    }
-    private void MarkRemoved(int id)
-    {
-        var set = GetInstalledIds();
-        set.Remove(id);
-        Preferences.Set(InstalledKey, JsonSerializer.Serialize(set));
+        var path = Path.Combine(GetOperatorDir(operatorId), "gtfs.zip");
+        return File.Exists(path) ? ZipFile.OpenRead(path) : null;
     }
 
     private static async Task<Dictionary<string, List<double[]>>> ParseShapesAsync(ZipArchive zip)
@@ -173,6 +299,7 @@ public class GtfsService
             result[shapeId] = points.OrderBy(p => p.seq).Select(p => new[] { p.lon, p.lat }).ToList();
         return result;
     }
+
     private static async Task<Dictionary<string, string>> BuildRouteShapeMapAsync(ZipArchive zip)
     {
         var result = new Dictionary<string, string>();
@@ -189,6 +316,7 @@ public class GtfsService
         }
         return result;
     }
+
     private static async Task<List<Dictionary<string, string>>> ParseCsvAsync(Stream stream)
     {
         var results = new List<Dictionary<string, string>>();
@@ -197,7 +325,6 @@ public class GtfsService
         if (header is null) return results;
         header = header.TrimStart('\uFEFF');
         var columns = SplitCsvLine(header);
-
         string? line;
         while ((line = await reader.ReadLineAsync()) is not null)
         {
@@ -210,6 +337,7 @@ public class GtfsService
         }
         return results;
     }
+
     private static List<string> SplitCsvLine(string line)
     {
         var result = new List<string>();
@@ -224,8 +352,11 @@ public class GtfsService
         result.Add(current.ToString());
         return result;
     }
+
     private static string Get(Dictionary<string, string> row, string key)
         => row.TryGetValue(key, out var v) ? v : string.Empty;
+
     private static double ParseDouble(string s)
-        => double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+        => double.TryParse(s, System.Globalization.NumberStyles.Any,
+               System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
 }
