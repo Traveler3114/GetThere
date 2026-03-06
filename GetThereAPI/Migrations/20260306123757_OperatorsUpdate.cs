@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class OperatorsUpdate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -268,8 +268,13 @@ namespace GetThereAPI.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     LogoUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TicketApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TicketApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    GtfsFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    GtfsRealtimeFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsTicketingEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    IsScheduleEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    IsRealtimeEnabled = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CountryId = table.Column<int>(type: "int", nullable: false),

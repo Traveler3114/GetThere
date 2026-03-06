@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260305085229_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260306123757_OperatorsUpdate")]
+    partial class OperatorsUpdate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -271,14 +271,6 @@ namespace GetThereAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ApiBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApiKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int?>("CityId")
                         .HasColumnType("int");
 
@@ -288,13 +280,36 @@ namespace GetThereAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("GtfsFeedUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GtfsRealtimeFeedUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRealtimeEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsScheduleEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsTicketingEnabled")
                         .HasColumnType("bit");
 
                     b.Property<string>("LogoUrl")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TicketApiBaseUrl")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TicketApiKey")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 

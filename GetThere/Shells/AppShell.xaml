@@ -16,6 +16,10 @@
             Title="Map"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
+        <ShellContent
+            Title="Operators"
+            ContentTemplate="{DataTemplate pages:OperatorsPage}"
+            Route="operators" />
     </TabBar>
 
 </Shell>

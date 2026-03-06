@@ -5,8 +5,24 @@
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? LogoUrl { get; set; }
-        public string ApiBaseUrl { get; set; } = string.Empty;
-        public string ApiKey { get; set; } = string.Empty;
+
+        // Existing ticket API fields
+        public string TicketApiBaseUrl { get; set; } = string.Empty;
+        public string TicketApiKey { get; set; } = string.Empty;
+
+        // ── NEW: GTFS Schedule ─────────────────────────────────────────────
+        // The static GTFS feed download URL (from Mobility Database)
+        public string? GtfsFeedUrl { get; set; }
+
+        // ── NEW: GTFS Realtime ─────────────────────────────────────────────
+        // GTFS-RT vehicle positions feed URL
+        public string? GtfsRealtimeFeedUrl { get; set; }
+
+        // ── NEW: Feature flags ─────────────────────────────────────────────
+        public bool IsTicketingEnabled { get; set; } = false;
+        public bool IsScheduleEnabled { get; set; } = false;
+        public bool IsRealtimeEnabled { get; set; } = false;
+
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
