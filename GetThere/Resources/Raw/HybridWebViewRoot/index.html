@@ -1,10 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
-
 
     <style>
         html, body, #map {
@@ -18,10 +17,7 @@
 <body>
 
 
-
     <div id="map"></div>
-
-
 
 
 
@@ -36,16 +32,20 @@
             center: [15.980820, 45.784044],
             zoom: 13
         });
+
         map.addControl(new maplibregl.NavigationControl());
 
 
-
-        const marker = new maplibregl.Marker()
+        let marker = new maplibregl.Marker()
             .setLngLat([15.980820, 45.784044])
             .addTo(map);
 
-
+        function updateMapLocation(lng, lat) {
+            console.log('updateMapLocation called with:', lng, lat);
+            map.setCenter([lng, lat]);
+            marker.setLngLat([lng, lat]);
+            map.setZoom(15);
+        }
     </script>
-
 </body>
 </html>
