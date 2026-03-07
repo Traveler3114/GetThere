@@ -13,7 +13,6 @@ public class OperatorManager
     public async Task<List<TransitOperatorDto>> GetAllAsync()
     {
         return await _context.TransitOperators
-            .Where(o => o.IsActive)
             .Include(o => o.Country)
             .Include(o => o.City)
             .OrderBy(o => o.Name)
@@ -30,9 +29,6 @@ public class OperatorManager
                 RealtimeAuthType      = o.RealtimeAuthType,
                 RealtimeAuthConfig    = o.RealtimeAuthConfig,
                 RealtimeAdapterConfig = o.RealtimeAdapterConfig,
-                IsTicketingEnabled    = o.IsTicketingEnabled,
-                IsScheduleEnabled     = o.IsScheduleEnabled,
-                IsRealtimeEnabled     = o.IsRealtimeEnabled,
             }).ToListAsync();
     }
 }

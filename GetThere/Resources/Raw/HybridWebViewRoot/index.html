@@ -79,21 +79,22 @@
         let routeColorMap = {};
         let routeNameMap = {};
         let routeTypeMap = {};
+        let routeShapeMap = {};  // routeId → shape coords
         let vehicleMarkers = {};
         let stopMarkers = [];
-        let selectedRouteId = null;
+        let activeRouteId = null;
 
         // ─── STOP ICON ───────────────────────────────────────────────────────
         // White square with a blue "H"-like bus stop pole shape — clearly a stop
         function makeStopIcon() {
             const svg = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                        <!-- Outer circle: white with colored border -->
-                        <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
-                        <!-- Letter S for Stop -->
-                        <text x="10" y="14" text-anchor="middle" font-size="11"
-                              font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
-                    </svg>`;
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+                            <!-- Outer circle: white with colored border -->
+                            <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
+                            <!-- Letter S for Stop -->
+                            <text x="10" y="14" text-anchor="middle" font-size="11"
+                                  font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
+                        </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = 'cursor:pointer; width:20px; height:20px;';
@@ -113,38 +114,38 @@
 
             // The icon is a rounded rectangle (vehicle body) with an arrow on top
             const svg = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                        <!-- Direction arrow pointing up (rotated by bearing) -->
-                        <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
+                            <!-- Direction arrow pointing up (rotated by bearing) -->
+                            <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
 
-                        <!-- Vehicle body: rounded rect -->
-                        <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
-                              fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
+                            <!-- Vehicle body: rounded rect -->
+                            <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
+                                  fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
 
-                        <!-- Vehicle type icon top-left -->
-                        <text x="8" y="21" text-anchor="middle" font-size="9"
-                              font-family="Arial" fill="rgba(255,255,255,0.75)">
-                            ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
-                        </text>
+                            <!-- Vehicle type icon top-left -->
+                            <text x="8" y="21" text-anchor="middle" font-size="9"
+                                  font-family="Arial" fill="rgba(255,255,255,0.75)">
+                                ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
+                            </text>
 
-                        <!-- Route number centred -->
-                        <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
-                              font-family="Arial, sans-serif" font-weight="bold" fill="white"
-                              paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
-                            ${label}
-                        </text>
-                    </svg>`;
+                            <!-- Route number centred -->
+                            <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
+                                  font-family="Arial, sans-serif" font-weight="bold" fill="white"
+                                  paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
+                                ${label}
+                            </text>
+                        </svg>`;
 
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = `
-                        cursor: pointer;
-                        width: 36px;
-                        height: 42px;
-                        transform: rotate(${bearing || 0}deg);
-                        transform-origin: 18px 21px;
-                        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                    `;
+                            cursor: pointer;
+                            width: 36px;
+                            height: 42px;
+                            transform: rotate(${bearing || 0}deg);
+                            transform-origin: 18px 21px;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+                        `;
             return el;
         }
 
@@ -163,9 +164,9 @@
                 el.addEventListener('mouseenter', () => {
                     popup.setLngLat([s.lon, s.lat])
                         .setHTML(`<div class="stop-popup">
-                                    <strong>${s.name}</strong>
-                                    <span class="stop-id">${s.stopId}</span>
-                                </div>`)
+                                        <strong>${s.name}</strong>
+                                        <span class="stop-id">${s.stopId}</span>
+                                    </div>`)
                         .addTo(map);
                 });
                 el.addEventListener('mouseleave', () => popup.remove());
@@ -179,48 +180,60 @@
         }
 
         // ─── renderRoutes ────────────────────────────────────────────────────
+        // Stores route data in memory only. Nothing drawn until a vehicle is clicked.
         function renderRoutes(jsonStr) {
             const routes = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
 
+            clearActiveRoute();
             routeColorMap = {};
             routeNameMap = {};
             routeTypeMap = {};
+            routeShapeMap = {};
+
             routes.forEach(r => {
-                const color = typeColor(r.routeType); // ignore white GTFS color
-                routeColorMap[r.routeId] = color;
+                routeColorMap[r.routeId] = typeColor(r.routeType);
                 routeNameMap[r.routeId] = r.shortName || r.routeId;
                 routeTypeMap[r.routeId] = r.routeType ?? 3;
+                if (r.shape && r.shape.length >= 2)
+                    routeShapeMap[r.routeId] = r.shape;
+            });
+        }
+
+        // ─── showRoute / clearActiveRoute ────────────────────────────────────
+        function showRoute(routeId) {
+            clearActiveRoute();
+            const shape = routeShapeMap[routeId];
+            if (!shape || shape.length < 2) return;
+
+            const color = '#' + routeColorMap[routeId];
+
+            map.addSource('active-route', {
+                type: 'geojson',
+                data: { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } }
             });
 
-            routes.forEach(r => {
-                const id = 'route-' + r.routeId;
-                if (map.getLayer(id + '-highlight')) map.removeLayer(id + '-highlight');
-                if (map.getLayer(id)) map.removeLayer(id);
-                if (map.getSource(id)) map.removeSource(id);
+            // Dark outline underneath for contrast
+            map.addLayer({
+                id: 'active-route-outline', type: 'line', source: 'active-route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.15 }
             });
 
-            routes.forEach(r => {
-                if (!r.shape || r.shape.length < 2) return;
-                const id = 'route-' + r.routeId;
-                const color = '#' + typeColor(r.routeType);
-
-                map.addSource(id, {
-                    type: 'geojson',
-                    data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.shape } }
-                });
-
-                map.addLayer({
-                    id, type: 'line', source: id,
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': color, 'line-width': 2.5, 'line-opacity': 0.6 }
-                });
-
-                map.addLayer({
-                    id: id + '-highlight', type: 'line', source: id,
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0 }
-                });
+            // Main colored route line
+            map.addLayer({
+                id: 'active-route', type: 'line', source: 'active-route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.95 }
             });
+
+            activeRouteId = routeId;
+        }
+
+        function clearActiveRoute() {
+            if (map.getLayer('active-route-outline')) map.removeLayer('active-route-outline');
+            if (map.getLayer('active-route')) map.removeLayer('active-route');
+            if (map.getSource('active-route')) map.removeSource('active-route');
+            activeRouteId = null;
         }
 
         // ─── Color by route type (ZET GTFS has white for everything — useless) ──
@@ -287,44 +300,31 @@
         function attachVehicleClickHandler(el, v, color, resolvedId) {
             el.addEventListener('click', e => {
                 e.stopPropagation();
-                highlightRoute(resolvedId);
+                showRoute(resolvedId);
                 const hex = '#' + (color || 'e53935').replace('#', '');
                 const name = routeNameMap[resolvedId] || v.routeId || resolvedId;
                 vehiclePopup
                     .setLngLat([v.lon, v.lat])
                     .setHTML(`<div class="vehicle-popup">
-                                <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                                ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                                <div class="info">Route ID: ${resolvedId || v.routeId}</div>
-                            </div>`)
+                                    <span class="route-badge" style="background:${hex}">Line ${name}</span>
+                                    ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
+                                    <div class="info">Route: ${name}</div>
+                                </div>`)
                     .addTo(map);
             });
         }
 
-        function highlightRoute(routeId) {
-            if (selectedRouteId) {
-                const prev = 'route-' + selectedRouteId;
-                if (map.getLayer(prev + '-highlight')) map.setPaintProperty(prev + '-highlight', 'line-opacity', 0);
-                if (map.getLayer(prev)) map.setPaintProperty(prev, 'line-opacity', 0.6);
-            }
-            selectedRouteId = routeId;
-            const cur = 'route-' + routeId;
-            if (map.getLayer(cur + '-highlight')) {
-                // Use the route's own color for highlight (brighter/thicker), not black
-                const routeHex = '#' + (routeColorMap[routeId] || '1a73e8').replace('#', '');
-                map.setPaintProperty(cur + '-highlight', 'line-color', routeHex);
-                map.setPaintProperty(cur + '-highlight', 'line-opacity', 1);
-                map.setPaintProperty(cur + '-highlight', 'line-width', 7);
-            }
-            if (map.getLayer(cur)) map.setPaintProperty(cur, 'line-opacity', 0.15);
+        // ─── clearVehicles ───────────────────────────────────────────────────
+        // Called from C# when all operators are uninstalled mid-session
+        function clearVehicles(jsonStr) {
+            Object.values(vehicleMarkers).forEach(m => m.marker.remove());
+            vehicleMarkers = {};
+            clearActiveRoute();
+            vehiclePopup.remove();
         }
 
         map.on('click', () => {
-            if (!selectedRouteId) return;
-            const cur = 'route-' + selectedRouteId;
-            if (map.getLayer(cur + '-highlight')) map.setPaintProperty(cur + '-highlight', 'line-opacity', 0);
-            if (map.getLayer(cur)) map.setPaintProperty(cur, 'line-opacity', 0.6);
-            selectedRouteId = null;
+            clearActiveRoute();
             vehiclePopup.remove();
         });
     </script>

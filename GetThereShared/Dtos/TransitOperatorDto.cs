@@ -15,9 +15,5 @@ namespace GetThereShared.Dtos
         public string  RealtimeAuthType     { get; set; } = "NONE";
         public string? RealtimeAuthConfig   { get; set; }
         public string? RealtimeAdapterConfig{ get; set; }
-
-        public bool IsTicketingEnabled      { get; set; }
-        public bool IsScheduleEnabled       { get; set; }
-        public bool IsRealtimeEnabled       { get; set; }
     }
 }

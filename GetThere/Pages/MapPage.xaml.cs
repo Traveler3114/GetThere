@@ -7,18 +7,18 @@ namespace GetThere.Pages;
 
 public partial class MapPage : ContentPage
 {
-    private readonly GtfsService     _gtfsApi;
+    private readonly GtfsService _gtfsApi;
     private readonly OperatorService _operatorService;
-    private System.Timers.Timer?     _realtimeTimer;
+    private System.Timers.Timer? _realtimeTimer;
 
     // Full operator objects kept for realtime polling (need format/auth config)
     private List<TransitOperatorDto> _activeRealtimeOperators = [];
-    private Dictionary<string, int>  _routeTypeMap            = [];
+    private Dictionary<string, int> _routeTypeMap = [];
 
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
         InitializeComponent();
-        _gtfsApi         = gtfsApi;
+        _gtfsApi = gtfsApi;
         _operatorService = operatorService;
     }
 
@@ -54,7 +54,7 @@ public partial class MapPage : ContentPage
                 var location = await Geolocation.GetLocationAsync(new GeolocationRequest
                 {
                     DesiredAccuracy = GeolocationAccuracy.Best,
-                    Timeout         = TimeSpan.FromSeconds(10)
+                    Timeout = TimeSpan.FromSeconds(10)
                 });
                 if (location != null)
                 {
@@ -83,23 +83,28 @@ public partial class MapPage : ContentPage
 
             _activeRealtimeOperators.Clear();
             _routeTypeMap.Clear();
-            var allStops  = new List<object>();
+            var allStops = new List<object>();
             var allRoutes = new List<object>();
 
             foreach (var op in operators)
             {
                 if (!_gtfsApi.IsInstalled(op.Id)) continue;
 
-                var stops  = await _gtfsApi.ParseStopsAsync(op.Id);
+                var stops = await _gtfsApi.ParseStopsAsync(op.Id);
                 var routes = await _gtfsApi.ParseRoutesAsync(op.Id);
                 Trace.WriteLine($"[Map] {op.Name}: {stops.Count} stops, {routes.Count} routes");
 
                 allStops.AddRange(stops.Select(s => new
-                    { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon }));
+                { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon }));
 
                 allRoutes.AddRange(routes.Select(r => new
-                    { routeId = r.RouteId, shortName = r.ShortName, color = r.Color,
-                      shape = r.Shape, routeType = r.RouteType }));
+                {
+                    routeId = r.RouteId,
+                    shortName = r.ShortName,
+                    color = r.Color,
+                    shape = r.Shape,
+                    routeType = r.RouteType
+                }));
 
                 foreach (var r in routes)
                     _routeTypeMap[r.RouteId] = r.RouteType;
@@ -108,7 +113,7 @@ public partial class MapPage : ContentPage
                     _activeRealtimeOperators.Add(op);
             }
 
-            await CallJs("renderStops",  allStops);
+            await CallJs("renderStops", allStops);
             await CallJs("renderRoutes", allRoutes);
         }
         catch (Exception ex) { Trace.WriteLine($"[Map] Load error: {ex.Message}"); }
@@ -141,22 +146,36 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            var allVehicles = new List<object>();
+            // Drop any operators that have been uninstalled since last poll
+            var stillInstalled = _activeRealtimeOperators
+                .Where(op => _gtfsApi.IsInstalled(op.Id))
+                .ToList();
 
+            if (stillInstalled.Count != _activeRealtimeOperators.Count)
+            {
+                _activeRealtimeOperators = stillInstalled;
+                if (_activeRealtimeOperators.Count == 0)
+                {
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                        await CallJs("clearVehicles", new object()));
+                    return;
+                }
+            }
+
+            var allVehicles = new List<object>();
             foreach (var op in _activeRealtimeOperators)
             {
-                // Pass the full operator — parser needs format + auth config
                 var vehicles = await _gtfsApi.GetVehiclesAsync(op);
                 Trace.WriteLine($"[Realtime] {op.Name}: {vehicles.Count} vehicles");
 
                 allVehicles.AddRange(vehicles.Select(v => new
                 {
                     vehicleId = v.VehicleId,
-                    routeId   = v.RouteId,
-                    lat       = v.Lat,
-                    lon       = v.Lon,
-                    bearing   = v.Bearing,
-                    label     = v.Label,
+                    routeId = v.RouteId,
+                    lat = v.Lat,
+                    lon = v.Lon,
+                    bearing = v.Bearing,
+                    label = v.Label,
                     routeType = (!string.IsNullOrEmpty(v.RouteId)
                                  && _routeTypeMap.TryGetValue(v.RouteId!, out var rt)) ? rt : 3
                 }));
@@ -174,7 +193,7 @@ public partial class MapPage : ContentPage
 
     private async Task CallJs(string fn, object data)
     {
-        var json    = JsonSerializer.Serialize(data);
+        var json = JsonSerializer.Serialize(data);
         var escaped = json.Replace("\\", "\\\\").Replace("'", "\\'");
         await MapWebView.EvaluateJavaScriptAsync($"{fn}('{escaped}')");
     }

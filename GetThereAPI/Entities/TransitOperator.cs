@@ -42,10 +42,6 @@ namespace GetThereAPI.Entities
         public string? RealtimeAdapterConfig { get; set; }
 
         // ── Feature flags ──────────────────────────────────────────────────
-        public bool IsTicketingEnabled { get; set; } = false;
-        public bool IsScheduleEnabled  { get; set; } = false;
-        public bool IsRealtimeEnabled  { get; set; } = false;
-        public bool IsActive           { get; set; } = true;
         public DateTime CreatedAt      { get; set; } = DateTime.UtcNow;
 
         public int CountryId { get; set; }
