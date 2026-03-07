@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.MapPage"
              Title="MapPage">
 
     <Grid>
+        <components:BreathingBackground />
         <!-- Map WebView -->
-        <HybridWebView x:Name="MapWebView"
-                     HybridRoot="HybridWebViewRoot"
-                     HorizontalOptions="Fill"
-                     VerticalOptions="Fill" />
+        <WebView x:Name="MapWebView"
+                 Source="HybridWebViewRoot/index.html"
+                 HorizontalOptions="Fill"
+                 VerticalOptions="Fill" />
 
         <!-- Loading Overlay -->
         <Grid x:Name="LoadingOverlay"

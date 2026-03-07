@@ -76,7 +76,7 @@ public partial class RegistrationPage : ContentPage
             if (result.Success)
             {
                 await DisplayAlertAsync("Account created", "You can now log in.", "Continue");
-                await Shell.Current.GoToAsync("//login");
+                await Shell.Current.GoToAsync("///login");
             }
             else
             {
@@ -94,5 +94,11 @@ public partial class RegistrationPage : ContentPage
     }
 
     private async void LoginButton_Clicked(object? sender, TappedEventArgs e)
-        => await Shell.Current.GoToAsync("//login");
+        => await Shell.Current.GoToAsync("///login");
+
+    private void OnPanUpdate(object sender, PanUpdatedEventArgs e)
+    {
+        AnimatedBg.XOffset = (float)e.TotalX;
+        AnimatedBg.YOffset = (float)e.TotalY;
+    }
 }

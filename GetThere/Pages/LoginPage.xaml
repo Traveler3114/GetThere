@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.LoginPage"
              Title="Log in"
              BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="24" Spacing="16">
+    <Grid RowDefinitions="*">
+        <!-- Animated background (behind everything) -->
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
+
+        <!-- Main content -->
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout x:Name="ContentLayout" Padding="24" Spacing="16">
+                <VerticalStackLayout.GestureRecognizers>
+                    <PanGestureRecognizer PanUpdated="OnPanUpdate" />
+                </VerticalStackLayout.GestureRecognizers>
 
             <!-- ── HEADER ── -->
             <VerticalStackLayout Spacing="6" Margin="0,48,0,24">
@@ -60,7 +69,6 @@
             <Button x:Name="LoginButton"
                     Text="Log in"
                     Clicked="LoginButton_Clicked"
-                    BackgroundColor="#4CAF50" TextColor="White"
                     CornerRadius="12" FontAttributes="Bold"
                     HeightRequest="52" Margin="0,8,0,0" />
 
@@ -89,11 +97,12 @@
             <Button x:Name="ConstineAsGuestButton"
                 Text="CONTINUE AS GUEST"
                 Clicked="GuestButton_Clicked"
-                BackgroundColor="#4CAF50" TextColor="White"
                 CornerRadius="12" FontAttributes="Bold"
                 HeightRequest="52" Margin="0,8,0,0" />
 
         </VerticalStackLayout>
     </ScrollView>
+
+    </Grid>
 
 </ContentPage>

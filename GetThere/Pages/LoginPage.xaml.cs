@@ -66,9 +66,14 @@ public partial class LoginPage : ContentPage
     }
 
     private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
-        => await Shell.Current.GoToAsync("registration");
+        => await Shell.Current.GoToAsync("///registration");
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)
         => App.GoToApp();
 
+    private void OnPanUpdate(object sender, PanUpdatedEventArgs e)
+    {
+        AnimatedBg.XOffset = (float)e.TotalX;
+        AnimatedBg.YOffset = (float)e.TotalY;
+    }
 }
