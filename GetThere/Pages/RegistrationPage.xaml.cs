@@ -20,14 +20,14 @@ public partial class RegistrationPage : ContentPage
     {
         _passwordVisible = !_passwordVisible;
         PasswordEntry.IsPassword = !_passwordVisible;
-        TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
+        TogglePasswordBtn.Text = _passwordVisible ? "Hide" : "Show";
     }
 
     private void ToggleConfirmPassword_Clicked(object? sender, EventArgs e)
     {
         _confirmPasswordVisible = !_confirmPasswordVisible;
         ConfirmPasswordEntry.IsPassword = !_confirmPasswordVisible;
-        ToggleConfirmPasswordBtn.Text = _confirmPasswordVisible ? "🙈" : "👁";
+        ToggleConfirmPasswordBtn.Text = _confirmPasswordVisible ? "Hide" : "Show";
     }
 
     private async void RegisterButton_Clicked(object? sender, EventArgs e)

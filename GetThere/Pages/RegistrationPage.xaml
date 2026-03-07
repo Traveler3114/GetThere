@@ -68,8 +68,8 @@
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
                        PlaceholderColor="Gray" />
                 <Button x:Name="TogglePasswordBtn"
-                        Text="👁"
-                        FontSize="16"
+                        Text="Show"
+                        FontSize="12"
                         BackgroundColor="Transparent"
                         TextColor="Gray"
                         HorizontalOptions="End"
@@ -88,8 +88,8 @@
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
                        PlaceholderColor="Gray" />
                 <Button x:Name="ToggleConfirmPasswordBtn"
-                        Text="👁"
-                        FontSize="16"
+                        Text="Show"
+                        FontSize="12"
                         BackgroundColor="Transparent"
                         TextColor="Gray"
                         HorizontalOptions="End"
@@ -119,18 +119,14 @@
                                HorizontalOptions="Center" />
 
             <!-- ── LOGIN LINK ── -->
-            <HorizontalStackLayout HorizontalOptions="Center"
-                                   Spacing="4" Margin="0,12,0,40">
-                <Label Text="Already have an account?"
-                       VerticalOptions="Center" FontSize="14" TextColor="Gray" />
-                <Label Text="Log in"
-                       VerticalOptions="Center" FontSize="14"
-                       TextColor="#4CAF50" FontAttributes="Bold">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="LoginButton_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
-            </HorizontalStackLayout>
+            <Label Text="Log in"
+                   HorizontalOptions="Center" VerticalOptions="Center"
+                   FontSize="14" TextColor="#4CAF50" FontAttributes="Bold"
+                   Margin="0,12,0,40">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="LoginButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
 
         </VerticalStackLayout>
         </ScrollView>

@@ -47,8 +47,8 @@
                        Margin="0,0,0,0" />
                 <!-- Eye button floated to the right inside the entry -->
                 <Button x:Name="TogglePasswordBtn"
-                        Text="👁"
-                        FontSize="16"
+                        Text="Show"
+                        FontSize="12"
                         BackgroundColor="Transparent"
                         TextColor="Gray"
                         HorizontalOptions="End"
@@ -79,18 +79,14 @@
                                HorizontalOptions="Center" />
 
             <!-- ── REGISTER LINK ── -->
-            <HorizontalStackLayout HorizontalOptions="Center"
-                                   Spacing="4" Margin="0,12,0,40">
-                <Label Text="Don't have an account?"
-                       VerticalOptions="Center" FontSize="14" TextColor="Gray" />
-                <Label Text="Create one"
-                       VerticalOptions="Center" FontSize="14"
-                       TextColor="#4CAF50" FontAttributes="Bold">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
-            </HorizontalStackLayout>
+            <Label Text="Register"
+                   HorizontalOptions="Center" VerticalOptions="Center"
+                   FontSize="14" TextColor="#4CAF50" FontAttributes="Bold"
+                   Margin="0,12,0,40">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
 
 
             <!-- ── CONTINUE AS GUEST ── -->

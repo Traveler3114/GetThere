@@ -19,7 +19,7 @@ public partial class LoginPage : ContentPage
     {
         _passwordVisible = !_passwordVisible;
         PasswordEntry.IsPassword = !_passwordVisible;
-        TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
+        TogglePasswordBtn.Text = _passwordVisible ? "Hide" : "Show";
     }
 
     private async void LoginButton_Clicked(object? sender, EventArgs e)
