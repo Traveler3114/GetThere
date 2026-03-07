@@ -1,46 +1,76 @@
-﻿using GetThereShared.Dtos;
+using GetThere.Helpers;
+using GetThere.Services.Realtime;
+using GetThereShared.Dtos;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
-using System.Diagnostics;
 
 namespace GetThere.Services;
 
+/// <summary>
+/// Handles GTFS static data (install, remove, parse stops/routes) and
+/// realtime vehicle polling for any operator.
+///
+/// Format-specific realtime parsing is delegated to IRealtimeParser
+/// implementations selected by RealtimeParserFactory.
+/// </summary>
 public class GtfsService
 {
     private const string InstalledKey = "installed_operator_ids";
+
+    // Prevents concurrent install/read on the same zip file
+    private static readonly SemaphoreSlim _zipLock = new(1, 1);
     private const string RealtimeUrlsKey = "realtime_feed_urls";
+    private const string TripMapKeyPrefix = "trip_route_map_";
 
     private readonly HttpClient _http;
 
     public GtfsService(HttpClient http) => _http = http;
 
-    // ────────────────────────────
+    // ────────────────────────────────────────────────────────────────────
     // Install / Remove
-    // ────────────────────────────
+    // ────────────────────────────────────────────────────────────────────
 
     public async Task<bool> InstallAsync(TransitOperatorDto op, IProgress<double>? progress = null)
     {
         if (string.IsNullOrEmpty(op.GtfsFeedUrl)) return false;
+
         var dir = GetOperatorDir(op.Id);
         var zipPath = Path.Combine(dir, "gtfs.zip");
         Directory.CreateDirectory(dir);
-        using var response = await _http.GetAsync(op.GtfsFeedUrl, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-        var total = response.Content.Headers.ContentLength ?? -1L;
-        var buffer = new byte[81920];
-        long downloaded = 0;
-        await using var src = await response.Content.ReadAsStreamAsync();
-        await using var dest = File.Create(zipPath);
-        int read;
-        while ((read = await src.ReadAsync(buffer)) > 0)
+
+        // Download static GTFS zip — lock so ParseStopsAsync/ParseRoutesAsync can't race
+        await _zipLock.WaitAsync();
+        try
         {
-            await dest.WriteAsync(buffer.AsMemory(0, read));
-            downloaded += read;
-            if (total > 0) progress?.Report((double)downloaded / total);
+            using var response = await _http.GetAsync(op.GtfsFeedUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            var total = response.Content.Headers.ContentLength ?? -1L;
+            var buffer = new byte[81920];
+            long downloaded = 0;
+            await using var src = await response.Content.ReadAsStreamAsync();
+            await using var dest = File.Create(zipPath);
+            int read;
+            while ((read = await src.ReadAsync(buffer)) > 0)
+            {
+                await dest.WriteAsync(buffer.AsMemory(0, read));
+                downloaded += read;
+                if (total > 0) progress?.Report((double)downloaded / total);
+            }
         }
+        finally
+        {
+            _zipLock.Release();
+        }
+
+        // Cache realtime URL and operator config
         MarkInstalled(op.Id);
         if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
-            SaveRealtimeUrl(op.Id, op.GtfsRealtimeFeedUrl);
+            SaveOperatorConfig(op);
+
+        // Build and cache trip→route map from trips.txt
+        await BuildTripRouteMapAsync(op.Id);
+
         return true;
     }
 
@@ -49,11 +79,12 @@ public class GtfsService
         var dir = GetOperatorDir(operatorId);
         if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
         MarkRemoved(operatorId);
-        RemoveRealtimeUrl(operatorId);
+        RemoveOperatorConfig(operatorId);
+        Preferences.Remove($"{TripMapKeyPrefix}{operatorId}");
     }
 
     public bool IsInstalled(int operatorId) => GetInstalledIds().Contains(operatorId);
-    public bool HasRealtime(int operatorId) => !string.IsNullOrEmpty(GetRealtimeUrl(operatorId));
+    public bool HasRealtime(int operatorId) => GetSavedOperator(operatorId) != null;
 
     public string GetOperatorDir(int operatorId)
         => Path.Combine(FileSystem.AppDataDirectory, "gtfs", operatorId.ToString());
@@ -64,9 +95,92 @@ public class GtfsService
         return File.Exists(zip) ? new FileInfo(zip).Length : 0;
     }
 
-    // ────────────────────────────
-    // Parse Stops / Routes
-    // ────────────────────────────
+    // ────────────────────────────────────────────────────────────────────
+    // Trip → Route map  (built once at install, cached in Preferences)
+    // ────────────────────────────────────────────────────────────────────
+
+    private async Task BuildTripRouteMapAsync(int operatorId)
+    {
+        using var zip = OpenZip(operatorId);
+        var entry = zip?.GetEntry("trips.txt");
+        if (entry is null) return;
+
+        await using var stream = entry.Open();
+        var rows = await ParseCsvAsync(stream);
+
+        var map = new Dictionary<string, string>(rows.Count);
+        foreach (var row in rows)
+        {
+            var tripId = Get(row, "trip_id");
+            var routeId = Get(row, "route_id");
+            if (!string.IsNullOrEmpty(tripId) && !string.IsNullOrEmpty(routeId))
+                map.TryAdd(tripId, routeId);
+        }
+
+        Preferences.Set($"{TripMapKeyPrefix}{operatorId}", JsonSerializer.Serialize(map));
+        Trace.WriteLine($"[GTFS:{operatorId}] Built trip→route map: {map.Count} entries");
+    }
+
+    private Dictionary<string, string>? GetTripRouteMap(int operatorId)
+    {
+        var json = Preferences.Get($"{TripMapKeyPrefix}{operatorId}", null as string);
+        if (string.IsNullOrEmpty(json)) return null;
+        return JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Realtime Vehicles
+    // ────────────────────────────────────────────────────────────────────
+
+    public async Task<List<VehiclePositionDto>> GetVehiclesAsync(TransitOperatorDto op)
+    {
+        if (string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl)) return [];
+
+        // Apply auth headers/params before fetching
+        using var request = BuildRealtimeRequest(op);
+        using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            Trace.WriteLine($"[Realtime:{op.Name}] HTTP {(int)response.StatusCode}");
+            return [];
+        }
+
+        var data = await response.Content.ReadAsByteArrayAsync();
+        Trace.WriteLine($"[Realtime:{op.Name}] Fetched {data.Length} bytes");
+
+        var tripRouteMap = GetTripRouteMap(op.Id);
+        var parser = RealtimeParserFactory.GetParser(op);
+        return await parser.ParseAsync(data, op, tripRouteMap);
+    }
+
+    private static HttpRequestMessage BuildRealtimeRequest(TransitOperatorDto op)
+    {
+        var url = op.GtfsRealtimeFeedUrl!;
+
+        // API_KEY_QUERY: append key as query param "paramName:value"
+        if (op.RealtimeAuthType == "API_KEY_QUERY" && !string.IsNullOrEmpty(op.RealtimeAuthConfig))
+        {
+            var parts = op.RealtimeAuthConfig.Split(':', 2);
+            if (parts.Length == 2)
+                url += (url.Contains('?') ? "&" : "?") + $"{parts[0]}={Uri.EscapeDataString(parts[1])}";
+        }
+
+        var msg = new HttpRequestMessage(HttpMethod.Get, url);
+
+        // API_KEY_HEADER or BEARER: add header "HeaderName:Value"
+        if ((op.RealtimeAuthType == "API_KEY_HEADER" || op.RealtimeAuthType == "BEARER")
+            && !string.IsNullOrEmpty(op.RealtimeAuthConfig))
+        {
+            var parts = op.RealtimeAuthConfig.Split(':', 2);
+            if (parts.Length == 2) msg.Headers.TryAddWithoutValidation(parts[0], parts[1]);
+        }
+
+        return msg;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Parse Stops
+    // ────────────────────────────────────────────────────────────────────
 
     public async Task<List<GtfsStopDto>> ParseStopsAsync(int operatorId)
     {
@@ -84,287 +198,100 @@ public class GtfsService
         }).Where(s => s.Lat != 0 && s.Lon != 0).ToList();
     }
 
+    // ────────────────────────────────────────────────────────────────────
+    // Parse Routes
+    // ────────────────────────────────────────────────────────────────────
+
     public async Task<List<GtfsRouteDto>> ParseRoutesAsync(int operatorId)
     {
         using var zip = OpenZip(operatorId);
         if (zip is null) return [];
+
         var routeEntry = zip.GetEntry("routes.txt");
         if (routeEntry is null) return [];
+
         await using var routeStream = routeEntry.Open();
         var routeRows = await ParseCsvAsync(routeStream);
+
         var routes = routeRows.Select(r => new GtfsRouteDto
         {
             RouteId = Get(r, "route_id"),
             ShortName = Get(r, "route_short_name"),
             LongName = Get(r, "route_long_name"),
-            Color = string.IsNullOrWhiteSpace(Get(r, "route_color")) ? "1a73e8" : Get(r, "route_color"),
+            Color = string.IsNullOrWhiteSpace(Get(r, "route_color")) ? null : Get(r, "route_color"),
             RouteType = int.TryParse(Get(r, "route_type"), out var rt) ? rt : 3,
         }).ToList();
+
         var shapes = await ParseShapesAsync(zip);
         var routeShapeMap = await BuildRouteShapeMapAsync(zip);
+
         foreach (var route in routes)
             if (routeShapeMap.TryGetValue(route.RouteId, out var shapeId)
                 && shapes.TryGetValue(shapeId, out var coords))
                 route.Shape = coords;
+
         return routes;
     }
 
-    // ────────────────────────────
-    // Realtime Vehicles — pure manual protobuf parser, no library needed
-    // ────────────────────────────
+    // ────────────────────────────────────────────────────────────────────
+    // Operator config cache (realtime URL + format stored together)
+    // ────────────────────────────────────────────────────────────────────
 
-    public async Task<List<VehiclePositionDto>> GetVehiclesAsync(int operatorId)
+    private void SaveOperatorConfig(TransitOperatorDto op)
     {
-        var feedUrl = GetRealtimeUrl(operatorId);
-        if (string.IsNullOrEmpty(feedUrl)) return [];
-
-        var data = await _http.GetByteArrayAsync(feedUrl);
-        Trace.WriteLine($"[Realtime] Fetched {data.Length} bytes");
-
-        var result = new List<VehiclePositionDto>();
-        int pos = 0;
-        int entityCount = 0;
-        while (pos < data.Length)
+        var map = GetOperatorConfigMap();
+        map[op.Id] = new OperatorRealtimeConfig
         {
-            var (fieldNum, wireType, p1) = ReadTag(data, pos);
-            pos = p1;
-            if (pos >= data.Length && fieldNum == 0) break;
-
-            if (fieldNum == 2 && wireType == 2) // FeedEntity
-            {
-                entityCount++;
-                var (entityBytes, p2) = ReadLengthDelimited(data, pos);
-                pos = p2;
-
-                var dto = ParseEntity(entityBytes);
-                if (dto != null) result.Add(dto);
-            }
-            else
-            {
-                pos = SkipField(data, pos, wireType);
-            }
-        }
-        if (result.Count > 0)
-        {
-            var sample = string.Join(", ", result.Take(5).Select(v => $"{v.VehicleId}→r{v.RouteId}@{v.Lat:F4},{v.Lon:F4}"));
-            Trace.WriteLine($"[Realtime] Parsed {result.Count} vehicles. Sample: {sample}");
-        }
-        else
-        {
-            Trace.WriteLine($"[Realtime] Parsed 0 vehicles from {entityCount} entities");
-        }
-
-        return result;
-    }
-
-    private static VehiclePositionDto? ParseEntity(byte[] data)
-    {
-        int pos = 0;
-        string entityId = string.Empty;
-        VehiclePositionDto? dto = null;
-
-        while (pos < data.Length)
-        {
-            var (fieldNum, wireType, p1) = ReadTag(data, pos);
-            pos = p1;
-            if (fieldNum == 0) break;
-
-            if (fieldNum == 1 && wireType == 2) // entity id
-            {
-                var (bytes, p2) = ReadLengthDelimited(data, pos);
-                pos = p2;
-                entityId = System.Text.Encoding.UTF8.GetString(bytes);
-            }
-            else if (fieldNum == 4 && wireType == 2) // VehiclePosition = field 4 (standard GTFS-RT)
-            {
-                var (vpBytes, p2) = ReadLengthDelimited(data, pos);
-                pos = p2;
-                dto = ParseVehiclePosition(vpBytes);
-            }
-            else
-            {
-                pos = SkipField(data, pos, wireType);
-            }
-        }
-
-        if (dto == null || (dto.Lat == 0 && dto.Lon == 0)) return null;
-        if (string.IsNullOrEmpty(dto.VehicleId)) dto.VehicleId = entityId;
-        return dto;
-    }
-
-    private static VehiclePositionDto ParseVehiclePosition(byte[] data)
-    {
-        var dto = new VehiclePositionDto();
-        int pos = 0;
-
-        while (pos < data.Length)
-        {
-            var (fieldNum, wireType, p1) = ReadTag(data, pos);
-            pos = p1;
-            if (fieldNum == 0) break;
-
-            if (wireType == 2)
-            {
-                var (sub, p2) = ReadLengthDelimited(data, pos);
-                pos = p2;
-                if (fieldNum == 1) ParseTrip(sub, dto);
-                else if (fieldNum == 2) ParsePosition(sub, dto);
-                else if (fieldNum == 3) ParseVehicleDescriptor(sub, dto);
-            }
-            else
-            {
-                pos = SkipField(data, pos, wireType);
-            }
-        }
-        return dto;
-    }
-
-    private static void ParseTrip(byte[] data, VehiclePositionDto dto)
-    {
-        int pos = 0;
-        while (pos < data.Length)
-        {
-            var (fieldNum, wireType, p1) = ReadTag(data, pos);
-            pos = p1;
-            if (fieldNum == 0) break;
-            if (wireType == 2)
-            {
-                var (sub, p2) = ReadLengthDelimited(data, pos);
-                pos = p2;
-                var str = System.Text.Encoding.UTF8.GetString(sub);
-                if (fieldNum == 1) // trip_id format: "0_<serviceId>_<blockId>_<routeId>_<seq>"
-                {
-                    dto.VehicleId = str; // use trip_id as fallback vehicle id
-                    var parts = str.Split('_');
-                    if (parts.Length >= 4 && string.IsNullOrEmpty(dto.RouteId))
-                        dto.RouteId = parts[3]; // route_id is at index 3
-                }
-                else if (fieldNum == 2) dto.RouteId = str; // explicit route_id overrides
-            }
-            else pos = SkipField(data, pos, wireType);
-        }
-    }
-
-    private static void ParsePosition(byte[] data, VehiclePositionDto dto)
-    {
-        int pos = 0;
-        while (pos < data.Length)
-        {
-            var (fieldNum, wireType, p1) = ReadTag(data, pos);
-            pos = p1;
-            if (fieldNum == 0) break;
-            if (wireType == 5 && pos + 4 <= data.Length) // fixed32 = float
-            {
-                float val = BitConverter.ToSingle(data, pos);
-                pos += 4;
-                if (fieldNum == 1) dto.Lat = val;
-                else if (fieldNum == 2) dto.Lon = val;
-                else if (fieldNum == 3) dto.Bearing = val;
-            }
-            else pos = SkipField(data, pos, wireType);
-        }
-    }
-
-    private static void ParseVehicleDescriptor(byte[] data, VehiclePositionDto dto)
-    {
-        int pos = 0;
-        while (pos < data.Length)
-        {
-            var (fieldNum, wireType, p1) = ReadTag(data, pos);
-            pos = p1;
-            if (fieldNum == 0) break;
-            if (wireType == 2)
-            {
-                var (sub, p2) = ReadLengthDelimited(data, pos);
-                pos = p2;
-                var str = System.Text.Encoding.UTF8.GetString(sub);
-                if (fieldNum == 1) dto.VehicleId = str;
-                else if (fieldNum == 2) dto.Label = str;
-            }
-            else pos = SkipField(data, pos, wireType);
-        }
-    }
-
-    // ────────────────────────────
-    // Protobuf primitives
-    // ────────────────────────────
-
-    private static (int field, int wire, int pos) ReadTag(byte[] data, int pos)
-    {
-        if (pos >= data.Length) return (0, 0, pos);
-        var (varint, newPos) = ReadVarint(data, pos);
-        return ((int)(varint >> 3), (int)(varint & 7), newPos);
-    }
-
-    private static (ulong value, int pos) ReadVarint(byte[] data, int pos)
-    {
-        ulong result = 0;
-        int shift = 0;
-        while (pos < data.Length)
-        {
-            byte b = data[pos++];
-            result |= (ulong)(b & 0x7F) << shift;
-            if ((b & 0x80) == 0) break;
-            shift += 7;
-        }
-        return (result, pos);
-    }
-
-    private static (byte[] bytes, int pos) ReadLengthDelimited(byte[] data, int pos)
-    {
-        var (length, newPos) = ReadVarint(data, pos);
-        int len = (int)length;
-        var bytes = new byte[len];
-        Array.Copy(data, newPos, bytes, 0, Math.Min(len, data.Length - newPos));
-        return (bytes, newPos + len);
-    }
-
-    private static int SkipField(byte[] data, int pos, int wireType)
-    {
-        switch (wireType)
-        {
-            case 0: // varint
-                while (pos < data.Length && (data[pos++] & 0x80) != 0) { }
-                return pos;
-            case 1: return pos + 8;  // 64-bit
-            case 2:                  // length-delimited
-                var (len, newPos) = ReadVarint(data, pos);
-                return newPos + (int)len;
-            case 5: return pos + 4;  // 32-bit
-            default: return data.Length; // unknown, bail
-        }
-    }
-
-    // ────────────────────────────
-    // Realtime URL cache
-    // ────────────────────────────
-
-    private void SaveRealtimeUrl(int operatorId, string url)
-    {
-        var map = GetRealtimeUrlMap();
-        map[operatorId] = url;
+            Url = op.GtfsRealtimeFeedUrl ?? "",
+            Format = op.RealtimeFeedFormat,
+            AuthType = op.RealtimeAuthType,
+            AuthConfig = op.RealtimeAuthConfig,
+            AdapterConfig = op.RealtimeAdapterConfig,
+        };
         Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
     }
-    private void RemoveRealtimeUrl(int operatorId)
+
+    private void RemoveOperatorConfig(int operatorId)
     {
-        var map = GetRealtimeUrlMap();
+        var map = GetOperatorConfigMap();
         map.Remove(operatorId);
         Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
     }
-    private string? GetRealtimeUrl(int operatorId)
+
+    private OperatorRealtimeConfig? GetSavedOperator(int operatorId)
     {
-        var map = GetRealtimeUrlMap();
-        return map.TryGetValue(operatorId, out var url) ? url : null;
-    }
-    private Dictionary<int, string> GetRealtimeUrlMap()
-    {
-        var json = Preferences.Get(RealtimeUrlsKey, "{}");
-        return JsonSerializer.Deserialize<Dictionary<int, string>>(json) ?? [];
+        var map = GetOperatorConfigMap();
+        return map.TryGetValue(operatorId, out var cfg) ? cfg : null;
     }
 
-    // ────────────────────────────
+    private Dictionary<int, OperatorRealtimeConfig> GetOperatorConfigMap()
+    {
+        var json = Preferences.Get(RealtimeUrlsKey, "{}");
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<int, OperatorRealtimeConfig>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            // Stale data from old format (Dictionary<int,string>) — wipe it and start fresh
+            Trace.WriteLine("[GtfsService] Clearing stale realtime config cache");
+            Preferences.Remove(RealtimeUrlsKey);
+            return [];
+        }
+    }
+
+    private sealed class OperatorRealtimeConfig
+    {
+        public string Url { get; set; } = "";
+        public string Format { get; set; } = "GTFS_RT_PROTO";
+        public string AuthType { get; set; } = "NONE";
+        public string? AuthConfig { get; set; }
+        public string? AdapterConfig { get; set; }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Installed IDs
-    // ────────────────────────────
+    // ────────────────────────────────────────────────────────────────────
 
     private HashSet<int> GetInstalledIds()
     {
@@ -374,14 +301,26 @@ public class GtfsService
     private void MarkInstalled(int id) { var s = GetInstalledIds(); s.Add(id); Preferences.Set(InstalledKey, JsonSerializer.Serialize(s)); }
     private void MarkRemoved(int id) { var s = GetInstalledIds(); s.Remove(id); Preferences.Set(InstalledKey, JsonSerializer.Serialize(s)); }
 
-    // ────────────────────────────
-    // Zip / CSV helpers
-    // ────────────────────────────
+    // ────────────────────────────────────────────────────────────────────
+    // Zip / CSV / Shape helpers
+    // ────────────────────────────────────────────────────────────────────
 
     private ZipArchive? OpenZip(int operatorId)
     {
         var path = Path.Combine(GetOperatorDir(operatorId), "gtfs.zip");
-        return File.Exists(path) ? ZipFile.OpenRead(path) : null;
+        if (!File.Exists(path)) return null;
+        try
+        {
+            // Wait for any in-progress install to finish writing before opening
+            _zipLock.Wait();
+            _zipLock.Release();
+            return ZipFile.OpenRead(path);
+        }
+        catch (IOException ex)
+        {
+            Trace.WriteLine($"[GtfsService] Cannot open zip for op {operatorId}: {ex.Message}");
+            return null;
+        }
     }
 
     private static async Task<Dictionary<string, List<double[]>>> ParseShapesAsync(ZipArchive zip)
