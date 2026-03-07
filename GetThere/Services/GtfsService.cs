@@ -2,7 +2,6 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Diagnostics;
-using Google.Protobuf;
 
 namespace GetThere.Services;
 
@@ -21,22 +20,17 @@ public class GtfsService
 
     public async Task<bool> InstallAsync(TransitOperatorDto op, IProgress<double>? progress = null)
     {
-        if (string.IsNullOrEmpty(op.GtfsFeedUrl))
-            return false;
-
+        if (string.IsNullOrEmpty(op.GtfsFeedUrl)) return false;
         var dir = GetOperatorDir(op.Id);
         var zipPath = Path.Combine(dir, "gtfs.zip");
         Directory.CreateDirectory(dir);
-
         using var response = await _http.GetAsync(op.GtfsFeedUrl, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
-
         var total = response.Content.Headers.ContentLength ?? -1L;
         var buffer = new byte[81920];
         long downloaded = 0;
         await using var src = await response.Content.ReadAsStreamAsync();
         await using var dest = File.Create(zipPath);
-
         int read;
         while ((read = await src.ReadAsync(buffer)) > 0)
         {
@@ -44,12 +38,9 @@ public class GtfsService
             downloaded += read;
             if (total > 0) progress?.Report((double)downloaded / total);
         }
-
         MarkInstalled(op.Id);
-
         if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
             SaveRealtimeUrl(op.Id, op.GtfsRealtimeFeedUrl);
-
         return true;
     }
 
@@ -119,7 +110,7 @@ public class GtfsService
     }
 
     // ────────────────────────────
-    // Realtime Vehicles
+    // Realtime Vehicles — pure manual protobuf parser, no library needed
     // ────────────────────────────
 
     public async Task<List<VehiclePositionDto>> GetVehiclesAsync(int operatorId)
@@ -127,103 +118,221 @@ public class GtfsService
         var feedUrl = GetRealtimeUrl(operatorId);
         if (string.IsNullOrEmpty(feedUrl)) return [];
 
-        var bytes = await _http.GetByteArrayAsync(feedUrl);
-        Trace.WriteLine($"[Realtime] Fetched {bytes.Length} bytes from {feedUrl}");
+        var data = await _http.GetByteArrayAsync(feedUrl);
+        Trace.WriteLine($"[Realtime] Fetched {data.Length} bytes");
 
         var result = new List<VehiclePositionDto>();
-        var input = new CodedInputStream(bytes);
-
-        // ZET feed structure (decoded from raw bytes):
-        // FeedMessage: field2(tag18) = repeated FeedEntity
-        // FeedEntity:  field1(tag10) = id string
-        //              field3(tag26) = VehiclePosition  ← ZET uses field3, not field4
-        // VehiclePosition: field1(tag10) = TripDescriptor
-        //                  field2(tag18) = Position
-        //                  field3(tag26) = VehicleDescriptor
-        // TripDescriptor: field1(tag10) = trip_id, field2(tag18) = route_id
-        // Position:       field1(tag13) = latitude (float), field2(tag21) = longitude (float), field3(tag29) = bearing (float)
-        // VehicleDescriptor: field1(tag10) = id, field2(tag18) = label
-
-        uint tag;
-        while ((tag = input.ReadTag()) != 0)
+        int pos = 0;
+        int entityCount = 0;
+        while (pos < data.Length)
         {
-            if (tag != 18) { input.SkipLastField(); continue; } // field 2 = entity
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (pos >= data.Length && fieldNum == 0) break;
 
-            var entityLimit = input.ReadLength();
-            var entityEnd = input.Position + entityLimit;
-            string entityId = string.Empty;
-            VehiclePositionDto? dto = null;
-
-            while (input.Position < entityEnd && (tag = input.ReadTag()) != 0)
+            if (fieldNum == 2 && wireType == 2) // FeedEntity
             {
-                switch (tag)
-                {
-                    case 10: entityId = input.ReadString(); break; // field 1 = id
-                    case 26:                                        // field 3 = VehiclePosition (ZET specific)
-                        var vpLimit = input.ReadLength();
-                        var vpEnd = input.Position + vpLimit;
-                        dto = new VehiclePositionDto();
-                        while (input.Position < vpEnd && (tag = input.ReadTag()) != 0)
-                        {
-                            switch (tag)
-                            {
-                                case 10: // field 1 = TripDescriptor
-                                    var tripLimit = input.ReadLength();
-                                    var tripEnd = input.Position + tripLimit;
-                                    while (input.Position < tripEnd && (tag = input.ReadTag()) != 0)
-                                    {
-                                        switch (tag)
-                                        {
-                                            case 10: dto.VehicleId = input.ReadString(); break; // trip_id as fallback id
-                                            case 18: dto.RouteId = input.ReadString(); break; // route_id
-                                            default: input.SkipLastField(); break;
-                                        }
-                                    }
-                                    break;
-                                case 18: // field 2 = Position
-                                    var posLimit = input.ReadLength();
-                                    var posEnd = input.Position + posLimit;
-                                    while (input.Position < posEnd && (tag = input.ReadTag()) != 0)
-                                    {
-                                        switch (tag)
-                                        {
-                                            case 13: dto.Lat = input.ReadFloat(); break; // latitude
-                                            case 21: dto.Lon = input.ReadFloat(); break; // longitude
-                                            case 29: dto.Bearing = input.ReadFloat(); break; // bearing
-                                            default: input.SkipLastField(); break;
-                                        }
-                                    }
-                                    break;
-                                case 26: // field 3 = VehicleDescriptor
-                                    var vdLimit = input.ReadLength();
-                                    var vdEnd = input.Position + vdLimit;
-                                    while (input.Position < vdEnd && (tag = input.ReadTag()) != 0)
-                                    {
-                                        switch (tag)
-                                        {
-                                            case 10: dto.VehicleId = input.ReadString(); break; // id
-                                            case 18: dto.Label = input.ReadString(); break; // label
-                                            default: input.SkipLastField(); break;
-                                        }
-                                    }
-                                    break;
-                                default: input.SkipLastField(); break;
-                            }
-                        }
-                        break;
-                    default: input.SkipLastField(); break;
-                }
+                entityCount++;
+                var (entityBytes, p2) = ReadLengthDelimited(data, pos);
+                pos = p2;
+
+                var dto = ParseEntity(entityBytes);
+                if (dto != null) result.Add(dto);
             }
-
-            if (dto != null && dto.Lat != 0 && dto.Lon != 0)
+            else
             {
-                if (string.IsNullOrEmpty(dto.VehicleId)) dto.VehicleId = entityId;
-                result.Add(dto);
+                pos = SkipField(data, pos, wireType);
+            }
+        }
+        if (result.Count > 0)
+        {
+            var sample = string.Join(", ", result.Take(5).Select(v => $"{v.VehicleId}→r{v.RouteId}@{v.Lat:F4},{v.Lon:F4}"));
+            Trace.WriteLine($"[Realtime] Parsed {result.Count} vehicles. Sample: {sample}");
+        }
+        else
+        {
+            Trace.WriteLine($"[Realtime] Parsed 0 vehicles from {entityCount} entities");
+        }
+
+        return result;
+    }
+
+    private static VehiclePositionDto? ParseEntity(byte[] data)
+    {
+        int pos = 0;
+        string entityId = string.Empty;
+        VehiclePositionDto? dto = null;
+
+        while (pos < data.Length)
+        {
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (fieldNum == 0) break;
+
+            if (fieldNum == 1 && wireType == 2) // entity id
+            {
+                var (bytes, p2) = ReadLengthDelimited(data, pos);
+                pos = p2;
+                entityId = System.Text.Encoding.UTF8.GetString(bytes);
+            }
+            else if (fieldNum == 4 && wireType == 2) // VehiclePosition = field 4 (standard GTFS-RT)
+            {
+                var (vpBytes, p2) = ReadLengthDelimited(data, pos);
+                pos = p2;
+                dto = ParseVehiclePosition(vpBytes);
+            }
+            else
+            {
+                pos = SkipField(data, pos, wireType);
             }
         }
 
-        Trace.WriteLine($"[Realtime] Parsed {result.Count} vehicles");
-        return result;
+        if (dto == null || (dto.Lat == 0 && dto.Lon == 0)) return null;
+        if (string.IsNullOrEmpty(dto.VehicleId)) dto.VehicleId = entityId;
+        return dto;
+    }
+
+    private static VehiclePositionDto ParseVehiclePosition(byte[] data)
+    {
+        var dto = new VehiclePositionDto();
+        int pos = 0;
+
+        while (pos < data.Length)
+        {
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (fieldNum == 0) break;
+
+            if (wireType == 2)
+            {
+                var (sub, p2) = ReadLengthDelimited(data, pos);
+                pos = p2;
+                if (fieldNum == 1) ParseTrip(sub, dto);
+                else if (fieldNum == 2) ParsePosition(sub, dto);
+                else if (fieldNum == 3) ParseVehicleDescriptor(sub, dto);
+            }
+            else
+            {
+                pos = SkipField(data, pos, wireType);
+            }
+        }
+        return dto;
+    }
+
+    private static void ParseTrip(byte[] data, VehiclePositionDto dto)
+    {
+        int pos = 0;
+        while (pos < data.Length)
+        {
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (fieldNum == 0) break;
+            if (wireType == 2)
+            {
+                var (sub, p2) = ReadLengthDelimited(data, pos);
+                pos = p2;
+                var str = System.Text.Encoding.UTF8.GetString(sub);
+                if (fieldNum == 1) // trip_id format: "0_<serviceId>_<blockId>_<routeId>_<seq>"
+                {
+                    dto.VehicleId = str; // use trip_id as fallback vehicle id
+                    var parts = str.Split('_');
+                    if (parts.Length >= 4 && string.IsNullOrEmpty(dto.RouteId))
+                        dto.RouteId = parts[3]; // route_id is at index 3
+                }
+                else if (fieldNum == 2) dto.RouteId = str; // explicit route_id overrides
+            }
+            else pos = SkipField(data, pos, wireType);
+        }
+    }
+
+    private static void ParsePosition(byte[] data, VehiclePositionDto dto)
+    {
+        int pos = 0;
+        while (pos < data.Length)
+        {
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (fieldNum == 0) break;
+            if (wireType == 5 && pos + 4 <= data.Length) // fixed32 = float
+            {
+                float val = BitConverter.ToSingle(data, pos);
+                pos += 4;
+                if (fieldNum == 1) dto.Lat = val;
+                else if (fieldNum == 2) dto.Lon = val;
+                else if (fieldNum == 3) dto.Bearing = val;
+            }
+            else pos = SkipField(data, pos, wireType);
+        }
+    }
+
+    private static void ParseVehicleDescriptor(byte[] data, VehiclePositionDto dto)
+    {
+        int pos = 0;
+        while (pos < data.Length)
+        {
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (fieldNum == 0) break;
+            if (wireType == 2)
+            {
+                var (sub, p2) = ReadLengthDelimited(data, pos);
+                pos = p2;
+                var str = System.Text.Encoding.UTF8.GetString(sub);
+                if (fieldNum == 1) dto.VehicleId = str;
+                else if (fieldNum == 2) dto.Label = str;
+            }
+            else pos = SkipField(data, pos, wireType);
+        }
+    }
+
+    // ────────────────────────────
+    // Protobuf primitives
+    // ────────────────────────────
+
+    private static (int field, int wire, int pos) ReadTag(byte[] data, int pos)
+    {
+        if (pos >= data.Length) return (0, 0, pos);
+        var (varint, newPos) = ReadVarint(data, pos);
+        return ((int)(varint >> 3), (int)(varint & 7), newPos);
+    }
+
+    private static (ulong value, int pos) ReadVarint(byte[] data, int pos)
+    {
+        ulong result = 0;
+        int shift = 0;
+        while (pos < data.Length)
+        {
+            byte b = data[pos++];
+            result |= (ulong)(b & 0x7F) << shift;
+            if ((b & 0x80) == 0) break;
+            shift += 7;
+        }
+        return (result, pos);
+    }
+
+    private static (byte[] bytes, int pos) ReadLengthDelimited(byte[] data, int pos)
+    {
+        var (length, newPos) = ReadVarint(data, pos);
+        int len = (int)length;
+        var bytes = new byte[len];
+        Array.Copy(data, newPos, bytes, 0, Math.Min(len, data.Length - newPos));
+        return (bytes, newPos + len);
+    }
+
+    private static int SkipField(byte[] data, int pos, int wireType)
+    {
+        switch (wireType)
+        {
+            case 0: // varint
+                while (pos < data.Length && (data[pos++] & 0x80) != 0) { }
+                return pos;
+            case 1: return pos + 8;  // 64-bit
+            case 2:                  // length-delimited
+                var (len, newPos) = ReadVarint(data, pos);
+                return newPos + (int)len;
+            case 5: return pos + 4;  // 32-bit
+            default: return data.Length; // unknown, bail
+        }
     }
 
     // ────────────────────────────
@@ -236,20 +345,17 @@ public class GtfsService
         map[operatorId] = url;
         Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
     }
-
     private void RemoveRealtimeUrl(int operatorId)
     {
         var map = GetRealtimeUrlMap();
         map.Remove(operatorId);
         Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
     }
-
     private string? GetRealtimeUrl(int operatorId)
     {
         var map = GetRealtimeUrlMap();
         return map.TryGetValue(operatorId, out var url) ? url : null;
     }
-
     private Dictionary<int, string> GetRealtimeUrlMap()
     {
         var json = Preferences.Get(RealtimeUrlsKey, "{}");

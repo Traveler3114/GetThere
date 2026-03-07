@@ -156,7 +156,7 @@ public partial class MapPage : ContentPage
                     lon = v.Lon,
                     bearing = v.Bearing,
                     label = v.Label,
-                    routeType = _routeTypeMap.TryGetValue(v.RouteId, out var rt) ? rt : 3
+                    routeType = (!string.IsNullOrEmpty(v.RouteId) && _routeTypeMap.TryGetValue(v.RouteId!, out var rt)) ? rt : 3
                 }));
             }
 
