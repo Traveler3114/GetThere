@@ -72,9 +72,11 @@
                         FontSize="12"
                         BackgroundColor="Transparent"
                         TextColor="Gray"
+                        BorderWidth="0"
+                        CornerRadius="0"
                         HorizontalOptions="End"
                         VerticalOptions="Center"
-                        WidthRequest="48" HeightRequest="48"
+                        WidthRequest="60" HeightRequest="48"
                         Padding="0"
                         Clicked="TogglePassword_Clicked" />
             </Grid>
@@ -92,9 +94,11 @@
                         FontSize="12"
                         BackgroundColor="Transparent"
                         TextColor="Gray"
+                        BorderWidth="0"
+                        CornerRadius="0"
                         HorizontalOptions="End"
                         VerticalOptions="Center"
-                        WidthRequest="48" HeightRequest="48"
+                        WidthRequest="60" HeightRequest="48"
                         Padding="0"
                         Clicked="ToggleConfirmPassword_Clicked" />
             </Grid>

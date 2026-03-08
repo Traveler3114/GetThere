@@ -13,8 +13,6 @@
             "request": "launch",
             "preLaunchTask": "maui: Build"
         },
-
-
         {
             "name": "C#: <project-name> Debug",
             "type": "dotnet",
