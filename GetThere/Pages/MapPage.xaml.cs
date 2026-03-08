@@ -1,4 +1,5 @@
 using GetThere.Services;
+using GetThereShared.Dtos;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -9,7 +10,9 @@ public partial class MapPage : ContentPage
     private readonly GtfsService _gtfsApi;
     private readonly OperatorService _operatorService;
     private System.Timers.Timer? _realtimeTimer;
-    private List<int> _activeRealtimeOperatorIds = [];
+
+    // Full operator objects kept for realtime polling (need format/auth config)
+    private List<TransitOperatorDto> _activeRealtimeOperators = [];
     private Dictionary<string, int> _routeTypeMap = [];
 
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
@@ -32,6 +35,10 @@ public partial class MapPage : ContentPage
         base.OnDisappearing();
         StopRealtimePolling();
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Location
+    // ────────────────────────────────────────────────────────────────────
 
     private async Task GetLocationAndUpdateMap()
     {
@@ -63,27 +70,29 @@ public partial class MapPage : ContentPage
         finally { LoadingOverlay.IsVisible = false; }
     }
 
+    // ────────────────────────────────────────────────────────────────────
+    // Load static GTFS
+    // ────────────────────────────────────────────────────────────────────
+
     private async Task LoadGtfsAsync()
     {
         try
         {
             var operators = await _operatorService.GetAllAsync();
-            Trace.WriteLine($"[Map] Got {operators.Count} operators from API");
+            Trace.WriteLine($"[Map] Got {operators.Count} operators");
 
-            _activeRealtimeOperatorIds.Clear();
+            _activeRealtimeOperators.Clear();
             _routeTypeMap.Clear();
             var allStops = new List<object>();
             var allRoutes = new List<object>();
 
             foreach (var op in operators)
             {
-                Trace.WriteLine($"[Map] Operator {op.Id} '{op.Name}' — Installed={_gtfsApi.IsInstalled(op.Id)}, HasRealtime={_gtfsApi.HasRealtime(op.Id)}, RealtimeUrl={op.GtfsRealtimeFeedUrl}");
-
                 if (!_gtfsApi.IsInstalled(op.Id)) continue;
 
                 var stops = await _gtfsApi.ParseStopsAsync(op.Id);
                 var routes = await _gtfsApi.ParseRoutesAsync(op.Id);
-                Trace.WriteLine($"[Map] Operator {op.Id}: {stops.Count} stops, {routes.Count} routes");
+                Trace.WriteLine($"[Map] {op.Name}: {stops.Count} stops, {routes.Count} routes");
 
                 allStops.AddRange(stops.Select(s => new
                 { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon }));
@@ -101,32 +110,29 @@ public partial class MapPage : ContentPage
                     _routeTypeMap[r.RouteId] = r.RouteType;
 
                 if (_gtfsApi.HasRealtime(op.Id))
-                {
-                    _activeRealtimeOperatorIds.Add(op.Id);
-                    Trace.WriteLine($"[Map] Operator {op.Id} queued for realtime polling");
-                }
-                else
-                {
-                    Trace.WriteLine($"[Map] Operator {op.Id} has NO cached realtime URL — skipping realtime");
-                }
+                    _activeRealtimeOperators.Add(op);
             }
 
             await CallJs("renderStops", allStops);
             await CallJs("renderRoutes", allRoutes);
         }
-        catch (Exception ex) { Trace.WriteLine($"[Map] GTFS load error: {ex.Message}"); }
+        catch (Exception ex) { Trace.WriteLine($"[Map] Load error: {ex.Message}"); }
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Realtime polling
+    // ────────────────────────────────────────────────────────────────────
 
     private void StartRealtimePolling()
     {
-        Trace.WriteLine($"[Map] StartRealtimePolling — {_activeRealtimeOperatorIds.Count} operators");
-        if (_activeRealtimeOperatorIds.Count == 0) return;
+        if (_activeRealtimeOperators.Count == 0) return;
+        Trace.WriteLine($"[Map] Starting realtime — {_activeRealtimeOperators.Count} operators");
 
         _realtimeTimer = new System.Timers.Timer(15_000);
         _realtimeTimer.Elapsed += async (_, _) => await PollRealtimeAsync();
         _realtimeTimer.AutoReset = true;
         _realtimeTimer.Start();
-        Task.Run(PollRealtimeAsync);
+        Task.Run(PollRealtimeAsync); // immediate first poll
     }
 
     private void StopRealtimePolling()
@@ -140,13 +146,27 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            Trace.WriteLine($"[Realtime] Polling {_activeRealtimeOperatorIds.Count} operators...");
-            var allVehicles = new List<object>();
+            // Drop any operators that have been uninstalled since last poll
+            var stillInstalled = _activeRealtimeOperators
+                .Where(op => _gtfsApi.IsInstalled(op.Id))
+                .ToList();
 
-            foreach (var opId in _activeRealtimeOperatorIds)
+            if (stillInstalled.Count != _activeRealtimeOperators.Count)
             {
-                var vehicles = await _gtfsApi.GetVehiclesAsync(opId);
-                Trace.WriteLine($"[Realtime] Operator {opId}: {vehicles.Count} vehicles");
+                _activeRealtimeOperators = stillInstalled;
+                if (_activeRealtimeOperators.Count == 0)
+                {
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                        await CallJs("clearVehicles", new object()));
+                    return;
+                }
+            }
+
+            var allVehicles = new List<object>();
+            foreach (var op in _activeRealtimeOperators)
+            {
+                var vehicles = await _gtfsApi.GetVehiclesAsync(op);
+                Trace.WriteLine($"[Realtime] {op.Name}: {vehicles.Count} vehicles");
 
                 allVehicles.AddRange(vehicles.Select(v => new
                 {
@@ -156,16 +176,24 @@ public partial class MapPage : ContentPage
                     lon = v.Lon,
                     bearing = v.Bearing,
                     label = v.Label,
+<<<<<<< HEAD
                     routeType = !string.IsNullOrEmpty(v.RouteId) && _routeTypeMap.TryGetValue(v.RouteId, out var rt) ? rt : 3
+=======
+                    routeType = (!string.IsNullOrEmpty(v.RouteId)
+                                 && _routeTypeMap.TryGetValue(v.RouteId!, out var rt)) ? rt : 3
+>>>>>>> main
                 }));
             }
 
-            Trace.WriteLine($"[Realtime] Total vehicles to render: {allVehicles.Count}");
             await MainThread.InvokeOnMainThreadAsync(async () =>
                 await CallJs("renderVehicles", allVehicles));
         }
-        catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.GetType().Name}: {ex.Message}"); }
+        catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // JS bridge
+    // ────────────────────────────────────────────────────────────────────
 
     private async Task CallJs(string fn, object data)
     {
