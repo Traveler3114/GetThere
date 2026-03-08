@@ -4,11 +4,7 @@ using GetThereShared.Dtos;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
-<<<<<<< HEAD
-using System.Diagnostics;
 using Google.Protobuf;
-=======
->>>>>>> main
 
 namespace GetThere.Services;
 
@@ -38,34 +34,15 @@ public class GtfsService
 
     public async Task<bool> InstallAsync(TransitOperatorDto op, IProgress<double>? progress = null)
     {
-<<<<<<< HEAD
-        if (string.IsNullOrEmpty(op.GtfsFeedUrl))
-            return false;
-=======
         if (string.IsNullOrEmpty(op.GtfsFeedUrl)) return false;
->>>>>>> main
 
         var dir = GetOperatorDir(op.Id);
         var zipPath = Path.Combine(dir, "gtfs.zip");
         Directory.CreateDirectory(dir);
 
-<<<<<<< HEAD
-        using var response = await _http.GetAsync(op.GtfsFeedUrl, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        var total = response.Content.Headers.ContentLength ?? -1L;
-        var buffer = new byte[81920];
-        long downloaded = 0;
-        await using var src = await response.Content.ReadAsStreamAsync();
-        await using var dest = File.Create(zipPath);
-
-        int read;
-        while ((read = await src.ReadAsync(buffer)) > 0)
-=======
         // Download static GTFS zip — lock so ParseStopsAsync/ParseRoutesAsync can't race
         await _zipLock.WaitAsync();
         try
->>>>>>> main
         {
             using var response = await _http.GetAsync(op.GtfsFeedUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
@@ -82,27 +59,15 @@ public class GtfsService
                 if (total > 0) progress?.Report((double)downloaded / total);
             }
         }
-<<<<<<< HEAD
-
-=======
         finally
         {
             _zipLock.Release();
         }
 
-        // Cache realtime URL and operator config
->>>>>>> main
-        MarkInstalled(op.Id);
-
-        if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
-<<<<<<< HEAD
-            SaveRealtimeUrl(op.Id, op.GtfsRealtimeFeedUrl);
-=======
             SaveOperatorConfig(op);
 
         // Build and cache trip→route map from trips.txt
         await BuildTripRouteMapAsync(op.Id);
->>>>>>> main
 
         return true;
     }
@@ -266,15 +231,9 @@ public class GtfsService
         return routes;
     }
 
-<<<<<<< HEAD
-    // ────────────────────────────
-    // Realtime Vehicles
-    // ────────────────────────────
-=======
     // ────────────────────────────────────────────────────────────────────
     // Operator config cache (realtime URL + format stored together)
     // ────────────────────────────────────────────────────────────────────
->>>>>>> main
 
     private void SaveOperatorConfig(TransitOperatorDto op)
     {
@@ -414,23 +373,11 @@ public class GtfsService
         Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
     }
 
-<<<<<<< HEAD
-    private string? GetRealtimeUrl(int operatorId)
-    {
-        var map = GetRealtimeUrlMap();
-        return map.TryGetValue(operatorId, out var url) ? url : null;
-    }
-
-    private Dictionary<int, string> GetRealtimeUrlMap()
-    {
-        var json = Preferences.Get(RealtimeUrlsKey, "{}");
-        return JsonSerializer.Deserialize<Dictionary<int, string>>(json) ?? [];
-=======
     private OperatorRealtimeConfig? GetSavedOperator(int operatorId)
     {
         var map = GetOperatorConfigMap();
         return map.TryGetValue(operatorId, out var cfg) ? cfg : null;
->>>>>>> main
+    }
     }
 
     private Dictionary<int, OperatorRealtimeConfig> GetOperatorConfigMap()
