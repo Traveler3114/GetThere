@@ -8,12 +8,6 @@
             "type": "node-terminal"
         },
         {
-            "name": ".NET MAUI",
-            "type": "maui",
-            "request": "launch",
-            "preLaunchTask": "maui: Build"
-        },
-        {
             "name": "C#: <project-name> Debug",
             "type": "dotnet",
             "request": "launch",
@@ -23,12 +17,6 @@
             "name": ".NET Core Attach",
             "type": "coreclr",
             "request": "attach"
-        },
-        {
-            "name": ".NET MAUI",
-            "type": "maui",
-            "request": "launch",
-            "preLaunchTask": "maui: Build"
         },
         {
             "name": ".NET Core Launch (console)",

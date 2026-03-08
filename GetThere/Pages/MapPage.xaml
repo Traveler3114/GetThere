@@ -6,7 +6,7 @@
              Title="MapPage">
 
     <Grid>
-        <components:BreathingBackground />
+        <components:AnimatedBackground />
         <!-- Map WebView -->
         <WebView x:Name="MapWebView"
                  Source="HybridWebViewRoot/index.html"

@@ -7,8 +7,6 @@ namespace GetThere.Pages;
 public partial class RegistrationPage : ContentPage
 {
     private readonly AuthService _authService;
-    private bool _passwordVisible = false;
-    private bool _confirmPasswordVisible = false;
 
     public RegistrationPage(AuthService authService)
     {
@@ -16,18 +14,16 @@ public partial class RegistrationPage : ContentPage
         _authService = authService;
     }
 
-    private void TogglePassword_Clicked(object? sender, EventArgs e)
+    private void TogglePassword_Clicked(object sender, EventArgs e)
     {
-        _passwordVisible = !_passwordVisible;
-        PasswordEntry.IsPassword = !_passwordVisible;
-        TogglePasswordBtn.Text = _passwordVisible ? "Hide" : "Show";
+        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
+        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
     }
 
-    private void ToggleConfirmPassword_Clicked(object? sender, EventArgs e)
+    private void ToggleConfirmPassword_Clicked(object sender, EventArgs e)
     {
-        _confirmPasswordVisible = !_confirmPasswordVisible;
-        ConfirmPasswordEntry.IsPassword = !_confirmPasswordVisible;
-        ToggleConfirmPasswordBtn.Text = _confirmPasswordVisible ? "Hide" : "Show";
+        ConfirmPasswordEntry.IsPassword = !ConfirmPasswordEntry.IsPassword;
+        ToggleConfirmPasswordBtn.Text = ConfirmPasswordEntry.IsPassword ? "Show" : "Hide";
     }
 
     private async void RegisterButton_Clicked(object? sender, EventArgs e)

@@ -7,7 +7,6 @@ namespace GetThere.Pages;
 public partial class LoginPage : ContentPage
 {
     private readonly AuthService _authService;
-    private bool _passwordVisible = false;
 
     public LoginPage(AuthService authService)
     {
@@ -15,11 +14,10 @@ public partial class LoginPage : ContentPage
         _authService = authService;
     }
 
-    private void TogglePassword_Clicked(object? sender, EventArgs e)
+    private void TogglePassword_Clicked(object sender, EventArgs e)
     {
-        _passwordVisible = !_passwordVisible;
-        PasswordEntry.IsPassword = !_passwordVisible;
-        TogglePasswordBtn.Text = _passwordVisible ? "Hide" : "Show";
+        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
+        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
     }
 
     private async void LoginButton_Clicked(object? sender, EventArgs e)

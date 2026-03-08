@@ -14,7 +14,7 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,*,Auto">
-        <components:BreathingBackground Grid.RowSpan="4" />
+        <components:AnimatedBackground Grid.RowSpan="4" />
         <SearchBar Grid.Row="0" x:Name="SearchBar" Placeholder="Search..." Margin="12,8" TextChanged="SearchBar_TextChanged" />
         <HorizontalStackLayout Grid.Row="1" Margin="12,8" Spacing="8">
             <Button x:Name="AllBtn" Text="All" Clicked="Filter_Clicked" />

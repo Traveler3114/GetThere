@@ -36,21 +36,21 @@
             <Entry x:Name="FullNameEntry"
                    Placeholder="Full name"
                    Keyboard="Text"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
             <Entry x:Name="EmailEntry"
                    Placeholder="Email address"
                    Keyboard="Email"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
             <Entry x:Name="PhoneEntry"
                    Placeholder="Phone (optional)"
                    Keyboard="Telephone"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
@@ -64,21 +64,23 @@
                 <Entry x:Name="PasswordEntry"
                        Placeholder="Password (min. 8 characters)"
                        IsPassword="True"
-                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       BackgroundColor="Transparent"
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray" />
-                <Button x:Name="TogglePasswordBtn"
-                        Text="Show"
-                        FontSize="12"
-                        BackgroundColor="Transparent"
-                        TextColor="Gray"
-                        BorderWidth="0"
-                        CornerRadius="0"
-                        HorizontalOptions="End"
-                        VerticalOptions="Center"
-                        WidthRequest="60" HeightRequest="48"
-                        Padding="0"
-                        Clicked="TogglePassword_Clicked" />
+                       PlaceholderColor="Gray"
+                       HorizontalOptions="Fill" />
+                <Label x:Name="TogglePasswordBtn"
+                       Text="Show"
+                       FontSize="13"
+                       TextColor="Gray"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       HorizontalOptions="End"
+                       Padding="10,0"
+                       Margin="0,0,5,0">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
+                    </Label.GestureRecognizers>
+                </Label>
             </Grid>
 
             <!-- Confirm password with eye toggle -->
@@ -86,21 +88,23 @@
                 <Entry x:Name="ConfirmPasswordEntry"
                        Placeholder="Confirm password"
                        IsPassword="True"
-                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       BackgroundColor="Transparent"
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray" />
-                <Button x:Name="ToggleConfirmPasswordBtn"
-                        Text="Show"
-                        FontSize="12"
-                        BackgroundColor="Transparent"
-                        TextColor="Gray"
-                        BorderWidth="0"
-                        CornerRadius="0"
-                        HorizontalOptions="End"
-                        VerticalOptions="Center"
-                        WidthRequest="60" HeightRequest="48"
-                        Padding="0"
-                        Clicked="ToggleConfirmPassword_Clicked" />
+                       PlaceholderColor="Gray"
+                       HorizontalOptions="Fill" />
+                <Label x:Name="ToggleConfirmPasswordBtn"
+                       Text="Show"
+                       FontSize="13"
+                       TextColor="Gray"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       HorizontalOptions="End"
+                       Padding="10,0"
+                       Margin="0,0,5,0">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="ToggleConfirmPassword_Clicked" />
+                    </Label.GestureRecognizers>
+                </Label>
             </Grid>
 
             <!-- ── ERROR ── -->
@@ -122,19 +126,32 @@
                                Color="#4CAF50"
                                HorizontalOptions="Center" />
 
-            <!-- ── LOGIN LINK ── -->
-            <Label Text="Log in"
-                   HorizontalOptions="Center" VerticalOptions="Center"
-                   FontSize="14" TextColor="#4CAF50" FontAttributes="Bold"
-                   Margin="0,12,0,40">
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- ── CUSTOM FOOTER NAVIGATION (Absolute Bottom) ── -->
+        <HorizontalStackLayout Grid.Row="0"
+                               HorizontalOptions="Center" 
+                               VerticalOptions="End"
+                               Spacing="40" 
+                               Padding="0,0,0,20">
+            <Label Text="Login"
+                   FontSize="16"
+                   TextColor="Gray"
+                   FontAttributes="Bold">
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="LoginButton_Clicked" />
                 </Label.GestureRecognizers>
             </Label>
-
-        </VerticalStackLayout>
-        </ScrollView>
-
+            <Label Text="Register"
+                   FontSize="16"
+                   TextColor="#FF00FF"
+                   FontAttributes="Bold">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
+        </HorizontalStackLayout>
     </Grid>
 
 </ContentPage>
