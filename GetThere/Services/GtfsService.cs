@@ -237,122 +237,6 @@ public class GtfsService
 
     private void SaveOperatorConfig(TransitOperatorDto op)
     {
-<<<<<<< HEAD
-        var feedUrl = GetRealtimeUrl(operatorId);
-        if (string.IsNullOrEmpty(feedUrl)) return [];
-
-        var bytes = await _http.GetByteArrayAsync(feedUrl);
-        Trace.WriteLine($"[Realtime] Fetched {bytes.Length} bytes from {feedUrl}");
-
-        var result = new List<VehiclePositionDto>();
-        var input = new CodedInputStream(bytes);
-
-        // ZET feed structure (decoded from raw bytes):
-        // FeedMessage: field2(tag18) = repeated FeedEntity
-        // FeedEntity:  field1(tag10) = id string
-        //              field3(tag26) = VehiclePosition  ← ZET uses field3, not field4
-        // VehiclePosition: field1(tag10) = TripDescriptor
-        //                  field2(tag18) = Position
-        //                  field3(tag26) = VehicleDescriptor
-        // TripDescriptor: field1(tag10) = trip_id, field2(tag18) = route_id
-        // Position:       field1(tag13) = latitude (float), field2(tag21) = longitude (float), field3(tag29) = bearing (float)
-        // VehicleDescriptor: field1(tag10) = id, field2(tag18) = label
-
-        uint tag;
-        while ((tag = input.ReadTag()) != 0)
-        {
-            if (tag != 18) { input.SkipLastField(); continue; } // field 2 = entity
-
-            var entityLimit = input.ReadLength();
-            var entityEnd = input.Position + entityLimit;
-            string entityId = string.Empty;
-            VehiclePositionDto? dto = null;
-
-            while (input.Position < entityEnd && (tag = input.ReadTag()) != 0)
-            {
-                switch (tag)
-                {
-                    case 10: entityId = input.ReadString(); break; // field 1 = id
-                    case 26:                                        // field 3 = VehiclePosition (ZET specific)
-                        var vpLimit = input.ReadLength();
-                        var vpEnd = input.Position + vpLimit;
-                        dto = new VehiclePositionDto();
-                        while (input.Position < vpEnd && (tag = input.ReadTag()) != 0)
-                        {
-                            switch (tag)
-                            {
-                                case 10: // field 1 = TripDescriptor
-                                    var tripLimit = input.ReadLength();
-                                    var tripEnd = input.Position + tripLimit;
-                                    while (input.Position < tripEnd && (tag = input.ReadTag()) != 0)
-                                    {
-                                        switch (tag)
-                                        {
-                                            case 10: dto.VehicleId = input.ReadString(); break; // trip_id as fallback id
-                                            case 18: dto.RouteId = input.ReadString(); break; // route_id
-                                            default: input.SkipLastField(); break;
-                                        }
-                                    }
-                                    break;
-                                case 18: // field 2 = Position
-                                    var posLimit = input.ReadLength();
-                                    var posEnd = input.Position + posLimit;
-                                    while (input.Position < posEnd && (tag = input.ReadTag()) != 0)
-                                    {
-                                        switch (tag)
-                                        {
-                                            case 13: dto.Lat = input.ReadFloat(); break; // latitude
-                                            case 21: dto.Lon = input.ReadFloat(); break; // longitude
-                                            case 29: dto.Bearing = input.ReadFloat(); break; // bearing
-                                            default: input.SkipLastField(); break;
-                                        }
-                                    }
-                                    break;
-                                case 26: // field 3 = VehicleDescriptor
-                                    var vdLimit = input.ReadLength();
-                                    var vdEnd = input.Position + vdLimit;
-                                    while (input.Position < vdEnd && (tag = input.ReadTag()) != 0)
-                                    {
-                                        switch (tag)
-                                        {
-                                            case 10: dto.VehicleId = input.ReadString(); break; // id
-                                            case 18: dto.Label = input.ReadString(); break; // label
-                                            default: input.SkipLastField(); break;
-                                        }
-                                    }
-                                    break;
-                                default: input.SkipLastField(); break;
-                            }
-                        }
-                        break;
-                    default: input.SkipLastField(); break;
-                }
-            }
-
-            if (dto != null && dto.Lat != 0 && dto.Lon != 0)
-            {
-                if (string.IsNullOrEmpty(dto.VehicleId)) dto.VehicleId = entityId;
-                result.Add(dto);
-            }
-        }
-
-        Trace.WriteLine($"[Realtime] Parsed {result.Count} vehicles");
-        return result;
-    }
-
-    // ────────────────────────────
-    // Realtime URL cache
-    // ────────────────────────────
-
-    private void SaveRealtimeUrl(int operatorId, string url)
-    {
-        var map = GetRealtimeUrlMap();
-        map[operatorId] = url;
-        Preferences.Set(RealtimeUrlsKey, JsonSerializer.Serialize(map));
-    }
-
-    private void RemoveRealtimeUrl(int operatorId)
-=======
         var map = GetOperatorConfigMap();
         map[op.Id] = new OperatorRealtimeConfig
         {
@@ -366,7 +250,6 @@ public class GtfsService
     }
 
     private void RemoveOperatorConfig(int operatorId)
->>>>>>> main
     {
         var map = GetOperatorConfigMap();
         map.Remove(operatorId);
@@ -377,7 +260,6 @@ public class GtfsService
     {
         var map = GetOperatorConfigMap();
         return map.TryGetValue(operatorId, out var cfg) ? cfg : null;
-    }
     }
 
     private Dictionary<int, OperatorRealtimeConfig> GetOperatorConfigMap()
