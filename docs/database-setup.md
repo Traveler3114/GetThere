@@ -1,5 +1,12 @@
 # EF Core Migration Guide
 
+##Commands
+```bash
+dotnet ef database drop
+dotnet ef database update
+dotnet ef migrations add YourMigrationName
+```
+
 ## First Time Setup
 Only run this once to install EF Core tools globally:
 ```bash
@@ -71,6 +78,9 @@ dotnet ef database update
 
 ## Migrations Folder Over Time
 Each migration is tracked in your code and Git:
+
+
+
 ```
 Migrations/
 ├── 20260301_InitialCreate.cs
