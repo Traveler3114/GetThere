@@ -21,5 +21,11 @@
         {
             Current!.Windows[0].Page = new LoginShell();
         }
+
+        public static async void GoToRegistration()
+        {
+            Current!.Windows[0].Page = new LoginShell();
+            await Shell.Current.GoToAsync("//registration");
+        }
     }
 }
