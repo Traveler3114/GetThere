@@ -46,10 +46,23 @@ public partial class ProfilePage : ContentPage
 
             if (fullName == null && email == null)
             {
-                PageUtility.ShowError(ErrorLabel, "Not logged in.");
+                // User is not logged in (guest mode)
+                LoginRequiredOverlay.IsVisible = true;
+                LogoutButton.IsVisible = false; 
+                NameLabel.Text = "Guest";
+                EmailLabel.Text = "Not logged in";
+                AvatarLabel.Text = "?";
+                WalletBusy.IsVisible = false;
+                WalletBusy.IsRunning = false;
+                ErrorLabel.IsVisible = false;
+                TicketsBusy.IsVisible = false;
+                TicketsBusy.IsRunning = false;
                 return;
             }
 
+            // User is logged in
+            LoginRequiredOverlay.IsVisible = false;
+            LogoutButton.IsVisible = true; // Show logout for logged in users
             NameLabel.Text = fullName ?? "User";
             EmailLabel.Text = email ?? string.Empty;
             AvatarLabel.Text = string.IsNullOrWhiteSpace(fullName)
@@ -351,6 +364,11 @@ public partial class ProfilePage : ContentPage
     }
 
     // ── Logout ─────────────────────────────────────────────────────────────
+
+    private void GoBackToLogInButton_Clicked(object? sender, EventArgs e)
+    {
+        App.GoToLogin();
+    }
 
     private void LogoutButton_Clicked(object? sender, EventArgs e)
     {

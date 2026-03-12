@@ -52,79 +52,128 @@
                        HorizontalOptions="Center" />
             </VerticalStackLayout>
 
-            <!-- ── WALLET BALANCE CARD ── -->
-            <Border Margin="16,12" Padding="20"
-                    StrokeThickness="0"
-                    BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="16" />
-                </Border.StrokeShape>
-                <Border.Shadow>
-                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.08" />
-                </Border.Shadow>
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Wallet Balance" FontSize="13" TextColor="Gray" />
-                    <Label x:Name="BalanceLabel"
-                           FontSize="34" FontAttributes="Bold"
-                           TextColor="#4CAF50" />
-                    <Label x:Name="LastUpdatedLabel"
-                           FontSize="11" TextColor="Gray" />
+            <!-- ══════════════════════════════════════
+                 WALLET SECTION WITH LOGIN-REQUIRED OVERLAY
+                 ══════════════════════════════════════ -->
+            <Grid>
+                <VerticalStackLayout Spacing="0">
 
-                    <HorizontalStackLayout Spacing="12" Margin="0,8,0,0" VerticalOptions="Center">
-                        <Button x:Name="TopUpButton"
-                                Text="＋  Top Up"
-                                Clicked="TopUpButton_Clicked"
+                    <!-- ── WALLET BALANCE CARD ── -->
+                    <Border Margin="16,12" Padding="20"
+                            StrokeThickness="0"
+                            BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.08" />
+                        </Border.Shadow>
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Wallet Balance" FontSize="13" TextColor="Gray" />
+                            <Label x:Name="BalanceLabel"
+                                   FontSize="34" FontAttributes="Bold"
+                                   TextColor="#4CAF50" />
+                            <Label x:Name="LastUpdatedLabel"
+                                   FontSize="11" TextColor="Gray" />
+
+                            <HorizontalStackLayout Spacing="12" Margin="0,8,0,0" VerticalOptions="Center">
+                                <Button x:Name="TopUpButton"
+                                        Text="＋  Top Up"
+                                        Clicked="TopUpButton_Clicked"
+                                        BackgroundColor="#4CAF50" TextColor="White"
+                                        CornerRadius="10" HeightRequest="38"
+                                        FontSize="14" Padding="20,0" />
+                                <ActivityIndicator x:Name="BusyIndicator"
+                                                   IsRunning="False" IsVisible="False"
+                                                   Color="#4CAF50"
+                                                   VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- WalletBusy shown while page first loads -->
+                    <ActivityIndicator x:Name="WalletBusy"
+                                       IsRunning="True" IsVisible="True"
+                                       Color="#4CAF50" HorizontalOptions="Center"
+                                       Margin="0,4" />
+
+                    <!-- ── SEGMENT CONTROL ── -->
+                    <Grid ColumnDefinitions="*,*" Margin="16,8" ColumnSpacing="8">
+                        <Button x:Name="TicketsTabBtn" Text="🎫  Tickets" Grid.Column="0"
+                                Clicked="TicketsTab_Clicked"
                                 BackgroundColor="#4CAF50" TextColor="White"
-                                CornerRadius="10" HeightRequest="38"
-                                FontSize="14" Padding="20,0" />
-                        <ActivityIndicator x:Name="BusyIndicator"
-                                           IsRunning="False" IsVisible="False"
-                                           Color="#4CAF50"
-                                           VerticalOptions="Center" />
+                                CornerRadius="10" HeightRequest="42" />
+                        <Button x:Name="HistoryTabBtn" Text="📋  History" Grid.Column="1"
+                                Clicked="HistoryTab_Clicked"
+                                BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
+                                TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                CornerRadius="10" HeightRequest="42" />
+                    </Grid>
+
+                    <!-- ── TICKET FILTER CHIPS (fixed, above scroll) ── -->
+                    <HorizontalStackLayout x:Name="FilterChipsRow"
+                                           Spacing="8" Margin="16,0,16,10">
+                        <Button x:Name="ActiveBtn" Text="Active"
+                                Clicked="ActiveFilter_Clicked"
+                                BackgroundColor="#4CAF50" TextColor="White"
+                                CornerRadius="20" HeightRequest="34"
+                                Padding="16,0" FontSize="13" />
+                        <Button x:Name="ExpiredBtn" Text="Expired"
+                                Clicked="ExpiredFilter_Clicked"
+                                BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
+                                TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                CornerRadius="20" HeightRequest="34"
+                                Padding="16,0" FontSize="13" />
+                        <Button x:Name="UsedBtn" Text="Used"
+                                Clicked="UsedFilter_Clicked"
+                                BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
+                                TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                CornerRadius="20" HeightRequest="34"
+                                Padding="16,0" FontSize="13" />
                     </HorizontalStackLayout>
+
                 </VerticalStackLayout>
-            </Border>
 
-            <!-- WalletBusy shown while page first loads -->
-            <ActivityIndicator x:Name="WalletBusy"
-                               IsRunning="True" IsVisible="True"
-                               Color="#4CAF50" HorizontalOptions="Center"
-                               Margin="0,4" />
-
-            <!-- ── SEGMENT CONTROL ── -->
-            <Grid ColumnDefinitions="*,*" Margin="16,8" ColumnSpacing="8">
-                <Button x:Name="TicketsTabBtn" Text="🎫  Tickets" Grid.Column="0"
-                        Clicked="TicketsTab_Clicked"
-                        BackgroundColor="#4CAF50" TextColor="White"
-                        CornerRadius="10" HeightRequest="42" />
-                <Button x:Name="HistoryTabBtn" Text="📋  History" Grid.Column="1"
-                        Clicked="HistoryTab_Clicked"
-                        BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
-                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                        CornerRadius="10" HeightRequest="42" />
+                <!-- ── LOGIN REQUIRED OVERLAY ── -->
+                <Grid x:Name="LoginRequiredOverlay"
+                      IsVisible="False"
+                      BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#E0000000}"
+                      InputTransparent="False">
+                    <Border Padding="24" 
+                            BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}"
+                            StrokeThickness="2"
+                            Stroke="#4CAF50"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            WidthRequest="280">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Offset="0,4" Radius="16" Opacity="0.2" />
+                        </Border.Shadow>
+                        <VerticalStackLayout Spacing="16">
+                            <Label Text="🔒" FontSize="48" HorizontalOptions="Center" />
+                            <Label Text="Log in to access wallet"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   HorizontalTextAlignment="Center"
+                                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            <Label Text="Sign in to view your balance, tickets, and transaction history."
+                                   FontSize="13"
+                                   HorizontalTextAlignment="Center"
+                                   TextColor="Gray" />
+                            <Button Text="Go to Login"
+                                    Clicked="GoBackToLogInButton_Clicked"
+                                    BackgroundColor="#4CAF50"
+                                    TextColor="White"
+                                    CornerRadius="10"
+                                    HeightRequest="44"
+                                    FontAttributes="Bold" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
             </Grid>
-
-            <!-- ── TICKET FILTER CHIPS (fixed, above scroll) ── -->
-            <HorizontalStackLayout x:Name="FilterChipsRow"
-                                   Spacing="8" Margin="16,0,16,10">
-                <Button x:Name="ActiveBtn" Text="Active"
-                        Clicked="ActiveFilter_Clicked"
-                        BackgroundColor="#4CAF50" TextColor="White"
-                        CornerRadius="20" HeightRequest="34"
-                        Padding="16,0" FontSize="13" />
-                <Button x:Name="ExpiredBtn" Text="Expired"
-                        Clicked="ExpiredFilter_Clicked"
-                        BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
-                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                        CornerRadius="20" HeightRequest="34"
-                        Padding="16,0" FontSize="13" />
-                <Button x:Name="UsedBtn" Text="Used"
-                        Clicked="UsedFilter_Clicked"
-                        BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
-                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                        CornerRadius="20" HeightRequest="34"
-                        Padding="16,0" FontSize="13" />
-            </HorizontalStackLayout>
 
         </VerticalStackLayout>
 
@@ -240,7 +289,8 @@
             </ScrollView>
 
             <!-- ── LOGOUT — always pinned to bottom ── -->
-            <Button Grid.Row="1"
+            <Button x:Name="LogoutButton"
+                    Grid.Row="1"
                     Text="Log Out"
                     Margin="16,8,16,24"
                     BackgroundColor="Transparent"
