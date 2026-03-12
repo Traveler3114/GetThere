@@ -24,26 +24,28 @@ public partial class AnimatedBackground : ContentView
         set => SetValue(YOffsetProperty, value);
     }
 
-    private float _blueX, _blueY;
-    private float _purpleX, _purpleY;
-    private float _blueVx, _blueVy;
-    private float _purpleVx, _purpleVy;
+    private static float _blueX, _blueY;
+    private static float _purpleX, _purpleY;
+    private static float _blueVx, _blueVy;
+    private static float _purpleVx, _purpleVy;
     
     private readonly Stopwatch _stopwatch = new();
     private bool _isAnimating = false;
 
-    private bool _initialized = false;
+    private static bool _initialized = false;
 
     public AnimatedBackground()
     {
         InitializeComponent();
         
-        // Initial random velocities - increased for more speed
-        var random = new Random();
-        _blueVx = (float)(random.NextDouble() * 100 + 60);
-        _blueVy = (float)(random.NextDouble() * 100 + 60);
-        _purpleVx = (float)-(random.NextDouble() * 100 + 60); // Start moving LEFT
-        _purpleVy = (float)-(random.NextDouble() * 100 + 60); // Start moving UP
+        if (!_initialized)
+        {
+            var random = new Random();
+            _blueVx = (float)(random.NextDouble() * 80 + 40);
+            _blueVy = (float)(random.NextDouble() * 80 + 40);
+            _purpleVx = (float)-(random.NextDouble() * 80 + 40); // Start moving LEFT
+            _purpleVy = (float)-(random.NextDouble() * 80 + 40); // Start moving UP
+        }
 
         Loaded += (s, e) => StartAnimation();
         Unloaded += (s, e) => _isAnimating = false;
@@ -125,7 +127,7 @@ public partial class AnimatedBackground : ContentView
         var purpleAlpha = isDarkTheme ? 0.25f : 0.45f;
 
         var blueRadius = isDarkTheme ? 250f : 400f;
-        var purpleRadius = isDarkTheme ? 220f : 350f;
+        var purpleRadius = isDarkTheme ? 180f : 280f;
 
         // Combine autonomous position with external XOffset/YOffset (pan)
         // We use XOffset/10 to make the pan subtler
