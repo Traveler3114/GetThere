@@ -10,6 +10,7 @@
             width: 100%;
             margin: 0;
             padding: 0;
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
         }
 
         .vehicle-popup {
@@ -33,25 +34,231 @@
                 margin-top: 2px;
             }
 
-        .stop-popup {
+        .stop-info-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: white;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+            transform: translateY(100%);
+            transition: transform 0.3s ease-out;
+            z-index: 1000;
+            overflow-y: auto;
             font-family: sans-serif;
-            font-size: 13px;
-            min-width: 130px;
         }
 
-            .stop-popup strong {
-                display: block;
-                margin-bottom: 3px;
+            .stop-info-panel.visible {
+                transform: translateY(0);
             }
 
-            .stop-popup .stop-id {
-                color: #999;
-                font-size: 11px;
+        .stop-info-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f5f5f5;
+        }
+
+        .stop-info-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+        }
+
+        .stop-info-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #666;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+            .stop-info-close:hover {
+                background: #e0e0e0;
+            }
+
+        .stop-info-content {
+            padding: 20px;
+        }
+
+        .stop-info-id {
+            color: #999;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+
+
+        /* --------------------------- Side Menu Styles --------------------------- */
+        .menu-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: #FF5722;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+            .menu-button:hover {
+                background-color: #E64A19;
+            }
+
+            .menu-button.open {
+                left: 190px;
+            }
+
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -250px;
+            width: 250px;
+            height: 100%;
+            background-color: lightgreen;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+        }
+
+            .side-menu.open {
+                left: 0;
+            }
+
+            .side-menu h2 {
+                margin-top: 30px;
+                margin-left: 20px;
+                font-size: 24px;
+                font-weight: bold;
+                color: black;
+            }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+        }
+
+            .menu-item label:last-child {
+                font-size: 15px;
+                font-weight: 500;
+            }
+
+        /* --------------------------- Toggle Switch --------------------------- */
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 30px;
+            margin-right: 14px;
+        }
+
+            .switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+        /* Track */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: #d1d5db; /* light gray */
+            border-radius: 30px;
+            transition: background-color 0.25s ease, box-shadow 0.25s ease;
+        }
+
+            /* Knob */
+            .slider:before {
+                content: "";
+                position: absolute;
+                height: 24px;
+                width: 24px;
+                left: 3px;
+                top: 3px;
+                background-color: white;
+                border-radius: 50%;
+                transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+            }
+
+        /* ON state */
+        input:checked + .slider {
+            background-color: #4CAF50; /* Modern green */
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
+        }
+
+            input:checked + .slider:before {
+                transform: translateX(22px);
+            }
+
+        /* Press effect */
+        .switch input:active + .slider:before {
+            width: 28px;
+        }
+
+        /* Optional: Disabled state */
+        .switch input:disabled + .slider {
+            background-color: #e5e7eb;
+            cursor: not-allowed;
+        }
+
+            .switch input:disabled + .slider:before {
+                background-color: #f3f4f6;
             }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <!-- Menu Button -->
+    <button id="menuButton" class="menu-button" onclick="toggleMenu()">☰</button>
+
+    <!-- Side Menu -->
+    <div id="sideMenu" class="side-menu">
+        <h2>Preferences</h2>
+        <div class="menu-item">
+            <label class="switch">
+                <input type="checkbox" id="showBussesToggle" checked onchange="onShowBussesToggle(this)">
+                <span class="slider"></span>
+            </label>
+            <label>Show busses on the map</label>
+        </div>
+    </div>
+
+    <!-- Stop Info Panel -->
+    <div id="stopInfoPanel" class="stop-info-panel">
+        <div class="stop-info-header">
+            <h2 class="stop-info-title" id="stopInfoTitle">Stop Name</h2>
+            <button class="stop-info-close" onclick="closeStopPanel()">×</button>
+        </div>
+        <div class="stop-info-content">
+            <div class="stop-info-id" id="stopInfoId">Stop ID</div>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
     <script>
         const MAPTILER_KEY = "3mONySRY1DAYg6mgQean";
@@ -83,18 +290,19 @@
         let vehicleMarkers = {};
         let stopMarkers = [];
         let activeRouteId = null;
+        let vehiclesVisible = true;  // Track if vehicles should be shown
 
         // ─── STOP ICON ───────────────────────────────────────────────────────
         // White square with a blue "H"-like bus stop pole shape — clearly a stop
         function makeStopIcon() {
             const svg = `
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                            <!-- Outer circle: white with colored border -->
-                            <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
-                            <!-- Letter S for Stop -->
-                            <text x="10" y="14" text-anchor="middle" font-size="11"
-                                  font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
-                        </svg>`;
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+                                    <!-- Outer circle: white with colored border -->
+                                    <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
+                                    <!-- Letter S for Stop -->
+                                    <text x="10" y="14" text-anchor="middle" font-size="11"
+                                          font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
+                                </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = 'cursor:pointer; width:20px; height:20px;';
@@ -114,40 +322,44 @@
 
             // The icon is a rounded rectangle (vehicle body) with an arrow on top
             const svg = `
-                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                            <!-- Direction arrow pointing up (rotated by bearing) -->
-                            <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
+                                    <!-- Direction arrow pointing up (rotated by bearing) -->
+                                    <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
 
-                            <!-- Vehicle body: rounded rect -->
-                            <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
-                                  fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
+                                    <!-- Vehicle body: rounded rect -->
+                                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
+                                          fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
 
-                            <!-- Vehicle type icon top-left -->
-                            <text x="8" y="21" text-anchor="middle" font-size="9"
-                                  font-family="Arial" fill="rgba(255,255,255,0.75)">
-                                ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
-                            </text>
+                                    <!-- Vehicle type icon top-left -->
+                                    <text x="8" y="21" text-anchor="middle" font-size="9"
+                                          font-family="Arial" fill="rgba(255,255,255,0.75)">
+                                        ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
+                                    </text>
 
-                            <!-- Route number centred -->
-                            <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
-                                  font-family="Arial, sans-serif" font-weight="bold" fill="white"
-                                  paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
-                                ${label}
-                            </text>
-                        </svg>`;
+                                    <!-- Route number centred -->
+                                    <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
+                                          font-family="Arial, sans-serif" font-weight="bold" fill="white"
+                                          paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
+                                        ${label}
+                                    </text>
+                                </svg>`;
 
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = `
-                            cursor: pointer;
-                            width: 36px;
-                            height: 42px;
-                            transform: rotate(${bearing || 0}deg);
-                            transform-origin: 18px 21px;
-                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                        `;
+                                    cursor: pointer;
+                                    width: 36px;
+                                    height: 42px;
+                                    transform: rotate(${bearing || 0}deg);
+                                    transform-origin: 18px 21px;
+                                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+                                `;
             return el;
         }
+
+
+
+
 
         // ─── renderStops ─────────────────────────────────────────────────────
         function renderStops(jsonStr) {
@@ -156,20 +368,13 @@
             stopMarkers.forEach(m => m.remove());
             stopMarkers = [];
 
-            const popup = new maplibregl.Popup({ closeButton: false, offset: 10 });
-
             stops.forEach(s => {
                 const el = makeStopIcon();
 
-                el.addEventListener('mouseenter', () => {
-                    popup.setLngLat([s.lon, s.lat])
-                        .setHTML(`<div class="stop-popup">
-                                        <strong>${s.name}</strong>
-                                        <span class="stop-id">${s.stopId}</span>
-                                    </div>`)
-                        .addTo(map);
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showStopPanel(s.name, s.stopId);
                 });
-                el.addEventListener('mouseleave', () => popup.remove());
 
                 const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
                     .setLngLat([s.lon, s.lat])
@@ -178,6 +383,43 @@
                 stopMarkers.push(marker);
             });
         }
+
+        // ─── Stop Panel Functions ────────────────────────────────────────────
+        function showStopPanel(name, stopId) {
+            document.getElementById('stopInfoTitle').textContent = name;
+            document.getElementById('stopInfoId').textContent = `Stop ID: ${stopId}`;
+            document.getElementById('stopInfoPanel').classList.add('visible');
+        }
+
+        function closeStopPanel() {
+            document.getElementById('stopInfoPanel').classList.remove('visible');
+        }
+
+        // ─── Menu Functions ───────────────────────────────────────────────────
+        function toggleMenu() {
+            const menu = document.getElementById('sideMenu');
+            const button = document.getElementById('menuButton');
+            const isOpen = menu.classList.contains('open');
+
+            if (isOpen) {
+                menu.classList.remove('open');
+                button.classList.remove('open');
+                button.textContent = '☰';
+            } else {
+                menu.classList.add('open');
+                button.classList.add('open');
+                button.textContent = '×';
+            }
+        }
+
+        function onShowBussesToggle(checkbox) {
+            console.log('[Map] Show Busses Toggle: ' + (checkbox.checked ? 'ON' : 'OFF'));
+            toggleVehicleVisibility(checkbox.checked);
+        }
+
+
+
+
 
         // ─── renderRoutes ────────────────────────────────────────────────────
         // Stores route data in memory only. Nothing drawn until a vehicle is clicked.
@@ -280,8 +522,12 @@
                     const el = makeVehicleIcon(color, routeType, v.bearing, shortName);
                     attachVehicleClickHandler(el, v, color, resolvedId);
                     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-                        .setLngLat([v.lon, v.lat])
-                        .addTo(map);
+                        .setLngLat([v.lon, v.lat]);
+
+                    // Only add to map if vehicles are visible
+                    if (vehiclesVisible) {
+                        marker.addTo(map);
+                    }
                     vehicleMarkers[v.vehicleId] = { marker, routeId: resolvedId };
                 }
             });
@@ -306,10 +552,10 @@
                 vehiclePopup
                     .setLngLat([v.lon, v.lat])
                     .setHTML(`<div class="vehicle-popup">
-                                    <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                                    ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                                    <div class="info">Route: ${name}</div>
-                                </div>`)
+                                            <span class="route-badge" style="background:${hex}">Line ${name}</span>
+                                            ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
+                                            <div class="info">Route: ${name}</div>
+                                        </div>`)
                     .addTo(map);
             });
         }
@@ -323,9 +569,38 @@
             vehiclePopup.remove();
         }
 
+        // ─── toggleVehicleVisibility ─────────────────────────────────────────
+        // Called from C# when the ShowBusses switch is toggled
+        function toggleVehicleVisibility(show) {
+            vehiclesVisible = show;
+            Object.values(vehicleMarkers).forEach(v => {
+                if (show) {
+                    v.marker.addTo(map);
+                } else {
+                    v.marker.remove();
+                }
+            });
+
+            // Also hide route and popup when hiding vehicles
+            if (!show) {
+                clearActiveRoute();
+                vehiclePopup.remove();
+            }
+        }
+
         map.on('click', () => {
             clearActiveRoute();
             vehiclePopup.remove();
+            closeStopPanel();
+
+            // Close menu if clicking on map
+            const menu = document.getElementById('sideMenu');
+            const button = document.getElementById('menuButton');
+            if (menu.classList.contains('open')) {
+                menu.classList.remove('open');
+                button.classList.remove('open');
+                button.textContent = '☰';
+            }
         });
     </script>
 </body>

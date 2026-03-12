@@ -15,6 +15,8 @@ public partial class MapPage : ContentPage
     private List<TransitOperatorDto> _activeRealtimeOperators = [];
     private Dictionary<string, int> _routeTypeMap = [];
 
+
+
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
         InitializeComponent();
@@ -187,6 +189,18 @@ public partial class MapPage : ContentPage
         catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
     }
 
+    private async void OnSimulateLocationClicked(object sender, EventArgs e)
+    {
+
+    }
+
+
+
+
+
+
+
+
     // ────────────────────────────────────────────────────────────────────
     // JS bridge
     // ────────────────────────────────────────────────────────────────────
@@ -197,4 +211,7 @@ public partial class MapPage : ContentPage
         var escaped = json.Replace("\\", "\\\\").Replace("'", "\\'");
         await MapWebView.EvaluateJavaScriptAsync($"{fn}('{escaped}')");
     }
+
+
+
 }
