@@ -64,6 +64,7 @@ public partial class LoginPage : ContentPage
     }
 
     private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
+<<<<<<< HEAD
         => await Shell.Current.GoToAsync("///registration");
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)
@@ -74,4 +75,10 @@ public partial class LoginPage : ContentPage
         AnimatedBg.XOffset = (float)e.TotalX;
         AnimatedBg.YOffset = (float)e.TotalY;
     }
+=======
+        => App.GoToRegistration();
+
+    private async void GuestButton_Clicked(object? sender, EventArgs e)
+        => App.GoToApp();
+>>>>>>> decimirani-barbarstvom
 }
