@@ -39,7 +39,18 @@ namespace GetThereAPI.Data
                 }
             }
 
+
             //INITIAL DATA SEEDING, REMOVE BEFORE PRODUCTION DEPLOYMENT
+
+
+            modelBuilder.Entity<Country>().HasData(
+            new Country { Id = 1, Name = "Croatia" }
+            );
+
+            modelBuilder.Entity<City>().HasData(
+                new City { Id = 1, Name = "Zagreb", CountryId = 1 }
+            );
+
             modelBuilder.Entity<TransitOperator>().HasData(
                 new TransitOperator
                 {
