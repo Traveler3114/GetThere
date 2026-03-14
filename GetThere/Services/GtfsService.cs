@@ -182,8 +182,6 @@ public class GtfsService
     // Parse Stops
     // ────────────────────────────────────────────────────────────────────
 
-    // REPLACE ParseStopsAsync in GtfsService.cs with this:
-
     public async Task<List<GtfsStopDto>> ParseStopsAsync(int operatorId)
     {
         using var zip = OpenZip(operatorId);
@@ -191,13 +189,23 @@ public class GtfsService
         if (entry is null) return [];
         await using var stream = entry.Open();
         var rows = await ParseCsvAsync(stream);
-        var stops = rows.Select(r => new GtfsStopDto
-        {
-            StopId = Get(r, "stop_id"),
-            Name = Get(r, "stop_name"),
-            Lat = ParseDouble(Get(r, "stop_lat")),
-            Lon = ParseDouble(Get(r, "stop_lon")),
-        }).Where(s => s.Lat != 0 && s.Lon != 0).ToList();
+        var stops = rows
+            .Where(r =>
+            {
+                // Exclude parent stations (location_type = 1) — they are logical
+                // grouping nodes, not boardable platforms. Empty or "0" = real stop.
+                var lt = Get(r, "location_type");
+                return lt == "" || lt == "0";
+            })
+            .Select(r => new GtfsStopDto
+            {
+                StopId = Get(r, "stop_id"),
+                Name = Get(r, "stop_name"),
+                Lat = ParseDouble(Get(r, "stop_lat")),
+                Lon = ParseDouble(Get(r, "stop_lon")),
+            })
+            .Where(s => s.Lat != 0 && s.Lon != 0)
+            .ToList();
         ApplyStopRouteTypes(operatorId, stops);
         return stops;
     }
