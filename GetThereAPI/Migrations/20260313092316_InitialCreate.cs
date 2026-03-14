@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class OperatorsUpdate : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -272,10 +274,10 @@ namespace GetThereAPI.Migrations
                     TicketApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     GtfsFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     GtfsRealtimeFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IsTicketingEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    IsScheduleEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    IsRealtimeEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    RealtimeFeedFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RealtimeAuthType = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RealtimeAuthConfig = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RealtimeAdapterConfig = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CountryId = table.Column<int>(type: "int", nullable: false),
                     CityId = table.Column<int>(type: "int", nullable: true)
@@ -360,6 +362,30 @@ namespace GetThereAPI.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.InsertData(
+                table: "Countries",
+                columns: new[] { "Id", "Name" },
+                values: new object[] { 1, "Croatia" });
+
+            migrationBuilder.InsertData(
+                table: "PaymentProviders",
+                columns: new[] { "Id", "ApiBaseUrl", "ApiKey", "CreatedAt", "IsActive", "Name", "WebhookSecret" },
+                values: new object[,]
+                {
+                    { 1, "https://mockpay.example.com", "MOCK_API_KEY", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "MockPay", null },
+                    { 2, "https://testpay.example.com", "TEST_API_KEY", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "TestPay", "SECRET123" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "Cities",
+                columns: new[] { "Id", "CountryId", "Name" },
+                values: new object[] { 1, 1, "Zagreb" });
+
+            migrationBuilder.InsertData(
+                table: "TransitOperators",
+                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
+                values: new object[] { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "", "" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",

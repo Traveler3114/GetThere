@@ -38,6 +38,61 @@ namespace GetThereAPI.Data
                     }
                 }
             }
+
+
+            //INITIAL DATA SEEDING, REMOVE BEFORE PRODUCTION DEPLOYMENT
+
+
+            modelBuilder.Entity<Country>().HasData(
+            new Country { Id = 1, Name = "Croatia" }
+            );
+
+            modelBuilder.Entity<City>().HasData(
+                new City { Id = 1, Name = "Zagreb", CountryId = 1 }
+            );
+
+            modelBuilder.Entity<TransitOperator>().HasData(
+                new TransitOperator
+                {
+                    Id = 1,
+                    Name = "ZET",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
+                    GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
+                    RealtimeFeedFormat = "GTFS_RT_PROTO",
+                    RealtimeAuthType = "NONE",
+                    RealtimeAuthConfig = null,
+                    RealtimeAdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 1,
+                    CityId = 1
+                }
+            );
+
+            modelBuilder.Entity<PaymentProvider>().HasData(
+                new PaymentProvider
+                {
+                    Id = 1,
+                    Name = "MockPay",
+                    ApiBaseUrl = "https://mockpay.example.com",
+                    ApiKey = "MOCK_API_KEY",
+                    WebhookSecret = null,
+                    IsActive = true,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new PaymentProvider
+                {
+                    Id = 2,
+                    Name = "TestPay",
+                    ApiBaseUrl = "https://testpay.example.com",
+                    ApiKey = "TEST_API_KEY",
+                    WebhookSecret = "SECRET123",
+                    IsActive = true,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
         }
     }
 }

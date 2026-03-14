@@ -116,6 +116,14 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("CountryId");
 
                     b.ToTable("Cities");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CountryId = 1,
+                            Name = "Zagreb"
+                        });
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Country", b =>
@@ -133,6 +141,13 @@ namespace GetThereAPI.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Countries");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Croatia"
+                        });
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Payment", b =>
@@ -202,6 +217,27 @@ namespace GetThereAPI.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("PaymentProviders");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ApiBaseUrl = "https://mockpay.example.com",
+                            ApiKey = "MOCK_API_KEY",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "MockPay"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            ApiBaseUrl = "https://testpay.example.com",
+                            ApiKey = "TEST_API_KEY",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "TestPay",
+                            WebhookSecret = "SECRET123"
+                        });
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Ticket", b =>
@@ -319,6 +355,22 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("CountryId");
 
                     b.ToTable("TransitOperators");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CityId = 1,
+                            CountryId = 1,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
+                            GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
+                            Name = "ZET",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "GTFS_RT_PROTO",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
+                        });
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Wallet", b =>
