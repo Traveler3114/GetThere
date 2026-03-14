@@ -6,15 +6,46 @@
              Title="MapPage">
 
     <Grid>
+<<<<<<< HEAD
         <components:AnimatedBackground />
         <!-- Map WebView -->
         <WebView x:Name="MapWebView"
                  Source="HybridWebViewRoot/index.html"
                  HorizontalOptions="Fill"
                  VerticalOptions="Fill" />
+=======
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        
+        <Grid Grid.Row="0">
+            <!-- Map WebView -->
+            <HybridWebView x:Name="MapWebView"
+                         HybridRoot="HybridWebViewRoot"
+                         HorizontalOptions="Fill"
+                         VerticalOptions="Fill" />
+        </Grid>
+
+
+        <Button
+                Grid.Row="1"
+                x:Name="SimulateLocationBtn"
+                Text="Stimuliraj GPS pokret (5km)"
+                Clicked="OnSimulateLocationClicked"
+                HorizontalOptions="Fill"
+                BackgroundColor="#2196F3"
+                TextColor="White"
+                Margin="10" />
+
+
+
+>>>>>>> decimirani-barbarstvom
 
         <!-- Loading Overlay -->
         <Grid x:Name="LoadingOverlay"
+              Grid.Row="0"
               IsVisible="True"
               BackgroundColor="#80000000"
               HorizontalOptions="Fill"
@@ -35,6 +66,7 @@
                     HorizontalOptions="Center" />
             </VerticalStackLayout>
         </Grid>
+        
     </Grid>
     
 

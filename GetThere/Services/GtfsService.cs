@@ -1,3 +1,4 @@
+//using Android.AdServices.Topics;
 using GetThere.Helpers;
 using GetThere.Services.Realtime;
 using GetThereShared.Dtos;
@@ -176,6 +177,31 @@ public class GtfsService
         return msg;
     }
 
+
+
+    // ────────────────────────────────────────────────────────────────────
+    // Parse STOP ŠULDES
+    // ────────────────────────────────────────────────────────────────────
+
+    public async Task<List<GtfsStopSchedule>> ParseStopTimesAsync(int operatorId)
+    {
+        using var zip = OpenZip(operatorId);
+        var entry = zip?.GetEntry("stop_times.txt");
+        if (entry is null) return [];
+        await using var stream = entry.Open();
+        var rows = await ParseCsvAsync(stream);
+        return rows.Select(r => new GtfsStopSchedule
+        {
+            TripId = Get(r, "trip_id"),
+            ArrivalTime = Get(r, "arrival_time"),
+            DepartureTime = Get(r, "departure_time"),
+            Destination = Get(r, "stop_headsign"),
+            StopId = Get(r, "stop_id"),
+        }).ToList();
+    }
+
+
+
     // ────────────────────────────────────────────────────────────────────
     // Parse Stops
     // ────────────────────────────────────────────────────────────────────
@@ -193,7 +219,9 @@ public class GtfsService
             Name = Get(r, "stop_name"),
             Lat = ParseDouble(Get(r, "stop_lat")),
             Lon = ParseDouble(Get(r, "stop_lon")),
-        }).Where(s => s.Lat != 0 && s.Lon != 0).ToList();
+        })
+        .Where(s => s.StopId.Contains('_'))
+        .ToList();
     }
 
     // ────────────────────────────────────────────────────────────────────

@@ -15,6 +15,8 @@ public partial class MapPage : ContentPage
     private List<TransitOperatorDto> _activeRealtimeOperators = [];
     private Dictionary<string, int> _routeTypeMap = [];
 
+
+
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
         InitializeComponent();
@@ -85,14 +87,17 @@ public partial class MapPage : ContentPage
             _routeTypeMap.Clear();
             var allStops = new List<object>();
             var allRoutes = new List<object>();
+            var allStopSchedules = new List<object>();
 
             foreach (var op in operators)
             {
                 if (!_gtfsApi.IsInstalled(op.Id)) continue;
 
                 var stops = await _gtfsApi.ParseStopsAsync(op.Id);
+                var stop_schedules = await _gtfsApi.ParseStopTimesAsync(op.Id);
                 var routes = await _gtfsApi.ParseRoutesAsync(op.Id);
                 Trace.WriteLine($"[Map] {op.Name}: {stops.Count} stops, {routes.Count} routes");
+
 
                 allStops.AddRange(stops.Select(s => new
                 { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon }));
@@ -106,6 +111,17 @@ public partial class MapPage : ContentPage
                     routeType = r.RouteType
                 }));
 
+                allStopSchedules.AddRange(stop_schedules.Select(ss => new
+                {
+                    tripId = ss.TripId,
+                    arrivalTime = ss.ArrivalTime,
+                    departureTime = ss.DepartureTime,
+                    destination = ss.Destination,
+                    stopId = ss.StopId,
+                }));
+
+
+
                 foreach (var r in routes)
                     _routeTypeMap[r.RouteId] = r.RouteType;
 
@@ -115,6 +131,7 @@ public partial class MapPage : ContentPage
 
             await CallJs("renderStops", allStops);
             await CallJs("renderRoutes", allRoutes);
+            await CallJs("renderStopSchedules", allStopSchedules);
         }
         catch (Exception ex) { Trace.WriteLine($"[Map] Load error: {ex.Message}"); }
     }
@@ -187,6 +204,18 @@ public partial class MapPage : ContentPage
         catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
     }
 
+    private async void OnSimulateLocationClicked(object sender, EventArgs e)
+    {
+
+    }
+
+
+
+
+
+
+
+
     // ────────────────────────────────────────────────────────────────────
     // JS bridge
     // ────────────────────────────────────────────────────────────────────
@@ -197,4 +226,7 @@ public partial class MapPage : ContentPage
         var escaped = json.Replace("\\", "\\\\").Replace("'", "\\'");
         await MapWebView.EvaluateJavaScriptAsync($"{fn}('{escaped}')");
     }
+
+
+
 }
