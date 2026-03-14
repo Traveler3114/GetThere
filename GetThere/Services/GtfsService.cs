@@ -246,7 +246,7 @@ public class GtfsService
             RouteId = Get(r, "route_id"),
             ShortName = Get(r, "route_short_name"),
             LongName = Get(r, "route_long_name"),
-            Color = string.IsNullOrWhiteSpace(Get(r, "route_color")) ? null : Get(r, "route_color"),
+            Color = string.IsNullOrWhiteSpace(Get(r, "route_color")) ? "1a73e8" : Get(r, "route_color"),
             RouteType = int.TryParse(Get(r, "route_type"), out var rt) ? rt : 3,
         }).ToList();
 

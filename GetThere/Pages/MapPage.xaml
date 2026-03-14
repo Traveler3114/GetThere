@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.MapPage"
-             Title="MapPage">
+             Title="Map">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -10,15 +11,35 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        
+        <components:AnimatedBackground Grid.RowSpan="2" />
+
         <Grid Grid.Row="0">
             <!-- Map WebView -->
-            <HybridWebView x:Name="MapWebView"
-                         HybridRoot="HybridWebViewRoot"
-                         HorizontalOptions="Fill"
-                         VerticalOptions="Fill" />
+            <WebView x:Name="MapWebView"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill" />
+            
+            <!-- Loading Overlay -->
+            <Grid x:Name="LoadingOverlay"
+                  IsVisible="True"
+                  BackgroundColor="#80000000"
+                  HorizontalOptions="Fill"
+                  VerticalOptions="Fill">
+                <VerticalStackLayout
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Spacing="10">
+                    <components:ModernLoader 
+                        IsRunning="True"
+                        HeightRequest="60" WidthRequest="60" />
+                    <Label
+                        Text="Loading map..."
+                        TextColor="White"
+                        FontSize="16"
+                        HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Grid>
         </Grid>
-
 
         <Button
                 Grid.Row="1"
@@ -30,34 +51,6 @@
                 TextColor="White"
                 Margin="10" />
 
-
-
-
-        <!-- Loading Overlay -->
-        <Grid x:Name="LoadingOverlay"
-              Grid.Row="0"
-              IsVisible="True"
-              BackgroundColor="#80000000"
-              HorizontalOptions="Fill"
-              VerticalOptions="Fill">
-            <VerticalStackLayout
-                HorizontalOptions="Center"
-                VerticalOptions="Center"
-                Spacing="10">
-                <ActivityIndicator
-                    IsRunning="True"
-                    Color="White"
-                    HeightRequest="50"
-                    WidthRequest="50" />
-                <Label
-                    Text="Loading map..."
-                    TextColor="White"
-                    FontSize="16"
-                    HorizontalOptions="Center" />
-            </VerticalStackLayout>
-        </Grid>
-        
     </Grid>
-    
 
 </ContentPage>

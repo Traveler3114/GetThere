@@ -206,7 +206,27 @@ public partial class MapPage : ContentPage
 
     private async void OnSimulateLocationClicked(object sender, EventArgs e)
     {
+        try
+        {
+            var location = await Geolocation.GetLastKnownLocationAsync() ?? await Geolocation.GetLocationAsync();
+            if (location == null)
+            {
+                // Default to Zagreb if no location found
+                location = new Location(45.8150, 15.9819);
+            }
 
+            // Move roughly 5km East
+            double lat = location.Latitude;
+            double lon = location.Longitude + 0.065; // ~5km at this latitude
+                
+            var script = $"updateMapLocation({lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {lat.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
+            await MapWebView.EvaluateJavaScriptAsync(script);
+            await DisplayAlert("GPS Simulator", $"Location updated (+5km East).\nNew: {lat:F4}, {lon:F4}", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", "Could not simulate location: " + ex.Message, "OK");
+        }
     }
 
 
