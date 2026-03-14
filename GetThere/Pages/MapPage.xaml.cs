@@ -9,12 +9,17 @@ public partial class MapPage : ContentPage
 {
     private readonly GtfsService _gtfsApi;
     private readonly OperatorService _operatorService;
+
     private System.Timers.Timer? _realtimeTimer;
     private System.Timers.Timer? _jsMessageTimer;
 
     private List<TransitOperatorDto> _activeRealtimeOperators = [];
     private Dictionary<string, int> _routeTypeMap = [];
     private Dictionary<string, int> _stopOperatorMap = [];
+
+    private readonly object _realtimeLock = new();
+    // tripId → vehicle (for position + stop time updates)
+    private Dictionary<string, VehiclePositionDto> _vehiclesByTrip = [];
 
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
@@ -40,9 +45,7 @@ public partial class MapPage : ContentPage
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // JS → C# message polling
-    // JS sets: window._pendingMsg = "stopSchedule:STOPID"
-    // C# reads and clears it every 300ms
+    // JS → C# polling  (JS sets window._pendingMsg, we read every 300ms)
     // ────────────────────────────────────────────────────────────────────
 
     private void StartJsMessagePolling()
@@ -64,41 +67,41 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            string? msg = null;
+            string? raw = null;
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
-                // Read and atomically clear the pending message
-                var raw = await MapWebView.EvaluateJavaScriptAsync(
+                raw = await MapWebView.EvaluateJavaScriptAsync(
                     "(function(){ var m = window._pendingMsg || ''; window._pendingMsg = ''; return m; })()");
-                // EvaluateJavaScriptAsync returns the value JSON-encoded as a string
-                // so it comes back with surrounding quotes — strip them
-                if (!string.IsNullOrEmpty(raw) && raw != "null" && raw != "\"\"")
-                    msg = raw.Trim('"');
             });
+
+            if (string.IsNullOrEmpty(raw) || raw == "null") return;
+            Trace.WriteLine($"[MAP/POLL] raw={raw}");
+
+            // Strip JSON-style surrounding quotes that EvaluateJavaScriptAsync adds
+            var msg = raw.Trim();
+            if (msg.Length >= 2 && msg[0] == '"' && msg[^1] == '"')
+                msg = msg[1..^1];
 
             if (string.IsNullOrEmpty(msg)) return;
 
-            Trace.WriteLine($"[MAP/POLL] Got JS message: '{msg}'");
+            Trace.WriteLine($"[MAP/POLL] msg='{msg}'");
 
             if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
-            {
-                var stopId = msg["stopSchedule:".Length..];
-                await HandleStopScheduleAsync(stopId);
-            }
+                await HandleStopScheduleAsync(msg["stopSchedule:".Length..]);
         }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[MAP/POLL] Error: {ex.Message}");
-        }
+        catch (Exception ex) { Trace.WriteLine($"[MAP/POLL] Error: {ex.Message}"); }
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Stop schedule
+    // ────────────────────────────────────────────────────────────────────
 
     private async Task HandleStopScheduleAsync(string stopId)
     {
-        Trace.WriteLine($"[MAP/SCHED] Handling stop '{stopId}', map has {_stopOperatorMap.Count} stops");
-
+        Trace.WriteLine($"[Sched] Request for stop '{stopId}'");
         if (!_stopOperatorMap.TryGetValue(stopId, out var operatorId))
         {
-            Trace.WriteLine($"[MAP/SCHED] Stop '{stopId}' not found in operator map — sending empty");
+            Trace.WriteLine($"[Sched] Stop not found in map (map has {_stopOperatorMap.Count} entries)");
             await MainThread.InvokeOnMainThreadAsync(async () =>
                 await CallJs("renderStopSchedule", new { stopId, groups = Array.Empty<object>() }));
             return;
@@ -107,9 +110,46 @@ public partial class MapPage : ContentPage
         try
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
-            Trace.WriteLine($"[MAP/SCHED] Querying op={operatorId} stop='{stopId}' date={today}");
+            Trace.WriteLine($"[Sched] Querying op={operatorId} date={today}");
             var groups = await _gtfsApi.ParseStopScheduleAsync(operatorId, stopId, today);
-            Trace.WriteLine($"[MAP/SCHED] Got {groups.Count} groups, sending to JS");
+            Trace.WriteLine($"[Sched] Got {groups.Count} groups");
+
+            // Annotate with realtime delay data from TripUpdates
+            lock (_realtimeLock)
+            {
+                foreach (var g in groups)
+                    foreach (var d in g.Departures)
+                    {
+                        if (!_vehiclesByTrip.TryGetValue(d.TripId, out var vehicle)) continue;
+
+                        // Only mark as tracked if the vehicle is actively reporting GPS.
+                        // IsScheduledOnly = TripUpdate exists but no VehiclePosition yet —
+                        // the vehicle hasn't started its trip or isn't transmitting location.
+                        d.IsTracked = !vehicle.IsScheduledOnly;
+
+                        // Find the StopTimeUpdate for this specific stop
+                        var stu = vehicle.StopTimeUpdates?
+                            .FirstOrDefault(u => u.StopId == stopId);
+
+                        if (stu == null) continue;
+
+                        int delaySec = stu.DelaySeconds;
+                        d.DelayMinutes = (int)Math.Round(delaySec / 60.0);
+
+                        // Calculate estimated arrival time
+                        var schParts = d.ScheduledTime.Split(':');
+                        if (schParts.Length >= 2
+                            && int.TryParse(schParts[0], out int sh)
+                            && int.TryParse(schParts[1], out int sm))
+                        {
+                            int estMins = sh * 60 + sm + (int)Math.Round(delaySec / 60.0);
+                            // Clamp to valid time range
+                            estMins = Math.Max(0, estMins);
+                            d.EstimatedTime = $"{estMins / 60:D2}:{estMins % 60:D2}";
+                        }
+                    }
+            }
+
             await MainThread.InvokeOnMainThreadAsync(async () =>
                 await CallJs("renderStopSchedule", new { stopId, groups }));
         }
@@ -142,13 +182,10 @@ public partial class MapPage : ContentPage
                     Timeout = TimeSpan.FromSeconds(10)
                 });
                 if (location != null)
-                {
-                    var script =
+                    await MapWebView.EvaluateJavaScriptAsync(
                         $"updateMapLocation(" +
-                        $"{location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
-                        $"{location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
-                    await MapWebView.EvaluateJavaScriptAsync(script);
-                }
+                        $"{location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}," +
+                        $"{location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
             }
         }
         catch (Exception ex) { Trace.WriteLine($"[Map] Location error: {ex.Message}"); }
@@ -164,8 +201,6 @@ public partial class MapPage : ContentPage
         try
         {
             var operators = await _operatorService.GetAllAsync();
-            Trace.WriteLine($"[Map] Got {operators.Count} operators");
-
             _activeRealtimeOperators.Clear();
             _routeTypeMap.Clear();
             _stopOperatorMap.Clear();
@@ -177,14 +212,9 @@ public partial class MapPage : ContentPage
             {
                 if (!_gtfsApi.IsInstalled(op.Id)) continue;
 
-                // Build stop→routeType cache on first run (or if missing after update)
                 var cacheFile = Path.Combine(_gtfsApi.GetOperatorDir(op.Id), "stop_route_types.json");
                 if (!File.Exists(cacheFile))
-                {
-                    Trace.WriteLine($"[Map] Building stop route type cache for {op.Name}...");
                     await _gtfsApi.BuildStopRouteTypeMapAsync(op.Id);
-                    Trace.WriteLine($"[Map] Stop route type cache built");
-                }
 
                 var stops = await _gtfsApi.ParseStopsAsync(op.Id);
                 var routes = await _gtfsApi.ParseRoutesAsync(op.Id);
@@ -194,22 +224,12 @@ public partial class MapPage : ContentPage
                 { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon, routeType = s.RouteType }));
 
                 allRoutes.AddRange(routes.Select(r => new
-                {
-                    routeId = r.RouteId,
-                    shortName = r.ShortName,
-                    color = r.Color,
-                    shape = r.Shape,
-                    routeType = r.RouteType
-                }));
+                { routeId = r.RouteId, shortName = r.ShortName, color = r.Color, shape = r.Shape, routeType = r.RouteType }));
 
-                foreach (var r in routes)
-                    _routeTypeMap[r.RouteId] = r.RouteType;
+                foreach (var r in routes) _routeTypeMap[r.RouteId] = r.RouteType;
+                foreach (var s in stops) _stopOperatorMap.TryAdd(s.StopId, op.Id);
 
-                foreach (var s in stops)
-                    _stopOperatorMap.TryAdd(s.StopId, op.Id);
-
-                if (_gtfsApi.HasRealtime(op.Id))
-                    _activeRealtimeOperators.Add(op);
+                if (_gtfsApi.HasRealtime(op.Id)) _activeRealtimeOperators.Add(op);
             }
 
             await CallJs("renderStops", allStops);
@@ -243,25 +263,34 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            var stillInstalled = _activeRealtimeOperators
-                .Where(op => _gtfsApi.IsInstalled(op.Id)).ToList();
-
+            var stillInstalled = _activeRealtimeOperators.Where(op => _gtfsApi.IsInstalled(op.Id)).ToList();
             if (stillInstalled.Count != _activeRealtimeOperators.Count)
             {
                 _activeRealtimeOperators = stillInstalled;
                 if (_activeRealtimeOperators.Count == 0)
                 {
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
-                        await CallJs("clearVehicles", new object()));
+                    await MainThread.InvokeOnMainThreadAsync(async () => await CallJs("clearVehicles", new object()));
                     return;
                 }
             }
 
-            var allVehicles = new List<object>();
+            var allFetched = new List<VehiclePositionDto>();
             foreach (var op in _activeRealtimeOperators)
-            {
-                var vehicles = await _gtfsApi.GetVehiclesAsync(op);
-                allVehicles.AddRange(vehicles.Select(v => new
+                allFetched.AddRange(await _gtfsApi.GetVehiclesAsync(op));
+
+            // Rebuild trip→vehicle map (includes both GPS vehicles and TripUpdate-only entries)
+            var newVehiclesByTrip = new Dictionary<string, VehiclePositionDto>(StringComparer.Ordinal);
+            foreach (var v in allFetched)
+                if (!string.IsNullOrEmpty(v.TripId))
+                    newVehiclesByTrip[v.TripId!] = v;
+
+            lock (_realtimeLock)
+                _vehiclesByTrip = newVehiclesByTrip;
+
+            // Only send vehicles with actual GPS positions to the map
+            var mapVehicles = allFetched
+                .Where(v => !v.IsScheduledOnly)
+                .Select(v => new
                 {
                     vehicleId = v.VehicleId,
                     routeId = v.RouteId,
@@ -271,11 +300,14 @@ public partial class MapPage : ContentPage
                     label = v.Label,
                     routeType = (!string.IsNullOrEmpty(v.RouteId)
                                  && _routeTypeMap.TryGetValue(v.RouteId!, out var rt)) ? rt : 3
-                }));
-            }
+                })
+                .ToList();
+
+            Trace.WriteLine($"[Realtime] {mapVehicles.Count} vehicles on map, " +
+                            $"{newVehiclesByTrip.Count} total tracked trips");
 
             await MainThread.InvokeOnMainThreadAsync(async () =>
-                await CallJs("renderVehicles", allVehicles));
+                await CallJs("renderVehicles", mapVehicles));
         }
         catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
     }
@@ -287,9 +319,7 @@ public partial class MapPage : ContentPage
     private async Task CallJs(string fn, object data)
     {
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-        var base64 = Convert.ToBase64String(bytes);
-        await MapWebView.EvaluateJavaScriptAsync(
-            $"{fn}(JSON.parse(atob('{base64}')))");
+        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        await MapWebView.EvaluateJavaScriptAsync($"{fn}(JSON.parse(atob('{base64}')))");
     }
 }

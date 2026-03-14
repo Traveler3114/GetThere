@@ -4,17 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
-
     <style>
         html, body, #map {
             height: 100%;
             width: 100%;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: 'Segoe UI',Arial,sans-serif;
         }
 
-        /* ── Vehicle popup ───────────────────────────────── */
+        /* ── Vehicle popup ───────────── */
         .vehicle-popup {
             font-family: sans-serif;
             min-width: 150px;
@@ -36,7 +35,7 @@
                 margin-top: 2px;
             }
 
-        /* ── Stop schedule bottom sheet ──────────────────── */
+        /* ── Stop schedule bottom sheet ─ */
         #stop-sheet {
             position: absolute;
             bottom: 0;
@@ -51,7 +50,6 @@
             max-height: 72vh;
             display: flex;
             flex-direction: column;
-            /* stop touch events leaking to the map */
             touch-action: pan-y;
         }
 
@@ -154,7 +152,7 @@
             padding: 0 12px 20px;
         }
 
-        /* ── Route group card ────────────────────────────── */
+        /* ── Route group card ──────────── */
         .route-group {
             margin-top: 12px;
             border: 1px solid #ebebeb;
@@ -245,6 +243,7 @@
             display: flex;
         }
 
+        /* ── Time chips ────────────────── */
         .time-chip {
             padding: 5px 10px;
             border-radius: 8px;
@@ -253,6 +252,9 @@
             color: #1565c0;
             background: #e8f0fe;
             white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
         }
 
             .time-chip.next {
@@ -260,10 +262,76 @@
                 color: #fff;
             }
 
-            .time-chip.past {
-                color: #bbb;
-                background: #f5f5f5;
+        /* tracked chip — scheduled struck through + ETA */
+        .sched-strike {
+            text-decoration: line-through;
+            opacity: 0.55;
+            font-size: 11px;
+        }
+
+        .eta-time {
+            font-weight: 700;
+        }
+
+        .delay-badge {
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+            .delay-badge.late {
+                color: #f44336;
             }
+
+            .delay-badge.early {
+                color: #ff9800;
+            }
+
+            .delay-badge.ontime {
+                color: #4caf50;
+            }
+
+        .time-chip.next .sched-strike {
+            opacity: 0.6;
+        }
+
+        .time-chip.next .delay-badge.late {
+            color: #ffcdd2;
+        }
+
+        .time-chip.next .delay-badge.early {
+            color: #ffe0b2;
+        }
+
+        .time-chip.next .delay-badge.ontime {
+            color: #c8e6c9;
+        }
+
+        /* untracked future time */
+        .live-dot {
+            color: #4caf50;
+            font-size: 9px;
+            animation: pulse 1.5s infinite;
+        }
+
+        .time-chip.next .live-dot {
+            color: #a5d6a7;
+        }
+
+        .tracked-count {
+            font-size: 11px;
+            color: #4caf50;
+            font-weight: 600;
+        }
+
+        @keyframes pulse {
+            0%,100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.3
+            }
+        }
     </style>
 </head>
 <body>
@@ -289,8 +357,7 @@
         const map = new maplibregl.Map({
             container: 'map',
             style: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-            center: [15.980820, 45.784044],
-            zoom: 13
+            center: [15.980820, 45.784044], zoom: 13
         });
         map.addControl(new maplibregl.NavigationControl());
 
@@ -298,24 +365,15 @@
             .setLngLat([15.980820, 45.784044]).addTo(map);
 
         function updateMapLocation(lng, lat) {
-            map.setCenter([lng, lat]);
-            userMarker.setLngLat([lng, lat]);
-            map.setZoom(15);
+            map.setCenter([lng, lat]); userMarker.setLngLat([lng, lat]); map.setZoom(15);
         }
 
         // ─── State ───────────────────────────────────────────────────
-        let routeColorMap = {};
-        let routeNameMap = {};
-        let routeTypeMap = {};
-        let routeShapeMap = {};
-        let vehicleMarkers = {};
-        let activeRouteId = null;
-
-        // track which click came from a marker so map.on('click') can ignore it
+        let routeColorMap = {}, routeNameMap = {}, routeTypeMap = {}, routeShapeMap = {};
+        let vehicleMarkers = {}, activeRouteId = null, stopMarkers = [];
         let _suppressMapClick = false;
 
-        // ─── Stop icon ───────────────────────────────────────────────
-        // routeType: 0=tram (red), 3=bus (blue, default)
+        // ─── Stop icon (T=tram red, B=bus blue) ──────────────────────
         function makeStopIcon(routeType) {
             const isTram = routeType === 0 || routeType === 11;
             const color = isTram ? '#c62828' : '#1565C0';
@@ -326,60 +384,43 @@
                           font-family="Arial,sans-serif" font-weight="bold" fill="${color}">${label}</text>
                 </svg>`;
             const el = document.createElement('div');
-            el.innerHTML = svg;
-            el.style.cssText = 'cursor:pointer;width:20px;height:20px;';
+            el.innerHTML = svg; el.style.cssText = 'cursor:pointer;width:20px;height:20px;';
             return el;
         }
 
-        // ─── Vehicle icon ────────────────────────────────────────────
+        // ─── Vehicle icon ─────────────────────────────────────────────
         function makeVehicleIcon(color, routeType, bearing, shortName) {
             const hex = '#' + (color || 'e53935').replace('#', '');
-            const isTram = routeType === 0 || routeType === 11;
-            const isRail = routeType === 1 || routeType === 2;
-            const label = shortName || '';
-            const border = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
-            const icon = isTram ? '🚋' : isRail ? '🚇' : '🚌';
-            const fsize = label.length > 2 ? '9' : '11';
+            const isTram = routeType === 0 || routeType === 11, isRail = routeType === 1 || routeType === 2;
+            const label = shortName || '', border = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
+            const icon = isTram ? '🚋' : isRail ? '🚇' : '🚌', fsize = label.length > 2 ? '9' : '11';
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
                     <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
-                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
-                          fill="${hex}" stroke="${border}" stroke-width="2"/>
-                    <text x="8" y="21" text-anchor="middle" font-size="9"
-                          font-family="Arial" fill="rgba(255,255,255,0.75)">${icon}</text>
-                    <text x="20" y="27" text-anchor="middle" font-size="${fsize}"
-                          font-family="Arial,sans-serif" font-weight="bold" fill="white"
-                          paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">${label}</text>
+                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6" fill="${hex}" stroke="${border}" stroke-width="2"/>
+                    <text x="8" y="21" text-anchor="middle" font-size="9" font-family="Arial" fill="rgba(255,255,255,0.75)">${icon}</text>
+                    <text x="20" y="27" text-anchor="middle" font-size="${fsize}" font-family="Arial,sans-serif" font-weight="bold"
+                          fill="white" paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">${label}</text>
                 </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
-            el.style.cssText = `cursor:pointer;width:36px;height:42px;
-                    transform:rotate(${bearing || 0}deg);transform-origin:18px 21px;
-                    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));`;
+            el.style.cssText = `cursor:pointer;width:36px;height:42px;transform:rotate(${bearing || 0}deg);transform-origin:18px 21px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));`;
             return el;
         }
 
-        // ─── renderStops ─────────────────────────────────────────────
-        let stopMarkers = [];
-
-        function renderStops(jsonStr) {
-            const stops = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-            stopMarkers.forEach(m => m.remove());
-            stopMarkers = [];
-
+        // ─── renderStops ──────────────────────────────────────────────
+        function renderStops(stops) {
+            stopMarkers.forEach(m => m.remove()); stopMarkers = [];
             stops.forEach(s => {
                 const el = makeStopIcon(s.routeType ?? 3);
                 el.addEventListener('click', e => {
-                    _suppressMapClick = true;   // prevent map.on('click') from closing the sheet
+                    _suppressMapClick = true;
                     openSheet(s.stopId, s.name, s.routeType ?? 3);
                 });
-                const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-                    .setLngLat([s.lon, s.lat]).addTo(map);
-                stopMarkers.push(marker);
+                stopMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lon, s.lat]).addTo(map));
             });
         }
 
         // ─── Stop schedule sheet ──────────────────────────────────────
-
         const sheet = document.getElementById('stop-sheet');
         const sheetName = document.getElementById('sheet-stop-name');
         const sheetSid = document.getElementById('sheet-stop-id');
@@ -387,74 +428,74 @@
         const sheetLoad = document.getElementById('sheet-loading');
         const sheetMpty = document.getElementById('sheet-empty');
         const sheetBody = document.getElementById('sheet-body');
-
-        document.getElementById('sheet-close').addEventListener('click', e => {
-            e.stopPropagation();
-            closeSheet();
-        });
-
-        // Clicks inside the sheet must NOT propagate to the map
+        document.getElementById('sheet-close').addEventListener('click', e => { e.stopPropagation(); closeSheet(); });
         sheet.addEventListener('click', e => e.stopPropagation());
-
         let currentStopId = null;
 
         function openSheet(stopId, stopName, stopRouteType) {
             currentStopId = stopId;
             sheetName.textContent = stopName;
-            // Show a tram or bus icon in the header
             const isTram = stopRouteType === 0 || stopRouteType === 11;
             sheetSid.textContent = (isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
-
             const now = new Date();
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            sheetDate.textContent =
-                days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
-
+            sheetDate.textContent = days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
             sheetLoad.style.display = 'flex';
             sheetMpty.style.display = 'none';
             sheetBody.innerHTML = '';
             sheet.classList.add('open');
-
             window._pendingMsg = 'stopSchedule:' + stopId;
         }
 
-        function closeSheet() {
-            sheet.classList.remove('open');
-            currentStopId = null;
-        }
+        function closeSheet() { sheet.classList.remove('open'); currentStopId = null; }
 
-        // ─── renderStopSchedule  (called from C#) ────────────────────
-        function renderStopSchedule(jsonStr) {
-            const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-            if (data.stopId !== currentStopId) return;
-
+        // ─── renderStopSchedule (called from C#) ──────────────────────
+        function renderStopSchedule(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            // Always render — currentStopId may have changed due to map click
+            // but the sheet is still showing the correct stop
             sheetLoad.style.display = 'none';
             sheetBody.innerHTML = '';
-
             const groups = data.groups || [];
             if (groups.length === 0) { sheetMpty.style.display = 'block'; return; }
 
-            const now = new Date();
-            const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
             groups.forEach((g, gi) => {
                 const rType = routeTypeMap[g.routeId] ?? 3;
-                const pillClass = rType === 0 || rType === 11 ? 'tram'
-                    : rType === 1 || rType === 2 ? 'rail' : 'bus';
+                const pillClass = rType === 0 || rType === 11 ? 'tram' : rType === 1 || rType === 2 ? 'rail' : 'bus';
+                const deps = g.departures || [];
 
-                // Find first upcoming departure
-                let nextIdx = -1;
-                for (let i = 0; i < g.times.length; i++) {
-                    if (timeToMinutes(g.times[i]) >= nowMinutes) { nextIdx = i; break; }
-                }
+                const timesHtml = deps.map((d, i) => {
+                    const isNext = i === 0;
+                    let chipClass = 'time-chip' + (isNext ? ' next' : '');
 
-                const timesHtml = g.times.map((t, i) => {
-                    let cls = 'time-chip';
-                    if (i === nextIdx) cls += ' next';
-                    else if (timeToMinutes(t) < nowMinutes) cls += ' past';
-                    return `<span class="${cls}">${t}</span>`;
+                    // hasEta = we have a predicted time different from scheduled
+                    // (can come from IsScheduledOnly TripUpdate too, not just GPS vehicles)
+                    const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
+
+                    if (hasEta) {
+                        const delay = d.delayMinutes ?? 0;
+                        let badge = '';
+                        if (delay > 1) badge = `<span class="delay-badge late">+${delay}'</span>`;
+                        else if (delay < -1) badge = `<span class="delay-badge early">${delay}'</span>`;
+                        else badge = `<span class="delay-badge ontime">✓</span>`;
+                        // GPS-tracked vehicles get a live dot too
+                        const livePin = d.isTracked ? `<span class="live-dot">●</span>` : '';
+                        return `<span class="${chipClass}"><span class="sched-strike">${d.scheduledTime}</span><span class="eta-time">${d.estimatedTime}</span>${badge}${livePin}</span>`;
+                    } else if (d.isTracked) {
+                        // GPS tracked, on schedule (no ETA deviation)
+                        return `<span class="${chipClass}">${d.scheduledTime}<span class="live-dot">●</span></span>`;
+                    } else {
+                        // Static schedule only
+                        return `<span class="${chipClass}">${d.scheduledTime}</span>`;
+                    }
                 }).join('');
+
+                const trackedCount = deps.filter(d => d.isTracked).length;
+                const etaCount = deps.filter(d => d.estimatedTime && d.estimatedTime !== d.scheduledTime).length;
+                const rtBadge = trackedCount > 0 ? `&nbsp;<span class="tracked-count">📡&nbsp;${trackedCount}</span>`
+                    : etaCount > 0 ? `&nbsp;<span class="tracked-count" style="color:#ff9800">⏱&nbsp;${etaCount}</span>` : '';
+                const countHtml = deps.length + '&nbsp;dep.' + rtBadge;
 
                 const div = document.createElement('div');
                 div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
@@ -462,7 +503,7 @@
                         <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
                             <span class="route-pill ${pillClass}">${escHtml(g.shortName)}</span>
                             <span class="route-headsign">${escHtml(g.headsign)}</span>
-                            <span class="route-count">${g.times.length}&nbsp;dep.</span>
+                            <span class="route-count">${countHtml}</span>
                             <span class="route-chevron">▾</span>
                         </div>
                         <div class="route-times">${timesHtml}</div>`;
@@ -475,18 +516,10 @@
             });
         }
 
-        function timeToMinutes(t) {
-            const p = t.split(':');
-            return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
-        }
-
-        function escHtml(s) {
-            return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        }
+        function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
         // ─── renderRoutes ─────────────────────────────────────────────
-        function renderRoutes(jsonStr) {
-            const routes = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+        function renderRoutes(routes) {
             clearActiveRoute();
             routeColorMap = {}; routeNameMap = {}; routeTypeMap = {}; routeShapeMap = {};
             routes.forEach(r => {
@@ -503,21 +536,9 @@
             const shape = routeShapeMap[routeId];
             if (!shape || shape.length < 2) return;
             const color = '#' + (routeColorMap[routeId] || '1565c0');
-            map.addSource('active-route', {
-                type: 'geojson', data: {
-                    type: 'Feature', geometry: { type: 'LineString', coordinates: shape }
-                }
-            });
-            map.addLayer({
-                id: 'active-route-outline', type: 'line', source: 'active-route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.15 }
-            });
-            map.addLayer({
-                id: 'active-route', type: 'line', source: 'active-route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.95 }
-            });
+            map.addSource('active-route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } } });
+            map.addLayer({ id: 'active-route-outline', type: 'line', source: 'active-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.15 } });
+            map.addLayer({ id: 'active-route', type: 'line', source: 'active-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.95 } });
             activeRouteId = routeId;
         }
 
@@ -540,59 +561,37 @@
         // ─── renderVehicles ───────────────────────────────────────────
         let vehiclePopup = new maplibregl.Popup({ closeButton: true, offset: 18 });
 
-        function renderVehicles(jsonStr) {
-            const vehicles = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+        function renderVehicles(vehicles) {
             const seen = new Set();
-
             vehicles.forEach(v => {
                 seen.add(v.vehicleId);
-                const rId = v.routeId || '';
-                const rType = routeTypeMap[rId] ?? v.routeType ?? 3;
-                const color = typeColor(rType);
-                const sName = routeNameMap[rId] || rId || '';
-
+                const rId = v.routeId || '', rType = routeTypeMap[rId] ?? v.routeType ?? 3;
+                const color = typeColor(rType), sName = routeNameMap[rId] || rId || '';
                 if (vehicleMarkers[v.vehicleId]) {
-                    // UPDATE existing marker — never remove+recreate (keeps popup alive)
                     const entry = vehicleMarkers[v.vehicleId];
-                    entry.marker.setLngLat([v.lon, v.lat]);
-                    entry.routeId = rId;
-
+                    entry.marker.setLngLat([v.lon, v.lat]); entry.routeId = rId;
                     const domEl = entry.marker.getElement();
                     const tmp = makeVehicleIcon(color, rType, v.bearing, sName);
-                    // Replace SVG content only — don't touch the wrapper element
-                    domEl.innerHTML = tmp.innerHTML;
-                    domEl.style.cssText = tmp.style.cssText;
-                    // Re-attach click (was on the old inner SVG child)
-                    domEl.onclick = null;
-                    attachVehicleClick(domEl, v, color, rId);
+                    domEl.innerHTML = tmp.innerHTML; domEl.style.cssText = tmp.style.cssText;
+                    domEl.onclick = null; attachVehicleClick(domEl, v, color, rId);
                 } else {
                     const el = makeVehicleIcon(color, rType, v.bearing, sName);
                     attachVehicleClick(el, v, color, rId);
-                    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-                        .setLngLat([v.lon, v.lat]).addTo(map);
+                    const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([v.lon, v.lat]).addTo(map);
                     vehicleMarkers[v.vehicleId] = { marker, routeId: rId };
                 }
             });
-
-            // Remove stale markers
             for (const id in vehicleMarkers) {
-                if (!seen.has(id)) {
-                    vehicleMarkers[id].marker.remove();
-                    delete vehicleMarkers[id];
-                }
+                if (!seen.has(id)) { vehicleMarkers[id].marker.remove(); delete vehicleMarkers[id]; }
             }
         }
 
         function attachVehicleClick(el, v, color, rId) {
             el.addEventListener('click', e => {
-                e.stopPropagation();
-                _suppressMapClick = true;
-                closeSheet();
-                showRoute(rId);
-                const hex = '#' + color.replace('#', '');
-                const name = routeNameMap[rId] || rId || '';
-                vehiclePopup
-                    .setLngLat([v.lon, v.lat])
+                e.stopPropagation(); _suppressMapClick = true;
+                closeSheet(); showRoute(rId);
+                const hex = '#' + color.replace('#', ''), name = routeNameMap[rId] || rId || '';
+                vehiclePopup.setLngLat([v.lon, v.lat])
                     .setHTML(`<div class="vehicle-popup">
                             <span class="route-badge" style="background:${hex}">Line ${name}</span>
                             ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
@@ -603,25 +602,21 @@
 
         function clearVehicles() {
             Object.values(vehicleMarkers).forEach(e => e.marker.remove());
-            vehicleMarkers = {};
-            clearActiveRoute();
-            vehiclePopup.remove();
+            vehicleMarkers = {}; clearActiveRoute(); vehiclePopup.remove();
         }
 
-        // ─── Map click — dismiss overlays but skip if a marker just fired ────
+        // ─── Map click ────────────────────────────────────────────────
         map.on('click', () => {
             if (_suppressMapClick) { _suppressMapClick = false; return; }
-            clearActiveRoute();
-            vehiclePopup.remove();
-            closeSheet();
+            clearActiveRoute(); vehiclePopup.remove();
+            // Only close sheet if it's showing a vehicle popup area, not a stop schedule
+            // Sheet is closed by the X button, swipe, or tapping a vehicle marker
         });
 
         // ─── Swipe down to close sheet ────────────────────────────────
         let touchStartY = 0;
         sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
-        sheet.addEventListener('touchend', e => {
-            if (e.changedTouches[0].clientY - touchStartY > 80) closeSheet();
-        }, { passive: true });
+        sheet.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - touchStartY > 80) closeSheet(); }, { passive: true });
     </script>
 </body>
 </html>
