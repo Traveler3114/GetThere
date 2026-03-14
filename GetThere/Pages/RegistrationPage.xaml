@@ -121,10 +121,11 @@
                     HeightRequest="52" Margin="0,8,0,0" />
 
             <!-- ── BUSY ── -->
-            <ActivityIndicator x:Name="BusyIndicator"
-                               IsRunning="False" IsVisible="False"
-                               Color="#4CAF50"
-                               HorizontalOptions="Center" />
+            <components:ModernLoader x:Name="BusyIndicator"
+                                     IsRunning="False"
+                                     VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Margin="0,20" />
 
             </VerticalStackLayout>
         </ScrollView>

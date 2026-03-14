@@ -1,9 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Dummy commands to prevent errors when -t:Run is used on a solution build -->
+    <RunCommand>echo Skipping</RunCommand>
+    <_RunCommand>echo Skipping</_RunCommand>
   </PropertyGroup>
+
+  <!-- Dummy Run target -->
+  <Target Name="Run" />
 
 </Project>
