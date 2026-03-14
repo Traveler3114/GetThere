@@ -99,9 +99,6 @@
             margin-top: 5px;
         }
 
-
-
-        /* --------------------------- Side Menu Styles --------------------------- */
         .menu-button {
             position: fixed;
             top: 20px;
@@ -133,7 +130,7 @@
             left: -250px;
             width: 250px;
             height: 100%;
-            background-color: lightgreen;
+            background-color: #C8E6C9; /* light green */
             box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
             z-index: 1000;
             transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -164,8 +161,6 @@
                 font-weight: 500;
             }
 
-        /* --------------------------- Toggle Switch --------------------------- */
-
         .switch {
             position: relative;
             display: inline-block;
@@ -180,17 +175,15 @@
                 height: 0;
             }
 
-        /* Track */
         .slider {
             position: absolute;
             cursor: pointer;
             inset: 0;
-            background-color: #d1d5db; /* light gray */
+            background-color: #d1d5db;
             border-radius: 30px;
             transition: background-color 0.25s ease, box-shadow 0.25s ease;
         }
 
-            /* Knob */
             .slider:before {
                 content: "";
                 position: absolute;
@@ -204,58 +197,38 @@
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
             }
 
-        /* ON state */
         input:checked + .slider {
-            background-color: #4CAF50; /* Modern green */
+            background-color: #4CAF50;
             box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
         }
 
             input:checked + .slider:before {
                 transform: translateX(22px);
             }
-
-        /* Press effect */
-        .switch input:active + .slider:before {
-            width: 28px;
-        }
-
-        /* Optional: Disabled state */
-        .switch input:disabled + .slider {
-            background-color: #e5e7eb;
-            cursor: not-allowed;
-        }
-
-            .switch input:disabled + .slider:before {
-                background-color: #f3f4f6;
-            }
     </style>
 </head>
 <body>
     <div id="map"></div>
 
-    <!-- Menu Button -->
     <button id="menuButton" class="menu-button" onclick="toggleMenu()">☰</button>
 
-    <!-- Side Menu -->
     <div id="sideMenu" class="side-menu">
         <h2>Preferences</h2>
         <div class="menu-item">
             <label class="switch">
-                <input type="checkbox" id="showBussesToggle" checked onchange="onShowBussesToggle(this)">
+                <input type="checkbox" id="showBussesToggle" checked onchange="toggleVehicleVisibility(this.checked)">
                 <span class="slider"></span>
             </label>
             <label>Show busses on the map</label>
         </div>
     </div>
 
-    <!-- Stop Info Panel -->
     <div id="stopInfoPanel" class="stop-info-panel">
         <div class="stop-info-header">
             <h2 class="stop-info-title" id="stopInfoTitle">Stop Name</h2>
             <div class="stop-info-id" id="stopInfoId">Stop ID</div>
             <button class="stop-info-close" onclick="closeStopPanel()">×</button>
         </div>
-
         <div class="stop-info-content">
             Loading schedules...
         </div>
@@ -284,223 +257,84 @@
             map.setZoom(15);
         }
 
-        // ─── State ───────────────────────────────────────────────────────────
         let routeColorMap = {};
         let routeNameMap = {};
-<<<<<<< HEAD
-=======
-        let routeTypeMap = {};
-        let routeShapeMap = {};  // routeId → shape coords
->>>>>>> main
+        let routeShapeMap = {};
         let vehicleMarkers = {};
         let stopMarkers = [];
-        let allStopSchedules = []; // Global state for stop schedules
+        let allStopSchedules = [];
         let activeRouteId = null;
-        let vehiclesVisible = true;  // Track if vehicles should be shown
+        let vehiclesVisible = true;
 
-        // ─── STOP ICON ───────────────────────────────────────────────────────
-        // White square with a blue "H"-like bus stop pole shape — clearly a stop
         function makeStopIcon() {
             const svg = `
-<<<<<<< HEAD
-<<<<<<< HEAD
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                    <!-- Outer circle: white with colored border -->
                     <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
-                    <!-- Letter S for Stop -->
-                    <text x="10" y="14" text-anchor="middle" font-size="11"
-                          font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
+                    <text x="10" y="14" text-anchor="middle" font-size="11" font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
                 </svg>`;
-=======
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                            <!-- Outer circle: white with colored border -->
-                            <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
-                            <!-- Letter S for Stop -->
-                            <text x="10" y="14" text-anchor="middle" font-size="11"
-                                  font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
-                        </svg>`;
->>>>>>> main
-=======
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                                        <!-- Outer circle: white with colored border -->
-                                        <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
-                                        <!-- Letter S for Stop -->
-                                        <text x="10" y="14" text-anchor="middle" font-size="11"
-                                              font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
-                                    </svg>`;
->>>>>>> decimirani-barbarstvom
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = 'cursor:pointer; width:20px; height:20px;';
             return el;
         }
 
-        // ─── VEHICLE ICON ────────────────────────────────────────────────────
-        // Clearly a moving vehicle: colored pill/shield with route number + direction arrow
         function makeVehicleIcon(color, routeType, bearing, shortName) {
             const hex = '#' + (color || 'e53935').replace('#', '');
-            const isTram = (routeType === 0 || routeType === 11); // tram / trolleybus
-            const isRail = (routeType === 1 || routeType === 2);  // metro / rail
+            const isTram = (routeType === 0 || routeType === 11);
+            const isRail = (routeType === 1 || routeType === 2);
             const label = shortName || '';
-
-            // Pick border color: trams get orange accent, rail gets purple, buses get the route color
             const borderColor = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
 
-            // The icon is a rounded rectangle (vehicle body) with an arrow on top
             const svg = `
-<<<<<<< HEAD
-<<<<<<< HEAD
                 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                    <!-- Direction arrow pointing up (rotated by bearing) -->
                     <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
-
-                    <!-- Vehicle body: rounded rect -->
-                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
-                          fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
-
-                    <!-- Vehicle type icon top-left -->
-                    <text x="8" y="21" text-anchor="middle" font-size="9"
-                          font-family="Arial" fill="rgba(255,255,255,0.75)">
+                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6" fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
+                    <text x="8" y="21" text-anchor="middle" font-size="9" font-family="Arial" fill="rgba(255,255,255,0.75)">
                         ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
                     </text>
-
-                    <!-- Route number centred -->
-                    <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
-                          font-family="Arial, sans-serif" font-weight="bold" fill="white"
-                          paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
+                    <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}" font-family="Arial, sans-serif" font-weight="bold" fill="white">
                         ${label}
                     </text>
                 </svg>`;
-=======
-                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                            <!-- Direction arrow pointing up (rotated by bearing) -->
-                            <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
-=======
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                                        <!-- Direction arrow pointing up (rotated by bearing) -->
-                                        <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
->>>>>>> decimirani-barbarstvom
-
-                                        <!-- Vehicle body: rounded rect -->
-                                        <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
-                                              fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
-
-                                        <!-- Vehicle type icon top-left -->
-                                        <text x="8" y="21" text-anchor="middle" font-size="9"
-                                              font-family="Arial" fill="rgba(255,255,255,0.75)">
-                                            ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
-                                        </text>
-
-<<<<<<< HEAD
-                            <!-- Route number centred -->
-                            <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
-                                  font-family="Arial, sans-serif" font-weight="bold" fill="white"
-                                  paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
-                                ${label}
-                            </text>
-                        </svg>`;
->>>>>>> main
-=======
-                                        <!-- Route number centred -->
-                                        <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
-                                              font-family="Arial, sans-serif" font-weight="bold" fill="white"
-                                              paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
-                                            ${label}
-                                        </text>
-                                    </svg>`;
->>>>>>> decimirani-barbarstvom
 
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = `
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    cursor: pointer;
-                    width: 36px;
-                    height: 42px;
-                    transform: rotate(${bearing || 0}deg);
-                    transform-origin: 18px 21px;
-                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                `;
-=======
-                            cursor: pointer;
-                            width: 36px;
-                            height: 42px;
-                            transform: rotate(${bearing || 0}deg);
-                            transform-origin: 18px 21px;
-                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                        `;
->>>>>>> main
-=======
-                                        cursor: pointer;
-                                        width: 36px;
-                                        height: 42px;
-                                        transform: rotate(${bearing || 0}deg);
-                                        transform-origin: 18px 21px;
-                                        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                                    `;
->>>>>>> decimirani-barbarstvom
+                cursor: pointer; width: 36px; height: 42px;
+                transform: rotate(${bearing || 0}deg);
+                transform-origin: 18px 21px;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            `;
             return el;
         }
 
-
-
-
-
-        // ─── renderStops ─────────────────────────────────────────────────────
         function renderStops(jsonStr) {
-            const stops = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-
+            const stops = typeof jsonStr === 'string' ? JSON.parse(decodeURIComponent(jsonStr)) : jsonStr;
             stopMarkers.forEach(m => m.remove());
             stopMarkers = [];
 
             stops.forEach(s => {
                 const el = makeStopIcon();
-
-<<<<<<< HEAD
-                el.addEventListener('mouseenter', () => {
-                    popup.setLngLat([s.lon, s.lat])
-                        .setHTML(`<div class="stop-popup">
-<<<<<<< HEAD
-                                <strong>${s.name}</strong>
-                                <span class="stop-id">${s.stopId}</span>
-                            </div>`)
-=======
-                                        <strong>${s.name}</strong>
-                                        <span class="stop-id">${s.stopId}</span>
-                                    </div>`)
->>>>>>> main
-                        .addTo(map);
-=======
                 el.addEventListener('click', (e) => {
                     e.stopPropagation();
                     showStopPanel(s.name, s.stopId);
->>>>>>> decimirani-barbarstvom
                 });
-
                 const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
                     .setLngLat([s.lon, s.lat])
                     .addTo(map);
-
                 stopMarkers.push(marker);
             });
         }
-        // ─── renderStopsSCHEDULES ─────────────────────────────────────────────────────
+
         function renderStopSchedules(jsonStr) {
-            allStopSchedules = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            allStopSchedules = typeof jsonStr === 'string' ? JSON.parse(decodeURIComponent(jsonStr)) : jsonStr;
         }
 
-
-
-
-        // ─── Stop Panel Functions ────────────────────────────────────────────
         function showStopPanel(name, stopId) {
             document.getElementById('stopInfoTitle').textContent = name;
             document.getElementById('stopInfoId').textContent = `Stop ID: ${stopId}`;
-
             const schedulesContainer = document.querySelector('.stop-info-content');
-
-            // Get current time in HH:mm:ss format
+            
             const now = new Date();
             const currentTimeStr = [
                 now.getHours().toString().padStart(2, '0'),
@@ -508,38 +342,30 @@
                 now.getSeconds().toString().padStart(2, '0')
             ].join(':');
 
-            // Filter schedules for this stop, only show future arrivals, and sort by arrival time
             const stopSchedules = allStopSchedules
                 .filter(s => s.stopId === stopId && s.arrivalTime >= currentTimeStr)
                 .sort((a, b) => a.arrivalTime.localeCompare(b.arrivalTime))
-                .slice(0, 20); // Limit to next 20 for performance
+                .slice(0, 20);
 
             if (stopSchedules.length > 0) {
                 let html = '<div style="margin-top: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr;">';
-                html += '<span>Bus Line</span><span>Destination</span><span>Arrival Time</span></div>';
-
-                html += '<div style="max-height: calc(100vh * 0.3); overflow-y: auto;">';
-
+                html += '<span>Line</span><span>Destination</span><span>Time</span></div>';
+                html += '<div style="max-height: 250px; overflow-y: auto;">';
                 stopSchedules.forEach(schedule => {
                     const parts = schedule.tripId.split('_');
-
                     const linija = parts.length > 3 ? parts[3] : parts[0];
-                    const destinacija = schedule.destination;
-
                     html += `
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center;">
-                            <span class="route-badge" font-size: 12px; margin-bottom: 0;">${linija}</span>
-                            <span class="route-badge" font-size: 12px; margin-bottom: 0;">${destinacija}</span>
+                            <span>${linija}</span>
+                            <span>${schedule.destination}</span>
                             <span>${schedule.arrivalTime.substring(0, 5)}</span>
                         </div>`;
                 });
-
                 html += '</div>';
                 schedulesContainer.innerHTML = html;
             } else {
-                schedulesContainer.innerHTML = '<div style="padding: 20px; color: #666; text-align: center;">No upcoming arrivals for this stop today.</div>';
+                schedulesContainer.innerHTML = '<div style="padding: 20px; color: #666; text-align: center;">No upcoming arrivals today.</div>';
             }
-
             document.getElementById('stopInfoPanel').classList.add('visible');
         }
 
@@ -547,24 +373,10 @@
             document.getElementById('stopInfoPanel').classList.remove('visible');
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-        // ─── Menu Functions ───────────────────────────────────────────────────
         function toggleMenu() {
             const menu = document.getElementById('sideMenu');
             const button = document.getElementById('menuButton');
             const isOpen = menu.classList.contains('open');
-
             if (isOpen) {
                 menu.classList.remove('open');
                 button.classList.remove('open');
@@ -576,137 +388,88 @@
             }
         }
 
-        function onShowBussesToggle(checkbox) {
-            console.log('[Map] Show Busses Toggle: ' + (checkbox.checked ? 'ON' : 'OFF'));
-            toggleVehicleVisibility(checkbox.checked);
-        }
-
-
-
-
-
-        // ─── renderRoutes ────────────────────────────────────────────────────
-        // Stores route data in memory only. Nothing drawn until a vehicle is clicked.
         function renderRoutes(jsonStr) {
-            const routes = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-
+            const routes = typeof jsonStr === 'string' ? JSON.parse(decodeURIComponent(jsonStr)) : jsonStr;
             clearActiveRoute();
             routeColorMap = {};
             routeNameMap = {};
-<<<<<<< HEAD
+            routeShapeMap = {};
             routes.forEach(r => {
                 routeColorMap[r.routeId] = r.color || '1a73e8';
                 routeNameMap[r.routeId] = r.shortName || r.routeId;
-=======
-            routeTypeMap = {};
-            routeShapeMap = {};
-
-            routes.forEach(r => {
-                routeColorMap[r.routeId] = typeColor(r.routeType);
-                routeNameMap[r.routeId] = r.shortName || r.routeId;
-                routeTypeMap[r.routeId] = r.routeType ?? 3;
-                if (r.shape && r.shape.length >= 2)
-                    routeShapeMap[r.routeId] = r.shape;
+                if (r.shape) routeShapeMap[r.routeId] = r.shape;
             });
         }
 
-        // ─── showRoute / clearActiveRoute ────────────────────────────────────
         function showRoute(routeId) {
             clearActiveRoute();
             const shape = routeShapeMap[routeId];
             if (!shape || shape.length < 2) return;
-
-            const color = '#' + routeColorMap[routeId];
+            const color = '#' + routeColorMap[routeId].replace('#', '');
 
             map.addSource('active-route', {
                 type: 'geojson',
                 data: { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } }
->>>>>>> main
             });
 
-            // Dark outline underneath for contrast
             map.addLayer({
                 id: 'active-route-outline', type: 'line', source: 'active-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.15 }
+                paint: { 'line-color': '#000000', 'line-width': 8, 'line-opacity': 0.2 }
             });
 
-<<<<<<< HEAD
-            routes.forEach(r => {
-                if (!r.shape || r.shape.length < 2) return;
-                const id = 'route-' + r.routeId;
-                const color = '#' + (r.color || '1a73e8').replace('#', '');
-
-                map.addSource(id, {
-                    type: 'geojson',
-                    data: { type: 'Feature', geometry: { type: 'LineString', coordinates: r.shape } }
-                });
-
-                map.addLayer({
-                    id, type: 'line', source: id,
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': color, 'line-width': 2.5, 'line-opacity': 0.6 }
-                });
-
-                map.addLayer({
-                    id: id + '-highlight', type: 'line', source: id,
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0 }
-                });
-=======
-            // Main colored route line
             map.addLayer({
                 id: 'active-route', type: 'line', source: 'active-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.95 }
->>>>>>> main
+                paint: { 'line-color': color, 'line-width': 4 }
             });
-
             activeRouteId = routeId;
         }
 
         function clearActiveRoute() {
-            if (map.getLayer('active-route-outline')) map.removeLayer('active-route-outline');
             if (map.getLayer('active-route')) map.removeLayer('active-route');
+            if (map.getLayer('active-route-outline')) map.removeLayer('active-route-outline');
             if (map.getSource('active-route')) map.removeSource('active-route');
             activeRouteId = null;
         }
 
-        // ─── renderVehicles ──────────────────────────────────────────────────
+        let vehiclePopup = new maplibregl.Popup({ closeButton: true, offset: 18 });
+
         function renderVehicles(jsonStr) {
-            const vehicles = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            const vehicles = typeof jsonStr === 'string' ? JSON.parse(decodeURIComponent(jsonStr)) : jsonStr;
             const seen = new Set();
 
             vehicles.forEach(v => {
                 seen.add(v.vehicleId);
                 const color = routeColorMap[v.routeId] || 'e53935';
-                const routeType = v.routeType ?? 3;              // ← use the value from C#
+                const routeType = v.routeType ?? 3;
                 const shortName = routeNameMap[v.routeId] || '';
 
                 if (vehicleMarkers[v.vehicleId]) {
                     const existing = vehicleMarkers[v.vehicleId];
                     existing.marker.setLngLat([v.lon, v.lat]);
                     const newEl = makeVehicleIcon(color, routeType, v.bearing, shortName);
-                    attachVehicleClickHandler(newEl, v, color);
+                    newEl.addEventListener('click', e => {
+                        e.stopPropagation();
+                        showRoute(v.routeId);
+                        vehiclePopup.setLngLat([v.lon, v.lat])
+                            .setHTML(`<div class="vehicle-popup"><span class="route-badge" style="background:#${color}">Line ${shortName}</span></div>`)
+                            .addTo(map);
+                    });
                     existing.marker.getElement().replaceWith(newEl);
-                    vehicleMarkers[v.vehicleId] = { marker: existing.marker, routeId: v.routeId };
                 } else {
                     const el = makeVehicleIcon(color, routeType, v.bearing, shortName);
-                    attachVehicleClickHandler(el, v, color);
+                    el.addEventListener('click', e => {
+                        e.stopPropagation();
+                        showRoute(v.routeId);
+                        vehiclePopup.setLngLat([v.lon, v.lat])
+                            .setHTML(`<div class="vehicle-popup"><span class="route-badge" style="background:#${color}">Line ${shortName}</span></div>`)
+                            .addTo(map);
+                    });
                     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-<<<<<<< HEAD
-                        .setLngLat([v.lon, v.lat])
-                        .addTo(map);
-                    vehicleMarkers[v.vehicleId] = { marker, routeId: v.routeId };
-=======
                         .setLngLat([v.lon, v.lat]);
-
-                    // Only add to map if vehicles are visible
-                    if (vehiclesVisible) {
-                        marker.addTo(map);
-                    }
-                    vehicleMarkers[v.vehicleId] = { marker, routeId: resolvedId };
->>>>>>> decimirani-barbarstvom
+                    if (vehiclesVisible) marker.addTo(map);
+                    vehicleMarkers[v.vehicleId] = { marker, routeId: v.routeId };
                 }
             });
 
@@ -718,79 +481,19 @@
             }
         }
 
-        // ─── Vehicle click ────────────────────────────────────────────────────
-        let vehiclePopup = new maplibregl.Popup({ closeButton: true, offset: 18 });
-
-        function attachVehicleClickHandler(el, v, color) {
-            el.addEventListener('click', e => {
-                e.stopPropagation();
-<<<<<<< HEAD
-                highlightRoute(v.routeId);
-=======
-                showRoute(resolvedId);
->>>>>>> main
-                const hex = '#' + (color || 'e53935').replace('#', '');
-                const name = routeNameMap[v.routeId] || v.routeId;
-                vehiclePopup
-                    .setLngLat([v.lon, v.lat])
-                    .setHTML(`<div class="vehicle-popup">
-<<<<<<< HEAD
-<<<<<<< HEAD
-                            <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                            ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                            <div class="info">Route: ${v.routeId}</div>
-                        </div>`)
-=======
-                                    <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                                    ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                                    <div class="info">Route: ${name}</div>
-                                </div>`)
->>>>>>> main
-=======
-                                                <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                                                ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                                                <div class="info">Route: ${name}</div>
-                                            </div>`)
->>>>>>> decimirani-barbarstvom
-                    .addTo(map);
-            });
-        }
-
-<<<<<<< HEAD
-        function highlightRoute(routeId) {
-            if (selectedRouteId) {
-                const prev = 'route-' + selectedRouteId;
-                if (map.getLayer(prev + '-highlight')) map.setPaintProperty(prev + '-highlight', 'line-opacity', 0);
-                if (map.getLayer(prev)) map.setPaintProperty(prev, 'line-opacity', 0.6);
-            }
-            selectedRouteId = routeId;
-            const cur = 'route-' + routeId;
-            if (map.getLayer(cur + '-highlight')) map.setPaintProperty(cur + '-highlight', 'line-opacity', 0.95);
-            if (map.getLayer(cur)) map.setPaintProperty(cur, 'line-opacity', 0.15);
-=======
-        // ─── clearVehicles ───────────────────────────────────────────────────
-        // Called from C# when all operators are uninstalled mid-session
-        function clearVehicles(jsonStr) {
+        function clearVehicles() {
             Object.values(vehicleMarkers).forEach(m => m.marker.remove());
             vehicleMarkers = {};
             clearActiveRoute();
             vehiclePopup.remove();
->>>>>>> main
         }
 
-        // ─── toggleVehicleVisibility ─────────────────────────────────────────
-        // Called from C# when the ShowBusses switch is toggled
         function toggleVehicleVisibility(show) {
             vehiclesVisible = show;
             Object.values(vehicleMarkers).forEach(v => {
-                if (show) {
-                    v.marker.addTo(map);
-                } else {
-                    v.marker.remove();
-                }
+                if (show) v.marker.addTo(map);
+                else v.marker.remove();
             });
-
-            // Also hide route and popup when hiding vehicles
             if (!show) {
                 clearActiveRoute();
                 vehiclePopup.remove();
@@ -801,8 +504,6 @@
             clearActiveRoute();
             vehiclePopup.remove();
             closeStopPanel();
-
-            // Close menu if clicking on map
             const menu = document.getElementById('sideMenu');
             const button = document.getElementById('menuButton');
             if (menu.classList.contains('open')) {

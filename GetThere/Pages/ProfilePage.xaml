@@ -17,7 +17,7 @@
             <PanGestureRecognizer PanUpdated="OnPanUpdate" />
         </Grid.GestureRecognizers>
 
-        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" Grid.RowSpan="2" />
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="2" />
 
         <!-- ══════════════════════════════════════ -->
         <!-- ROW 0 — FIXED HEADER + WALLET + TABS -->
@@ -26,48 +26,31 @@
 
             <!-- ── HEADER SECTION ── -->
             <VerticalStackLayout Padding="24,40,24,20" Spacing="12" BackgroundColor="Transparent">
-
-                <!-- Profile Avatar and Info -->
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16" VerticalOptions="Start">
                     <Border Grid.Column="0" WidthRequest="72" HeightRequest="72"
-                        BackgroundColor="#4CAF50"
-                        StrokeThickness="0" VerticalOptions="Start" Margin="0,8,0,0">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="36" />
-                    </Border.StrokeShape>
-                    <Label x:Name="AvatarLabel"
-                           FontSize="28" FontAttributes="Bold"
-                           TextColor="White"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center" />
-                </Border>
+                            BackgroundColor="#4CAF50"
+                            StrokeThickness="0" VerticalOptions="Start">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="36" />
+                        </Border.StrokeShape>
+                        <Label x:Name="AvatarLabel"
+                               FontSize="28" FontAttributes="Bold"
+                               TextColor="White"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
 
-<<<<<<< HEAD
-                <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
-                    <Label x:Name="NameLabel"
-                           FontSize="20" FontAttributes="Bold"
-                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                    <Label x:Name="EmailLabel"
-                           FontSize="13" TextColor="Gray" />
-                    <Label x:Name="ErrorLabel"
-                           FontSize="12" TextColor="Red"
-                           IsVisible="False" Margin="0,4,0,0" />
-                </VerticalStackLayout>
-            </Grid>
-=======
-                <Label x:Name="NameLabel"
-                       FontSize="22" FontAttributes="Bold"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       HorizontalOptions="Center" />
-
-                <Label x:Name="EmailLabel"
-                       FontSize="14" TextColor="Gray"
-                       HorizontalOptions="Center" />
-
-                <Label x:Name="ErrorLabel"
-                       FontSize="13" TextColor="Red"
-                       IsVisible="False"
-                       HorizontalOptions="Center" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+                        <Label x:Name="NameLabel"
+                               FontSize="20" FontAttributes="Bold"
+                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                        <Label x:Name="EmailLabel"
+                               FontSize="13" TextColor="Gray" />
+                        <Label x:Name="ErrorLabel"
+                               FontSize="12" TextColor="Red"
+                               IsVisible="False" Margin="0,4,0,0" />
+                    </VerticalStackLayout>
+                </Grid>
             </VerticalStackLayout>
 
             <!-- ══════════════════════════════════════
@@ -75,81 +58,88 @@
                  ══════════════════════════════════════ -->
             <Grid>
                 <VerticalStackLayout Spacing="0">
-
                     <!-- ── WALLET BALANCE CARD ── -->
-                    <Border Margin="16,12" Padding="20"
-                            StrokeThickness="0"
-                            BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}">
+                    <Border Margin="16,8,16,12" Padding="20"
+                            StrokeThickness="1" Stroke="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}"
+                            BackgroundColor="Transparent">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="16" />
                         </Border.StrokeShape>
                         <Border.Shadow>
-                            <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.08" />
+                            <Shadow Brush="#4CAF50" Offset="0,4" Radius="12" Opacity="0.15" />
                         </Border.Shadow>
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="Wallet Balance" FontSize="13" TextColor="Gray" />
-                            <Label x:Name="BalanceLabel"
-                                   FontSize="34" FontAttributes="Bold"
+                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                            <Label Grid.Row="0" Text="💰  Wallet Balance" FontSize="13" TextColor="Gray" FontAttributes="Bold" />
+                            <Label Grid.Row="1" x:Name="BalanceLabel"
+                                   FontSize="40" FontAttributes="Bold"
                                    TextColor="#4CAF50" />
-                            <Label x:Name="LastUpdatedLabel"
-                                   FontSize="11" TextColor="Gray" />
-
-                            <HorizontalStackLayout Spacing="12" Margin="0,8,0,0" VerticalOptions="Center">
-                                <Button x:Name="TopUpButton"
-                                        Text="＋  Top Up"
-                                        Clicked="TopUpButton_Clicked"
-                                        BackgroundColor="#4CAF50" TextColor="White"
-                                        CornerRadius="10" HeightRequest="38"
-                                        FontSize="14" Padding="20,0" />
-                                <ActivityIndicator x:Name="BusyIndicator"
-                                                   IsRunning="False" IsVisible="False"
+                            <HorizontalStackLayout Grid.Row="2" Spacing="12">
+                                <Label x:Name="LastUpdatedLabel"
+                                       FontSize="11" TextColor="Gray" VerticalOptions="Center" />
+                                <Button Text="⟲"
+                                        FontSize="16"
+                                        Clicked="RefreshBalance_Clicked"
+                                        BackgroundColor="Transparent"
+                                        TextColor="#4CAF50"
+                                        WidthRequest="32" HeightRequest="32"
+                                        Padding="0" />
+                                <ActivityIndicator x:Name="RefreshBusy"
+                                                   IsRunning="False"
+                                                   IsVisible="False"
                                                    Color="#4CAF50"
                                                    VerticalOptions="Center" />
                             </HorizontalStackLayout>
-                        </VerticalStackLayout>
+                        </Grid>
                     </Border>
 
-                    <!-- WalletBusy shown while page first loads -->
-                    <ActivityIndicator x:Name="WalletBusy"
-                                       IsRunning="True" IsVisible="True"
-                                       Color="#4CAF50" HorizontalOptions="Center"
-                                       Margin="0,4" />
+                    <!-- ── TOP UP BUTTON ── -->
+                    <Button x:Name="TopUpButton"
+                            Text="＋  Top Up Wallet"
+                            Clicked="TopUpButton_Clicked"
+                            BackgroundColor="Transparent"
+                            BorderColor="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}" BorderWidth="1"
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                            CornerRadius="12" HeightRequest="48"
+                            FontSize="16" FontAttributes="Bold"
+                            Margin="16,0,16,12">
+                        <Button.Shadow>
+                            <Shadow Brush="Black" Offset="0,4" Radius="8" Opacity="0.15" />
+                        </Button.Shadow>
+                    </Button>
 
-                    <!-- ── SEGMENT CONTROL ── -->
-                    <Grid ColumnDefinitions="*,*" Margin="16,8" ColumnSpacing="8">
+                    <ActivityIndicator x:Name="WalletBusy"
+                                       IsRunning="True"
+                                       Color="#4CAF50"
+                                       Margin="0,4,0,12" />
+
+                    <!-- ── TAB BUTTONS ── -->
+                    <Grid ColumnDefinitions="*,*" Margin="16,0,16,12" ColumnSpacing="8">
                         <Button x:Name="TicketsTabBtn" Text="🎫  Tickets" Grid.Column="0"
                                 Clicked="TicketsTab_Clicked"
                                 BackgroundColor="#4CAF50" TextColor="White"
-                                CornerRadius="10" HeightRequest="42" />
+                                CornerRadius="10" HeightRequest="44" FontAttributes="Bold">
+                            <Button.Shadow>
+                                <Shadow Brush="Black" Offset="0,3" Radius="6" Opacity="0.1" />
+                            </Button.Shadow>
+                        </Button>
                         <Button x:Name="HistoryTabBtn" Text="📋  History" Grid.Column="1"
                                 Clicked="HistoryTab_Clicked"
-                                BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
+                                BackgroundColor="Transparent"
+                                BorderColor="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}" BorderWidth="1"
                                 TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                                CornerRadius="10" HeightRequest="42" />
+                                CornerRadius="10" HeightRequest="44" FontAttributes="Bold">
+                            <Button.Shadow>
+                                <Shadow Brush="Black" Offset="0,3" Radius="6" Opacity="0.1" />
+                            </Button.Shadow>
+                        </Button>
                     </Grid>
 
-                    <!-- ── TICKET FILTER CHIPS (fixed, above scroll) ── -->
-                    <HorizontalStackLayout x:Name="FilterChipsRow"
-                                           Spacing="8" Margin="16,0,16,10">
-                        <Button x:Name="ActiveBtn" Text="Active"
-                                Clicked="ActiveFilter_Clicked"
-                                BackgroundColor="#4CAF50" TextColor="White"
-                                CornerRadius="20" HeightRequest="34"
-                                Padding="16,0" FontSize="13" />
-                        <Button x:Name="ExpiredBtn" Text="Expired"
-                                Clicked="ExpiredFilter_Clicked"
-                                BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
-                                TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                                CornerRadius="20" HeightRequest="34"
-                                Padding="16,0" FontSize="13" />
-                        <Button x:Name="UsedBtn" Text="Used"
-                                Clicked="UsedFilter_Clicked"
-                                BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}"
-                                TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                                CornerRadius="20" HeightRequest="34"
-                                Padding="16,0" FontSize="13" />
+                    <!-- ── TICKET FILTER CHIPS ── -->
+                    <HorizontalStackLayout x:Name="FilterChipsRow" Spacing="8" Margin="16,0,16,12">
+                        <Button x:Name="ActiveBtn" Text="Active" Clicked="ActiveFilter_Clicked" Padding="16,8" CornerRadius="18" FontSize="13" />
+                        <Button x:Name="ExpiredBtn" Text="Expired" Clicked="ExpiredFilter_Clicked" Padding="16,8" CornerRadius="18" FontSize="13" />
+                        <Button x:Name="UsedBtn" Text="Used" Clicked="UsedFilter_Clicked" Padding="16,8" CornerRadius="18" FontSize="13" />
                     </HorizontalStackLayout>
-
                 </VerticalStackLayout>
 
                 <!-- ── LOGIN REQUIRED OVERLAY ── -->
@@ -192,80 +182,31 @@
                     </Border>
                 </Grid>
             </Grid>
-
->>>>>>> decimirani-barbarstvom
         </VerticalStackLayout>
 
-        <!-- ── WALLET BALANCE CARD ── -->
-        <Border Margin="16,8,16,12" Padding="20"
-                StrokeThickness="1" Stroke="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}"
-                BackgroundColor="Transparent">
-            <Border.StrokeShape>
-                <RoundRectangle CornerRadius="16" />
-            </Border.StrokeShape>
-            <Border.Shadow>
-                <Shadow Brush="#4CAF50" Offset="0,4" Radius="12" Opacity="0.15" />
-            </Border.Shadow>
-            <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                <Label Grid.Row="0" Text="💰  Wallet Balance" FontSize="13" TextColor="Gray" FontAttributes="Bold" />
-                <Label Grid.Row="1" x:Name="BalanceLabel"
-                       FontSize="40" FontAttributes="Bold"
-                       TextColor="#4CAF50" />
-                <HorizontalStackLayout Grid.Row="2" Spacing="12">
-                    <Label x:Name="LastUpdatedLabel"
-                           FontSize="11" TextColor="Gray" VerticalOptions="Center" />
-                    <Button Text="⟲"
-                            FontSize="16"
-                            Clicked="RefreshBalance_Clicked"
-                            BackgroundColor="Transparent"
-                            TextColor="#4CAF50"
-                            WidthRequest="32" HeightRequest="32"
-                            Padding="0" />
-                    <ActivityIndicator x:Name="RefreshBusy"
-                                       IsRunning="False" IsVisible="False"
-                                       Color="#4CAF50"
-                                       VerticalOptions="Center" />
-                </HorizontalStackLayout>
-            </Grid>
-        </Border>
+        <!-- ══════════════════════════════════════ -->
+        <!-- ROW 1 — SCROLLABLE CONTENT -->
+        <!-- ══════════════════════════════════════ -->
+        <Grid Grid.Row="1" RowDefinitions="*,Auto">
+            <ScrollView Grid.Row="0">
+                <VerticalStackLayout Padding="16,8,16,8">
 
-        <!-- ── TOP UP BUTTON ── -->
-        <Button x:Name="TopUpButton"
-                Text="＋  Top Up Wallet"
-                Clicked="TopUpButton_Clicked"
-                BackgroundColor="Transparent"
-                BorderColor="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}" BorderWidth="1"
-                TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                CornerRadius="12" HeightRequest="48"
-                FontSize="16" FontAttributes="Bold"
-                Margin="16,0,16,12">
-            <Button.Shadow>
-                <Shadow Brush="Black" Offset="0,4" Radius="8" Opacity="0.15" />
-            </Button.Shadow>
-        </Button>
-
-        <ActivityIndicator x:Name="WalletBusy"
-                           IsRunning="True" IsVisible="True"
-                           Color="#4CAF50" HorizontalOptions="Center"
-                           Margin="0,4,0,12" />
-
-<<<<<<< HEAD
-        <!-- ── TAB BUTTONS ── -->
-        <Grid ColumnDefinitions="*,*" Margin="16,0,16,12" ColumnSpacing="8">
-            <Button x:Name="TicketsTabBtn" Text="🎫  Tickets" Grid.Column="0"
-                    Clicked="TicketsTab_Clicked"
-=======
+                    <!-- ── TICKETS VIEW ── -->
+                    <VerticalStackLayout x:Name="TicketsView">
                         <ActivityIndicator x:Name="TicketsBusy"
-                                           IsRunning="True" IsVisible="True"
-                                           Color="#4CAF50" HorizontalOptions="Center"
-                                           Margin="0,16" />
+                                         IsRunning="True"
+                                         Color="#4CAF50"
+                                         Margin="0,16" />
 
                         <CollectionView x:Name="TicketsCollection" SelectionMode="None">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
                                     <Border Margin="0,0,0,10" Padding="16"
-                                            StrokeThickness="0"
-                                            BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}">
+                                            StrokeThickness="1" Stroke="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}"
+                                            BackgroundColor="Transparent">
+                                        <Border.Shadow>
+                                            <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.1" />
+                                        </Border.Shadow>
                                         <Border.StrokeShape>
                                             <RoundRectangle CornerRadius="12" />
                                         </Border.StrokeShape>
@@ -308,11 +249,10 @@
 
                     <!-- ── HISTORY VIEW ── -->
                     <VerticalStackLayout x:Name="HistoryView" IsVisible="False">
-
                         <ActivityIndicator x:Name="HistoryBusy"
-                                           IsRunning="False" IsVisible="False"
-                                           Color="#4CAF50" HorizontalOptions="Center"
-                                           Margin="0,16" />
+                                         IsRunning="False"
+                                         Color="#4CAF50"
+                                         Margin="0,16" />
 
                         <CollectionView x:Name="HistoryCollection" SelectionMode="None">
                             <CollectionView.ItemTemplate>
@@ -350,176 +290,18 @@
                                HorizontalOptions="Center"
                                TextColor="Gray" Margin="0,32" FontSize="15" />
                     </VerticalStackLayout>
-
                 </VerticalStackLayout>
             </ScrollView>
 
-            <!-- ── LOGOUT — always pinned to bottom ── -->
+            <!-- ── LOGOUT BUTTON (pinned at bottom) ── -->
             <Button x:Name="LogoutButton"
                     Grid.Row="1"
                     Text="Log Out"
-                    Margin="16,8,16,24"
->>>>>>> decimirani-barbarstvom
+                    Margin="16,12,16,24"
                     BackgroundColor="Transparent"
-                    BorderColor="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}" BorderWidth="1"
-                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                    CornerRadius="10" HeightRequest="44" FontAttributes="Bold">
-                <Button.Shadow>
-                    <Shadow Brush="Black" Offset="0,3" Radius="6" Opacity="0.1" />
-                </Button.Shadow>
-            </Button>
-            <Button x:Name="HistoryTabBtn" Text="📋  History" Grid.Column="1"
-                    Clicked="HistoryTab_Clicked"
-                    BackgroundColor="Transparent"
-                    BorderColor="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}" BorderWidth="1"
-                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                    CornerRadius="10" HeightRequest="44" FontAttributes="Bold">
-                <Button.Shadow>
-                    <Shadow Brush="Black" Offset="0,3" Radius="6" Opacity="0.1" />
-                </Button.Shadow>
-            </Button>
+                    TextColor="Red"
+                    FontSize="15" FontAttributes="Bold"
+                    Clicked="LogoutButton_Clicked" />
         </Grid>
-
-        <!-- ── TICKET FILTER CHIPS ── -->
-        <CollectionView x:Name="FilterChipsRow"
-                        SelectionMode="None" SelectionChangedCommand="{Binding SelectionChangedCommand}"
-                        Margin="16,0,16,12" HorizontalScrollBarVisibility="Never">
-            <CollectionView.ItemsLayout>
-                <LinearItemsLayout Orientation="Horizontal" ItemSpacing="8" />
-            </CollectionView.ItemsLayout>
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Button Text="{Binding .}" Padding="16,8" CornerRadius="18" FontSize="13" />
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-
-    </VerticalStackLayout>
-
-    <!-- ══════════════════════════════════════ -->
-    <!-- ROW 1 — SCROLLABLE CONTENT -->
-    <!-- ══════════════════════════════════════ -->
-    <Grid Grid.Row="1" RowDefinitions="*,Auto">
-
-        <ScrollView Grid.Row="0">
-            <VerticalStackLayout Padding="16,8,16,8">
-
-                <!-- ── TICKETS VIEW ── -->
-                <VerticalStackLayout x:Name="TicketsView">
-
-                    <ActivityIndicator x:Name="TicketsBusy"
-                                       IsRunning="True" IsVisible="True"
-                                       Color="#4CAF50" HorizontalOptions="Center"
-                                       Margin="0,16" />
-
-                    <CollectionView x:Name="TicketsCollection" SelectionMode="None">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,0,10" Padding="16"
-                                        StrokeThickness="1" Stroke="{AppThemeBinding Light=#40000000, Dark=#40FFFFFF}"
-                                        BackgroundColor="Transparent">
-                                    <Border.Shadow>
-                                        <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.1" />
-                                    </Border.Shadow>
-                                    <Border.StrokeShape>
-                                        <RoundRectangle CornerRadius="12" />
-                                    </Border.StrokeShape>
-                                    <Grid ColumnDefinitions="*,Auto"
-                                          RowDefinitions="Auto,Auto,Auto"
-                                          RowSpacing="3">
-                                        <Label Grid.Column="0" Grid.Row="0"
-                                               Text="{Binding TicketType}"
-                                               FontAttributes="Bold" FontSize="15"
-                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Label Grid.Column="0" Grid.Row="1"
-                                               Text="{Binding PurchasedAt, StringFormat='Purchased: {0:dd MMM yyyy}'}"
-                                               FontSize="12" TextColor="Gray" />
-                                        <Label Grid.Column="0" Grid.Row="2"
-                                               Text="{Binding ValidUntil, StringFormat='Valid until: {0:dd MMM yyyy}'}"
-                                               FontSize="12" TextColor="Gray" />
-                                        <Border Grid.Column="1" Grid.RowSpan="3"
-                                                Padding="10,5" StrokeThickness="0"
-                                                VerticalOptions="Center"
-                                                BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}">
-                                            <Border.StrokeShape>
-                                                <RoundRectangle CornerRadius="8" />
-                                            </Border.StrokeShape>
-                                            <Label Text="{Binding Status}"
-                                                   FontSize="11" TextColor="White"
-                                                   FontAttributes="Bold" />
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
-
-                    <Label x:Name="NoTicketsLabel"
-                           Text="No tickets found."
-                           IsVisible="False"
-                           HorizontalOptions="Center"
-                           TextColor="Gray" Margin="0,32" FontSize="15" />
-                </VerticalStackLayout>
-
-                <!-- ── HISTORY VIEW ── -->
-                <VerticalStackLayout x:Name="HistoryView" IsVisible="False">
-
-                    <ActivityIndicator x:Name="HistoryBusy"
-                                       IsRunning="False" IsVisible="False"
-                                       Color="#4CAF50" HorizontalOptions="Center"
-                                       Margin="0,16" />
-
-                    <CollectionView x:Name="HistoryCollection" SelectionMode="None">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate>
-                                <VerticalStackLayout>
-                                    <Grid ColumnDefinitions="Auto,*,Auto"
-                                          RowDefinitions="Auto,Auto"
-                                          Padding="4,12" ColumnSpacing="12">
-                                        <Label Grid.Column="0" Grid.RowSpan="2"
-                                               Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}"
-                                               FontSize="26" VerticalOptions="Center" />
-                                        <Label Grid.Column="1" Grid.Row="0"
-                                               Text="{Binding Description}"
-                                               FontSize="14" FontAttributes="Bold"
-                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Label Grid.Column="1" Grid.Row="1"
-                                               Text="{Binding Timestamp, StringFormat='{0:dd MMM yyyy · HH:mm}'}"
-                                               FontSize="12" TextColor="Gray" />
-                                        <Label Grid.Column="2" Grid.RowSpan="2"
-                                               Text="{Binding Amount, StringFormat='+€{0:F2}'}"
-                                               FontAttributes="Bold" FontSize="15"
-                                               TextColor="#4CAF50"
-                                               VerticalOptions="Center" />
-                                    </Grid>
-                                    <BoxView HeightRequest="1"
-                                             Color="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2E}" />
-                                </VerticalStackLayout>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
-
-                    <Label x:Name="NoHistoryLabel"
-                           Text="No transactions yet."
-                           IsVisible="False"
-                           HorizontalOptions="Center"
-                           TextColor="Gray" Margin="0,32" FontSize="15" />
-                </VerticalStackLayout>
-
-            </VerticalStackLayout>
-        </ScrollView>
-
-        <!-- ── LOGOUT BUTTON (pinned at bottom) ── -->
-        <Button Grid.Row="1"
-                Text="🚪  Log Out"
-                Margin="16,12,16,24"
-                BackgroundColor="Transparent"
-                TextColor="Red"
-                FontSize="15" FontAttributes="Bold"
-                Clicked="LogoutButton_Clicked" />
-
-        </Grid>
-
     </Grid>
-
 </ContentPage>

@@ -138,6 +138,34 @@ public partial class ProfilePage : ContentPage
         var filtered = _allTickets.Where(t => t.Status == filter).ToList();
         TicketsCollection.ItemsSource = filtered;
         NoTicketsLabel.IsVisible = filtered.Count == 0;
+
+        ResetFilterChips();
+        SetChipActive(filter switch
+        {
+            TicketStatus.Active => ActiveBtn,
+            TicketStatus.Expired => ExpiredBtn,
+            TicketStatus.Used => UsedBtn,
+            _ => ActiveBtn
+        });
+    }
+
+    private void ResetFilterChips()
+    {
+        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
+        var inactiveText = isDark ? Colors.White : Colors.Black;
+
+        foreach (var btn in new[] { ActiveBtn, ExpiredBtn, UsedBtn })
+        {
+            btn.BackgroundColor = inactiveColor;
+            btn.TextColor = inactiveText;
+        }
+    }
+
+    private static void SetChipActive(Button btn)
+    {
+        btn.BackgroundColor = Color.FromArgb("#4CAF50");
+        btn.TextColor = Colors.White;
     }
 
     // ── History ────────────────────────────────────────────────────────────
@@ -211,8 +239,6 @@ public partial class ProfilePage : ContentPage
         await LoadHistoryAsync();
     }
 
-    // ── Filter chips ───────────────────────────────────────────────────────
-
     private void ActiveFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Active);
 
@@ -222,11 +248,8 @@ public partial class ProfilePage : ContentPage
     private void UsedFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Used);
 
-    // ── Top Up ─────────────────────────────────────────────────────────────
-
     private async void TopUpButton_Clicked(object? sender, EventArgs e)
     {
-        // ── Step 1: Enter amount ───────────────────────────────────────────
         var input = await DisplayPromptAsync(
             "Top Up Wallet",
             "Enter amount to add (€):",
@@ -248,8 +271,7 @@ public partial class ProfilePage : ContentPage
             return;
         }
 
-        // ── Step 2: Load providers ─────────────────────────────────────────
-        TopUpButton.IsEnabled = false;
+        PageUtility.SetBusy(WalletBusy, TopUpButton, true);
         ErrorLabel.IsVisible = false;
 
         List<PaymentProviderDto> providers;
@@ -270,10 +292,9 @@ public partial class ProfilePage : ContentPage
         }
         finally
         {
-            TopUpButton.IsEnabled = true;
+            PageUtility.SetBusy(WalletBusy, TopUpButton, false);
         }
 
-        // ── Step 3: Pick a provider ────────────────────────────────────────
         var converter = new ProviderIconConverter();
 
         var providerNames = providers
@@ -291,7 +312,6 @@ public partial class ProfilePage : ContentPage
 
         var selectedProvider = providers[Array.IndexOf(providerNames, chosen)];
 
-        // ── Step 4: Confirm ────────────────────────────────────────────────
         var confirmed = await DisplayAlertAsync(
             "Confirm Top Up",
             $"Add €{amount:F2} to your wallet via {selectedProvider.Name}?",
@@ -301,8 +321,7 @@ public partial class ProfilePage : ContentPage
         if (!confirmed)
             return;
 
-        // ── Step 5: Process ────────────────────────────────────────────────
-        TopUpButton.IsEnabled = false;
+        PageUtility.SetBusy(WalletBusy, TopUpButton, true);
         ErrorLabel.IsVisible = false;
 
         try
@@ -331,35 +350,24 @@ public partial class ProfilePage : ContentPage
         }
         finally
         {
-            TopUpButton.IsEnabled = true;
-            await LoadWalletAsync();
-            await LoadTicketsAsync();
+            PageUtility.SetBusy(WalletBusy, TopUpButton, false);
         }
     }
-
-    // ── Refresh Balance ────────────────────────────────────────────────────
 
     private async void RefreshBalance_Clicked(object? sender, EventArgs e)
     {
         RefreshBusy.IsVisible = true;
         RefreshBusy.IsRunning = true;
-        
-        try
-        {
-            await LoadWalletAsync();
-        }
-        catch (Exception ex)
-        {
-            PageUtility.ShowError(ErrorLabel, "Failed to refresh: " + ex.Message);
-        }
-        finally
-        {
-            RefreshBusy.IsVisible = false;
-            RefreshBusy.IsRunning = false;
-        }
+        await LoadWalletAsync();
+        RefreshBusy.IsVisible = false;
+        RefreshBusy.IsRunning = false;
     }
 
-    // ── Logout ─────────────────────────────────────────────────────────────
+    private void OnPanUpdate(object sender, PanUpdatedEventArgs e)
+    {
+        AnimatedBg.XOffset = (float)e.TotalX;
+        AnimatedBg.YOffset = (float)e.TotalY;
+    }
 
     private void GoBackToLogInButton_Clicked(object? sender, EventArgs e)
     {
@@ -370,11 +378,5 @@ public partial class ProfilePage : ContentPage
     {
         _authService.Logout();
         App.GoToLogin();
-    }
-
-    private void OnPanUpdate(object sender, PanUpdatedEventArgs e)
-    {
-        AnimatedBg.XOffset = (float)e.TotalX;
-        AnimatedBg.YOffset = (float)e.TotalY;
     }
 }
