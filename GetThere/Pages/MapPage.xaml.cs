@@ -10,10 +10,11 @@ public partial class MapPage : ContentPage
     private readonly GtfsService _gtfsApi;
     private readonly OperatorService _operatorService;
     private System.Timers.Timer? _realtimeTimer;
+    private System.Timers.Timer? _jsMessageTimer;
 
-    // Full operator objects kept for realtime polling (need format/auth config)
     private List<TransitOperatorDto> _activeRealtimeOperators = [];
     private Dictionary<string, int> _routeTypeMap = [];
+    private Dictionary<string, int> _stopOperatorMap = [];
 
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
@@ -28,12 +29,96 @@ public partial class MapPage : ContentPage
         await GetLocationAndUpdateMap();
         await LoadGtfsAsync();
         StartRealtimePolling();
+        StartJsMessagePolling();
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         StopRealtimePolling();
+        StopJsMessagePolling();
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // JS → C# message polling
+    // JS sets: window._pendingMsg = "stopSchedule:STOPID"
+    // C# reads and clears it every 300ms
+    // ────────────────────────────────────────────────────────────────────
+
+    private void StartJsMessagePolling()
+    {
+        _jsMessageTimer = new System.Timers.Timer(300);
+        _jsMessageTimer.Elapsed += async (_, _) => await PollJsMessagesAsync();
+        _jsMessageTimer.AutoReset = true;
+        _jsMessageTimer.Start();
+    }
+
+    private void StopJsMessagePolling()
+    {
+        _jsMessageTimer?.Stop();
+        _jsMessageTimer?.Dispose();
+        _jsMessageTimer = null;
+    }
+
+    private async Task PollJsMessagesAsync()
+    {
+        try
+        {
+            string? msg = null;
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                // Read and atomically clear the pending message
+                var raw = await MapWebView.EvaluateJavaScriptAsync(
+                    "(function(){ var m = window._pendingMsg || ''; window._pendingMsg = ''; return m; })()");
+                // EvaluateJavaScriptAsync returns the value JSON-encoded as a string
+                // so it comes back with surrounding quotes — strip them
+                if (!string.IsNullOrEmpty(raw) && raw != "null" && raw != "\"\"")
+                    msg = raw.Trim('"');
+            });
+
+            if (string.IsNullOrEmpty(msg)) return;
+
+            Trace.WriteLine($"[MAP/POLL] Got JS message: '{msg}'");
+
+            if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
+            {
+                var stopId = msg["stopSchedule:".Length..];
+                await HandleStopScheduleAsync(stopId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MAP/POLL] Error: {ex.Message}");
+        }
+    }
+
+    private async Task HandleStopScheduleAsync(string stopId)
+    {
+        Trace.WriteLine($"[MAP/SCHED] Handling stop '{stopId}', map has {_stopOperatorMap.Count} stops");
+
+        if (!_stopOperatorMap.TryGetValue(stopId, out var operatorId))
+        {
+            Trace.WriteLine($"[MAP/SCHED] Stop '{stopId}' not found in operator map — sending empty");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await CallJs("renderStopSchedule", new { stopId, groups = Array.Empty<object>() }));
+            return;
+        }
+
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            Trace.WriteLine($"[MAP/SCHED] Querying op={operatorId} stop='{stopId}' date={today}");
+            var groups = await _gtfsApi.ParseStopScheduleAsync(operatorId, stopId, today);
+            Trace.WriteLine($"[MAP/SCHED] Got {groups.Count} groups, sending to JS");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await CallJs("renderStopSchedule", new { stopId, groups }));
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MAP/SCHED] Exception: {ex.Message}");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await CallJs("renderStopSchedule", new { stopId, groups = Array.Empty<object>() }));
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -83,6 +168,8 @@ public partial class MapPage : ContentPage
 
             _activeRealtimeOperators.Clear();
             _routeTypeMap.Clear();
+            _stopOperatorMap.Clear();
+
             var allStops = new List<object>();
             var allRoutes = new List<object>();
 
@@ -109,6 +196,9 @@ public partial class MapPage : ContentPage
                 foreach (var r in routes)
                     _routeTypeMap[r.RouteId] = r.RouteType;
 
+                foreach (var s in stops)
+                    _stopOperatorMap.TryAdd(s.StopId, op.Id);
+
                 if (_gtfsApi.HasRealtime(op.Id))
                     _activeRealtimeOperators.Add(op);
             }
@@ -126,13 +216,11 @@ public partial class MapPage : ContentPage
     private void StartRealtimePolling()
     {
         if (_activeRealtimeOperators.Count == 0) return;
-        Trace.WriteLine($"[Map] Starting realtime — {_activeRealtimeOperators.Count} operators");
-
         _realtimeTimer = new System.Timers.Timer(15_000);
         _realtimeTimer.Elapsed += async (_, _) => await PollRealtimeAsync();
         _realtimeTimer.AutoReset = true;
         _realtimeTimer.Start();
-        Task.Run(PollRealtimeAsync); // immediate first poll
+        Task.Run(PollRealtimeAsync);
     }
 
     private void StopRealtimePolling()
@@ -146,10 +234,8 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            // Drop any operators that have been uninstalled since last poll
             var stillInstalled = _activeRealtimeOperators
-                .Where(op => _gtfsApi.IsInstalled(op.Id))
-                .ToList();
+                .Where(op => _gtfsApi.IsInstalled(op.Id)).ToList();
 
             if (stillInstalled.Count != _activeRealtimeOperators.Count)
             {
@@ -166,8 +252,6 @@ public partial class MapPage : ContentPage
             foreach (var op in _activeRealtimeOperators)
             {
                 var vehicles = await _gtfsApi.GetVehiclesAsync(op);
-                Trace.WriteLine($"[Realtime] {op.Name}: {vehicles.Count} vehicles");
-
                 allVehicles.AddRange(vehicles.Select(v => new
                 {
                     vehicleId = v.VehicleId,
@@ -193,8 +277,10 @@ public partial class MapPage : ContentPage
 
     private async Task CallJs(string fn, object data)
     {
-        var json = JsonSerializer.Serialize(data);
-        var escaped = json.Replace("\\", "\\\\").Replace("'", "\\'");
-        await MapWebView.EvaluateJavaScriptAsync($"{fn}('{escaped}')");
+        var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var base64 = Convert.ToBase64String(bytes);
+        await MapWebView.EvaluateJavaScriptAsync(
+            $"{fn}(JSON.parse(atob('{base64}')))");
     }
 }

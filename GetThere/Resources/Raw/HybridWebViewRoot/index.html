@@ -4,14 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+
     <style>
         html, body, #map {
             height: 100%;
             width: 100%;
             margin: 0;
             padding: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
         }
 
+        /* ── Vehicle popup ───────────────────────────────── */
         .vehicle-popup {
             font-family: sans-serif;
             min-width: 150px;
@@ -33,25 +36,252 @@
                 margin-top: 2px;
             }
 
-        .stop-popup {
-            font-family: sans-serif;
-            font-size: 13px;
-            min-width: 130px;
+        /* ── Stop schedule bottom sheet ──────────────────── */
+        #stop-sheet {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 18px 18px 0 0;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+            transform: translateY(100%);
+            transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+            z-index: 1000;
+            max-height: 72vh;
+            display: flex;
+            flex-direction: column;
+            /* stop touch events leaking to the map */
+            touch-action: pan-y;
         }
 
-            .stop-popup strong {
-                display: block;
-                margin-bottom: 3px;
+            #stop-sheet.open {
+                transform: translateY(0);
             }
 
-            .stop-popup .stop-id {
-                color: #999;
-                font-size: 11px;
+        #sheet-handle {
+            width: 44px;
+            height: 5px;
+            background: #d0d0d0;
+            border-radius: 3px;
+            margin: 10px auto 0;
+            flex-shrink: 0;
+            cursor: grab;
+        }
+
+        #sheet-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px 6px;
+            flex-shrink: 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        #sheet-stop-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #sheet-stop-id {
+            font-size: 11px;
+            color: #999;
+            white-space: nowrap;
+        }
+
+        #sheet-close {
+            background: none;
+            border: none;
+            font-size: 22px;
+            color: #888;
+            cursor: pointer;
+            padding: 0 0 0 8px;
+            line-height: 1;
+        }
+
+            #sheet-close:hover {
+                color: #333;
+            }
+
+        #sheet-date {
+            padding: 4px 16px 8px;
+            font-size: 12px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        #sheet-loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 32px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #1565C0;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #sheet-empty {
+            display: none;
+            padding: 32px 16px;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        #sheet-body {
+            overflow-y: auto;
+            flex: 1;
+            padding: 0 12px 20px;
+        }
+
+        /* ── Route group card ────────────────────────────── */
+        .route-group {
+            margin-top: 12px;
+            border: 1px solid #ebebeb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .route-group-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #f8f8f8;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .route-group-header:active {
+                background: #f0f0f0;
+            }
+
+        .route-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            height: 28px;
+            padding: 0 8px;
+            border-radius: 7px;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            flex-shrink: 0;
+        }
+
+            .route-pill.tram {
+                background: #e53935;
+                color: #fff;
+            }
+
+            .route-pill.bus {
+                background: #1565c0;
+                color: #fff;
+            }
+
+            .route-pill.rail {
+                background: #6a1b9a;
+                color: #fff;
+            }
+
+        .route-headsign {
+            font-size: 14px;
+            font-weight: 600;
+            color: #222;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .route-count {
+            font-size: 12px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        .route-chevron {
+            font-size: 16px;
+            color: #bbb;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .route-group.expanded .route-chevron {
+            transform: rotate(180deg);
+        }
+
+        .route-times {
+            display: none;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 12px 12px;
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .route-group.expanded .route-times {
+            display: flex;
+        }
+
+        .time-chip {
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1565c0;
+            background: #e8f0fe;
+            white-space: nowrap;
+        }
+
+            .time-chip.next {
+                background: #1565c0;
+                color: #fff;
+            }
+
+            .time-chip.past {
+                color: #bbb;
+                background: #f5f5f5;
             }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <div id="stop-sheet">
+        <div id="sheet-handle"></div>
+        <div id="sheet-header">
+            <span id="sheet-stop-name">Stop</span>
+            <span id="sheet-stop-id"></span>
+            <button id="sheet-close">✕</button>
+        </div>
+        <div id="sheet-date"></div>
+        <div id="sheet-loading"><div class="spinner"></div> Loading schedule…</div>
+        <div id="sheet-empty">No departures today for this stop.</div>
+        <div id="sheet-body"></div>
+    </div>
+
     <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
     <script>
         const MAPTILER_KEY = "3mONySRY1DAYg6mgQean";
@@ -62,12 +292,10 @@
             center: [15.980820, 45.784044],
             zoom: 13
         });
-
         map.addControl(new maplibregl.NavigationControl());
 
         let userMarker = new maplibregl.Marker({ color: '#4285F4' })
-            .setLngLat([15.980820, 45.784044])
-            .addTo(map);
+            .setLngLat([15.980820, 45.784044]).addTo(map);
 
         function updateMapLocation(lng, lat) {
             map.setCenter([lng, lat]);
@@ -75,217 +303,272 @@
             map.setZoom(15);
         }
 
-        // ─── State ───────────────────────────────────────────────────────────
+        // ─── State ───────────────────────────────────────────────────
         let routeColorMap = {};
         let routeNameMap = {};
         let routeTypeMap = {};
-        let routeShapeMap = {};  // routeId → shape coords
+        let routeShapeMap = {};
         let vehicleMarkers = {};
-        let stopMarkers = [];
         let activeRouteId = null;
 
-        // ─── STOP ICON ───────────────────────────────────────────────────────
-        // White square with a blue "H"-like bus stop pole shape — clearly a stop
+        // track which click came from a marker so map.on('click') can ignore it
+        let _suppressMapClick = false;
+
+        // ─── Stop icon ───────────────────────────────────────────────
         function makeStopIcon() {
-            const svg = `
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                            <!-- Outer circle: white with colored border -->
-                            <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
-                            <!-- Letter S for Stop -->
-                            <text x="10" y="14" text-anchor="middle" font-size="11"
-                                  font-family="Arial, sans-serif" font-weight="bold" fill="#1565C0">S</text>
-                        </svg>`;
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
+                    <text x="10" y="14" text-anchor="middle" font-size="11"
+                          font-family="Arial,sans-serif" font-weight="bold" fill="#1565C0">S</text>
+                </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
-            el.style.cssText = 'cursor:pointer; width:20px; height:20px;';
+            el.style.cssText = 'cursor:pointer;width:20px;height:20px;';
             return el;
         }
 
-        // ─── VEHICLE ICON ────────────────────────────────────────────────────
-        // Clearly a moving vehicle: colored pill/shield with route number + direction arrow
+        // ─── Vehicle icon ────────────────────────────────────────────
         function makeVehicleIcon(color, routeType, bearing, shortName) {
             const hex = '#' + (color || 'e53935').replace('#', '');
-            const isTram = (routeType === 0 || routeType === 11); // tram / trolleybus
-            const isRail = (routeType === 1 || routeType === 2);  // metro / rail
+            const isTram = routeType === 0 || routeType === 11;
+            const isRail = routeType === 1 || routeType === 2;
             const label = shortName || '';
-
-            // Pick border color: trams get orange accent, rail gets purple, buses get the route color
-            const borderColor = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
-
-            // The icon is a rounded rectangle (vehicle body) with an arrow on top
-            const svg = `
-                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                            <!-- Direction arrow pointing up (rotated by bearing) -->
-                            <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
-
-                            <!-- Vehicle body: rounded rect -->
-                            <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
-                                  fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
-
-                            <!-- Vehicle type icon top-left -->
-                            <text x="8" y="21" text-anchor="middle" font-size="9"
-                                  font-family="Arial" fill="rgba(255,255,255,0.75)">
-                                ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
-                            </text>
-
-                            <!-- Route number centred -->
-                            <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}"
-                                  font-family="Arial, sans-serif" font-weight="bold" fill="white"
-                                  paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">
-                                ${label}
-                            </text>
-                        </svg>`;
-
+            const border = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
+            const icon = isTram ? '🚋' : isRail ? '🚇' : '🚌';
+            const fsize = label.length > 2 ? '9' : '11';
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
+                    <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
+                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6"
+                          fill="${hex}" stroke="${border}" stroke-width="2"/>
+                    <text x="8" y="21" text-anchor="middle" font-size="9"
+                          font-family="Arial" fill="rgba(255,255,255,0.75)">${icon}</text>
+                    <text x="20" y="27" text-anchor="middle" font-size="${fsize}"
+                          font-family="Arial,sans-serif" font-weight="bold" fill="white"
+                          paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">${label}</text>
+                </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
-            el.style.cssText = `
-                            cursor: pointer;
-                            width: 36px;
-                            height: 42px;
-                            transform: rotate(${bearing || 0}deg);
-                            transform-origin: 18px 21px;
-                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-                        `;
+            el.style.cssText = `cursor:pointer;width:36px;height:42px;
+                    transform:rotate(${bearing || 0}deg);transform-origin:18px 21px;
+                    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));`;
             return el;
         }
 
-        // ─── renderStops ─────────────────────────────────────────────────────
+        // ─── renderStops ─────────────────────────────────────────────
+        let stopMarkers = [];
+
         function renderStops(jsonStr) {
             const stops = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-
             stopMarkers.forEach(m => m.remove());
             stopMarkers = [];
 
-            const popup = new maplibregl.Popup({ closeButton: false, offset: 10 });
-
             stops.forEach(s => {
                 const el = makeStopIcon();
-
-                el.addEventListener('mouseenter', () => {
-                    popup.setLngLat([s.lon, s.lat])
-                        .setHTML(`<div class="stop-popup">
-                                        <strong>${s.name}</strong>
-                                        <span class="stop-id">${s.stopId}</span>
-                                    </div>`)
-                        .addTo(map);
+                el.addEventListener('click', e => {
+                    _suppressMapClick = true;   // prevent map.on('click') from closing the sheet
+                    openSheet(s.stopId, s.name);
                 });
-                el.addEventListener('mouseleave', () => popup.remove());
-
                 const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-                    .setLngLat([s.lon, s.lat])
-                    .addTo(map);
-
+                    .setLngLat([s.lon, s.lat]).addTo(map);
                 stopMarkers.push(marker);
             });
         }
 
-        // ─── renderRoutes ────────────────────────────────────────────────────
-        // Stores route data in memory only. Nothing drawn until a vehicle is clicked.
+        // ─── Stop schedule sheet ──────────────────────────────────────
+
+        const sheet = document.getElementById('stop-sheet');
+        const sheetName = document.getElementById('sheet-stop-name');
+        const sheetSid = document.getElementById('sheet-stop-id');
+        const sheetDate = document.getElementById('sheet-date');
+        const sheetLoad = document.getElementById('sheet-loading');
+        const sheetMpty = document.getElementById('sheet-empty');
+        const sheetBody = document.getElementById('sheet-body');
+
+        document.getElementById('sheet-close').addEventListener('click', e => {
+            e.stopPropagation();
+            closeSheet();
+        });
+
+        // Clicks inside the sheet must NOT propagate to the map
+        sheet.addEventListener('click', e => e.stopPropagation());
+
+        let currentStopId = null;
+
+        function openSheet(stopId, stopName) {
+            currentStopId = stopId;
+            sheetName.textContent = stopName;
+            sheetSid.textContent = '#' + stopId;
+
+            const now = new Date();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            sheetDate.textContent =
+                days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
+
+            sheetLoad.style.display = 'flex';
+            sheetMpty.style.display = 'none';
+            sheetBody.innerHTML = '';
+            sheet.classList.add('open');
+
+            window._pendingMsg = 'stopSchedule:' + stopId;
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('open');
+            currentStopId = null;
+        }
+
+        // ─── renderStopSchedule  (called from C#) ────────────────────
+        function renderStopSchedule(jsonStr) {
+            const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            if (data.stopId !== currentStopId) return;
+
+            sheetLoad.style.display = 'none';
+            sheetBody.innerHTML = '';
+
+            const groups = data.groups || [];
+            if (groups.length === 0) { sheetMpty.style.display = 'block'; return; }
+
+            const now = new Date();
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+            groups.forEach((g, gi) => {
+                const rType = routeTypeMap[g.routeId] ?? 3;
+                const pillClass = rType === 0 || rType === 11 ? 'tram'
+                    : rType === 1 || rType === 2 ? 'rail' : 'bus';
+
+                // Find first upcoming departure
+                let nextIdx = -1;
+                for (let i = 0; i < g.times.length; i++) {
+                    if (timeToMinutes(g.times[i]) >= nowMinutes) { nextIdx = i; break; }
+                }
+
+                const timesHtml = g.times.map((t, i) => {
+                    let cls = 'time-chip';
+                    if (i === nextIdx) cls += ' next';
+                    else if (timeToMinutes(t) < nowMinutes) cls += ' past';
+                    return `<span class="${cls}">${t}</span>`;
+                }).join('');
+
+                const div = document.createElement('div');
+                div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
+                div.innerHTML = `
+                        <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
+                            <span class="route-pill ${pillClass}">${escHtml(g.shortName)}</span>
+                            <span class="route-headsign">${escHtml(g.headsign)}</span>
+                            <span class="route-count">${g.times.length}&nbsp;dep.</span>
+                            <span class="route-chevron">▾</span>
+                        </div>
+                        <div class="route-times">${timesHtml}</div>`;
+                sheetBody.appendChild(div);
+            });
+
+            requestAnimationFrame(() => {
+                const next = sheetBody.querySelector('.time-chip.next');
+                if (next) next.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        function timeToMinutes(t) {
+            const p = t.split(':');
+            return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+        }
+
+        function escHtml(s) {
+            return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ─── renderRoutes ─────────────────────────────────────────────
         function renderRoutes(jsonStr) {
             const routes = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-
             clearActiveRoute();
-            routeColorMap = {};
-            routeNameMap = {};
-            routeTypeMap = {};
-            routeShapeMap = {};
-
+            routeColorMap = {}; routeNameMap = {}; routeTypeMap = {}; routeShapeMap = {};
             routes.forEach(r => {
                 routeColorMap[r.routeId] = typeColor(r.routeType);
                 routeNameMap[r.routeId] = r.shortName || r.routeId;
                 routeTypeMap[r.routeId] = r.routeType ?? 3;
-                if (r.shape && r.shape.length >= 2)
-                    routeShapeMap[r.routeId] = r.shape;
+                if (r.shape && r.shape.length >= 2) routeShapeMap[r.routeId] = r.shape;
             });
         }
 
-        // ─── showRoute / clearActiveRoute ────────────────────────────────────
+        // ─── Route line ───────────────────────────────────────────────
         function showRoute(routeId) {
             clearActiveRoute();
             const shape = routeShapeMap[routeId];
             if (!shape || shape.length < 2) return;
-
-            const color = '#' + routeColorMap[routeId];
-
+            const color = '#' + (routeColorMap[routeId] || '1565c0');
             map.addSource('active-route', {
-                type: 'geojson',
-                data: { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } }
+                type: 'geojson', data: {
+                    type: 'Feature', geometry: { type: 'LineString', coordinates: shape }
+                }
             });
-
-            // Dark outline underneath for contrast
             map.addLayer({
                 id: 'active-route-outline', type: 'line', source: 'active-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
                 paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.15 }
             });
-
-            // Main colored route line
             map.addLayer({
                 id: 'active-route', type: 'line', source: 'active-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
                 paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.95 }
             });
-
             activeRouteId = routeId;
         }
 
         function clearActiveRoute() {
-            if (map.getLayer('active-route-outline')) map.removeLayer('active-route-outline');
-            if (map.getLayer('active-route')) map.removeLayer('active-route');
-            if (map.getSource('active-route')) map.removeSource('active-route');
+            try {
+                if (map.getLayer('active-route-outline')) map.removeLayer('active-route-outline');
+                if (map.getLayer('active-route')) map.removeLayer('active-route');
+                if (map.getSource('active-route')) map.removeSource('active-route');
+            } catch (e) { }
             activeRouteId = null;
         }
 
-        // ─── Color by route type (ZET GTFS has white for everything — useless) ──
-        function typeColor(routeType) {
-            if (routeType === 0) return 'e53935'; // tram  → red
-            if (routeType === 11) return 'e65100'; // trolleybus → orange
-            if (routeType === 1 || routeType === 2) return '6a1b9a'; // rail → purple
-            return '1565c0'; // bus → blue
+        function typeColor(t) {
+            if (t === 0) return 'e53935';
+            if (t === 11) return 'e65100';
+            if (t === 1 || t === 2) return '6a1b9a';
+            return '1565c0';
         }
 
-        // ─── Route lookup helpers ─────────────────────────────────────────────
-        function resolveRouteId(rtRouteId) {
-            if (!rtRouteId) return null;
-            if (routeTypeMap[rtRouteId] !== undefined) return rtRouteId;
-            return rtRouteId;
-        }
+        // ─── renderVehicles ───────────────────────────────────────────
+        let vehiclePopup = new maplibregl.Popup({ closeButton: true, offset: 18 });
 
-        // ─── renderVehicles ──────────────────────────────────────────────────
         function renderVehicles(jsonStr) {
             const vehicles = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
             const seen = new Set();
 
             vehicles.forEach(v => {
                 seen.add(v.vehicleId);
-                const resolvedId = resolveRouteId(v.routeId);
-                const rType = routeTypeMap[resolvedId] ?? v.routeType ?? 3;
+                const rId = v.routeId || '';
+                const rType = routeTypeMap[rId] ?? v.routeType ?? 3;
                 const color = typeColor(rType);
-                const routeType = rType;
-                const shortName = routeNameMap[resolvedId] || v.routeId || '';
+                const sName = routeNameMap[rId] || rId || '';
 
                 if (vehicleMarkers[v.vehicleId]) {
-                    const existing = vehicleMarkers[v.vehicleId];
-                    // Move marker position
-                    existing.marker.setLngLat([v.lon, v.lat]);
-                    // Update the existing DOM element IN-PLACE (never replaceWith — that detaches from marker)
-                    const domEl = existing.marker.getElement();
-                    const tmp = makeVehicleIcon(color, routeType, v.bearing, shortName);
+                    // UPDATE existing marker — never remove+recreate (keeps popup alive)
+                    const entry = vehicleMarkers[v.vehicleId];
+                    entry.marker.setLngLat([v.lon, v.lat]);
+                    entry.routeId = rId;
+
+                    const domEl = entry.marker.getElement();
+                    const tmp = makeVehicleIcon(color, rType, v.bearing, sName);
+                    // Replace SVG content only — don't touch the wrapper element
                     domEl.innerHTML = tmp.innerHTML;
                     domEl.style.cssText = tmp.style.cssText;
+                    // Re-attach click (was on the old inner SVG child)
                     domEl.onclick = null;
-                    attachVehicleClickHandler(domEl, v, color, resolvedId);
-                    vehicleMarkers[v.vehicleId].routeId = resolvedId;
+                    attachVehicleClick(domEl, v, color, rId);
                 } else {
-                    const el = makeVehicleIcon(color, routeType, v.bearing, shortName);
-                    attachVehicleClickHandler(el, v, color, resolvedId);
+                    const el = makeVehicleIcon(color, rType, v.bearing, sName);
+                    attachVehicleClick(el, v, color, rId);
                     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-                        .setLngLat([v.lon, v.lat])
-                        .addTo(map);
-                    vehicleMarkers[v.vehicleId] = { marker, routeId: resolvedId };
+                        .setLngLat([v.lon, v.lat]).addTo(map);
+                    vehicleMarkers[v.vehicleId] = { marker, routeId: rId };
                 }
             });
 
+            // Remove stale markers
             for (const id in vehicleMarkers) {
                 if (!seen.has(id)) {
                     vehicleMarkers[id].marker.remove();
@@ -294,39 +577,45 @@
             }
         }
 
-        // ─── Vehicle click ────────────────────────────────────────────────────
-        let vehiclePopup = new maplibregl.Popup({ closeButton: true, offset: 18 });
-
-        function attachVehicleClickHandler(el, v, color, resolvedId) {
+        function attachVehicleClick(el, v, color, rId) {
             el.addEventListener('click', e => {
                 e.stopPropagation();
-                showRoute(resolvedId);
-                const hex = '#' + (color || 'e53935').replace('#', '');
-                const name = routeNameMap[resolvedId] || v.routeId || resolvedId;
+                _suppressMapClick = true;
+                closeSheet();
+                showRoute(rId);
+                const hex = '#' + color.replace('#', '');
+                const name = routeNameMap[rId] || rId || '';
                 vehiclePopup
                     .setLngLat([v.lon, v.lat])
                     .setHTML(`<div class="vehicle-popup">
-                                    <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                                    ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                                    <div class="info">Route: ${name}</div>
-                                </div>`)
-                    .addTo(map);
+                            <span class="route-badge" style="background:${hex}">Line ${name}</span>
+                            ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
+                            <div class="info">Route: ${name}</div>
+                        </div>`).addTo(map);
             });
         }
 
-        // ─── clearVehicles ───────────────────────────────────────────────────
-        // Called from C# when all operators are uninstalled mid-session
-        function clearVehicles(jsonStr) {
-            Object.values(vehicleMarkers).forEach(m => m.marker.remove());
+        function clearVehicles() {
+            Object.values(vehicleMarkers).forEach(e => e.marker.remove());
             vehicleMarkers = {};
             clearActiveRoute();
             vehiclePopup.remove();
         }
 
+        // ─── Map click — dismiss overlays but skip if a marker just fired ────
         map.on('click', () => {
+            if (_suppressMapClick) { _suppressMapClick = false; return; }
             clearActiveRoute();
             vehiclePopup.remove();
+            closeSheet();
         });
+
+        // ─── Swipe down to close sheet ────────────────────────────────
+        let touchStartY = 0;
+        sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+        sheet.addEventListener('touchend', e => {
+            if (e.changedTouches[0].clientY - touchStartY > 80) closeSheet();
+        }, { passive: true });
     </script>
 </body>
 </html>
