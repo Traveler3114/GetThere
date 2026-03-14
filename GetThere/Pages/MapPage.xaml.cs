@@ -221,11 +221,11 @@ public partial class MapPage : ContentPage
                 
             var script = $"updateMapLocation({lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {lat.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
             await MapWebView.EvaluateJavaScriptAsync(script);
-            await DisplayAlert("GPS Simulator", $"Location updated (+5km East).\nNew: {lat:F4}, {lon:F4}", "OK");
+            await DisplayAlertAsync("GPS Simulator", $"Location updated (+5km East).\nNew: {lat:F4}, {lon:F4}", "OK");
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", "Could not simulate location: " + ex.Message, "OK");
+            await DisplayAlertAsync("Error", "Could not simulate location: " + ex.Message, "OK");
         }
     }
 

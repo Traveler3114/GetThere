@@ -7,7 +7,7 @@
 
     <Grid RowDefinitions="*,Auto">
         <!-- Animated Background -->
-        <components:AnimatedBackground Grid.RowSpan="2" />
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="2" />
 
         <!-- Map WebView -->
         <WebView x:Name="MapWebView"

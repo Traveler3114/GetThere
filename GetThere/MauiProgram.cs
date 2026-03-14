@@ -1,20 +1,16 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Reflection;
 using GetThere.Helpers;
 using GetThere.Services;
+using SkiaSharp;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using CommunityToolkit.Maui;
+using System.Net.Http.Json;
 
 namespace GetThere
 {
     public static class MauiProgram
     {
-        // the base address we want to hit. localhost works when the app is
-        // running on the same machine (Windows or the iOS simulator), but
-        // Android emulators and physical devices cannot see the host's
-        // loopback interface. 10.0.2.2 is the special alias for the host on
-        // the default Android emulator.  When you deploy to a real device
-        // you'll need to use the machine's LAN IP or a tunnel instead.
         private static string GetApiBaseUrl()
         {
 #if ANDROID
@@ -42,35 +38,37 @@ namespace GetThere
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
-            // AuthService gets a PLAIN HttpClient — no token attached
-            // This makes sense because AuthService IS how you get the token in the first place
-            // You can't attach a token to a login request!
             var baseUrl = GetApiBaseUrl();
+
+            // ── SSL CERTIFICATE BYPASS (Dev only) ──
+            var handler = new HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+
+            // AuthService
             builder.Services.AddHttpClient("AuthService", client =>
             {
                 client.BaseAddress = new Uri(baseUrl);
-            });
+            }).ConfigurePrimaryHttpMessageHandler(() => handler);
+
             builder.Services.AddTransient<AuthService>(sp =>
             {
                 var factory = sp.GetRequiredService<IHttpClientFactory>();
                 return new AuthService(factory.CreateClient("AuthService"));
             });
 
-            // Register the handler so DI knows about it
+            // Authenticated Handler
             builder.Services.AddTransient<AuthenticatedHttpHandler>();
 
             var assembly = Assembly.GetExecutingAssembly();
 
-            // All other services (TicketService, WalletService, etc.) get the
-            // authenticated handler automatically — so every request they make
-            // will have the JWT attached without any extra work
+            // All other services
             var serviceTypes = assembly
                 .GetTypes()
                 .Where(t => t.Namespace == "GetThere.Services"
                          && t.IsClass
                          && !t.IsAbstract
-                         && t != typeof(AuthService)              // already registered above
-                         && t != typeof(AuthenticatedHttpHandler)); // not a service itself
+                         && t != typeof(AuthService)
+                         && t != typeof(AuthenticatedHttpHandler));
 
             foreach (var serviceType in serviceTypes)
             {
@@ -78,7 +76,8 @@ namespace GetThere
                 {
                     client.BaseAddress = new Uri(baseUrl);
                 })
-                .AddHttpMessageHandler<AuthenticatedHttpHandler>(); // <-- attach the handler
+                .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+                .ConfigurePrimaryHttpMessageHandler(() => handler);
 
                 builder.Services.AddTransient(serviceType, sp =>
                 {
@@ -88,7 +87,7 @@ namespace GetThere
                 });
             }
 
-            // Auto-register pages — unchanged
+            // Pages
             var pageTypes = assembly
                 .GetTypes()
                 .Where(t => t.Namespace == "GetThere.Pages"
