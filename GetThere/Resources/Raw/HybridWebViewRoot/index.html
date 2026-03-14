@@ -315,11 +315,15 @@
         let _suppressMapClick = false;
 
         // ─── Stop icon ───────────────────────────────────────────────
-        function makeStopIcon() {
+        // routeType: 0=tram (red), 3=bus (blue, default)
+        function makeStopIcon(routeType) {
+            const isTram = routeType === 0 || routeType === 11;
+            const color = isTram ? '#c62828' : '#1565C0';
+            const label = isTram ? 'T' : 'B';
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                    <circle cx="10" cy="10" r="9" fill="white" stroke="#1565C0" stroke-width="2.5"/>
+                    <circle cx="10" cy="10" r="9" fill="white" stroke="${color}" stroke-width="2.5"/>
                     <text x="10" y="14" text-anchor="middle" font-size="11"
-                          font-family="Arial,sans-serif" font-weight="bold" fill="#1565C0">S</text>
+                          font-family="Arial,sans-serif" font-weight="bold" fill="${color}">${label}</text>
                 </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
@@ -363,10 +367,10 @@
             stopMarkers = [];
 
             stops.forEach(s => {
-                const el = makeStopIcon();
+                const el = makeStopIcon(s.routeType ?? 3);
                 el.addEventListener('click', e => {
                     _suppressMapClick = true;   // prevent map.on('click') from closing the sheet
-                    openSheet(s.stopId, s.name);
+                    openSheet(s.stopId, s.name, s.routeType ?? 3);
                 });
                 const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
                     .setLngLat([s.lon, s.lat]).addTo(map);
@@ -394,10 +398,12 @@
 
         let currentStopId = null;
 
-        function openSheet(stopId, stopName) {
+        function openSheet(stopId, stopName, stopRouteType) {
             currentStopId = stopId;
             sheetName.textContent = stopName;
-            sheetSid.textContent = '#' + stopId;
+            // Show a tram or bus icon in the header
+            const isTram = stopRouteType === 0 || stopRouteType === 11;
+            sheetSid.textContent = (isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
 
             const now = new Date();
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

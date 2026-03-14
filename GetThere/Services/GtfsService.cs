@@ -182,6 +182,8 @@ public class GtfsService
     // Parse Stops
     // ────────────────────────────────────────────────────────────────────
 
+    // REPLACE ParseStopsAsync in GtfsService.cs with this:
+
     public async Task<List<GtfsStopDto>> ParseStopsAsync(int operatorId)
     {
         using var zip = OpenZip(operatorId);
@@ -189,13 +191,15 @@ public class GtfsService
         if (entry is null) return [];
         await using var stream = entry.Open();
         var rows = await ParseCsvAsync(stream);
-        return rows.Select(r => new GtfsStopDto
+        var stops = rows.Select(r => new GtfsStopDto
         {
             StopId = Get(r, "stop_id"),
             Name = Get(r, "stop_name"),
             Lat = ParseDouble(Get(r, "stop_lat")),
             Lon = ParseDouble(Get(r, "stop_lon")),
         }).Where(s => s.Lat != 0 && s.Lon != 0).ToList();
+        ApplyStopRouteTypes(operatorId, stops);
+        return stops;
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -748,6 +752,152 @@ public class GtfsService
     }
 
     // ── Add these two helpers if not already in GtfsService ──────────────────
+
+
+    // ── Add to GtfsService.cs ─────────────────────────────────────────────────
+    // 
+    // 1. Call BuildStopRouteTypeMapAsync(op.Id) at the end of InstallAsync,
+    //    right after BuildTripRouteMapAsync(op.Id).
+    //
+    // 2. In ParseStopsAsync, after building the stop list, call
+    //    ApplyStopRouteTypes(operatorId, stops) before returning.
+    //
+    // 3. Add RouteType = 3 property to GtfsStopDto (default bus).
+
+    // ────────────────────────────────────────────────────────────────────
+    // Stop → RouteType map  (built once at install, cached to disk)
+    // ────────────────────────────────────────────────────────────────────
+
+    private const string StopRouteTypeFile = "stop_route_types.json";
+
+    /// <summary>
+    /// Scans stop_times.txt + trips.txt + routes.txt once at install time.
+    /// For each stop, records the lowest route_type that serves it
+    /// (tram=0 wins over bus=3). Result cached to a small JSON file.
+    /// </summary>
+    public async Task BuildStopRouteTypeMapAsync(int operatorId)
+    {
+        using var zip = OpenZip(operatorId);
+        if (zip is null) return;
+
+        // 1. route_id → route_type  (from routes.txt — tiny file)
+        var routeTypes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var routeEntry = zip.GetEntry("routes.txt");
+        if (routeEntry is not null)
+        {
+            await using var rs = routeEntry.Open();
+            using var rr = new StreamReader(rs);
+            var hdr = (await rr.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iId = IndexOf(cols, "route_id"), iType = IndexOf(cols, "route_type");
+            if (iId >= 0 && iType >= 0)
+            {
+                string? line;
+                while ((line = await rr.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    if (v.Count <= Math.Max(iId, iType)) continue;
+                    var rid = TrimCell(v[iId]);
+                    if (int.TryParse(TrimCell(v[iType]), out int rt) && !string.IsNullOrEmpty(rid))
+                        routeTypes.TryAdd(rid, rt);
+                }
+            }
+        }
+
+        // 2. trip_id → route_type  (from trips.txt — medium file, ~93k rows)
+        var tripTypes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var tripEntry = zip.GetEntry("trips.txt");
+        if (tripEntry is not null)
+        {
+            await using var ts = tripEntry.Open();
+            using var tr = new StreamReader(ts);
+            var hdr = (await tr.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iTrip = IndexOf(cols, "trip_id"), iRoute = IndexOf(cols, "route_id");
+            if (iTrip >= 0 && iRoute >= 0)
+            {
+                string? line;
+                while ((line = await tr.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    if (v.Count <= Math.Max(iTrip, iRoute)) continue;
+                    var tid = TrimCell(v[iTrip]);
+                    var rid = TrimCell(v[iRoute]);
+                    if (!string.IsNullOrEmpty(tid) && routeTypes.TryGetValue(rid, out int rt))
+                        tripTypes.TryAdd(tid, rt);
+                }
+            }
+        }
+
+        // 3. Stream stop_times.txt → build stopId → min(routeType)
+        //    tram (0) beats bus (3) so each stop gets the most "specific" type
+        var stopTypes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var stEntry = zip.GetEntry("stop_times.txt");
+        if (stEntry is not null)
+        {
+            await using var sts = stEntry.Open();
+            using var str = new StreamReader(sts);
+            var hdr = (await str.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iTrip = IndexOf(cols, "trip_id"), iStop = IndexOf(cols, "stop_id");
+            if (iTrip >= 0 && iStop >= 0)
+            {
+                int maxIdx = Math.Max(iTrip, iStop);
+                string? line;
+                while ((line = await str.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    if (v.Count <= maxIdx) continue;
+                    var sid = TrimCell(v[iStop]);
+                    var tid = TrimCell(v[iTrip]);
+                    if (string.IsNullOrEmpty(sid) || !tripTypes.TryGetValue(tid, out int rt)) continue;
+                    // Keep the lowest (most specific) route type per stop
+                    if (!stopTypes.TryGetValue(sid, out int existing) || rt < existing)
+                        stopTypes[sid] = rt;
+                }
+            }
+        }
+
+        // 4. Save to disk next to the zip
+        var path = Path.Combine(GetOperatorDir(operatorId), StopRouteTypeFile);
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(stopTypes));
+        Trace.WriteLine($"[GtfsService] Built stop→routeType map: {stopTypes.Count} stops → {path}");
+    }
+
+    /// <summary>
+    /// Reads the cached stop→routeType map and applies it to a list of stops.
+    /// Call this at the end of ParseStopsAsync before returning.
+    /// </summary>
+    public void ApplyStopRouteTypes(int operatorId, List<GtfsStopDto> stops)
+    {
+        var path = Path.Combine(GetOperatorDir(operatorId), StopRouteTypeFile);
+        if (!File.Exists(path))
+        {
+            Trace.WriteLine($"[GtfsService] stop_route_types.json not found at {path}");
+            return;
+        }
+        try
+        {
+            var map = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(path));
+            if (map is null) { Trace.WriteLine("[GtfsService] stop_route_types.json is null"); return; }
+            int applied = 0;
+            foreach (var s in stops)
+                if (map.TryGetValue(s.StopId, out int rt))
+                { s.RouteType = rt; applied++; }
+            int trams = stops.Count(s => s.RouteType == 0);
+            Trace.WriteLine($"[GtfsService] ApplyStopRouteTypes: {map.Count} entries, {applied}/{stops.Count} applied, {trams} tram stops");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[GtfsService] Failed to load stop route types: {ex.Message}");
+        }
+    }
+
+
+    // ── Also add these two helpers if not already present ─────────────────────
 
     private static int IndexOf(List<string> cols, string name)
     {

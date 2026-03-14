@@ -177,12 +177,21 @@ public partial class MapPage : ContentPage
             {
                 if (!_gtfsApi.IsInstalled(op.Id)) continue;
 
+                // Build stop→routeType cache on first run (or if missing after update)
+                var cacheFile = Path.Combine(_gtfsApi.GetOperatorDir(op.Id), "stop_route_types.json");
+                if (!File.Exists(cacheFile))
+                {
+                    Trace.WriteLine($"[Map] Building stop route type cache for {op.Name}...");
+                    await _gtfsApi.BuildStopRouteTypeMapAsync(op.Id);
+                    Trace.WriteLine($"[Map] Stop route type cache built");
+                }
+
                 var stops = await _gtfsApi.ParseStopsAsync(op.Id);
                 var routes = await _gtfsApi.ParseRoutesAsync(op.Id);
                 Trace.WriteLine($"[Map] {op.Name}: {stops.Count} stops, {routes.Count} routes");
 
                 allStops.AddRange(stops.Select(s => new
-                { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon }));
+                { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon, routeType = s.RouteType }));
 
                 allRoutes.AddRange(routes.Select(r => new
                 {
