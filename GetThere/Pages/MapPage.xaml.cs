@@ -23,6 +23,8 @@ public partial class MapPage : ContentPage
     // tripId → operatorId (built from trip→route map at load time)
     private Dictionary<string, int> _tripOperatorMap = [];
 
+
+
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
         InitializeComponent();
@@ -211,6 +213,7 @@ public partial class MapPage : ContentPage
 
             var allStops = new List<object>();
             var allRoutes = new List<object>();
+            var allStopSchedules = new List<object>();
 
             foreach (var op in operators)
             {
@@ -221,29 +224,44 @@ public partial class MapPage : ContentPage
                     await _gtfsApi.BuildStopRouteTypeMapAsync(op.Id);
 
                 var stops = await _gtfsApi.ParseStopsAsync(op.Id);
+                var stop_schedules = await _gtfsApi.ParseStopTimesAsync(op.Id);
                 var routes = await _gtfsApi.ParseRoutesAsync(op.Id);
                 Trace.WriteLine($"[Map] {op.Name}: {stops.Count} stops, {routes.Count} routes");
+
 
                 allStops.AddRange(stops.Select(s => new
                 { stopId = s.StopId, name = s.Name, lat = s.Lat, lon = s.Lon, routeType = s.RouteType }));
 
                 allRoutes.AddRange(routes.Select(r => new
-                { routeId = r.RouteId, shortName = r.ShortName, color = r.Color, shape = r.Shape, routeType = r.RouteType }));
+                {
+                    routeId = r.RouteId,
+                    shortName = r.ShortName,
+                    color = r.Color,
+                    shape = r.Shape,
+                    routeType = r.RouteType
+                }));
 
-                foreach (var r in routes) _routeTypeMap[r.RouteId] = r.RouteType;
-                foreach (var s in stops) _stopOperatorMap.TryAdd(s.StopId, op.Id);
+                allStopSchedules.AddRange(stop_schedules.Select(ss => new
+                {
+                    tripId = ss.TripId,
+                    arrivalTime = ss.ArrivalTime,
+                    departureTime = ss.DepartureTime,
+                    destination = ss.Destination,
+                    stopId = ss.StopId,
+                }));
 
-                // Build trip→operator map so tripDetail requests know which zip to open
-                var tripRouteMap = _gtfsApi.GetTripRouteMapPublic(op.Id);
-                if (tripRouteMap != null)
-                    foreach (var tripId in tripRouteMap.Keys)
-                        _tripOperatorMap.TryAdd(tripId, op.Id);
 
-                if (_gtfsApi.HasRealtime(op.Id)) _activeRealtimeOperators.Add(op);
+
+                foreach (var r in routes)
+                    _routeTypeMap[r.RouteId] = r.RouteType;
+
+                if (_gtfsApi.HasRealtime(op.Id))
+                    _activeRealtimeOperators.Add(op);
             }
 
             await CallJs("renderStops", allStops);
             await CallJs("renderRoutes", allRoutes);
+            await CallJs("renderStopSchedules", allStopSchedules);
         }
         catch (Exception ex) { Trace.WriteLine($"[Map] Load error: {ex.Message}"); }
     }
@@ -322,6 +340,38 @@ public partial class MapPage : ContentPage
         }
         catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
     }
+
+    private async void OnSimulateLocationClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var location = await Geolocation.GetLastKnownLocationAsync() ?? await Geolocation.GetLocationAsync();
+            if (location == null)
+            {
+                // Default to Zagreb if no location found
+                location = new Location(45.8150, 15.9819);
+            }
+
+            // Move roughly 5km East
+            double lat = location.Latitude;
+            double lon = location.Longitude + 0.065; // ~5km at this latitude
+                
+            var script = $"updateMapLocation({lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {lat.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
+            await MapWebView.EvaluateJavaScriptAsync(script);
+            await DisplayAlertAsync("GPS Simulator", $"Location updated (+5km East).\nNew: {lat:F4}, {lon:F4}", "OK");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlertAsync("Error", "Could not simulate location: " + ex.Message, "OK");
+        }
+    }
+
+
+
+
+
+
+
 
     // ────────────────────────────────────────────────────────────────────
     // Trip detail
@@ -453,4 +503,7 @@ public partial class MapPage : ContentPage
         var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
         await MapWebView.EvaluateJavaScriptAsync($"{fn}(JSON.parse(atob('{base64}')))");
     }
+
+
+
 }

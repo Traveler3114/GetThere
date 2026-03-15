@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.LoginPage"
              Title="Log in"
              BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="24" Spacing="16">
+    <Grid RowDefinitions="*">
+        <!-- Animated background (behind everything) -->
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
+
+        <!-- Main content -->
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout x:Name="ContentLayout" Padding="24" Spacing="16">
+                <VerticalStackLayout.GestureRecognizers>
+                    <PanGestureRecognizer PanUpdated="OnPanUpdate" />
+                </VerticalStackLayout.GestureRecognizers>
 
             <!-- ── HEADER ── -->
             <VerticalStackLayout Spacing="6" Margin="0,48,0,24">
@@ -23,7 +32,7 @@
             <Entry x:Name="EmailEntry"
                    Placeholder="Email address"
                    Keyboard="Email"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
@@ -32,22 +41,25 @@
                 <Entry x:Name="PasswordEntry"
                        Placeholder="Password"
                        IsPassword="True"
-                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       BackgroundColor="Transparent"
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
                        PlaceholderColor="Gray"
-                       Margin="0,0,0,0" />
-                <!-- Eye button floated to the right inside the entry -->
-                <Button x:Name="TogglePasswordBtn"
-                        Text="👁"
-                        FontSize="16"
-                        BackgroundColor="Transparent"
-                        TextColor="Gray"
-                        HorizontalOptions="End"
-                        VerticalOptions="Center"
-                        WidthRequest="48"
-                        HeightRequest="48"
-                        Padding="0"
-                        Clicked="TogglePassword_Clicked" />
+                       Margin="0,0,0,0"
+                       HorizontalOptions="Fill" />
+                <!-- Eye label overlaid on the right side of the entry -->
+                <Label x:Name="TogglePasswordBtn"
+                       Text="Show"
+                       FontSize="13"
+                       TextColor="Gray"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       HorizontalOptions="End"
+                       Padding="10,0"
+                       Margin="0,0,5,0">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
+                    </Label.GestureRecognizers>
+                </Label>
             </Grid>
 
             <!-- ── ERROR ── -->
@@ -60,7 +72,6 @@
             <Button x:Name="LoginButton"
                     Text="Log in"
                     Clicked="LoginButton_Clicked"
-                    BackgroundColor="#4CAF50" TextColor="White"
                     CornerRadius="12" FontAttributes="Bold"
                     HeightRequest="52" Margin="0,8,0,0" />
 
@@ -70,30 +81,33 @@
                                Color="#4CAF50"
                                HorizontalOptions="Center" />
 
-            <!-- ── REGISTER LINK ── -->
-            <HorizontalStackLayout HorizontalOptions="Center"
-                                   Spacing="4" Margin="0,12,0,40">
-                <Label Text="Don't have an account?"
-                       VerticalOptions="Center" FontSize="14" TextColor="Gray" />
-                <Label Text="Create one"
-                       VerticalOptions="Center" FontSize="14"
-                       TextColor="#4CAF50" FontAttributes="Bold">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
-            </HorizontalStackLayout>
 
+            </VerticalStackLayout>
+        </ScrollView>
 
-            <!-- ── CONTINUE AS GUEST ── -->
-            <Button x:Name="ConstineAsGuestButton"
-                Text="CONTINUE AS GUEST"
-                Clicked="GuestButton_Clicked"
-                BackgroundColor="#4CAF50" TextColor="White"
-                CornerRadius="12" FontAttributes="Bold"
-                HeightRequest="52" Margin="0,8,0,0" />
-
-        </VerticalStackLayout>
-    </ScrollView>
+        <!-- ── CUSTOM FOOTER NAVIGATION (Absolute Bottom) ── -->
+        <HorizontalStackLayout Grid.Row="0"
+                               HorizontalOptions="Center" 
+                               VerticalOptions="End"
+                               Spacing="40" 
+                               Padding="0,0,0,20">
+            <Label Text="Login"
+                   FontSize="16"
+                   TextColor="#FF00FF"
+                   FontAttributes="Bold">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="LoginButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label Text="Register"
+                   FontSize="16"
+                   TextColor="Gray"
+                   FontAttributes="Bold">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
+        </HorizontalStackLayout>
+    </Grid>
 
 </ContentPage>

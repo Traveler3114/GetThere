@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.RegistrationPage"
              Title="Create account"
              BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="24" Spacing="12">
+    <Grid RowDefinitions="*">
+        <!-- Animated background (behind everything) -->
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
+
+        <!-- Main content -->
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout x:Name="ContentLayout" Padding="24" Spacing="12">
+                <VerticalStackLayout.GestureRecognizers>
+                    <PanGestureRecognizer PanUpdated="OnPanUpdate" />
+                </VerticalStackLayout.GestureRecognizers>
 
             <!-- ── HEADER ── -->
             <VerticalStackLayout Spacing="6" Margin="0,48,0,24">
@@ -27,21 +36,21 @@
             <Entry x:Name="FullNameEntry"
                    Placeholder="Full name"
                    Keyboard="Text"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
             <Entry x:Name="EmailEntry"
                    Placeholder="Email address"
                    Keyboard="Email"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
             <Entry x:Name="PhoneEntry"
                    Placeholder="Phone (optional)"
                    Keyboard="Telephone"
-                   BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                   BackgroundColor="Transparent"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
                    PlaceholderColor="Gray" />
 
@@ -55,19 +64,23 @@
                 <Entry x:Name="PasswordEntry"
                        Placeholder="Password (min. 8 characters)"
                        IsPassword="True"
-                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       BackgroundColor="Transparent"
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray" />
-                <Button x:Name="TogglePasswordBtn"
-                        Text="👁"
-                        FontSize="16"
-                        BackgroundColor="Transparent"
-                        TextColor="Gray"
-                        HorizontalOptions="End"
-                        VerticalOptions="Center"
-                        WidthRequest="48" HeightRequest="48"
-                        Padding="0"
-                        Clicked="TogglePassword_Clicked" />
+                       PlaceholderColor="Gray"
+                       HorizontalOptions="Fill" />
+                <Label x:Name="TogglePasswordBtn"
+                       Text="Show"
+                       FontSize="13"
+                       TextColor="Gray"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       HorizontalOptions="End"
+                       Padding="10,0"
+                       Margin="0,0,5,0">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
+                    </Label.GestureRecognizers>
+                </Label>
             </Grid>
 
             <!-- Confirm password with eye toggle -->
@@ -75,19 +88,23 @@
                 <Entry x:Name="ConfirmPasswordEntry"
                        Placeholder="Confirm password"
                        IsPassword="True"
-                       BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}"
+                       BackgroundColor="Transparent"
                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray" />
-                <Button x:Name="ToggleConfirmPasswordBtn"
-                        Text="👁"
-                        FontSize="16"
-                        BackgroundColor="Transparent"
-                        TextColor="Gray"
-                        HorizontalOptions="End"
-                        VerticalOptions="Center"
-                        WidthRequest="48" HeightRequest="48"
-                        Padding="0"
-                        Clicked="ToggleConfirmPassword_Clicked" />
+                       PlaceholderColor="Gray"
+                       HorizontalOptions="Fill" />
+                <Label x:Name="ToggleConfirmPasswordBtn"
+                       Text="Show"
+                       FontSize="13"
+                       TextColor="Gray"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       HorizontalOptions="End"
+                       Padding="10,0"
+                       Margin="0,0,5,0">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="ToggleConfirmPassword_Clicked" />
+                    </Label.GestureRecognizers>
+                </Label>
             </Grid>
 
             <!-- ── ERROR ── -->
@@ -100,31 +117,42 @@
             <Button x:Name="RegisterButton"
                     Text="Create account"
                     Clicked="RegisterButton_Clicked"
-                    BackgroundColor="#4CAF50" TextColor="White"
                     CornerRadius="12" FontAttributes="Bold"
                     HeightRequest="52" Margin="0,8,0,0" />
 
             <!-- ── BUSY ── -->
-            <ActivityIndicator x:Name="BusyIndicator"
-                               IsRunning="False" IsVisible="False"
-                               Color="#4CAF50"
-                               HorizontalOptions="Center" />
+            <components:ModernLoader x:Name="BusyIndicator"
+                                     IsRunning="False"
+                                     VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Margin="0,20" />
 
-            <!-- ── LOGIN LINK ── -->
-            <HorizontalStackLayout HorizontalOptions="Center"
-                                   Spacing="4" Margin="0,12,0,40">
-                <Label Text="Already have an account?"
-                       VerticalOptions="Center" FontSize="14" TextColor="Gray" />
-                <Label Text="Log in"
-                       VerticalOptions="Center" FontSize="14"
-                       TextColor="#4CAF50" FontAttributes="Bold">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="LoginButton_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
-            </HorizontalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
 
-        </VerticalStackLayout>
-    </ScrollView>
+        <!-- ── CUSTOM FOOTER NAVIGATION (Absolute Bottom) ── -->
+        <HorizontalStackLayout Grid.Row="0"
+                               HorizontalOptions="Center" 
+                               VerticalOptions="End"
+                               Spacing="40" 
+                               Padding="0,0,0,20">
+            <Label Text="Login"
+                   FontSize="16"
+                   TextColor="Gray"
+                   FontAttributes="Bold">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="LoginButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label Text="Register"
+                   FontSize="16"
+                   TextColor="#FF00FF"
+                   FontAttributes="Bold">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
+                </Label.GestureRecognizers>
+            </Label>
+        </HorizontalStackLayout>
+    </Grid>
 
 </ContentPage>

@@ -1,5 +1,6 @@
 using GetThere.Helpers;
 using GetThere.Services;
+using GetThere.Components;
 using GetThereShared.Dtos;
 using GetThereShared.Enums;
 
@@ -46,10 +47,23 @@ public partial class ProfilePage : ContentPage
 
             if (fullName == null && email == null)
             {
-                PageUtility.ShowError(ErrorLabel, "Not logged in.");
+                // User is not logged in (guest mode)
+                LoginRequiredOverlay.IsVisible = true;
+                LogoutButton.IsVisible = false; 
+                NameLabel.Text = "Guest";
+                EmailLabel.Text = "Not logged in";
+                AvatarLabel.Text = "?";
+                WalletBusy.IsVisible = false;
+                WalletBusy.IsRunning = false;
+                ErrorLabel.IsVisible = false;
+                TicketsBusy.IsVisible = false;
+                TicketsBusy.IsRunning = false;
                 return;
             }
 
+            // User is logged in
+            LoginRequiredOverlay.IsVisible = false;
+            LogoutButton.IsVisible = true; // Show logout for logged in users
             NameLabel.Text = fullName ?? "User";
             EmailLabel.Text = email ?? string.Empty;
             AvatarLabel.Text = string.IsNullOrWhiteSpace(fullName)
@@ -226,8 +240,6 @@ public partial class ProfilePage : ContentPage
         await LoadHistoryAsync();
     }
 
-    // ── Filter chips ───────────────────────────────────────────────────────
-
     private void ActiveFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Active);
 
@@ -237,11 +249,8 @@ public partial class ProfilePage : ContentPage
     private void UsedFilter_Clicked(object? sender, EventArgs e)
         => ApplyTicketFilter(TicketStatus.Used);
 
-    // ── Top Up ─────────────────────────────────────────────────────────────
-
     private async void TopUpButton_Clicked(object? sender, EventArgs e)
     {
-        // ── Step 1: Enter amount ───────────────────────────────────────────
         var input = await DisplayPromptAsync(
             "Top Up Wallet",
             "Enter amount to add (€):",
@@ -263,8 +272,7 @@ public partial class ProfilePage : ContentPage
             return;
         }
 
-        // ── Step 2: Load providers ─────────────────────────────────────────
-        PageUtility.SetBusy(BusyIndicator, TopUpButton, true);
+        PageUtility.SetBusy(WalletBusy, TopUpButton, true);
         ErrorLabel.IsVisible = false;
 
         List<PaymentProviderDto> providers;
@@ -285,10 +293,9 @@ public partial class ProfilePage : ContentPage
         }
         finally
         {
-            PageUtility.SetBusy(BusyIndicator, TopUpButton, false);
+            PageUtility.SetBusy(WalletBusy, TopUpButton, false);
         }
 
-        // ── Step 3: Pick a provider ────────────────────────────────────────
         var converter = new ProviderIconConverter();
 
         var providerNames = providers
@@ -306,7 +313,6 @@ public partial class ProfilePage : ContentPage
 
         var selectedProvider = providers[Array.IndexOf(providerNames, chosen)];
 
-        // ── Step 4: Confirm ────────────────────────────────────────────────
         var confirmed = await DisplayAlertAsync(
             "Confirm Top Up",
             $"Add €{amount:F2} to your wallet via {selectedProvider.Name}?",
@@ -316,8 +322,7 @@ public partial class ProfilePage : ContentPage
         if (!confirmed)
             return;
 
-        // ── Step 5: Process ────────────────────────────────────────────────
-        PageUtility.SetBusy(BusyIndicator, TopUpButton, true);
+        PageUtility.SetBusy(WalletBusy, TopUpButton, true);
         ErrorLabel.IsVisible = false;
 
         try
@@ -346,11 +351,35 @@ public partial class ProfilePage : ContentPage
         }
         finally
         {
-            PageUtility.SetBusy(BusyIndicator, TopUpButton, false);
+            PageUtility.SetBusy(WalletBusy, TopUpButton, false);
         }
     }
 
-    // ── Logout ─────────────────────────────────────────────────────────────
+    private async void RefreshBalance_Clicked(object? sender, EventArgs e)
+    {
+        RefreshBusy.IsVisible = true;
+        RefreshBusy.IsRunning = true;
+        await LoadWalletAsync();
+        RefreshBusy.IsVisible = false;
+        RefreshBusy.IsRunning = false;
+    }
+
+    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
+    {
+        // Using FindByName as a workaround for cases where the auto-generated field 'AnimatedBg' 
+        // is not recognized by the compiler/IDE in the partial class.
+        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
+        if (animatedBg != null)
+        {
+            animatedBg.XOffset = (float)e.TotalX;
+            animatedBg.YOffset = (float)e.TotalY;
+        }
+    }
+
+    private void GoBackToLogInButton_Clicked(object? sender, EventArgs e)
+    {
+        App.GoToLogin();
+    }
 
     private void LogoutButton_Clicked(object? sender, EventArgs e)
     {

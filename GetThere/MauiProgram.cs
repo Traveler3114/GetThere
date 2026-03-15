@@ -1,61 +1,83 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Reflection;
 using GetThere.Helpers;
 using GetThere.Services;
+using SkiaSharp;
+using SkiaSharp.Views.Maui.Controls.Hosting;
+using CommunityToolkit.Maui;
+using System.Net.Http.Json;
 
 namespace GetThere
 {
     public static class MauiProgram
     {
-        private const string ApiBaseUrl = "https://localhost:7230/";
+        private static string GetApiBaseUrl()
+        {
+#if ANDROID
+            // default Android emulator
+            return "http://10.0.2.2:5000/";
+#elif IOS || MACCATALYST
+            // iOS simulator and Mac Catalyst can hit localhost directly
+            return "https://localhost:7230/";
+#else
+            // Windows, desktop builds, etc.
+            return "https://localhost:7230/";
+#endif
+        }
 
         public static MauiApp CreateMauiApp()
         {
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .UseSkiaSharp()
+                .UseMauiCommunityToolkit()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
-            // AuthService gets a PLAIN HttpClient — no token attached
-            // This makes sense because AuthService IS how you get the token in the first place
-            // You can't attach a token to a login request!
+            var baseUrl = GetApiBaseUrl();
+
+            // ── SSL CERTIFICATE BYPASS (Dev only) ──
+            var handler = new HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+
+            // AuthService
             builder.Services.AddHttpClient("AuthService", client =>
             {
-                client.BaseAddress = new Uri(ApiBaseUrl);
-            });
+                client.BaseAddress = new Uri(baseUrl);
+            }).ConfigurePrimaryHttpMessageHandler(() => handler);
+
             builder.Services.AddTransient<AuthService>(sp =>
             {
                 var factory = sp.GetRequiredService<IHttpClientFactory>();
                 return new AuthService(factory.CreateClient("AuthService"));
             });
 
-            // Register the handler so DI knows about it
+            // Authenticated Handler
             builder.Services.AddTransient<AuthenticatedHttpHandler>();
 
             var assembly = Assembly.GetExecutingAssembly();
 
-            // All other services (TicketService, WalletService, etc.) get the
-            // authenticated handler automatically — so every request they make
-            // will have the JWT attached without any extra work
+            // All other services
             var serviceTypes = assembly
                 .GetTypes()
                 .Where(t => t.Namespace == "GetThere.Services"
                          && t.IsClass
                          && !t.IsAbstract
-                         && t != typeof(AuthService)              // already registered above
-                         && t != typeof(AuthenticatedHttpHandler)); // not a service itself
+                         && t != typeof(AuthService)
+                         && t != typeof(AuthenticatedHttpHandler));
 
             foreach (var serviceType in serviceTypes)
             {
                 builder.Services.AddHttpClient(serviceType.Name, client =>
                 {
-                    client.BaseAddress = new Uri(ApiBaseUrl);
+                    client.BaseAddress = new Uri(baseUrl);
                 })
-                .AddHttpMessageHandler<AuthenticatedHttpHandler>(); // <-- attach the handler
+                .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+                .ConfigurePrimaryHttpMessageHandler(() => handler);
 
                 builder.Services.AddTransient(serviceType, sp =>
                 {
@@ -65,7 +87,7 @@ namespace GetThere
                 });
             }
 
-            // Auto-register pages — unchanged
+            // Pages
             var pageTypes = assembly
                 .GetTypes()
                 .Where(t => t.Namespace == "GetThere.Pages"

@@ -1,18 +1,34 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.MapPage"
              Title="MapPage">
 
-    <Grid>
+    <Grid RowDefinitions="*,Auto">
+        <!-- Animated Background -->
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="2" />
+
         <!-- Map WebView -->
-        <HybridWebView x:Name="MapWebView"
-                     HybridRoot="HybridWebViewRoot"
-                     HorizontalOptions="Fill"
-                     VerticalOptions="Fill" />
+        <WebView x:Name="MapWebView"
+                 Grid.Row="0"
+                 Source="HybridWebViewRoot/index.html"
+                 HorizontalOptions="Fill"
+                 VerticalOptions="Fill" />
+
+        <Button
+                Grid.Row="1"
+                x:Name="SimulateLocationBtn"
+                Text="Stimuliraj GPS pokret (5km)"
+                Clicked="OnSimulateLocationClicked"
+                HorizontalOptions="Fill"
+                BackgroundColor="#2196F3"
+                TextColor="White"
+                Margin="10" />
 
         <!-- Loading Overlay -->
         <Grid x:Name="LoadingOverlay"
+              Grid.Row="0"
               IsVisible="True"
               BackgroundColor="#80000000"
               HorizontalOptions="Fill"
@@ -34,6 +50,4 @@
             </VerticalStackLayout>
         </Grid>
     </Grid>
-    
-
 </ContentPage>

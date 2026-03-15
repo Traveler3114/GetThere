@@ -1,5 +1,6 @@
 using GetThere.Helpers;
 using GetThere.Services;
+using GetThere.Components;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -7,7 +8,6 @@ namespace GetThere.Pages;
 public partial class LoginPage : ContentPage
 {
     private readonly AuthService _authService;
-    private bool _passwordVisible = false;
 
     public LoginPage(AuthService authService)
     {
@@ -15,11 +15,10 @@ public partial class LoginPage : ContentPage
         _authService = authService;
     }
 
-    private void TogglePassword_Clicked(object? sender, EventArgs e)
+    private void TogglePassword_Clicked(object sender, EventArgs e)
     {
-        _passwordVisible = !_passwordVisible;
-        PasswordEntry.IsPassword = !_passwordVisible;
-        TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
+        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
+        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
     }
 
     private async void LoginButton_Clicked(object? sender, EventArgs e)
@@ -66,9 +65,20 @@ public partial class LoginPage : ContentPage
     }
 
     private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
-        => await Shell.Current.GoToAsync("registration");
+    {
+        App.GoToRegistration();
+    }
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)
         => App.GoToApp();
 
+    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
+    {
+        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
+        if (animatedBg != null)
+        {
+            animatedBg.XOffset = (float)e.TotalX;
+            animatedBg.YOffset = (float)e.TotalY;
+        }
+    }
 }

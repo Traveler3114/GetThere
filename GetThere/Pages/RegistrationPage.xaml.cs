@@ -1,5 +1,6 @@
 using GetThere.Helpers;
 using GetThere.Services;
+using GetThere.Components;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -7,8 +8,6 @@ namespace GetThere.Pages;
 public partial class RegistrationPage : ContentPage
 {
     private readonly AuthService _authService;
-    private bool _passwordVisible = false;
-    private bool _confirmPasswordVisible = false;
 
     public RegistrationPage(AuthService authService)
     {
@@ -16,18 +15,16 @@ public partial class RegistrationPage : ContentPage
         _authService = authService;
     }
 
-    private void TogglePassword_Clicked(object? sender, EventArgs e)
+    private void TogglePassword_Clicked(object sender, EventArgs e)
     {
-        _passwordVisible = !_passwordVisible;
-        PasswordEntry.IsPassword = !_passwordVisible;
-        TogglePasswordBtn.Text = _passwordVisible ? "🙈" : "👁";
+        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
+        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
     }
 
-    private void ToggleConfirmPassword_Clicked(object? sender, EventArgs e)
+    private void ToggleConfirmPassword_Clicked(object sender, EventArgs e)
     {
-        _confirmPasswordVisible = !_confirmPasswordVisible;
-        ConfirmPasswordEntry.IsPassword = !_confirmPasswordVisible;
-        ToggleConfirmPasswordBtn.Text = _confirmPasswordVisible ? "🙈" : "👁";
+        ConfirmPasswordEntry.IsPassword = !ConfirmPasswordEntry.IsPassword;
+        ToggleConfirmPasswordBtn.Text = ConfirmPasswordEntry.IsPassword ? "Show" : "Hide";
     }
 
     private async void RegisterButton_Clicked(object? sender, EventArgs e)
@@ -76,7 +73,7 @@ public partial class RegistrationPage : ContentPage
             if (result.Success)
             {
                 await DisplayAlertAsync("Account created", "You can now log in.", "Continue");
-                await Shell.Current.GoToAsync("//login");
+                await Shell.Current.GoToAsync("///login");
             }
             else
             {
@@ -94,5 +91,15 @@ public partial class RegistrationPage : ContentPage
     }
 
     private async void LoginButton_Clicked(object? sender, TappedEventArgs e)
-        => await Shell.Current.GoToAsync("//login");
+        => await Shell.Current.GoToAsync("///login");
+
+    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
+    {
+        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
+        if (animatedBg != null)
+        {
+            animatedBg.XOffset = (float)e.TotalX;
+            animatedBg.YOffset = (float)e.TotalY;
+        }
+    }
 }

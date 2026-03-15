@@ -1,9 +1,11 @@
+//using Android.AdServices.Topics;
 using GetThere.Helpers;
 using GetThere.Services.Realtime;
 using GetThereShared.Dtos;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
+using Google.Protobuf;
 
 namespace GetThere.Services;
 
@@ -60,8 +62,6 @@ public class GtfsService
         }
         finally { _zipLock.Release(); }
 
-        MarkInstalled(op.Id);
-        if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
             SaveOperatorConfig(op);
 
         await BuildTripRouteMapAsync(op.Id);
@@ -196,6 +196,31 @@ public class GtfsService
         return msg;
     }
 
+
+
+    // ────────────────────────────────────────────────────────────────────
+    // Parse STOP ŠULDES
+    // ────────────────────────────────────────────────────────────────────
+
+    public async Task<List<GtfsStopSchedule>> ParseStopTimesAsync(int operatorId)
+    {
+        using var zip = OpenZip(operatorId);
+        var entry = zip?.GetEntry("stop_times.txt");
+        if (entry is null) return [];
+        await using var stream = entry.Open();
+        var rows = await ParseCsvAsync(stream);
+        return rows.Select(r => new GtfsStopSchedule
+        {
+            TripId = Get(r, "trip_id"),
+            ArrivalTime = Get(r, "arrival_time"),
+            DepartureTime = Get(r, "departure_time"),
+            Destination = Get(r, "stop_headsign"),
+            StopId = Get(r, "stop_id"),
+        }).ToList();
+    }
+
+
+
     // ────────────────────────────────────────────────────────────────────
     // Parse Stops
     // ────────────────────────────────────────────────────────────────────
@@ -207,23 +232,15 @@ public class GtfsService
         if (entry is null) return [];
         await using var stream = entry.Open();
         var rows = await ParseCsvAsync(stream);
-        var stops = rows
-            .Where(r =>
-            {
-                var lt = Get(r, "location_type");
-                return lt == "" || lt == "0"; // exclude parent stations (type=1)
-            })
-            .Select(r => new GtfsStopDto
-            {
-                StopId = Get(r, "stop_id"),
-                Name = Get(r, "stop_name"),
-                Lat = ParseDouble(Get(r, "stop_lat")),
-                Lon = ParseDouble(Get(r, "stop_lon")),
-            })
-            .Where(s => s.Lat != 0 && s.Lon != 0)
-            .ToList();
-        ApplyStopRouteTypes(operatorId, stops);
-        return stops;
+        return rows.Select(r => new GtfsStopDto
+        {
+            StopId = Get(r, "stop_id"),
+            Name = Get(r, "stop_name"),
+            Lat = ParseDouble(Get(r, "stop_lat")),
+            Lon = ParseDouble(Get(r, "stop_lon")),
+        })
+        .Where(s => s.StopId.Contains('_'))
+        .ToList();
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -246,7 +263,7 @@ public class GtfsService
             RouteId = Get(r, "route_id"),
             ShortName = Get(r, "route_short_name"),
             LongName = Get(r, "route_long_name"),
-            Color = string.IsNullOrWhiteSpace(Get(r, "route_color")) ? null : Get(r, "route_color"),
+            Color = string.IsNullOrWhiteSpace(Get(r, "route_color")) ? "1a73e8" : Get(r, "route_color"),
             RouteType = int.TryParse(Get(r, "route_type"), out var rt) ? rt : 3,
         }).ToList();
 
