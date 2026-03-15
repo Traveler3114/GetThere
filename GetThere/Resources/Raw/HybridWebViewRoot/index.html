@@ -552,6 +552,25 @@
         let vehicleMarkers = {}, activeRouteId = null, stopMarkers = [];
         let _suppressMapClick = false;
 
+        // ─── All panel element refs declared up-front ─────────────────
+        // (must be before any function that references them)
+        const sheet = document.getElementById('stop-sheet');
+        const sheetName = document.getElementById('sheet-stop-name');
+        const sheetSid = document.getElementById('sheet-stop-id');
+        const sheetDate = document.getElementById('sheet-date');
+        const sheetLoad = document.getElementById('sheet-loading');
+        const sheetEmpty = document.getElementById('sheet-empty');
+        const sheetBody = document.getElementById('sheet-body');
+
+        const tripPanel = document.getElementById('trip-panel');
+        const tripPill = document.getElementById('trip-panel-pill');
+        const tripHead = document.getElementById('trip-panel-headsign');
+        const tripSubtitle = document.getElementById('trip-panel-subtitle');
+        const tripLoading = document.getElementById('trip-panel-loading');
+        const tripBody = document.getElementById('trip-panel-body');
+
+        let currentStopId = null;
+
         // ─── Helpers ─────────────────────────────────────────────────
         function typeColor(t) {
             if (t === 0) return 'e53935';
@@ -608,19 +627,12 @@
         }
 
         // ─── Stop schedule sheet ──────────────────────────────────────
-        const sheet = document.getElementById('stop-sheet');
-        const sheetName = document.getElementById('sheet-stop-name');
-        const sheetSid = document.getElementById('sheet-stop-id');
-        const sheetDate = document.getElementById('sheet-date');
-        const sheetLoad = document.getElementById('sheet-loading');
-        const sheetEmpty = document.getElementById('sheet-empty');
-        const sheetBody = document.getElementById('sheet-body');
         document.getElementById('sheet-close').addEventListener('click', e => { e.stopPropagation(); closeStopSheet(); });
         sheet.addEventListener('click', e => e.stopPropagation());
 
-        let currentStopId = null;
-
         function openStopSheet(stopId, stopName, stopRouteType) {
+            // Close trip panel instantly
+            tripPanel.classList.remove('open');
             currentStopId = stopId;
             sheetName.textContent = stopName;
             const isTram = stopRouteType === 0 || stopRouteType === 11;
@@ -632,7 +644,6 @@
             sheetEmpty.style.display = 'none';
             sheetBody.innerHTML = '';
             sheet.classList.add('open');
-            closeTripPanel(); // close trip panel if open
             window._pendingMsg = 'stopSchedule:' + stopId;
         }
 
@@ -706,12 +717,6 @@
         }
 
         // ─── Trip detail panel ────────────────────────────────────────
-        const tripPanel = document.getElementById('trip-panel');
-        const tripPill = document.getElementById('trip-panel-pill');
-        const tripHead = document.getElementById('trip-panel-headsign');
-        const tripSubtitle = document.getElementById('trip-panel-subtitle');
-        const tripLoading = document.getElementById('trip-panel-loading');
-        const tripBody = document.getElementById('trip-panel-body');
         document.getElementById('trip-panel-close').addEventListener('click', e => { e.stopPropagation(); closeTripPanel(); });
         tripPanel.addEventListener('click', e => e.stopPropagation());
 
@@ -720,6 +725,9 @@
         }
 
         function openTripPanel(tripId) {
+            // Close stop sheet instantly — not just animate, fully hide
+            sheet.classList.remove('open');
+            currentStopId = null;
             // Show loading state immediately
             tripPill.className = 'route-pill bus'; tripPill.textContent = '…';
             tripHead.textContent = 'Loading…';
@@ -843,13 +851,12 @@
                 const rId = v.routeId || '', rType = routeTypeMap[rId] ?? v.routeType ?? 3;
                 const color = typeColor(rType), sName = routeNameMap[rId] || rId || '';
                 if (vehicleMarkers[v.vehicleId]) {
-                    const entry = vehicleMarkers[v.vehicleId];
-                    entry.marker.setLngLat([v.lon, v.lat]); entry.routeId = rId;
-                    const domEl = entry.marker.getElement();
-                    const tmp = makeVehicleIcon(color, rType, v.bearing, sName);
-                    domEl.innerHTML = tmp.innerHTML; domEl.style.cssText = tmp.style.cssText;
-                    domEl.onclick = null; attachVehicleClick(domEl, v, color, rId);
-                } else {
+                    // Remove old marker and recreate — avoids fighting MapLibre's
+                    // internal transform/positioning on getElement()
+                    vehicleMarkers[v.vehicleId].marker.remove();
+                    delete vehicleMarkers[v.vehicleId];
+                }
+                {
                     const el = makeVehicleIcon(color, rType, v.bearing, sName);
                     attachVehicleClick(el, v, color, rId);
                     vehicleMarkers[v.vehicleId] = {
