@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Map Pin Body with Hole -->
+  <path fill-rule="evenodd" clip-rule="evenodd" 
+        d="M12 19.5C12 19.5 18 14.5 18 9.5C18 6.18629 15.3137 3.5 12 3.5C8.68629 3.5 6 6.18629 6 9.5C6 14.5 12 19.5 12 19.5ZM12 12C13.3807 12 14.5 10.8807 14.5 9.5C14.5 8.11929 13.3807 7 12 7C10.6193 7 9.5 8.11929 9.5 9.5C9.5 10.8807 10.6193 12 12 12Z" 
+        stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Ground Ellipse -->
+  <path d="M7 21C7 21 7 19.5 12 19.5C17 19.5 17 21 17 21" 
+        stroke="black" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

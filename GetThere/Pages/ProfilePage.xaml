@@ -295,6 +295,6 @@
         </Grid>
 
         <!-- ── CUSTOM BOTTOM BAR ── -->
-        <components:CustomBottomBar Grid.RowSpan="2" VerticalOptions="End" />
+        <components:CustomBottomBar Grid.Row="1" VerticalOptions="End" />
     </Grid>
 </ContentPage>

@@ -17,7 +17,7 @@
             Route="profile" />
         <ShellContent
             Title="Map"
-            Icon="icon_map.svg"
+            Icon="icon_location_pin.svg"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent

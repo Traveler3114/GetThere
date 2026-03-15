@@ -5,60 +5,87 @@
              x:Class="GetThere.Components.CustomBottomBar"
              x:Name="this">
 
-    <Border VerticalOptions="End"
-            HorizontalOptions="Center"
-            HeightRequest="80"
-            WidthRequest="300"
-            Margin="0,0,0,30"
-            BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
-            StrokeThickness="1"
-            Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
-        <Border.StrokeShape>
-            <RoundRectangle CornerRadius="40" />
-        </Border.StrokeShape>
+    <Grid VerticalOptions="End" HorizontalOptions="Center" WidthRequest="460" Margin="40,0,0,30" IgnoreSafeArea="True" ColumnDefinitions="Auto,300,Auto">
+        
+        <!-- ── LOGOUT CIRCLE (Left) ── -->
+        <Border Grid.Column="0"
+                WidthRequest="60"
+                HeightRequest="60"
+                Margin="0,0,15,0"
+                VerticalOptions="Center"
+                BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
+                StrokeThickness="1"
+                Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="30" />
+            </Border.StrokeShape>
+            <Image Source="icon_logout.svg" WidthRequest="26" HeightRequest="26">
+                <Image.Behaviors>
+                    <toolkit:IconTintColorBehavior TintColor="Gray" />
+                </Image.Behaviors>
+            </Image>
+            <Border.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnConfirmLogoutClicked" />
+            </Border.GestureRecognizers>
+        </Border>
 
-        <Grid ColumnDefinitions="*,*,*" Padding="5">
-            <!-- Profile Tab -->
-            <ContentView Grid.Column="0">
-                <Image Source="icon_profile.svg" 
-                       WidthRequest="32" HeightRequest="32"
-                       Aspect="AspectFit">
-                    <Image.Behaviors>
-                        <toolkit:IconTintColorBehavior x:Name="ProfileTint" TintColor="Gray" />
-                    </Image.Behaviors>
-                </Image>
-                <ContentView.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnProfileTapped" />
-                </ContentView.GestureRecognizers>
-            </ContentView>
+        <!-- ── MAIN BOTTOM BAR (Center) ── -->
+        <Border Grid.Column="1"
+                HeightRequest="80"
+                WidthRequest="300"
+                BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
+                StrokeThickness="1"
+                Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="40" />
+            </Border.StrokeShape>
 
-            <!-- Map Tab -->
-            <ContentView Grid.Column="1">
-                <Image Source="icon_map.svg" 
-                       WidthRequest="32" HeightRequest="32"
-                       Aspect="AspectFit">
-                    <Image.Behaviors>
-                        <toolkit:IconTintColorBehavior x:Name="MapTint" TintColor="Gray" />
-                    </Image.Behaviors>
-                </Image>
-                <ContentView.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnMapTapped" />
-                </ContentView.GestureRecognizers>
-            </ContentView>
+            <Grid ColumnDefinitions="*,*,*" Padding="5">
+                <!-- Profile Tab -->
+                <ContentView Grid.Column="0" x:Name="ProfileTabContainer">
+                    <Image Source="icon_profile.svg" 
+                           WidthRequest="32" HeightRequest="32"
+                           Aspect="AspectFit">
+                        <Image.Behaviors>
+                            <toolkit:IconTintColorBehavior x:Name="ProfileTint" TintColor="Gray" />
+                        </Image.Behaviors>
+                    </Image>
+                    <ContentView.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnProfileTapped" />
+                    </ContentView.GestureRecognizers>
+                </ContentView>
 
-            <!-- Operators Tab -->
-            <ContentView Grid.Column="2">
-                <Image Source="icon_operators.svg" 
-                       WidthRequest="32" HeightRequest="32"
-                       Aspect="AspectFit">
-                    <Image.Behaviors>
-                        <toolkit:IconTintColorBehavior x:Name="OperatorsTint" TintColor="Gray" />
-                    </Image.Behaviors>
-                </Image>
-                <ContentView.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnOperatorsTapped" />
-                </ContentView.GestureRecognizers>
-            </ContentView>
-        </Grid>
-    </Border>
+                <!-- Map Tab -->
+                <ContentView Grid.Column="1">
+                    <Image Source="icon_location_pin.svg" 
+                           WidthRequest="32" HeightRequest="32"
+                           Aspect="AspectFit">
+                        <Image.Behaviors>
+                            <toolkit:IconTintColorBehavior x:Name="MapTint" TintColor="Gray" />
+                        </Image.Behaviors>
+                    </Image>
+                    <ContentView.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnMapTapped" />
+                    </ContentView.GestureRecognizers>
+                </ContentView>
+
+                <!-- Operators Tab -->
+                <ContentView Grid.Column="2">
+                    <Image Source="icon_operators.svg" 
+                           WidthRequest="32" HeightRequest="32"
+                           Aspect="AspectFit">
+                        <Image.Behaviors>
+                            <toolkit:IconTintColorBehavior x:Name="OperatorsTint" TintColor="Gray" />
+                        </Image.Behaviors>
+                    </Image>
+                    <ContentView.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnOperatorsTapped" />
+                    </ContentView.GestureRecognizers>
+                </ContentView>
+            </Grid>
+        </Border>
+
+        <!-- Invisible Spacer to balance the Logout button (keeps bar perfectly centered) -->
+        <ContentView Grid.Column="2" WidthRequest="60" Margin="20,0,0,0" />
+    </Grid>
 </ContentView>

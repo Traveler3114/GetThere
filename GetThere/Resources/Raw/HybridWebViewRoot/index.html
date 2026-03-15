@@ -349,6 +349,26 @@
             input:checked + .slider:before {
                 transform: translateX(22px);
         }
+
+        /* Vehicle Marker Styles */
+        .v-label {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 11px;
+            font-weight: 900;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 5;
+            white-space: nowrap;
+        }
+
+        .vehicle-marker-container svg {
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -437,33 +457,79 @@
             return el;
         }
 
+        const VEHICLE_ICONS = [
+            // Icon 1: Bus Side
+            `<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 12V24C4 26.2091 5.79086 28 8 28H28C30.2091 28 32 26.2091 32 24V14C32 11.7909 30.2091 10 28 10H12L4 12Z" fill="{HEX}" stroke="white" stroke-width="1.5"/>
+                <rect x="6" y="14" width="6" height="6" rx="1" fill="white" fill-opacity="0.3"/>
+                <rect x="14" y="14" width="6" height="6" rx="1" fill="white" fill-opacity="0.3"/>
+                <rect x="22" y="14" width="6" height="6" rx="1" fill="white" fill-opacity="0.3"/>
+                <circle cx="9" cy="28" r="3.5" fill="#333" stroke="white" stroke-width="1.5"/>
+                <circle cx="27" cy="28" r="3.5" fill="#333" stroke="white" stroke-width="1.5"/>
+            </svg>`,
+            // Icon 2: Tram Side (with pantograph)
+            `<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 4L14 8H22L18 4Z" fill="white"/>
+                <path d="M18 4V8" stroke="white" stroke-width="1.5"/>
+                <path d="M4 14V24C4 26.2091 5.79086 28 8 28H28C30.2091 28 32 26.2091 32 24V14C32 11.7909 30.2091 10 28 10H8C5.79086 10 4 11.7909 4 14Z" fill="{HEX}" stroke="white" stroke-width="1.5"/>
+                <rect x="7" y="14" width="22" height="6" rx="1" fill="white" fill-opacity="0.3"/>
+                <rect x="6" y="22" width="2" height="4" fill="white" fill-opacity="0.5"/>
+                <rect x="28" y="22" width="2" height="4" fill="white" fill-opacity="0.5"/>
+                <circle cx="10" cy="28" r="3" fill="#333" stroke="white" stroke-width="1"/>
+                <circle cx="26" cy="28" r="3" fill="#333" stroke="white" stroke-width="1"/>
+            </svg>`,
+            // Icon 3: Tram Front
+            `<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 2L14 6H22L18 2Z" fill="white"/>
+                <path d="M18 2V8" stroke="white" stroke-width="1.5"/>
+                <path d="M10 10C8.89543 10 8 10.8954 8 12V28C8 29.1046 8.89543 30 10 30H26C27.1046 30 28 29.1046 28 28V12C28 10.8954 27.1046 10 26 10H10Z" fill="{HEX}" stroke="white" stroke-width="1.5"/>
+                <rect x="11" y="13" width="14" height="8" rx="1" fill="white" fill-opacity="0.3"/>
+                <circle cx="12" cy="26" r="2" fill="white"/>
+                <circle cx="24" cy="26" r="2" fill="white"/>
+                <rect x="13" y="28" width="10" height="2" fill="#333"/>
+            </svg>`
+        ];
+
+        let iconRotationIndex = 0;
+        setInterval(() => {
+            iconRotationIndex = (iconRotationIndex + 1) % 3;
+            // Global trigger to update all markers
+            document.querySelectorAll('.vehicle-marker-inner').forEach(el => {
+                const hex = el.dataset.hex;
+                const label = el.dataset.label;
+                el.innerHTML = VEHICLE_ICONS[iconRotationIndex].replace('{HEX}', hex) + 
+                             `<div class="v-label">${label}</div>`;
+            });
+        }, 3000); // Rotate every 3 seconds
+
         function makeVehicleIcon(color, routeType, bearing, shortName) {
             const hex = '#' + (color || 'e53935').replace('#', '');
-            const isTram = (routeType === 0 || routeType === 11);
-            const isRail = (routeType === 1 || routeType === 2);
             const label = shortName || '';
-            const borderColor = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
-
-            const svg = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                    <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
-                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6" fill="${hex}" stroke="${borderColor}" stroke-width="2"/>
-                    <text x="8" y="21" text-anchor="middle" font-size="9" font-family="Arial" fill="rgba(255,255,255,0.75)">
-                        ${isTram ? '🚋' : isRail ? '🚇' : '🚌'}
-                    </text>
-                    <text x="20" y="27" text-anchor="middle" font-size="${label.length > 2 ? '9' : '11'}" font-family="Arial, sans-serif" font-weight="bold" fill="white">
-                        ${label}
-                    </text>
-                </svg>`;
-
+            
             const el = document.createElement('div');
-            el.innerHTML = svg;
+            el.className = 'vehicle-marker-container';
             el.style.cssText = `
-                cursor: pointer; width: 36px; height: 42px;
-                transform: rotate(${bearing || 0}deg);
-                transform-origin: 18px 21px;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+                width: 44px; height: 44px;
+                display: flex; align-items: center; justify-content: center;
+                filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+                cursor: pointer;
+                transition: transform 0.3s ease;
             `;
+
+            const inner = document.createElement('div');
+            inner.className = 'vehicle-marker-inner';
+            inner.dataset.hex = hex;
+            inner.dataset.label = label;
+            inner.style.cssText = `
+                width: 100%; height: 100%;
+                position: relative;
+                transform: rotate(${bearing || 0}deg);
+            `;
+            
+            inner.innerHTML = VEHICLE_ICONS[iconRotationIndex].replace('{HEX}', hex) + 
+                             `<div class="v-label">${label}</div>`;
+
+            el.appendChild(inner);
             return el;
         }
 

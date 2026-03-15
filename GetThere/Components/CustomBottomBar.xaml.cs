@@ -1,17 +1,17 @@
+using System;
 using System.Windows.Input;
+using System.Threading.Tasks;
 using GetThere.Services;
 using CommunityToolkit.Maui.Behaviors;
+using Microsoft.Maui.Controls;
 
 namespace GetThere.Components;
 
 public partial class CustomBottomBar : ContentView
 {
-    public ICommand ProfileLongPressCommand { get; }
-
     public CustomBottomBar()
     {
         InitializeComponent();
-        ProfileLongPressCommand = new Command(async () => await OnProfileLongPressed());
     }
 
     protected override void OnHandlerChanged()
@@ -58,17 +58,16 @@ public partial class CustomBottomBar : ContentView
         await Shell.Current.GoToAsync("///profile");
     }
 
-    private async Task OnProfileLongPressed()
+    private async void OnConfirmLogoutClicked(object? sender, EventArgs e)
     {
-        bool confirm = await Shell.Current.DisplayAlertAsync("Log Out", "Are you sure you want to log out?", "Yes", "No");
-        if (confirm)
-        {
-            // Resolve AuthService to log out properly
-            var authService = IPlatformApplication.Current?.Services.GetService<AuthService>();
-            authService?.Logout();
-            
-            App.GoToLogin();
-        }
+        bool confirm = await Shell.Current.DisplayAlert("Logout", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+
+        // Perform actual logout
+        var authService = IPlatformApplication.Current?.Services.GetService<AuthService>();
+        authService?.Logout();
+        
+        App.GoToLogin();
     }
 
     private async void OnMapTapped(object? sender, TappedEventArgs e)

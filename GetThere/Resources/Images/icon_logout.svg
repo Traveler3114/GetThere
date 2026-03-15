@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bracket/Door -->
+  <path d="M10 3H15C17.2091 3 19 4.79086 19 7V17C19 19.2091 17.2091 21 15 21H10" 
+        stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow -->
+  <path d="M10 12H3M3 12L6 9M3 12L6 15" 
+        stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
