@@ -1,3 +1,4 @@
+#nullable enable
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using System.Diagnostics;
@@ -113,7 +114,7 @@ public partial class AnimatedBackground : ContentView
         }
     }
 
-    private void OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+    private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
     {
         var surface = e.Surface;
         var canvas = surface.Canvas;

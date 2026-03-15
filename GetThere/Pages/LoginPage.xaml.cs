@@ -1,3 +1,4 @@
+#nullable enable
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.Components;
@@ -15,7 +16,7 @@ public partial class LoginPage : ContentPage
         _authService = authService;
     }
 
-    private void TogglePassword_Clicked(object sender, EventArgs e)
+    private void TogglePassword_Clicked(object? sender, TappedEventArgs e)
     {
         PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
         TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";

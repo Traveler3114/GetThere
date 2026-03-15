@@ -1,3 +1,4 @@
+#nullable enable
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.Components;
@@ -49,7 +50,6 @@ public partial class ProfilePage : ContentPage
             {
                 // User is not logged in (guest mode)
                 LoginRequiredOverlay.IsVisible = true;
-                LogoutButton.IsVisible = false; 
                 NameLabel.Text = "Guest";
                 EmailLabel.Text = "Not logged in";
                 AvatarLabel.Text = "?";
@@ -63,7 +63,6 @@ public partial class ProfilePage : ContentPage
 
             // User is logged in
             LoginRequiredOverlay.IsVisible = false;
-            LogoutButton.IsVisible = true; // Show logout for logged in users
             NameLabel.Text = fullName ?? "User";
             EmailLabel.Text = email ?? string.Empty;
             AvatarLabel.Text = string.IsNullOrWhiteSpace(fullName)
@@ -386,12 +385,6 @@ public partial class ProfilePage : ContentPage
 
     private void GoBackToLogInButton_Clicked(object? sender, EventArgs e)
     {
-        App.GoToLogin();
-    }
-
-    private void LogoutButton_Clicked(object? sender, EventArgs e)
-    {
-        _authService.Logout();
         App.GoToLogin();
     }
 }

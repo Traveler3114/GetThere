@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using System;
@@ -21,6 +22,8 @@ namespace GetThere.Behaviors
             base.OnAttachedTo(bindable);
 
             // create brush once per button instance
+            if (Application.Current?.Resources == null) return;
+
             var primary = (Color)Application.Current.Resources["Primary"];
             var primaryDark = (Color)Application.Current.Resources["PrimaryDark"];
 

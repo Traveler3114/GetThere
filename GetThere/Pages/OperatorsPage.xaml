@@ -51,5 +51,8 @@
                            IsVisible="False"
                            HorizontalOptions="Center"
                            VerticalOptions="Center" />
+        
+        <!-- ── CUSTOM BOTTOM BAR ── -->
+        <components:CustomBottomBar Grid.RowSpan="4" VerticalOptions="End" />
     </Grid>
 </ContentPage>

@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.Maui.Controls.Shapes;
 
 namespace GetThere.Components;
@@ -14,7 +15,7 @@ public partial class BreathingBackground : ContentView
         SizeChanged += OnBreathingBackgroundSizeChanged;
     }
 
-    private void OnBreathingBackgroundSizeChanged(object sender, EventArgs e)
+    private void OnBreathingBackgroundSizeChanged(object? sender, EventArgs e)
     {
         UpdateCircles();
     }

@@ -187,7 +187,7 @@
         <!-- ══════════════════════════════════════ -->
         <!-- ROW 1 — SCROLLABLE CONTENT -->
         <!-- ══════════════════════════════════════ -->
-        <Grid Grid.Row="1" RowDefinitions="*,Auto">
+        <Grid Grid.Row="1" RowDefinitions="*">
             <ScrollView Grid.Row="0">
                 <VerticalStackLayout Padding="16,8,16,8">
 
@@ -292,16 +292,9 @@
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </ScrollView>
-
-            <!-- ── LOGOUT BUTTON (pinned at bottom) ── -->
-            <Button x:Name="LogoutButton"
-                    Grid.Row="1"
-                    Text="Log Out"
-                    Margin="16,12,16,24"
-                    BackgroundColor="Transparent"
-                    TextColor="Red"
-                    FontSize="15" FontAttributes="Bold"
-                    Clicked="LogoutButton_Clicked" />
         </Grid>
+
+        <!-- ── CUSTOM BOTTOM BAR ── -->
+        <components:CustomBottomBar Grid.RowSpan="2" VerticalOptions="End" />
     </Grid>
 </ContentPage>

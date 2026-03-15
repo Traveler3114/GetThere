@@ -1,4 +1,5 @@
-﻿namespace GetThere
+#nullable enable
+namespace GetThere
 {
     public partial class App : Application
     {
@@ -14,18 +15,24 @@
 
         public static void GoToApp()
         {
-            Current!.Windows[0].Page = new AppShell();
+            if (Current?.Windows.Count > 0)
+                Current.Windows[0].Page = new AppShell();
         }
 
         public static void GoToLogin()
         {
-            Current!.Windows[0].Page = new LoginShell();
+            if (Current?.Windows.Count > 0)
+                Current.Windows[0].Page = new LoginShell();
         }
 
         public static async void GoToRegistration()
         {
-            Current!.Windows[0].Page = new LoginShell();
-            await Shell.Current.GoToAsync("//registration");
+            if (Current?.Windows.Count > 0)
+            {
+                var shell = new LoginShell();
+                Current.Windows[0].Page = shell;
+                await shell.GoToAsync("//registration");
+            }
         }
     }
 }

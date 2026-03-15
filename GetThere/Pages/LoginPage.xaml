@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:components="clr-namespace:GetThere.Components"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="GetThere.Pages.LoginPage"
              Title="Log in"
              BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
@@ -80,6 +81,13 @@
                                IsRunning="False" IsVisible="False"
                                Color="#4CAF50"
                                HorizontalOptions="Center" />
+
+
+            <!-- ── SOCIAL LOGIN (with Glow & Circular Buttons) ── -->
+            <Label Text="OR LOG IN WITH"
+                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
+                   HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />
+            
 
 
             </VerticalStackLayout>

@@ -24,7 +24,7 @@
                 HorizontalOptions="Fill"
                 BackgroundColor="#2196F3"
                 TextColor="White"
-                Margin="10" />
+                Margin="10,10,10,110" />
 
         <!-- Loading Overlay -->
         <Grid x:Name="LoadingOverlay"
@@ -49,5 +49,8 @@
                     HorizontalOptions="Center" />
             </VerticalStackLayout>
         </Grid>
+
+        <!-- ── CUSTOM BOTTOM BAR ── -->
+        <components:CustomBottomBar Grid.RowSpan="2" VerticalOptions="End" />
     </Grid>
 </ContentPage>

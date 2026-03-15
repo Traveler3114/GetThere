@@ -104,6 +104,10 @@ namespace GetThere
             builder.Logging.AddDebug();
 #endif
 
+            // Shells
+            builder.Services.AddSingleton<AppShell>();
+            builder.Services.AddSingleton<LoginShell>();
+
             return builder.Build();
         }
     }

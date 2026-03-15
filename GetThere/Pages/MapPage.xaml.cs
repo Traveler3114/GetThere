@@ -1,3 +1,4 @@
+#nullable enable
 using GetThere.Services;
 using GetThereShared.Dtos;
 using System.Diagnostics;
@@ -346,7 +347,7 @@ public partial class MapPage : ContentPage
         catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
     }
 
-    private async void OnSimulateLocationClicked(object sender, EventArgs e)
+    private async void OnSimulateLocationClicked(object? sender, EventArgs e)
     {
         try
         {
