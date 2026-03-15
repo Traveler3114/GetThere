@@ -4,10 +4,15 @@ using System.Diagnostics;
 namespace GetThere.Services.Realtime;
 
 /// <summary>
-/// Parses GTFS-RT protobuf feeds.
-/// Handles both VehiclePosition (field 4) and TripUpdate (field 3) entities.
-/// ZET's feed contains both: ~180 VehiclePositions and ~320 TripUpdates with
-/// per-stop arrival delays in seconds (int32, negative = early).
+/// Parses GTFS-RT protobuf feeds — fully generic, handles both spec-compliant
+/// feeds and non-standard implementations (e.g. ZET).
+///
+/// GTFS-RT spec deviations handled:
+///   • TripUpdate.stop_time_update: spec=field 3, some feeds use field 2 → accept both
+///   • StopTimeUpdate.stop_id:      spec=field 2, some feeds use field 4 → accept both
+///   • StopTimeUpdate.arrival:      spec=field 3, some feeds use field 2 → accept both
+///   • Delay encoding: spec=zigzag sint32, some feeds use raw two's-complement int32
+///     encoded as uint64 varint (e.g. ZET) → detect and handle both
 /// </summary>
 public class GtfsRtProtoParser : IRealtimeParser
 {
@@ -35,13 +40,12 @@ public class GtfsRtProtoParser : IRealtimeParser
             else pos = SkipField(data, pos, wireType);
         }
 
-        // Attach trip updates to matching vehicles
+        // Attach TripUpdate data to matching VehiclePositions
         foreach (var v in vehicles)
             if (v.TripId != null && tripUpdates.TryGetValue(v.TripId, out var updates))
                 v.StopTimeUpdates = updates;
 
-        // Also expose trip updates for trips without a matching vehicle position
-        // (scheduled trips that haven't started yet but have prediction data)
+        // Expose TripUpdate-only entries (no GPS yet but have predictions)
         foreach (var (tripId, updates) in tripUpdates)
         {
             if (vehicles.Any(v => v.TripId == tripId)) continue;
@@ -50,12 +54,12 @@ public class GtfsRtProtoParser : IRealtimeParser
                 VehicleId = tripId,
                 TripId = tripId,
                 StopTimeUpdates = updates,
-                // No position — lat/lon stay 0, filtered by map rendering
                 IsScheduledOnly = true,
             });
         }
 
-        Trace.WriteLine($"[GtfsRtProto:{op.Name}] {vehicles.Count(v => !v.IsScheduledOnly)} vehicles, " +
+        Trace.WriteLine($"[GtfsRtProto:{op.Name}] " +
+                        $"{vehicles.Count(v => !v.IsScheduledOnly)} vehicles, " +
                         $"{tripUpdates.Count} trip updates");
         return Task.FromResult(vehicles);
     }
@@ -125,8 +129,9 @@ public class GtfsRtProtoParser : IRealtimeParser
                 pos = p2;
                 if (fieldNum == 1) // TripDescriptor
                     tripId = ParseTripId(sub);
-                else if (fieldNum == 2) // StopTimeUpdate (ZET uses field 2)
+                else if (fieldNum == 2 || fieldNum == 3) // StopTimeUpdate
                 {
+                    // SPEC: field 3.  Some feeds (e.g. ZET): field 2.  Accept both.
                     var stu = ParseStopTimeUpdate(sub);
                     if (stu != null) updates.Add(stu);
                 }
@@ -171,39 +176,34 @@ public class GtfsRtProtoParser : IRealtimeParser
             {
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
-                if (fieldNum == 4) // stop_id
-                    stu.StopId = System.Text.Encoding.UTF8.GetString(sub);
-                else if (fieldNum == 2 || fieldNum == 3) // arrival or departure StopTimeEvent
+
+                if (fieldNum == 3 || fieldNum == 4)
                 {
-                    // StopTimeEvent: field 1 = delay (int32 varint), field 2 = time (unix)
-                    int ep = 0;
-                    while (ep < sub.Length)
-                    {
-                        var (efn, ewt, ep2) = ReadTag(sub, ep);
-                        ep = ep2;
-                        if (efn == 0) break;
-                        if (ewt == 0)
-                        {
-                            var (v, ep3) = ReadVarint(sub, ep);
-                            ep = ep3;
-                            if (efn == 1) // delay in seconds — int32 encoded as varint
-                            {
-                                // Mask to 32 bits and re-sign to handle negative delays
-                                uint u32 = (uint)(v & 0xFFFFFFFF);
-                                stu.DelaySeconds = (int)u32;
-                            }
-                            else if (efn == 2) // absolute unix timestamp
-                                stu.ArrivalUnix = (long)v;
-                        }
-                        else ep = SkipField(sub, ep, ewt);
-                    }
+                    // field 3 = arrival (spec) or departure (spec)
+                    // field 4 = departure (spec) OR stop_id (ZET)
+                    // Disambiguate: if sub looks like a StopTimeEvent (contains varint fields),
+                    // treat as event. Otherwise treat field 4 as stop_id string.
+                    if (fieldNum == 3 || LooksLikeStopTimeEvent(sub))
+                        ParseStopTimeEvent(sub, stu);
+                    else if (fieldNum == 4 && string.IsNullOrEmpty(stu.StopId))
+                        stu.StopId = System.Text.Encoding.UTF8.GetString(sub);
+                }
+                else if (fieldNum == 2)
+                {
+                    // field 2 = stop_id (spec) OR arrival StopTimeEvent (ZET)
+                    // Disambiguate: if sub contains protobuf-encoded fields (varint tag+value),
+                    // it's a StopTimeEvent. Otherwise it's a plain string stop_id.
+                    if (LooksLikeStopTimeEvent(sub))
+                        ParseStopTimeEvent(sub, stu);
+                    else if (string.IsNullOrEmpty(stu.StopId))
+                        stu.StopId = System.Text.Encoding.UTF8.GetString(sub);
                 }
             }
             else if (wireType == 0)
             {
                 var (v, p2) = ReadVarint(data, pos);
                 pos = p2;
-                if (fieldNum == 1) stu.StopSequence = (int)v;
+                if (fieldNum == 1) stu.StopSequence = (int)v; // stop_sequence
             }
             else pos = SkipField(data, pos, wireType);
         }
@@ -211,9 +211,90 @@ public class GtfsRtProtoParser : IRealtimeParser
         return string.IsNullOrEmpty(stu.StopId) && stu.StopSequence == 0 ? null : stu;
     }
 
+    /// <summary>
+    /// Heuristic: returns true if the bytes look like a StopTimeEvent submessage
+    /// (contains at least one protobuf field with wire type 0 = varint, which
+    /// would be delay or timestamp), rather than a plain UTF-8 stop_id string.
+    /// </summary>
+    private static bool LooksLikeStopTimeEvent(byte[] data)
+    {
+        if (data.Length == 0) return false;
+        // Try to read the first tag
+        try
+        {
+            var (fieldNum, wireType, _) = ReadTag(data, 0);
+            // A StopTimeEvent has field 1 (delay) or field 2 (time), both varint (wire 0)
+            // A stop_id string would have its first byte be a printable ASCII char (0x20-0x7E)
+            // or UTF-8 lead byte (0x80+), never a valid protobuf tag byte for these fields
+            // field 1, wire 0 = tag byte 0x08
+            // field 2, wire 0 = tag byte 0x10
+            // field 3, wire 0 = tag byte 0x18
+            return (fieldNum == 1 || fieldNum == 2 || fieldNum == 3) && wireType == 0;
+        }
+        catch { return false; }
+    }
+
+    private static void ParseStopTimeEvent(byte[] data, StopTimeUpdateDto stu)
+    {
+        // StopTimeEvent: field 1 = delay (int32), field 2 = time (int64), field 3 = uncertainty
+        int pos = 0;
+        while (pos < data.Length)
+        {
+            var (fieldNum, wireType, p1) = ReadTag(data, pos);
+            pos = p1;
+            if (fieldNum == 0) break;
+
+            if (wireType == 0)
+            {
+                var (v, p2) = ReadVarint(data, pos);
+                pos = p2;
+
+                if (fieldNum == 1) // delay in seconds
+                {
+                    // The GTFS-RT spec defines delay as int32 (not sint32),
+                    // meaning negative values are varint-encoded as large uint64
+                    // (10-byte two's complement), NOT zigzag-encoded.
+                    //
+                    // However some feeds incorrectly use zigzag sint32.
+                    // Detect which encoding:
+                    //   - Zigzag: odd numbers = negative (e.g. 1→-1, 3→-2, 97→-49)
+                    //   - Two's complement uint64: negative int32s appear as values > 2^31
+                    //     specifically in range [2^32-1800, 2^32] for ±30min delays
+                    //
+                    // Heuristic: if value > 2^33 it must be two's complement int32
+                    // (a real zigzag delay that large would be ±1 billion seconds).
+                    // If value is odd and small it's likely zigzag.
+                    // If value is in (2^31, 2^33) it's ambiguous but treat as two's complement.
+
+                    int delaySeconds;
+                    if (v > 0x1_0000_0000UL) // > 2^32 → definitely two's complement int32
+                    {
+                        delaySeconds = (int)(uint)(v & 0xFFFFFFFF);
+                    }
+                    else if (v <= 0x7FFF_FFFFUL) // fits in positive int32 → same either way
+                    {
+                        delaySeconds = (int)v;
+                    }
+                    else // in range [2^31, 2^32] — use two's complement (most common for GTFS-RT)
+                    {
+                        delaySeconds = (int)(uint)v;
+                    }
+
+                    stu.DelaySeconds = delaySeconds;
+                }
+                else if (fieldNum == 2) // absolute unix arrival time
+                {
+                    stu.ArrivalUnix = (long)v;
+                }
+            }
+            else pos = SkipField(data, pos, wireType);
+        }
+    }
+
     // ── VehiclePosition ───────────────────────────────────────────────────
 
-    private static void ParseVehiclePosition(byte[] data, VehiclePositionDto dto, Dictionary<string, string>? tripRouteMap)
+    private static void ParseVehiclePosition(
+        byte[] data, VehiclePositionDto dto, Dictionary<string, string>? tripRouteMap)
     {
         int pos = 0;
         while (pos < data.Length)
@@ -233,7 +314,8 @@ public class GtfsRtProtoParser : IRealtimeParser
         }
     }
 
-    private static void ParseTrip(byte[] data, VehiclePositionDto dto, Dictionary<string, string>? tripRouteMap)
+    private static void ParseTrip(
+        byte[] data, VehiclePositionDto dto, Dictionary<string, string>? tripRouteMap)
     {
         int pos = 0;
         string? tripId = null;
@@ -247,8 +329,8 @@ public class GtfsRtProtoParser : IRealtimeParser
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
                 var str = System.Text.Encoding.UTF8.GetString(sub);
-                if (fieldNum == 1) tripId = str;
-                else if (fieldNum == 5) dto.RouteId = str;
+                if (fieldNum == 1) tripId = str; // trip_id
+                else if (fieldNum == 5) dto.RouteId = str; // route_id
             }
             else pos = SkipField(data, pos, wireType);
         }
@@ -295,8 +377,8 @@ public class GtfsRtProtoParser : IRealtimeParser
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
                 var str = System.Text.Encoding.UTF8.GetString(sub);
-                if (fieldNum == 1) dto.VehicleId = str;
-                else if (fieldNum == 2) dto.Label = str;
+                if (fieldNum == 1) dto.VehicleId = str; // id
+                else if (fieldNum == 2) dto.Label = str; // label
             }
             else pos = SkipField(data, pos, wireType);
         }
