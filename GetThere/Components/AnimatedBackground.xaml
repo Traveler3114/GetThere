@@ -4,7 +4,7 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.Maui.Controls;assembly=SkiaSharp.Views.Maui.Controls"
              x:Class="GetThere.Components.AnimatedBackground">
     <Grid>
-        <skia:SKCanvasView x:Name="CanvasView" IgnorePixelScaling="True" PaintSurface="OnPaintSurface" />
+        <skia:SKCanvasView x:Name="CanvasView" IgnorePixelScaling="True" PaintSurface="OnPaintSurface" EnableTouchEvents="False" />
         <ContentPresenter />
     </Grid>
 </ContentView>

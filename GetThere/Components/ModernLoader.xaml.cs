@@ -38,9 +38,9 @@ public partial class ModernLoader : ContentView
         // Beautiful XAML animation
         while (_isAnimating)
         {
-            var rotate = OuterRing.RelRotateTo(360, 1000, Easing.Linear);
-            var pulseScale = InnerPulse.ScaleTo(2.0, 500, Easing.CubicOut);
-            var pulseFade = InnerPulse.FadeTo(0, 500, Easing.CubicOut);
+            var rotate = OuterRing.RelRotateToAsync(360, 1000, Easing.Linear);
+            var pulseScale = InnerPulse.ScaleToAsync(2.0, 500, Easing.CubicOut);
+            var pulseFade = InnerPulse.FadeToAsync(0, 500, Easing.CubicOut);
 
             await Task.WhenAll(rotate, pulseScale, pulseFade);
             

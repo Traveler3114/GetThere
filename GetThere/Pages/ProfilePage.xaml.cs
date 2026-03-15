@@ -1,5 +1,6 @@
 using GetThere.Helpers;
 using GetThere.Services;
+using GetThere.Components;
 using GetThereShared.Dtos;
 using GetThereShared.Enums;
 
@@ -363,10 +364,16 @@ public partial class ProfilePage : ContentPage
         RefreshBusy.IsRunning = false;
     }
 
-    private void OnPanUpdate(object sender, PanUpdatedEventArgs e)
+    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
     {
-        AnimatedBg.XOffset = (float)e.TotalX;
-        AnimatedBg.YOffset = (float)e.TotalY;
+        // Using FindByName as a workaround for cases where the auto-generated field 'AnimatedBg' 
+        // is not recognized by the compiler/IDE in the partial class.
+        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
+        if (animatedBg != null)
+        {
+            animatedBg.XOffset = (float)e.TotalX;
+            animatedBg.YOffset = (float)e.TotalY;
+        }
     }
 
     private void GoBackToLogInButton_Clicked(object? sender, EventArgs e)
