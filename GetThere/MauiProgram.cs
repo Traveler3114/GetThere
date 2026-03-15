@@ -15,7 +15,7 @@ namespace GetThere
         {
 #if ANDROID
             // default Android emulator
-            return "http://10.0.2.2:5000/";
+            return "https://10.0.2.2:7230/";
 #elif IOS || MACCATALYST
             // iOS simulator and Mac Catalyst can hit localhost directly
             return "https://localhost:7230/";
