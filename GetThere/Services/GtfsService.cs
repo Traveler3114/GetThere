@@ -8,20 +8,21 @@ using System.Text.Json;
 namespace GetThere.Services;
 
 /// <summary>
-/// Handles GTFS static data (install, remove, parse stops/routes) and
+/// Handles GTFS static data (install, remove, parse stops/routes/schedule) and
 /// realtime vehicle polling for any operator.
-///
-/// Format-specific realtime parsing is delegated to IRealtimeParser
-/// implementations selected by RealtimeParserFactory.
 /// </summary>
 public class GtfsService
 {
     private const string InstalledKey = "installed_operator_ids";
-
-    // Prevents concurrent install/read on the same zip file
-    private static readonly SemaphoreSlim _zipLock = new(1, 1);
     private const string RealtimeUrlsKey = "realtime_feed_urls";
     private const string TripMapKeyPrefix = "trip_route_map_";
+    private const string StopRouteTypeFile = "stop_route_types.json";
+
+    // In-memory cache for trip stop sequences — avoids re-scanning 100MB stop_times.txt
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<TripStopDto>>
+        _tripStopCache = new(StringComparer.Ordinal);
+
+    private static readonly SemaphoreSlim _zipLock = new(1, 1);
 
     private readonly HttpClient _http;
 
@@ -39,7 +40,6 @@ public class GtfsService
         var zipPath = Path.Combine(dir, "gtfs.zip");
         Directory.CreateDirectory(dir);
 
-        // Download static GTFS zip — lock so ParseStopsAsync/ParseRoutesAsync can't race
         await _zipLock.WaitAsync();
         try
         {
@@ -58,29 +58,44 @@ public class GtfsService
                 if (total > 0) progress?.Report((double)downloaded / total);
             }
         }
-        finally
-        {
-            _zipLock.Release();
-        }
+        finally { _zipLock.Release(); }
 
-        // Cache realtime URL and operator config
         MarkInstalled(op.Id);
         if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
             SaveOperatorConfig(op);
 
-        // Build and cache trip→route map from trips.txt
         await BuildTripRouteMapAsync(op.Id);
+        await BuildStopRouteTypeMapAsync(op.Id);
 
         return true;
     }
 
     public void Remove(int operatorId)
     {
-        var dir = GetOperatorDir(operatorId);
-        if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        // Mark as removed first so no new reads start
         MarkRemoved(operatorId);
         RemoveOperatorConfig(operatorId);
         Preferences.Remove($"{TripMapKeyPrefix}{operatorId}");
+
+        // Wait for any in-progress zip reads to finish, then delete
+        _zipLock.Wait();
+        try
+        {
+            var dir = GetOperatorDir(operatorId);
+            if (Directory.Exists(dir))
+            {
+                // Retry loop — zip may still be open by a concurrent reader
+                for (int i = 0; i < 5; i++)
+                {
+                    try { Directory.Delete(dir, recursive: true); break; }
+                    catch (IOException) when (i < 4)
+                    {
+                        System.Threading.Thread.Sleep(200);
+                    }
+                }
+            }
+        }
+        finally { _zipLock.Release(); }
     }
 
     public bool IsInstalled(int operatorId) => GetInstalledIds().Contains(operatorId);
@@ -95,8 +110,11 @@ public class GtfsService
         return File.Exists(zip) ? new FileInfo(zip).Length : 0;
     }
 
+    /// <summary>Public accessor for external zip readers (e.g. realtime parsers).</summary>
+    public ZipArchive? OpenZipPublic(int operatorId) => OpenZip(operatorId);
+
     // ────────────────────────────────────────────────────────────────────
-    // Trip → Route map  (built once at install, cached in Preferences)
+    // Trip → Route map
     // ────────────────────────────────────────────────────────────────────
 
     private async Task BuildTripRouteMapAsync(int operatorId)
@@ -121,6 +139,9 @@ public class GtfsService
         Trace.WriteLine($"[GTFS:{operatorId}] Built trip→route map: {map.Count} entries");
     }
 
+    /// <summary>Public accessor for trip→route map (for operator resolution in MapPage).</summary>
+    public Dictionary<string, string>? GetTripRouteMapPublic(int operatorId) => GetTripRouteMap(operatorId);
+
     private Dictionary<string, string>? GetTripRouteMap(int operatorId)
     {
         var json = Preferences.Get($"{TripMapKeyPrefix}{operatorId}", null as string);
@@ -136,7 +157,6 @@ public class GtfsService
     {
         if (string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl)) return [];
 
-        // Apply auth headers/params before fetching
         using var request = BuildRealtimeRequest(op);
         using var response = await _http.SendAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -157,7 +177,6 @@ public class GtfsService
     {
         var url = op.GtfsRealtimeFeedUrl!;
 
-        // API_KEY_QUERY: append key as query param "paramName:value"
         if (op.RealtimeAuthType == "API_KEY_QUERY" && !string.IsNullOrEmpty(op.RealtimeAuthConfig))
         {
             var parts = op.RealtimeAuthConfig.Split(':', 2);
@@ -167,7 +186,6 @@ public class GtfsService
 
         var msg = new HttpRequestMessage(HttpMethod.Get, url);
 
-        // API_KEY_HEADER or BEARER: add header "HeaderName:Value"
         if ((op.RealtimeAuthType == "API_KEY_HEADER" || op.RealtimeAuthType == "BEARER")
             && !string.IsNullOrEmpty(op.RealtimeAuthConfig))
         {
@@ -189,13 +207,23 @@ public class GtfsService
         if (entry is null) return [];
         await using var stream = entry.Open();
         var rows = await ParseCsvAsync(stream);
-        return rows.Select(r => new GtfsStopDto
-        {
-            StopId = Get(r, "stop_id"),
-            Name = Get(r, "stop_name"),
-            Lat = ParseDouble(Get(r, "stop_lat")),
-            Lon = ParseDouble(Get(r, "stop_lon")),
-        }).Where(s => s.Lat != 0 && s.Lon != 0).ToList();
+        var stops = rows
+            .Where(r =>
+            {
+                var lt = Get(r, "location_type");
+                return lt == "" || lt == "0"; // exclude parent stations (type=1)
+            })
+            .Select(r => new GtfsStopDto
+            {
+                StopId = Get(r, "stop_id"),
+                Name = Get(r, "stop_name"),
+                Lat = ParseDouble(Get(r, "stop_lat")),
+                Lon = ParseDouble(Get(r, "stop_lon")),
+            })
+            .Where(s => s.Lat != 0 && s.Lon != 0)
+            .ToList();
+        ApplyStopRouteTypes(operatorId, stops);
+        return stops;
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -234,7 +262,348 @@ public class GtfsService
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // Operator config cache (realtime URL + format stored together)
+    // Stop Schedule  (streams stop_times.txt — safe for 100 MB files)
+    // ────────────────────────────────────────────────────────────────────
+
+    public async Task<List<StopDepartureGroupDto>> ParseStopScheduleAsync(
+        int operatorId,
+        string stopId,
+        DateOnly date)
+    {
+        using var zip = OpenZip(operatorId);
+        if (zip is null) return [];
+
+        var activeServiceIds = await GetActiveServiceIdsAsync(zip, date);
+        if (activeServiceIds.Count == 0) return [];
+
+        var tripInfo = await BuildTripInfoAsync(zip, activeServiceIds);
+        if (tripInfo.Count == 0) return [];
+
+        var departures = await StreamStopTimesAsync(zip, stopId, tripInfo);
+        var routeNames = await BuildRouteNameMapAsync(zip);
+
+        // Filter past departures — 1-min grace so "leaving now" still shows
+        int nowMins = DateTime.Now.Hour * 60 + DateTime.Now.Minute - 1;
+
+        return departures
+            .GroupBy(d => (d.RouteId, d.Headsign))
+            .Select(g =>
+            {
+                var deps = g
+                    .Select(d => new StopDepartureDto
+                    {
+                        ScheduledTime = d.DepartureTime,
+                        TripId = d.TripId,
+                    })
+                    .Where(d => TimeToMinutes(d.ScheduledTime) >= nowMins)
+                    .OrderBy(d => TimeToMinutes(d.ScheduledTime))
+                    .GroupBy(d => d.ScheduledTime).Select(tg => tg.First()) // deduplicate
+                    .ToList();
+
+                if (deps.Count == 0) return null;
+
+                return new StopDepartureGroupDto
+                {
+                    RouteId = g.Key.RouteId,
+                    ShortName = routeNames.TryGetValue(g.Key.RouteId, out var n) ? n : g.Key.RouteId,
+                    Headsign = g.Key.Headsign,
+                    Departures = deps,
+                };
+            })
+            .Where(g => g != null)
+            .Cast<StopDepartureGroupDto>()
+            .OrderBy(g => TimeToMinutes(g.Departures.First().ScheduledTime))
+            .ToList();
+    }
+
+    private static int TimeToMinutes(string t)
+    {
+        var p = t.Split(':');
+        return p.Length >= 2 && int.TryParse(p[0], out int h) && int.TryParse(p[1], out int m)
+            ? h * 60 + m : 0;
+    }
+
+    private static async Task<HashSet<string>> GetActiveServiceIdsAsync(ZipArchive zip, DateOnly date)
+    {
+        int dateInt = date.Year * 10000 + date.Month * 100 + date.Day;
+        string dayCol = date.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "monday",
+            DayOfWeek.Tuesday => "tuesday",
+            DayOfWeek.Wednesday => "wednesday",
+            DayOfWeek.Thursday => "thursday",
+            DayOfWeek.Friday => "friday",
+            DayOfWeek.Saturday => "saturday",
+            _ => "sunday"
+        };
+
+        var active = new HashSet<string>(StringComparer.Ordinal);
+
+        var calEntry = zip.GetEntry("calendar.txt");
+        if (calEntry is not null)
+        {
+            await using var stream = calEntry.Open();
+            using var reader = new StreamReader(stream);
+            var raw = await reader.ReadToEndAsync();
+            var lines = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            if (lines.Length > 0)
+            {
+                var cols = SplitCsvLine(lines[0].TrimStart('\uFEFF'));
+                int iSvc = IndexOf(cols, "service_id");
+                int iStart = IndexOf(cols, "start_date");
+                int iEnd = IndexOf(cols, "end_date");
+                int iDay = IndexOf(cols, dayCol);
+                if (iSvc >= 0 && iStart >= 0 && iEnd >= 0 && iDay >= 0)
+                    for (int li = 1; li < lines.Length; li++)
+                    {
+                        var v = SplitCsvLine(lines[li].Trim());
+                        if (v.Count <= Math.Max(iSvc, Math.Max(iStart, Math.Max(iEnd, iDay)))) continue;
+                        if (!int.TryParse(TrimCell(v[iStart]), out int s)) continue;
+                        if (!int.TryParse(TrimCell(v[iEnd]), out int e)) continue;
+                        if (dateInt >= s && dateInt <= e && TrimCell(v[iDay]) == "1")
+                            active.Add(TrimCell(v[iSvc]));
+                    }
+            }
+        }
+
+        var datesEntry = zip.GetEntry("calendar_dates.txt");
+        if (datesEntry is not null)
+        {
+            await using var stream = datesEntry.Open();
+            using var reader = new StreamReader(stream);
+            var raw = await reader.ReadToEndAsync();
+            var lines = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            if (lines.Length > 0)
+            {
+                var cols = SplitCsvLine(lines[0].TrimStart('\uFEFF'));
+                int iSvc = IndexOf(cols, "service_id");
+                int iDate = IndexOf(cols, "date");
+                int iType = IndexOf(cols, "exception_type");
+                if (iSvc >= 0 && iDate >= 0 && iType >= 0)
+                    for (int li = 1; li < lines.Length; li++)
+                    {
+                        var v = SplitCsvLine(lines[li].Trim());
+                        if (v.Count <= Math.Max(iSvc, Math.Max(iDate, iType))) continue;
+                        if (!int.TryParse(TrimCell(v[iDate]), out int rowDate) || rowDate != dateInt) continue;
+                        var sid = TrimCell(v[iSvc]);
+                        var type = TrimCell(v[iType]);
+                        if (type == "1") active.Add(sid);
+                        else if (type == "2") active.Remove(sid);
+                    }
+            }
+        }
+
+        return active;
+    }
+
+    private static async Task<Dictionary<string, (string RouteId, string Headsign)>>
+        BuildTripInfoAsync(ZipArchive zip, HashSet<string> activeServiceIds)
+    {
+        var result = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+        var entry = zip.GetEntry("trips.txt");
+        if (entry is null) return result;
+
+        await using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        var header = (await reader.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+        var cols = SplitCsvLine(header);
+        int iTrip = IndexOf(cols, "trip_id");
+        int iRoute = IndexOf(cols, "route_id");
+        int iService = IndexOf(cols, "service_id");
+        int iHead = IndexOf(cols, "trip_headsign");
+        if (iTrip < 0 || iRoute < 0 || iService < 0) return result;
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) is not null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var v = SplitCsvLine(line);
+            if (v.Count <= Math.Max(iTrip, Math.Max(iRoute, iService))) continue;
+            if (!activeServiceIds.Contains(TrimCell(v[iService]))) continue;
+            var tripId = TrimCell(v[iTrip]);
+            var routeId = TrimCell(v[iRoute]);
+            var headsign = iHead >= 0 && iHead < v.Count ? TrimCell(v[iHead]) : "";
+            if (!string.IsNullOrEmpty(tripId))
+                result.TryAdd(tripId, (routeId, headsign));
+        }
+        return result;
+    }
+
+    private sealed record RawDeparture(string RouteId, string Headsign, string TripId, string DepartureTime);
+
+    private static async Task<List<RawDeparture>> StreamStopTimesAsync(
+        ZipArchive zip,
+        string stopId,
+        Dictionary<string, (string RouteId, string Headsign)> tripInfo)
+    {
+        var result = new List<RawDeparture>();
+        var entry = zip.GetEntry("stop_times.txt");
+        if (entry is null) return result;
+
+        await using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        var header = (await reader.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+        var cols = SplitCsvLine(header);
+        int iTripId = IndexOf(cols, "trip_id");
+        int iStopId = IndexOf(cols, "stop_id");
+        int iDepart = IndexOf(cols, "departure_time");
+        if (iDepart < 0) iDepart = IndexOf(cols, "arrival_time");
+        if (iTripId < 0 || iStopId < 0 || iDepart < 0) return result;
+
+        int maxIdx = Math.Max(iTripId, Math.Max(iStopId, iDepart));
+        string? line;
+        while ((line = await reader.ReadLineAsync()) is not null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var v = SplitCsvLine(line);
+            if (v.Count <= maxIdx) continue;
+            if (!string.Equals(TrimCell(v[iStopId]), stopId, StringComparison.OrdinalIgnoreCase)) continue;
+            var tripId = TrimCell(v[iTripId]);
+            if (!tripInfo.TryGetValue(tripId, out var info)) continue;
+            var depTime = TrimCell(v[iDepart]);
+            if (string.IsNullOrEmpty(depTime)) continue;
+            if (depTime.Length > 5 && depTime[2] == ':') depTime = depTime[..5];
+            result.Add(new RawDeparture(info.RouteId, info.Headsign, tripId, depTime));
+        }
+        return result;
+    }
+
+    private static async Task<Dictionary<string, string>> BuildRouteNameMapAsync(ZipArchive zip)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var entry = zip.GetEntry("routes.txt");
+        if (entry is null) return result;
+        await using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        var header = (await reader.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+        var cols = SplitCsvLine(header);
+        int iId = IndexOf(cols, "route_id");
+        int iName = IndexOf(cols, "route_short_name");
+        if (iId < 0) return result;
+        string? line;
+        while ((line = await reader.ReadLineAsync()) is not null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var v = SplitCsvLine(line);
+            if (v.Count <= iId) continue;
+            var id = TrimCell(v[iId]);
+            var name = iName >= 0 && iName < v.Count ? TrimCell(v[iName]) : id;
+            if (!string.IsNullOrEmpty(id)) result.TryAdd(id, name);
+        }
+        return result;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Stop → RouteType cache  (built once at install, cached to disk)
+    // ────────────────────────────────────────────────────────────────────
+
+    public async Task BuildStopRouteTypeMapAsync(int operatorId)
+    {
+        using var zip = OpenZip(operatorId);
+        if (zip is null) return;
+
+        // route_id → route_type
+        var routeTypes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var routeEntry = zip.GetEntry("routes.txt");
+        if (routeEntry is not null)
+        {
+            await using var rs = routeEntry.Open();
+            using var rr = new StreamReader(rs);
+            var hdr = (await rr.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iId = IndexOf(cols, "route_id"), iType = IndexOf(cols, "route_type");
+            if (iId >= 0 && iType >= 0)
+            {
+                string? line;
+                while ((line = await rr.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    if (v.Count <= Math.Max(iId, iType)) continue;
+                    var rid = TrimCell(v[iId]);
+                    if (int.TryParse(TrimCell(v[iType]), out int rt) && !string.IsNullOrEmpty(rid))
+                        routeTypes.TryAdd(rid, rt);
+                }
+            }
+        }
+
+        // trip_id → route_type
+        var tripTypes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var tripEntry = zip.GetEntry("trips.txt");
+        if (tripEntry is not null)
+        {
+            await using var ts = tripEntry.Open();
+            using var tr = new StreamReader(ts);
+            var hdr = (await tr.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iTrip = IndexOf(cols, "trip_id"), iRoute = IndexOf(cols, "route_id");
+            if (iTrip >= 0 && iRoute >= 0)
+            {
+                string? line;
+                while ((line = await tr.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    if (v.Count <= Math.Max(iTrip, iRoute)) continue;
+                    var tid = TrimCell(v[iTrip]);
+                    var rid = TrimCell(v[iRoute]);
+                    if (!string.IsNullOrEmpty(tid) && routeTypes.TryGetValue(rid, out int rt))
+                        tripTypes.TryAdd(tid, rt);
+                }
+            }
+        }
+
+        // stop_id → min(route_type)  — tram(0) beats bus(3)
+        var stopTypes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var stEntry = zip.GetEntry("stop_times.txt");
+        if (stEntry is not null)
+        {
+            await using var sts = stEntry.Open();
+            using var str = new StreamReader(sts);
+            var hdr = (await str.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iTrip = IndexOf(cols, "trip_id"), iStop = IndexOf(cols, "stop_id");
+            if (iTrip >= 0 && iStop >= 0)
+            {
+                int maxIdx = Math.Max(iTrip, iStop);
+                string? line;
+                while ((line = await str.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    if (v.Count <= maxIdx) continue;
+                    var sid = TrimCell(v[iStop]);
+                    var tid = TrimCell(v[iTrip]);
+                    if (string.IsNullOrEmpty(sid) || !tripTypes.TryGetValue(tid, out int rt)) continue;
+                    if (!stopTypes.TryGetValue(sid, out int existing) || rt < existing)
+                        stopTypes[sid] = rt;
+                }
+            }
+        }
+
+        var path = Path.Combine(GetOperatorDir(operatorId), StopRouteTypeFile);
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(stopTypes));
+        Trace.WriteLine($"[GtfsService] Built stop→routeType map: {stopTypes.Count} stops");
+    }
+
+    public void ApplyStopRouteTypes(int operatorId, List<GtfsStopDto> stops)
+    {
+        var path = Path.Combine(GetOperatorDir(operatorId), StopRouteTypeFile);
+        if (!File.Exists(path)) return;
+        try
+        {
+            var map = JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(path));
+            if (map is null) return;
+            int applied = 0;
+            foreach (var s in stops)
+                if (map.TryGetValue(s.StopId, out int rt)) { s.RouteType = rt; applied++; }
+            Trace.WriteLine($"[GtfsService] ApplyStopRouteTypes: {applied}/{stops.Count} applied");
+        }
+        catch (Exception ex) { Trace.WriteLine($"[GtfsService] stop route types error: {ex.Message}"); }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Operator config cache
     // ────────────────────────────────────────────────────────────────────
 
     private void SaveOperatorConfig(TransitOperatorDto op)
@@ -267,13 +636,9 @@ public class GtfsService
     private Dictionary<int, OperatorRealtimeConfig> GetOperatorConfigMap()
     {
         var json = Preferences.Get(RealtimeUrlsKey, "{}");
-        try
-        {
-            return JsonSerializer.Deserialize<Dictionary<int, OperatorRealtimeConfig>>(json) ?? [];
-        }
+        try { return JsonSerializer.Deserialize<Dictionary<int, OperatorRealtimeConfig>>(json) ?? []; }
         catch (JsonException)
         {
-            // Stale data from old format (Dictionary<int,string>) — wipe it and start fresh
             Trace.WriteLine("[GtfsService] Clearing stale realtime config cache");
             Preferences.Remove(RealtimeUrlsKey);
             return [];
@@ -298,6 +663,7 @@ public class GtfsService
         var json = Preferences.Get(InstalledKey, "[]");
         return JsonSerializer.Deserialize<HashSet<int>>(json) ?? [];
     }
+
     private void MarkInstalled(int id) { var s = GetInstalledIds(); s.Add(id); Preferences.Set(InstalledKey, JsonSerializer.Serialize(s)); }
     private void MarkRemoved(int id) { var s = GetInstalledIds(); s.Remove(id); Preferences.Set(InstalledKey, JsonSerializer.Serialize(s)); }
 
@@ -311,10 +677,14 @@ public class GtfsService
         if (!File.Exists(path)) return null;
         try
         {
-            // Wait for any in-progress install to finish writing before opening
+            // Wait for any in-progress install to finish writing
             _zipLock.Wait();
             _zipLock.Release();
-            return ZipFile.OpenRead(path);
+            // Open with FileShare.ReadWrite|Delete so Remove() can proceed
+            // even while this archive is open
+            var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.Read | FileShare.Delete);
+            return new ZipArchive(fs, ZipArchiveMode.Read, leaveOpen: false);
         }
         catch (IOException ex)
         {
@@ -404,4 +774,118 @@ public class GtfsService
     private static double ParseDouble(string s)
         => double.TryParse(s, System.Globalization.NumberStyles.Any,
                System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+
+    private static int IndexOf(List<string> cols, string name)
+    {
+        for (int i = 0; i < cols.Count; i++)
+            if (string.Equals(cols[i].Trim().Trim('"').Trim(), name, StringComparison.OrdinalIgnoreCase))
+                return i;
+        return -1;
+    }
+
+    private static string TrimCell(string s) => s.Trim().Trim('"').Trim();
+
+    // ────────────────────────────────────────────────────────────────────
+    // Trip Detail  (full stop sequence for a trip)
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the full ordered stop sequence for <paramref name="tripId"/>,
+    /// with stop names and scheduled times.
+    /// Streams stop_times.txt line-by-line (safe for 100 MB files).
+    /// </summary>
+    public async Task<List<TripStopDto>> ParseTripStopsAsync(int operatorId, string tripId)
+    {
+        // Return cached result if available — avoids re-scanning 100MB stop_times.txt
+        if (_tripStopCache.TryGetValue(tripId, out var cached))
+            return cached;
+
+        using var zip = OpenZip(operatorId);
+        if (zip is null) return [];
+
+        // 1. Load stop coords + names into a quick lookup
+        var stopMeta = new Dictionary<string, (string Name, double Lat, double Lon)>(StringComparer.Ordinal);
+        var stopsEntry = zip.GetEntry("stops.txt");
+        if (stopsEntry is not null)
+        {
+            await using var ss = stopsEntry.Open();
+            using var sr = new StreamReader(ss);
+            var hdr = (await sr.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iId = IndexOf(cols, "stop_id");
+            int iNm = IndexOf(cols, "stop_name");
+            int iLat = IndexOf(cols, "stop_lat");
+            int iLon = IndexOf(cols, "stop_lon");
+            if (iId >= 0 && iNm >= 0)
+            {
+                string? line;
+                while ((line = await sr.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    int need = Math.Max(iId, Math.Max(iNm, Math.Max(iLat < 0 ? 0 : iLat, iLon < 0 ? 0 : iLon)));
+                    if (v.Count <= need) continue;
+                    var sid = TrimCell(v[iId]);
+                    var name = TrimCell(v[iNm]);
+                    var lat = iLat >= 0 && iLat < v.Count ? ParseDouble(TrimCell(v[iLat])) : 0;
+                    var lon = iLon >= 0 && iLon < v.Count ? ParseDouble(TrimCell(v[iLon])) : 0;
+                    if (!string.IsNullOrEmpty(sid))
+                        stopMeta.TryAdd(sid, (name, lat, lon));
+                }
+            }
+        }
+
+        // 2. Stream stop_times.txt — collect only rows for this trip
+        var result = new List<TripStopDto>();
+        var stEntry = zip.GetEntry("stop_times.txt");
+        if (stEntry is null) return result;
+
+        await using var sts = stEntry.Open();
+        using var stReader = new StreamReader(sts);
+        var stHdr = (await stReader.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+        var stCols = SplitCsvLine(stHdr);
+        int iTripId = IndexOf(stCols, "trip_id");
+        int iStopId = IndexOf(stCols, "stop_id");
+        int iSeq = IndexOf(stCols, "stop_sequence");
+        int iDep = IndexOf(stCols, "departure_time");
+        if (iDep < 0) iDep = IndexOf(stCols, "arrival_time");
+
+        if (iTripId < 0 || iStopId < 0 || iSeq < 0 || iDep < 0) return result;
+        int maxIdx = Math.Max(iTripId, Math.Max(iStopId, Math.Max(iSeq, iDep)));
+
+        string? stLine;
+        while ((stLine = await stReader.ReadLineAsync()) is not null)
+        {
+            if (string.IsNullOrWhiteSpace(stLine)) continue;
+            var v = SplitCsvLine(stLine);
+            if (v.Count <= maxIdx) continue;
+            if (!string.Equals(TrimCell(v[iTripId]), tripId, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var sid = TrimCell(v[iStopId]);
+            var depTime = TrimCell(v[iDep]);
+            if (depTime.Length > 5 && depTime[2] == ':') depTime = depTime[..5];
+            int seq = int.TryParse(TrimCell(v[iSeq]), out int s) ? s : 0;
+
+            stopMeta.TryGetValue(sid, out var meta);
+            result.Add(new TripStopDto
+            {
+                Sequence = seq,
+                StopId = sid,
+                StopName = meta.Name ?? sid,
+                Lat = meta.Lat,
+                Lon = meta.Lon,
+                ScheduledTime = depTime,
+            });
+        }
+
+        result.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
+
+        // Cache for subsequent calls (cleared on Remove/reinstall)
+        _tripStopCache.TryAdd(tripId, result);
+        Trace.WriteLine($"[GtfsService] Cached {result.Count} stops for trip {tripId} (cache size: {_tripStopCache.Count})");
+
+        return result;
+    }
+
+    public void ClearTripStopCache() => _tripStopCache.Clear();
 }
