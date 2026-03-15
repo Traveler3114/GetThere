@@ -9,9 +9,30 @@ namespace GetThere.Components;
 
 public partial class CustomBottomBar : ContentView
 {
+    private System.Timers.Timer? _iconTimer;
+    private int _iconIndex = 0;
+    private readonly string[] _icons = { "tab_bus.png", "tab_tram.png", "tab_train.png" };
+
     public CustomBottomBar()
     {
         InitializeComponent();
+        StartIconRotation();
+    }
+
+    private void StartIconRotation()
+    {
+        _iconTimer = new System.Timers.Timer(3000);
+        _iconTimer.Elapsed += (s, e) => {
+            _iconIndex = (_iconIndex + 1) % _icons.Length;
+            MainThread.BeginInvokeOnMainThread(() => {
+                if (OperatorsIcon != null)
+                {
+                    OperatorsIcon.Source = _icons[_iconIndex];
+                }
+            });
+        };
+        _iconTimer.AutoReset = true;
+        _iconTimer.Start();
     }
 
     protected override void OnHandlerChanged()

@@ -71,8 +71,9 @@
 
                 <!-- Operators Tab -->
                 <ContentView Grid.Column="2">
-                    <Image Source="icon_operators.svg" 
-                           WidthRequest="32" HeightRequest="32"
+                    <Image x:Name="OperatorsIcon"
+                           Source="tab_bus.png" 
+                           WidthRequest="38" HeightRequest="38"
                            Aspect="AspectFit">
                         <Image.Behaviors>
                             <toolkit:IconTintColorBehavior x:Name="OperatorsTint" TintColor="Gray" />

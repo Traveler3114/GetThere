@@ -20,19 +20,19 @@
         <Border Grid.Row="1"
                 Margin="20,10,20,120"
                 Padding="0"
-                HeightRequest="56"
-                BackgroundColor="White"
+                HeightRequest="60"
+                BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
                 StrokeThickness="1"
-                Stroke="#E0E0E0">
+                Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
             <Border.StrokeShape>
-                <RoundRectangle CornerRadius="28" />
+                <RoundRectangle CornerRadius="30" />
             </Border.StrokeShape>
             <Button x:Name="SimulateLocationBtn"
                     Text="Stimuliraj GPS pokret (5km)"
                     Clicked="OnSimulateLocationClicked"
                     BackgroundColor="Transparent"
                     TextColor="{AppThemeBinding Light=#444444, Dark=White}"
-                    FontSize="14"
+                    FontSize="15"
                     FontAttributes="Bold"
                     Padding="20,0" />
         </Border>
