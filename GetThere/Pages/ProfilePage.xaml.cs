@@ -70,6 +70,14 @@ public partial class ProfilePage : ContentPage
                 ? "?"
                 : fullName[0].ToString().ToUpper();
 
+            // Notify shell to potentially update its icon (e.g. if we had a picture)
+            if (Shell.Current is AppShell appShell)
+            {
+                // We don't have a picture URL yet, but if we did:
+                // appShell.UpdateProfileIcon(ImageSource.FromUri(new Uri(pictureUrl)));
+                appShell.UpdateProfileIcon(null); // Resets to default icon_profile.svg
+            }
+
             await Task.WhenAll(LoadWalletAsync(), LoadTicketsAsync());
         }
         catch (Exception ex)

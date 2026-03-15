@@ -348,7 +348,6 @@
 
             input:checked + .slider:before {
                 transform: translateX(22px);
-            }
         }
     </style>
 </head>
@@ -368,14 +367,34 @@
         </div>
     </div>
 
-    <div id="stopInfoPanel" class="stop-info-panel">
-        <div class="stop-info-header">
-            <h2 class="stop-info-title" id="stopInfoTitle">Stop Name</h2>
-            <div class="stop-info-id" id="stopInfoId">Stop ID</div>
-            <button class="stop-info-close" onclick="closeStopPanel()">×</button>
+    <div id="stopInfoPanel" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <h2 id="stopInfoTitle">Stop name</h2>
+            <div id="stopInfoId">Stop ID</div>
+            <button class="panel-close" onclick="closeStopPanel()">×</button>
         </div>
-        <div class="stop-info-content">
+        <div class="stop-info-content panel-body">
             Loading schedules...
+        </div>
+    </div>
+
+    <!-- ── TRIP DETAIL PANEL ── -->
+    <div id="tripDetailPanel" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <div class="trip-panel-route">
+                <span id="trip-panel-route-pill" class="route-pill bus">--</span>
+                <span id="trip-panel-headsign">Headsign</span>
+            </div>
+            <button class="panel-close" onclick="closeTripPanel()">×</button>
+        </div>
+        <div id="trip-panel-subtitle">Subitle Info</div>
+        <div id="trip-panel-loading">
+            <span>Loading trip...</span>
+        </div>
+        <div id="trip-panel-body" class="panel-body">
+            <!-- Stop list injected here -->
         </div>
     </div>
 
@@ -457,7 +476,10 @@
                 const el = makeStopIcon();
                 el.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    showStopPanel(s.name, s.stopId);
+                    // Send message to C# to fetch schedule with realtime data
+                    window._pendingMsg = `stopSchedule:${s.stopId}`;
+                    // Show panel with loading state
+                    showStopLoading(s.name, s.stopId);
                 });
                 const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
                     .setLngLat([s.lon, s.lat])
@@ -466,51 +488,12 @@
             });
         }
 
-        function renderStopSchedules(jsonStr) {
-            allStopSchedules = typeof jsonStr === 'string' ? JSON.parse(decodeURIComponent(jsonStr)) : jsonStr;
-        }
-
-        function showStopPanel(name, stopId) {
-            document.getElementById('stopInfoTitle').textContent = name;
-            document.getElementById('stopInfoId').textContent = `Stop ID: ${stopId}`;
-            const schedulesContainer = document.querySelector('.stop-info-content');
-            
-            const now = new Date();
-            const currentTimeStr = [
-                now.getHours().toString().padStart(2, '0'),
-                now.getMinutes().toString().padStart(2, '0'),
-                now.getSeconds().toString().padStart(2, '0')
-            ].join(':');
-
-            const stopSchedules = allStopSchedules
-                .filter(s => s.stopId === stopId && s.arrivalTime >= currentTimeStr)
-                .sort((a, b) => a.arrivalTime.localeCompare(b.arrivalTime))
-                .slice(0, 20);
-
-            if (stopSchedules.length > 0) {
-                let html = '<div style="margin-top: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr;">';
-                html += '<span>Line</span><span>Destination</span><span>Time</span></div>';
-                html += '<div style="max-height: 250px; overflow-y: auto;">';
-                stopSchedules.forEach(schedule => {
-                    const parts = schedule.tripId.split('_');
-                    const linija = parts.length > 3 ? parts[3] : parts[0];
-                    html += `
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #eee; align-items: center;">
-                            <span>${linija}</span>
-                            <span>${schedule.destination}</span>
-                            <span>${schedule.arrivalTime.substring(0, 5)}</span>
-                        </div>`;
-                });
-                html += '</div>';
-                schedulesContainer.innerHTML = html;
-            } else {
-                schedulesContainer.innerHTML = '<div style="padding: 20px; color: #666; text-align: center;">No upcoming arrivals today.</div>';
-            }
-            document.getElementById('stopInfoPanel').classList.add('visible');
-        }
-
         function closeStopPanel() {
-            document.getElementById('stopInfoPanel').classList.remove('visible');
+            document.getElementById('stopInfoPanel').classList.remove('open');
+        }
+
+        function closeTripPanel() {
+            document.getElementById('tripDetailPanel').classList.remove('open');
         }
 
         function toggleMenu() {
@@ -578,47 +561,44 @@
         function renderVehicles(jsonStr) {
             const vehicles = typeof jsonStr === 'string' ? JSON.parse(decodeURIComponent(jsonStr)) : jsonStr;
             const seen = new Set();
+            
             vehicles.forEach(v => {
                 seen.add(v.vehicleId);
                 const color = routeColorMap[v.routeId] || 'e53935';
                 const routeType = v.routeType ?? 3;
                 const shortName = routeNameMap[v.routeId] || '';
 
+                const onClick = e => {
+                    e.stopPropagation();
+                    window._pendingMsg = `tripDetail:${v.tripId}`;
+                    showTripLoading(shortName, color);
+                    vehiclePopup.setLngLat([v.lon, v.lat])
+                        .setHTML(`<div class="vehicle-popup"><span class="route-badge" style="background:#${color}">Line ${shortName}</span></div>`)
+                        .addTo(map);
+                };
+
                 if (vehicleMarkers[v.vehicleId]) {
                     const existing = vehicleMarkers[v.vehicleId];
                     existing.marker.setLngLat([v.lon, v.lat]);
-                    const newEl = makeVehicleIcon(color, routeType, v.bearing, shortName);
-                    newEl.addEventListener('click', e => {
-                        e.stopPropagation();
-                        showRoute(v.routeId);
-                        vehiclePopup.setLngLat([v.lon, v.lat])
-                            .setHTML(`<div class="vehicle-popup"><span class="route-badge" style="background:#${color}">Line ${shortName}</span></div>`)
-                            .addTo(map);
-                    });
-                    existing.marker.getElement().replaceWith(newEl);
+                    const el = makeVehicleIcon(color, routeType, v.bearing, shortName);
+                    el.addEventListener('click', onClick);
+                    existing.marker.getElement().replaceWith(el);
                 } else {
                     const el = makeVehicleIcon(color, routeType, v.bearing, shortName);
-                    el.addEventListener('click', e => {
-                        e.stopPropagation();
-                        showRoute(v.routeId);
-                        vehiclePopup.setLngLat([v.lon, v.lat])
-                            .setHTML(`<div class="vehicle-popup"><span class="route-badge" style="background:#${color}">Line ${shortName}</span></div>`)
-                            .addTo(map);
-                    });
+                    el.addEventListener('click', onClick);
                     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
                         .setLngLat([v.lon, v.lat]);
                     if (vehiclesVisible) marker.addTo(map);
                     vehicleMarkers[v.vehicleId] = { marker, routeId: v.routeId };
                 }
-                {
-                    const el = makeVehicleIcon(color, rType, v.bearing, sName);
-                    attachVehicleClick(el, v, color, rId);
-                    vehicleMarkers[v.vehicleId] = {
-                        marker: new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([v.lon, v.lat]).addTo(map),
-                        routeId: rId
-                    };
+            });
+
+            Object.keys(vehicleMarkers).forEach(id => {
+                if (!seen.has(id)) {
+                    vehicleMarkers[id].marker.remove();
+                    delete vehicleMarkers[id];
                 }
-            }
+            });
         }
 
         function clearVehicles() {
@@ -640,10 +620,89 @@
             }
         }
 
+        function showStopLoading(name, stopId) {
+            document.getElementById('stopInfoTitle').textContent = name;
+            document.getElementById('stopInfoId').textContent = `ID: ${stopId}`;
+            const cont = document.querySelector('#stopInfoPanel .stop-info-content');
+            cont.innerHTML = '<div style="padding:40px;text-align:center;color:#999;">Loading...</div>';
+            document.getElementById('stopInfoPanel').classList.add('open');
+        }
+
+        function renderStopSchedule(data) {
+            const { groups } = typeof data === 'string' ? JSON.parse(decodeURIComponent(data)) : data;
+            const cont = document.querySelector('#stopInfoPanel .stop-info-content');
+            if (!groups || groups.length === 0) {
+                cont.innerHTML = '<div style="padding:40px;text-align:center;color:#999;">No more departures today.</div>';
+                return;
+            }
+            let h = '<div style="padding: 0 16px 20px;">';
+            groups.forEach(g => {
+                h += `<div style="margin:16px 0 8px;font-size:12px;font-weight:700;color:#999;text-transform:uppercase;">${g.routeName} to ${g.headsign}</div>`;
+                g.departures.forEach(d => {
+                    const delay = d.delayMinutes || 0;
+                    const dCol = delay > 0 ? '#d32f2f' : (delay < 0 ? '#2e7d32' : '#666');
+                    const dTxt = delay > 0 ? `+${delay} min` : (delay < 0 ? `${delay} min` : 'On time');
+                    h += `
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eee;">
+                            <div style="display:flex;align-items:baseline;gap:8px;">
+                                <div style="font-size:18px;font-weight:700;">${d.estimatedTime || d.scheduledTime.substring(0, 5)}</div>
+                                ${d.estimatedTime ? `<div style="font-size:12px;color:#999;text-decoration:line-through;">${d.scheduledTime.substring(0, 5)}</div>` : ''}
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                ${d.isTracked ? '<span style="color:#1a73e8;font-size:14px;">📡</span>' : ''}
+                                <span style="font-size:12px;font-weight:600;color:${dCol};background:${dCol}10;padding:2px 8px;border-radius:4px;">${dTxt}</span>
+                            </div>
+                        </div>`;
+                });
+            });
+            cont.innerHTML = h + '</div>';
+        }
+
+        function showTripLoading(shortName, color) {
+            const p = document.getElementById('tripDetailPanel');
+            document.getElementById('trip-panel-route-pill').textContent = shortName;
+            document.getElementById('trip-panel-route-pill').style.backgroundColor = '#' + color;
+            document.getElementById('trip-panel-headsign').textContent = "Loading...";
+            document.getElementById('trip-panel-subtitle').textContent = "";
+            document.getElementById('trip-panel-loading').style.display = 'flex';
+            document.getElementById('trip-panel-body').innerHTML = "";
+            p.classList.add('open');
+        }
+
+        function renderTripDetail(detail) {
+            const data = typeof detail === 'string' ? JSON.parse(decodeURIComponent(detail)) : detail;
+            document.getElementById('trip-panel-loading').style.display = 'none';
+            document.getElementById('trip-panel-headsign').textContent = data.headsign;
+            document.getElementById('trip-panel-subtitle').textContent = data.isTracked ? "Real-time tracked" : "Scheduled times";
+            
+            let h = '<div style="padding: 10px 20px 40px;">';
+            data.stops.forEach((s, idx) => {
+                const isPassed = s.isPassed;
+                const isCurrent = idx === data.currentStopIndex;
+                h += `
+                    <div style="display:flex;gap:15px;opacity:${isPassed ? 0.4 : 1};position:relative;padding-bottom:15px;">
+                        <div style="display:flex;flex-direction:column;align-items:center;width:20px;">
+                            <div style="width:12px;height:12px;border-radius:6px;background:${isCurrent ? '#1a73e8' : '#ccc'};z-index:2;margin-top:4px;"></div>
+                            ${idx < data.stops.length - 1 ? '<div style="flex:1;width:2px;background:#eee;margin:-2px 0;"></div>' : ''}
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:15px;font-weight:${isCurrent ? '700' : '500'};">${s.stopName}</div>
+                            <div style="display:flex;gap:10px;font-size:12px;color:#999;margin-top:2px;">
+                                <span>${s.estimatedTime || s.scheduledTime.substring(0, 5)}</span>
+                                ${s.delayMinutes ? `<span style="color:#d32f2f;">${s.delayMinutes > 0 ? '+' : ''}${s.delayMinutes} min</span>` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('trip-panel-body').innerHTML = h + '</div>';
+            if(data.routeId) showRoute(data.routeId);
+        }
+
         map.on('click', () => {
             clearActiveRoute();
             vehiclePopup.remove();
             closeStopPanel();
+            closeTripPanel();
             const menu = document.getElementById('sideMenu');
             const button = document.getElementById('menuButton');
             if (menu.classList.contains('open')) {
@@ -659,8 +718,8 @@
             el.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
             el.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - y0 > 80) closeFn(); }, { passive: true });
         }
-        addSwipeClose(sheet, closeStopSheet);
-        addSwipeClose(tripPanel, closeTripPanel);
+        addSwipeClose(document.getElementById('stopInfoPanel'), closeStopPanel);
+        addSwipeClose(document.getElementById('tripDetailPanel'), closeTripPanel);
 
     </script>
 </body>

@@ -5,19 +5,27 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:pages="clr-namespace:GetThere.Pages"
     Title="GetThere"
-    Shell.NavBarIsVisible="False">
+    Shell.NavBarIsVisible="False"
+    Shell.TabBarBackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}"
+    Shell.TabBarTitleColor="#FF00FF"
+    Shell.TabBarUnselectedColor="Gray"
+    Shell.TabBarForegroundColor="#FF00FF">
 
     <TabBar>
         <ShellContent
-            Title="Profile"
+            x:Name="ProfileTab"
+            Title=""
+            Icon="icon_profile.svg"
             ContentTemplate="{DataTemplate pages:ProfilePage}"
             Route="profile" />
         <ShellContent
-            Title="Map"
+            Title=""
+            Icon="icon_map.svg"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent
-            Title="Operators"
+            Title=""
+            Icon="icon_operators.svg"
             ContentTemplate="{DataTemplate pages:OperatorsPage}"
             Route="operators" />
     </TabBar>

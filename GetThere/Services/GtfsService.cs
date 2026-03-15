@@ -239,7 +239,6 @@ public class GtfsService
             Lat = ParseDouble(Get(r, "stop_lat")),
             Lon = ParseDouble(Get(r, "stop_lon")),
         })
-        .Where(s => s.StopId.Contains('_'))
         .ToList();
     }
 

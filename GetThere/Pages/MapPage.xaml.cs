@@ -213,7 +213,6 @@ public partial class MapPage : ContentPage
 
             var allStops = new List<object>();
             var allRoutes = new List<object>();
-            var allStopSchedules = new List<object>();
 
             foreach (var op in operators)
             {
@@ -241,19 +240,26 @@ public partial class MapPage : ContentPage
                     routeType = r.RouteType
                 }));
 
-                allStopSchedules.AddRange(stop_schedules.Select(ss => new
-                {
-                    tripId = ss.TripId,
-                    arrivalTime = ss.ArrivalTime,
-                    departureTime = ss.DepartureTime,
-                    destination = ss.Destination,
-                    stopId = ss.StopId,
-                }));
+                // (Removed allStopSchedules collection here)
 
 
+
+                foreach (var s in stops)
+                    _stopOperatorMap[s.StopId] = op.Id;
 
                 foreach (var r in routes)
+                {
                     _routeTypeMap[r.RouteId] = r.RouteType;
+                    // Note: If we had a direct route->operator map, we could use that.
+                    // For now, we'll assume trips belong to the operator they were parsed from.
+                }
+
+                var tripMap = _gtfsApi.GetTripRouteMapPublic(op.Id);
+                if (tripMap != null)
+                {
+                    foreach (var tripId in tripMap.Keys)
+                        _tripOperatorMap[tripId] = op.Id;
+                }
 
                 if (_gtfsApi.HasRealtime(op.Id))
                     _activeRealtimeOperators.Add(op);
@@ -261,7 +267,6 @@ public partial class MapPage : ContentPage
 
             await CallJs("renderStops", allStops);
             await CallJs("renderRoutes", allRoutes);
-            await CallJs("renderStopSchedules", allStopSchedules);
         }
         catch (Exception ex) { Trace.WriteLine($"[Map] Load error: {ex.Message}"); }
     }
