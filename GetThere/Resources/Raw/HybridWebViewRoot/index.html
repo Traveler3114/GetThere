@@ -13,51 +13,27 @@
             font-family: 'Segoe UI',Arial,sans-serif;
         }
 
-        /* ── Vehicle popup ───────────── */
-        .vehicle-popup {
-            font-family: sans-serif;
-            min-width: 150px;
-        }
-
-            .vehicle-popup .route-badge {
-                display: inline-block;
-                padding: 3px 10px;
-                border-radius: 5px;
-                color: #fff;
-                font-weight: bold;
-                font-size: 15px;
-                margin-bottom: 5px;
-            }
-
-            .vehicle-popup .info {
-                color: #555;
-                font-size: 12px;
-                margin-top: 2px;
-            }
-
-        /* ── Stop schedule bottom sheet ─ */
-        #stop-sheet {
+        /* ── shared panel base ─────────────────────────────────── */
+        .bottom-panel {
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
             background: #fff;
             border-radius: 18px 18px 0 0;
-            box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
             transform: translateY(100%);
-            transition: transform 0.32s cubic-bezier(.4,0,.2,1);
-            z-index: 1000;
-            max-height: 72vh;
+            transition: transform 0.3s cubic-bezier(.4,0,.2,1);
             display: flex;
             flex-direction: column;
             touch-action: pan-y;
         }
 
-            #stop-sheet.open {
+            .bottom-panel.open {
                 transform: translateY(0);
             }
 
-        #sheet-handle {
+        .panel-handle {
             width: 44px;
             height: 5px;
             background: #d0d0d0;
@@ -67,13 +43,39 @@
             cursor: grab;
         }
 
-        #sheet-header {
+        .panel-header {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 10px 16px 6px;
+            gap: 8px;
+            padding: 10px 16px 8px;
             flex-shrink: 0;
             border-bottom: 1px solid #f0f0f0;
+        }
+
+        .panel-close {
+            background: none;
+            border: none;
+            font-size: 22px;
+            color: #888;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            margin-left: auto;
+        }
+
+            .panel-close:hover {
+                color: #333;
+            }
+
+        .panel-body {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* ── Stop schedule panel ────────────────────────────────── */
+        #stop-sheet {
+            z-index: 1000;
+            max-height: 72vh;
         }
 
         #sheet-stop-name {
@@ -89,22 +91,7 @@
         #sheet-stop-id {
             font-size: 11px;
             color: #999;
-            white-space: nowrap;
         }
-
-        #sheet-close {
-            background: none;
-            border: none;
-            font-size: 22px;
-            color: #888;
-            cursor: pointer;
-            padding: 0 0 0 8px;
-            line-height: 1;
-        }
-
-            #sheet-close:hover {
-                color: #333;
-            }
 
         #sheet-date {
             padding: 4px 16px 8px;
@@ -113,74 +100,62 @@
             flex-shrink: 0;
         }
 
-        #sheet-loading {
+        #sheet-body {
+            padding: 0 12px 20px;
+        }
+
+        /* ── Trip detail panel ──────────────────────────────────── */
+        #trip-panel {
+            z-index: 1001;
+            max-height: 80vh;
+        }
+
+        .trip-panel-route {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        #trip-panel-headsign {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a1a1a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #trip-panel-subtitle {
+            padding: 4px 16px 10px;
+            font-size: 12px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        #trip-panel-loading {
             display: none;
             align-items: center;
             justify-content: center;
             gap: 10px;
-            padding: 32px;
+            padding: 40px;
             color: #666;
             font-size: 14px;
         }
 
-        .spinner {
-            width: 22px;
-            height: 22px;
-            border: 3px solid #e0e0e0;
-            border-top-color: #1565C0;
-            border-radius: 50%;
-            animation: spin 0.7s linear infinite;
+        #trip-panel-body {
+            padding: 0 0 24px;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        #sheet-empty {
-            display: none;
-            padding: 32px 16px;
-            text-align: center;
-            color: #aaa;
-            font-size: 14px;
-        }
-
-        #sheet-body {
-            overflow-y: auto;
-            flex: 1;
-            padding: 0 12px 20px;
-        }
-
-        /* ── Route group card ──────────── */
-        .route-group {
-            margin-top: 12px;
-            border: 1px solid #ebebeb;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .route-group-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            background: #f8f8f8;
-            cursor: pointer;
-            user-select: none;
-        }
-
-            .route-group-header:active {
-                background: #f0f0f0;
-            }
-
+        /* route pill */
         .route-pill {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             min-width: 42px;
             height: 28px;
-            padding: 0 8px;
+            padding: 0 10px;
             border-radius: 7px;
             font-size: 15px;
             font-weight: 800;
@@ -203,6 +178,194 @@
                 color: #fff;
             }
 
+        /* ── Stop rows in trip panel ─────────────────────────────── */
+        .trip-stop {
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            min-height: 56px;
+            position: relative;
+        }
+
+            /* vertical line */
+            .trip-stop::before {
+                content: '';
+                position: absolute;
+                left: 28px;
+                top: 0;
+                bottom: 0;
+                width: 2px;
+                background: #e8e8e8;
+                z-index: 0;
+            }
+
+            .trip-stop:first-child::before {
+                top: 50%;
+            }
+
+            .trip-stop:last-child::before {
+                bottom: 50%;
+            }
+
+        /* dot */
+        .trip-stop-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: #d0d0d0;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px #d0d0d0;
+            z-index: 1;
+            margin-right: 14px;
+            transition: all 0.15s;
+        }
+
+        .trip-stop.current .trip-stop-dot {
+            width: 18px;
+            height: 18px;
+            background: #1565c0;
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 3px rgba(21,101,192,0.3);
+        }
+
+        .trip-stop.passed .trip-stop-dot {
+            background: #c8e6c9;
+            box-shadow: 0 0 0 2px #c8e6c9;
+        }
+
+        /* stop info */
+        .trip-stop-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .trip-stop-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #222;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .trip-stop.current .trip-stop-name {
+            font-weight: 700;
+            color: #1565c0;
+        }
+
+        .trip-stop.passed .trip-stop-name {
+            color: #aaa;
+        }
+
+        .trip-stop.passed {
+            opacity: 0.6;
+        }
+
+        /* times column */
+        .trip-stop-times {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 1px;
+            flex-shrink: 0;
+            margin-left: 10px;
+        }
+
+        .ts-sched {
+            font-size: 11px;
+            color: #bbb;
+            text-decoration: line-through;
+        }
+
+        .ts-eta {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+            .ts-eta.late {
+                color: #e53935;
+            }
+
+            .ts-eta.early {
+                color: #ef6c00;
+            }
+
+            .ts-eta.ontime {
+                color: #2e7d32;
+            }
+
+        .ts-only {
+            font-size: 14px;
+            font-weight: 500;
+            color: #444;
+        }
+
+        .trip-stop.passed .ts-only {
+            color: #bbb;
+        }
+
+        .trip-stop.current .ts-only {
+            color: #1565c0;
+            font-weight: 700;
+        }
+
+        /* ── Stop schedule UI ───────────────────────────────────── */
+        .sched-loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 32px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .sched-empty {
+            display: none;
+            padding: 32px;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #1565C0;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* route group in stop schedule */
+        .route-group {
+            margin-top: 12px;
+            border: 1px solid #ebebeb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .route-group-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #f8f8f8;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .route-group-header:active {
+                background: #f0f0f0;
+            }
+
         .route-headsign {
             font-size: 14px;
             font-weight: 600;
@@ -223,7 +386,6 @@
             font-size: 16px;
             color: #bbb;
             transition: transform 0.2s;
-            flex-shrink: 0;
         }
 
         .route-group.expanded .route-chevron {
@@ -243,7 +405,7 @@
             display: flex;
         }
 
-        /* ── Time chips ────────────────── */
+        /* time chips */
         .time-chip {
             padding: 5px 10px;
             border-radius: 8px;
@@ -254,7 +416,7 @@
             white-space: nowrap;
             display: inline-flex;
             align-items: center;
-            gap: 3px;
+            gap: 4px;
         }
 
             .time-chip.next {
@@ -262,10 +424,17 @@
                 color: #fff;
             }
 
-        /* tracked chip — scheduled struck through + ETA */
+            .time-chip.click {
+                cursor: pointer;
+            }
+
+                .time-chip.click:active {
+                    opacity: 0.75;
+                }
+
         .sched-strike {
             text-decoration: line-through;
-            opacity: 0.55;
+            opacity: 0.5;
             font-size: 11px;
         }
 
@@ -279,20 +448,16 @@
         }
 
             .delay-badge.late {
-                color: #f44336;
+                color: #e53935;
             }
 
             .delay-badge.early {
-                color: #ff9800;
+                color: #ef6c00;
             }
 
             .delay-badge.ontime {
                 color: #4caf50;
             }
-
-        .time-chip.next .sched-strike {
-            opacity: 0.6;
-        }
 
         .time-chip.next .delay-badge.late {
             color: #ffcdd2;
@@ -306,7 +471,6 @@
             color: #c8e6c9;
         }
 
-        /* untracked future time */
         .live-dot {
             color: #4caf50;
             font-size: 9px;
@@ -337,23 +501,38 @@
 <body>
     <div id="map"></div>
 
-    <div id="stop-sheet">
-        <div id="sheet-handle"></div>
-        <div id="sheet-header">
+    <!-- Stop schedule panel -->
+    <div id="stop-sheet" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
             <span id="sheet-stop-name">Stop</span>
             <span id="sheet-stop-id"></span>
-            <button id="sheet-close">✕</button>
+            <button class="panel-close" id="sheet-close">✕</button>
         </div>
         <div id="sheet-date"></div>
-        <div id="sheet-loading"><div class="spinner"></div> Loading schedule…</div>
-        <div id="sheet-empty">No departures today for this stop.</div>
-        <div id="sheet-body"></div>
+        <div class="sched-loading" id="sheet-loading"><div class="spinner"></div> Loading schedule…</div>
+        <div class="sched-empty" id="sheet-empty">No departures today for this stop.</div>
+        <div class="panel-body" id="sheet-body"></div>
+    </div>
+
+    <!-- Trip detail panel -->
+    <div id="trip-panel" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <div class="trip-panel-route">
+                <span id="trip-panel-pill" class="route-pill bus">1</span>
+                <span id="trip-panel-headsign">Route</span>
+            </div>
+            <button class="panel-close" id="trip-panel-close">✕</button>
+        </div>
+        <div id="trip-panel-subtitle"></div>
+        <div id="trip-panel-loading" class="sched-loading"><div class="spinner"></div> Loading stops…</div>
+        <div class="panel-body" id="trip-panel-body"></div>
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
     <script>
         const MAPTILER_KEY = "3mONySRY1DAYg6mgQean";
-
         const map = new maplibregl.Map({
             container: 'map',
             style: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
@@ -373,15 +552,23 @@
         let vehicleMarkers = {}, activeRouteId = null, stopMarkers = [];
         let _suppressMapClick = false;
 
-        // ─── Stop icon (T=tram red, B=bus blue) ──────────────────────
+        // ─── Helpers ─────────────────────────────────────────────────
+        function typeColor(t) {
+            if (t === 0) return 'e53935';
+            if (t === 11) return 'e65100';
+            if (t === 1 || t === 2) return '6a1b9a';
+            return '1565c0';
+        }
+        function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        function pillClass(t) { return t === 0 || t === 11 ? 'tram' : t === 1 || t === 2 ? 'rail' : 'bus'; }
+
+        // ─── Stop icon ───────────────────────────────────────────────
         function makeStopIcon(routeType) {
             const isTram = routeType === 0 || routeType === 11;
-            const color = isTram ? '#c62828' : '#1565C0';
-            const label = isTram ? 'T' : 'B';
+            const color = isTram ? '#c62828' : '#1565C0', label = isTram ? 'T' : 'B';
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
                     <circle cx="10" cy="10" r="9" fill="white" stroke="${color}" stroke-width="2.5"/>
-                    <text x="10" y="14" text-anchor="middle" font-size="11"
-                          font-family="Arial,sans-serif" font-weight="bold" fill="${color}">${label}</text>
+                    <text x="10" y="14" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="bold" fill="${color}">${label}</text>
                 </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg; el.style.cssText = 'cursor:pointer;width:20px;height:20px;';
@@ -392,7 +579,7 @@
         function makeVehicleIcon(color, routeType, bearing, shortName) {
             const hex = '#' + (color || 'e53935').replace('#', '');
             const isTram = routeType === 0 || routeType === 11, isRail = routeType === 1 || routeType === 2;
-            const label = shortName || '', border = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#ffffff';
+            const label = shortName || '', border = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#fff';
             const icon = isTram ? '🚋' : isRail ? '🚇' : '🚌', fsize = label.length > 2 ? '9' : '11';
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
                     <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
@@ -407,14 +594,14 @@
             return el;
         }
 
-        // ─── renderStops ──────────────────────────────────────────────
+        // ─── renderStops ─────────────────────────────────────────────
         function renderStops(stops) {
             stopMarkers.forEach(m => m.remove()); stopMarkers = [];
             stops.forEach(s => {
                 const el = makeStopIcon(s.routeType ?? 3);
                 el.addEventListener('click', e => {
                     _suppressMapClick = true;
-                    openSheet(s.stopId, s.name, s.routeType ?? 3);
+                    openStopSheet(s.stopId, s.name, s.routeType ?? 3);
                 });
                 stopMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lon, s.lat]).addTo(map));
             });
@@ -426,82 +613,84 @@
         const sheetSid = document.getElementById('sheet-stop-id');
         const sheetDate = document.getElementById('sheet-date');
         const sheetLoad = document.getElementById('sheet-loading');
-        const sheetMpty = document.getElementById('sheet-empty');
+        const sheetEmpty = document.getElementById('sheet-empty');
         const sheetBody = document.getElementById('sheet-body');
-        document.getElementById('sheet-close').addEventListener('click', e => { e.stopPropagation(); closeSheet(); });
+        document.getElementById('sheet-close').addEventListener('click', e => { e.stopPropagation(); closeStopSheet(); });
         sheet.addEventListener('click', e => e.stopPropagation());
+
         let currentStopId = null;
 
-        function openSheet(stopId, stopName, stopRouteType) {
+        function openStopSheet(stopId, stopName, stopRouteType) {
             currentStopId = stopId;
             sheetName.textContent = stopName;
             const isTram = stopRouteType === 0 || stopRouteType === 11;
             sheetSid.textContent = (isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
-            const now = new Date();
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const now = new Date(), days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+                months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             sheetDate.textContent = days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
             sheetLoad.style.display = 'flex';
-            sheetMpty.style.display = 'none';
+            sheetEmpty.style.display = 'none';
             sheetBody.innerHTML = '';
             sheet.classList.add('open');
+            closeTripPanel(); // close trip panel if open
             window._pendingMsg = 'stopSchedule:' + stopId;
         }
 
-        function closeSheet() { sheet.classList.remove('open'); currentStopId = null; }
+        function closeStopSheet() {
+            sheet.classList.remove('open');
+            currentStopId = null;
+        }
 
-        // ─── renderStopSchedule (called from C#) ──────────────────────
+        // ─── renderStopSchedule (called from C#) ─────────────────────
         function renderStopSchedule(data) {
             if (typeof data === 'string') data = JSON.parse(data);
-            // Always render — currentStopId may have changed due to map click
-            // but the sheet is still showing the correct stop
             sheetLoad.style.display = 'none';
             sheetBody.innerHTML = '';
             const groups = data.groups || [];
-            if (groups.length === 0) { sheetMpty.style.display = 'block'; return; }
+            if (groups.length === 0) { sheetEmpty.style.display = 'block'; return; }
+
+            const now = new Date(), nowMins = now.getHours() * 60 + now.getMinutes();
 
             groups.forEach((g, gi) => {
                 const rType = routeTypeMap[g.routeId] ?? 3;
-                const pillClass = rType === 0 || rType === 11 ? 'tram' : rType === 1 || rType === 2 ? 'rail' : 'bus';
+                const pc = pillClass(rType);
                 const deps = g.departures || [];
 
                 const timesHtml = deps.map((d, i) => {
                     const isNext = i === 0;
-                    let chipClass = 'time-chip' + (isNext ? ' next' : '');
+                    let cls = 'time-chip' + (isNext ? ' next' : '');
+                    const canClick = d.isTracked || !!d.estimatedTime;
+                    if (canClick) cls += ' click';
 
-                    // hasEta = we have a predicted time different from scheduled
-                    // (can come from IsScheduledOnly TripUpdate too, not just GPS vehicles)
+                    const clickAttr = canClick
+                        ? `onclick="_suppressMapClick=true;window._pendingMsg='tripDetail:${d.tripId}'"` : '';
+
                     const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
-
                     if (hasEta) {
                         const delay = d.delayMinutes ?? 0;
-                        let badge = '';
-                        if (delay > 1) badge = `<span class="delay-badge late">+${delay}'</span>`;
-                        else if (delay < -1) badge = `<span class="delay-badge early">${delay}'</span>`;
-                        else badge = `<span class="delay-badge ontime">✓</span>`;
-                        // GPS-tracked vehicles get a live dot too
-                        const livePin = d.isTracked ? `<span class="live-dot">●</span>` : '';
-                        return `<span class="${chipClass}"><span class="sched-strike">${d.scheduledTime}</span><span class="eta-time">${d.estimatedTime}</span>${badge}${livePin}</span>`;
+                        let badge = delay > 1 ? `<span class="delay-badge late">+${delay}'</span>`
+                            : delay < -1 ? `<span class="delay-badge early">${delay}'</span>`
+                                : `<span class="delay-badge ontime">✓</span>`;
+                        const dot = d.isTracked ? `<span class="live-dot">●</span>` : '';
+                        return `<span class="${cls}" ${clickAttr}><span class="sched-strike">${d.scheduledTime}</span><span class="eta-time">${d.estimatedTime}</span>${badge}${dot}</span>`;
                     } else if (d.isTracked) {
-                        // GPS tracked, on schedule (no ETA deviation)
-                        return `<span class="${chipClass}">${d.scheduledTime}<span class="live-dot">●</span></span>`;
+                        return `<span class="${cls}" ${clickAttr}>${d.scheduledTime}<span class="live-dot">●</span></span>`;
                     } else {
-                        // Static schedule only
-                        return `<span class="${chipClass}">${d.scheduledTime}</span>`;
+                        return `<span class="${cls}">${d.scheduledTime}</span>`;
                     }
                 }).join('');
 
-                const trackedCount = deps.filter(d => d.isTracked).length;
-                const etaCount = deps.filter(d => d.estimatedTime && d.estimatedTime !== d.scheduledTime).length;
-                const rtBadge = trackedCount > 0 ? `&nbsp;<span class="tracked-count">📡&nbsp;${trackedCount}</span>`
-                    : etaCount > 0 ? `&nbsp;<span class="tracked-count" style="color:#ff9800">⏱&nbsp;${etaCount}</span>` : '';
+                const tracked = deps.filter(d => d.isTracked).length;
+                const etaOnly = deps.filter(d => !d.isTracked && d.estimatedTime).length;
+                const rtBadge = tracked > 0 ? `&nbsp;<span class="tracked-count">📡&nbsp;${tracked}</span>`
+                    : etaOnly > 0 ? `&nbsp;<span class="tracked-count" style="color:#ef6c00">⏱&nbsp;${etaOnly}</span>` : '';
                 const countHtml = deps.length + '&nbsp;dep.' + rtBadge;
 
                 const div = document.createElement('div');
                 div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
                 div.innerHTML = `
                         <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-                            <span class="route-pill ${pillClass}">${escHtml(g.shortName)}</span>
+                            <span class="route-pill ${pc}">${escHtml(g.shortName)}</span>
                             <span class="route-headsign">${escHtml(g.headsign)}</span>
                             <span class="route-count">${countHtml}</span>
                             <span class="route-chevron">▾</span>
@@ -516,7 +705,100 @@
             });
         }
 
-        function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        // ─── Trip detail panel ────────────────────────────────────────
+        const tripPanel = document.getElementById('trip-panel');
+        const tripPill = document.getElementById('trip-panel-pill');
+        const tripHead = document.getElementById('trip-panel-headsign');
+        const tripSubtitle = document.getElementById('trip-panel-subtitle');
+        const tripLoading = document.getElementById('trip-panel-loading');
+        const tripBody = document.getElementById('trip-panel-body');
+        document.getElementById('trip-panel-close').addEventListener('click', e => { e.stopPropagation(); closeTripPanel(); });
+        tripPanel.addEventListener('click', e => e.stopPropagation());
+
+        function closeTripPanel() {
+            tripPanel.classList.remove('open');
+        }
+
+        function openTripPanel(tripId) {
+            // Show loading state immediately
+            tripPill.className = 'route-pill bus'; tripPill.textContent = '…';
+            tripHead.textContent = 'Loading…';
+            tripSubtitle.textContent = '';
+            tripLoading.style.display = 'flex';
+            tripBody.innerHTML = '';
+            tripPanel.classList.add('open');
+            window._pendingMsg = 'tripDetail:' + tripId;
+        }
+
+        // ─── renderTripDetail (called from C#) ───────────────────────
+        function renderTripDetail(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+
+            tripLoading.style.display = 'none';
+
+            const rType = data.routeType ?? 3, pc = pillClass(rType);
+            tripPill.className = 'route-pill ' + pc;
+            tripPill.textContent = data.shortName || data.routeId || '?';
+            tripHead.textContent = data.headsign || '';
+
+            const tracked = data.isTracked ? '📡 Live' : data.stops?.some(s => s.estimatedTime) ? '⏱ Predicted' : '📅 Scheduled';
+            tripSubtitle.textContent = tracked;
+            tripSubtitle.style.cssText = 'padding:2px 16px 10px;font-size:12px;color:#888;flex-shrink:0';
+
+            tripBody.innerHTML = '';
+            const stops = data.stops || [], curIdx = data.currentStopIndex ?? 0;
+
+            stops.forEach((s, i) => {
+                const isPassed = s.isPassed, isCurrent = i === curIdx && !isPassed;
+                let cls = 'trip-stop';
+                if (isPassed) cls += ' passed';
+                if (isCurrent) cls += ' current';
+
+                let timesHtml = '';
+                const hasEta = s.estimatedTime && s.estimatedTime !== s.scheduledTime;
+                if (hasEta) {
+                    const d = s.delayMinutes ?? 0;
+                    const ec = d > 1 ? 'late' : d < -1 ? 'early' : 'ontime';
+                    timesHtml = `<div class="trip-stop-times">
+                            <span class="ts-sched">${s.scheduledTime}</span>
+                            <span class="ts-eta ${ec}">${s.estimatedTime}</span>
+                        </div>`;
+                } else {
+                    timesHtml = `<div class="trip-stop-times">
+                            <span class="ts-only">${s.scheduledTime}</span>
+                        </div>`;
+                }
+
+                const row = document.createElement('div');
+                row.className = cls;
+                row.innerHTML = `<div class="trip-stop-dot"></div>
+                        <div class="trip-stop-info"><div class="trip-stop-name">${escHtml(s.stopName)}</div></div>
+                        ${timesHtml}`;
+                tripBody.appendChild(row);
+            });
+
+            // Fly to vehicle
+            if (data.isTracked && data.vehicleLat && data.vehicleLon)
+                map.flyTo({ center: [data.vehicleLon, data.vehicleLat], zoom: 15, duration: 600 });
+
+            if (data.routeId) showRoute(data.routeId);
+
+            requestAnimationFrame(() => {
+                const cur = tripBody.querySelector('.trip-stop.current');
+                if (cur) cur.scrollIntoView({ block: 'center' });
+            });
+        }
+
+        // Attach vehicle click to open trip panel
+        function attachVehicleClick(el, v, color, rId) {
+            el.addEventListener('click', e => {
+                e.stopPropagation(); _suppressMapClick = true;
+                closeStopSheet();
+                const tid = v.tripId || v.vehicleId;
+                if (tid) openTripPanel(tid);
+                else { showRoute(rId); }
+            });
+        }
 
         // ─── renderRoutes ─────────────────────────────────────────────
         function renderRoutes(routes) {
@@ -537,7 +819,7 @@
             if (!shape || shape.length < 2) return;
             const color = '#' + (routeColorMap[routeId] || '1565c0');
             map.addSource('active-route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } } });
-            map.addLayer({ id: 'active-route-outline', type: 'line', source: 'active-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.15 } });
+            map.addLayer({ id: 'active-route-outline', type: 'line', source: 'active-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.12 } });
             map.addLayer({ id: 'active-route', type: 'line', source: 'active-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.95 } });
             activeRouteId = routeId;
         }
@@ -549,13 +831,6 @@
                 if (map.getSource('active-route')) map.removeSource('active-route');
             } catch (e) { }
             activeRouteId = null;
-        }
-
-        function typeColor(t) {
-            if (t === 0) return 'e53935';
-            if (t === 11) return 'e65100';
-            if (t === 1 || t === 2) return '6a1b9a';
-            return '1565c0';
         }
 
         // ─── renderVehicles ───────────────────────────────────────────
@@ -577,27 +852,14 @@
                 } else {
                     const el = makeVehicleIcon(color, rType, v.bearing, sName);
                     attachVehicleClick(el, v, color, rId);
-                    const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([v.lon, v.lat]).addTo(map);
-                    vehicleMarkers[v.vehicleId] = { marker, routeId: rId };
+                    vehicleMarkers[v.vehicleId] = {
+                        marker: new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([v.lon, v.lat]).addTo(map),
+                        routeId: rId
+                    };
                 }
             });
-            for (const id in vehicleMarkers) {
+            for (const id in vehicleMarkers)
                 if (!seen.has(id)) { vehicleMarkers[id].marker.remove(); delete vehicleMarkers[id]; }
-            }
-        }
-
-        function attachVehicleClick(el, v, color, rId) {
-            el.addEventListener('click', e => {
-                e.stopPropagation(); _suppressMapClick = true;
-                closeSheet(); showRoute(rId);
-                const hex = '#' + color.replace('#', ''), name = routeNameMap[rId] || rId || '';
-                vehiclePopup.setLngLat([v.lon, v.lat])
-                    .setHTML(`<div class="vehicle-popup">
-                            <span class="route-badge" style="background:${hex}">Line ${name}</span>
-                            ${v.label ? `<div class="info">Vehicle: ${v.label}</div>` : ''}
-                            <div class="info">Route: ${name}</div>
-                        </div>`).addTo(map);
-            });
         }
 
         function clearVehicles() {
@@ -608,15 +870,18 @@
         // ─── Map click ────────────────────────────────────────────────
         map.on('click', () => {
             if (_suppressMapClick) { _suppressMapClick = false; return; }
-            clearActiveRoute(); vehiclePopup.remove();
-            // Only close sheet if it's showing a vehicle popup area, not a stop schedule
-            // Sheet is closed by the X button, swipe, or tapping a vehicle marker
+            clearActiveRoute(); vehiclePopup.remove(); closeTripPanel();
         });
 
-        // ─── Swipe down to close sheet ────────────────────────────────
-        let touchStartY = 0;
-        sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
-        sheet.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - touchStartY > 80) closeSheet(); }, { passive: true });
+        // ─── Swipe to close ───────────────────────────────────────────
+        function addSwipeClose(el, closeFn) {
+            let y0 = 0;
+            el.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
+            el.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - y0 > 80) closeFn(); }, { passive: true });
+        }
+        addSwipeClose(sheet, closeStopSheet);
+        addSwipeClose(tripPanel, closeTripPanel);
+
     </script>
 </body>
 </html>

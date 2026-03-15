@@ -18,6 +18,10 @@ public class GtfsService
     private const string TripMapKeyPrefix = "trip_route_map_";
     private const string StopRouteTypeFile = "stop_route_types.json";
 
+    // In-memory cache for trip stop sequences — avoids re-scanning 100MB stop_times.txt
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<TripStopDto>>
+        _tripStopCache = new(StringComparer.Ordinal);
+
     private static readonly SemaphoreSlim _zipLock = new(1, 1);
 
     private readonly HttpClient _http;
@@ -134,6 +138,9 @@ public class GtfsService
         Preferences.Set($"{TripMapKeyPrefix}{operatorId}", JsonSerializer.Serialize(map));
         Trace.WriteLine($"[GTFS:{operatorId}] Built trip→route map: {map.Count} entries");
     }
+
+    /// <summary>Public accessor for trip→route map (for operator resolution in MapPage).</summary>
+    public Dictionary<string, string>? GetTripRouteMapPublic(int operatorId) => GetTripRouteMap(operatorId);
 
     private Dictionary<string, string>? GetTripRouteMap(int operatorId)
     {
@@ -777,4 +784,108 @@ public class GtfsService
     }
 
     private static string TrimCell(string s) => s.Trim().Trim('"').Trim();
+
+    // ────────────────────────────────────────────────────────────────────
+    // Trip Detail  (full stop sequence for a trip)
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the full ordered stop sequence for <paramref name="tripId"/>,
+    /// with stop names and scheduled times.
+    /// Streams stop_times.txt line-by-line (safe for 100 MB files).
+    /// </summary>
+    public async Task<List<TripStopDto>> ParseTripStopsAsync(int operatorId, string tripId)
+    {
+        // Return cached result if available — avoids re-scanning 100MB stop_times.txt
+        if (_tripStopCache.TryGetValue(tripId, out var cached))
+            return cached;
+
+        using var zip = OpenZip(operatorId);
+        if (zip is null) return [];
+
+        // 1. Load stop coords + names into a quick lookup
+        var stopMeta = new Dictionary<string, (string Name, double Lat, double Lon)>(StringComparer.Ordinal);
+        var stopsEntry = zip.GetEntry("stops.txt");
+        if (stopsEntry is not null)
+        {
+            await using var ss = stopsEntry.Open();
+            using var sr = new StreamReader(ss);
+            var hdr = (await sr.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+            var cols = SplitCsvLine(hdr);
+            int iId = IndexOf(cols, "stop_id");
+            int iNm = IndexOf(cols, "stop_name");
+            int iLat = IndexOf(cols, "stop_lat");
+            int iLon = IndexOf(cols, "stop_lon");
+            if (iId >= 0 && iNm >= 0)
+            {
+                string? line;
+                while ((line = await sr.ReadLineAsync()) is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var v = SplitCsvLine(line);
+                    int need = Math.Max(iId, Math.Max(iNm, Math.Max(iLat < 0 ? 0 : iLat, iLon < 0 ? 0 : iLon)));
+                    if (v.Count <= need) continue;
+                    var sid = TrimCell(v[iId]);
+                    var name = TrimCell(v[iNm]);
+                    var lat = iLat >= 0 && iLat < v.Count ? ParseDouble(TrimCell(v[iLat])) : 0;
+                    var lon = iLon >= 0 && iLon < v.Count ? ParseDouble(TrimCell(v[iLon])) : 0;
+                    if (!string.IsNullOrEmpty(sid))
+                        stopMeta.TryAdd(sid, (name, lat, lon));
+                }
+            }
+        }
+
+        // 2. Stream stop_times.txt — collect only rows for this trip
+        var result = new List<TripStopDto>();
+        var stEntry = zip.GetEntry("stop_times.txt");
+        if (stEntry is null) return result;
+
+        await using var sts = stEntry.Open();
+        using var stReader = new StreamReader(sts);
+        var stHdr = (await stReader.ReadLineAsync() ?? "").TrimStart('\uFEFF');
+        var stCols = SplitCsvLine(stHdr);
+        int iTripId = IndexOf(stCols, "trip_id");
+        int iStopId = IndexOf(stCols, "stop_id");
+        int iSeq = IndexOf(stCols, "stop_sequence");
+        int iDep = IndexOf(stCols, "departure_time");
+        if (iDep < 0) iDep = IndexOf(stCols, "arrival_time");
+
+        if (iTripId < 0 || iStopId < 0 || iSeq < 0 || iDep < 0) return result;
+        int maxIdx = Math.Max(iTripId, Math.Max(iStopId, Math.Max(iSeq, iDep)));
+
+        string? stLine;
+        while ((stLine = await stReader.ReadLineAsync()) is not null)
+        {
+            if (string.IsNullOrWhiteSpace(stLine)) continue;
+            var v = SplitCsvLine(stLine);
+            if (v.Count <= maxIdx) continue;
+            if (!string.Equals(TrimCell(v[iTripId]), tripId, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var sid = TrimCell(v[iStopId]);
+            var depTime = TrimCell(v[iDep]);
+            if (depTime.Length > 5 && depTime[2] == ':') depTime = depTime[..5];
+            int seq = int.TryParse(TrimCell(v[iSeq]), out int s) ? s : 0;
+
+            stopMeta.TryGetValue(sid, out var meta);
+            result.Add(new TripStopDto
+            {
+                Sequence = seq,
+                StopId = sid,
+                StopName = meta.Name ?? sid,
+                Lat = meta.Lat,
+                Lon = meta.Lon,
+                ScheduledTime = depTime,
+            });
+        }
+
+        result.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
+
+        // Cache for subsequent calls (cleared on Remove/reinstall)
+        _tripStopCache.TryAdd(tripId, result);
+        Trace.WriteLine($"[GtfsService] Cached {result.Count} stops for trip {tripId} (cache size: {_tripStopCache.Count})");
+
+        return result;
+    }
+
+    public void ClearTripStopCache() => _tripStopCache.Clear();
 }

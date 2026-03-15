@@ -20,6 +20,8 @@ public partial class MapPage : ContentPage
     private readonly object _realtimeLock = new();
     // tripId → vehicle (for position + stop time updates)
     private Dictionary<string, VehiclePositionDto> _vehiclesByTrip = [];
+    // tripId → operatorId (built from trip→route map at load time)
+    private Dictionary<string, int> _tripOperatorMap = [];
 
     public MapPage(GtfsService gtfsApi, OperatorService operatorService)
     {
@@ -88,6 +90,8 @@ public partial class MapPage : ContentPage
 
             if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
                 await HandleStopScheduleAsync(msg["stopSchedule:".Length..]);
+            else if (msg.StartsWith("tripDetail:", StringComparison.Ordinal))
+                await HandleTripDetailAsync(msg["tripDetail:".Length..]);
         }
         catch (Exception ex) { Trace.WriteLine($"[MAP/POLL] Error: {ex.Message}"); }
     }
@@ -229,6 +233,12 @@ public partial class MapPage : ContentPage
                 foreach (var r in routes) _routeTypeMap[r.RouteId] = r.RouteType;
                 foreach (var s in stops) _stopOperatorMap.TryAdd(s.StopId, op.Id);
 
+                // Build trip→operator map so tripDetail requests know which zip to open
+                var tripRouteMap = _gtfsApi.GetTripRouteMapPublic(op.Id);
+                if (tripRouteMap != null)
+                    foreach (var tripId in tripRouteMap.Keys)
+                        _tripOperatorMap.TryAdd(tripId, op.Id);
+
                 if (_gtfsApi.HasRealtime(op.Id)) _activeRealtimeOperators.Add(op);
             }
 
@@ -293,6 +303,7 @@ public partial class MapPage : ContentPage
                 .Select(v => new
                 {
                     vehicleId = v.VehicleId,
+                    tripId = v.TripId,   // needed for trip detail panel on vehicle click
                     routeId = v.RouteId,
                     lat = v.Lat,
                     lon = v.Lon,
@@ -310,6 +321,126 @@ public partial class MapPage : ContentPage
                 await CallJs("renderVehicles", mapVehicles));
         }
         catch (Exception ex) { Trace.WriteLine($"[Realtime] Poll error: {ex.Message}"); }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Trip detail
+    // ────────────────────────────────────────────────────────────────────
+
+    private async Task HandleTripDetailAsync(string tripId)
+    {
+        Trace.WriteLine($"[Trip] Detail request for '{tripId}'");
+
+        // Find which operator this trip belongs to
+        if (!_tripOperatorMap.TryGetValue(tripId, out var operatorId))
+        {
+            // Fallback: search all installed operators
+            foreach (var op in _activeRealtimeOperators)
+            {
+                var map = _gtfsApi.GetTripRouteMapPublic(op.Id);
+                if (map != null && map.ContainsKey(tripId)) { operatorId = op.Id; break; }
+            }
+            if (operatorId == 0)
+            {
+                Trace.WriteLine($"[Trip] Trip '{tripId}' not found in any operator");
+                return;
+            }
+        }
+
+        try
+        {
+            var stops = await _gtfsApi.ParseTripStopsAsync(operatorId, tripId);
+            if (stops.Count == 0) { Trace.WriteLine($"[Trip] No stops found for '{tripId}'"); return; }
+
+            // Get route info
+            var routeId = string.Empty;
+            var shortName = string.Empty;
+            var headsign = string.Empty;
+            var routeType = 3;
+            var tripMap = _gtfsApi.GetTripRouteMapPublic(operatorId);
+            if (tripMap != null && tripMap.TryGetValue(tripId, out var rid))
+            {
+                routeId = rid;
+                routeType = _routeTypeMap.TryGetValue(rid, out var rt) ? rt : 3;
+            }
+
+            // Get vehicle position + realtime data
+            VehiclePositionDto? vehicle = null;
+            double vehicleLat = 0, vehicleLon = 0;
+            bool isTracked = false;
+            lock (_realtimeLock)
+                _vehiclesByTrip.TryGetValue(tripId, out vehicle);
+
+            if (vehicle != null)
+            {
+                vehicleLat = vehicle.Lat;
+                vehicleLon = vehicle.Lon;
+                isTracked = !vehicle.IsScheduledOnly;
+
+                // Annotate each stop with delay from StopTimeUpdates
+                if (vehicle.StopTimeUpdates != null)
+                {
+                    // Build stopId → STU map for fast lookup
+                    var stuByStop = vehicle.StopTimeUpdates
+                        .Where(u => u.StopId != null)
+                        .ToDictionary(u => u.StopId!, u => u);
+
+                    foreach (var stop in stops)
+                    {
+                        if (!stuByStop.TryGetValue(stop.StopId, out var stu)) continue;
+                        int delaySec = stu.DelaySeconds;
+                        stop.DelayMinutes = (int)Math.Round(delaySec / 60.0);
+                        var sp = stop.ScheduledTime.Split(':');
+                        if (sp.Length >= 2 && int.TryParse(sp[0], out int sh) && int.TryParse(sp[1], out int sm))
+                        {
+                            int estMins = sh * 60 + sm + stop.DelayMinutes.Value;
+                            stop.EstimatedTime = $"{estMins / 60:D2}:{estMins % 60:D2}";
+                        }
+                    }
+                }
+            }
+
+            // Mark passed stops (scheduled time < now - 1 min)
+            int nowMins = DateTime.Now.Hour * 60 + DateTime.Now.Minute - 1;
+            int currentIdx = 0;
+            for (int i = 0; i < stops.Count; i++)
+            {
+                int t = TimeToMinutes(stops[i].ScheduledTime);
+                if (t < nowMins) { stops[i].IsPassed = true; currentIdx = i + 1; }
+                else break;
+            }
+            currentIdx = Math.Min(currentIdx, stops.Count - 1);
+
+            // Build short name + headsign from last stop
+            shortName = routeId; // fallback
+            headsign = stops.Last().StopName;
+
+            var detail = new TripDetailDto
+            {
+                TripId = tripId,
+                RouteId = routeId,
+                ShortName = shortName,
+                Headsign = headsign,
+                RouteType = routeType,
+                Stops = stops,
+                CurrentStopIndex = currentIdx,
+                VehicleLat = vehicleLat,
+                VehicleLon = vehicleLon,
+                IsTracked = isTracked,
+            };
+
+            Trace.WriteLine($"[Trip] Sending {stops.Count} stops, currentIdx={currentIdx}");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await CallJs("renderTripDetail", detail));
+        }
+        catch (Exception ex) { Trace.WriteLine($"[Trip] Exception: {ex.Message}"); }
+    }
+
+    private static int TimeToMinutes(string t)
+    {
+        var p = t.Split(':');
+        return p.Length >= 2 && int.TryParse(p[0], out int h) && int.TryParse(p[1], out int m)
+            ? h * 60 + m : 0;
     }
 
     // ────────────────────────────────────────────────────────────────────
