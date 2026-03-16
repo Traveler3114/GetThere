@@ -34,6 +34,15 @@ public partial class CustomBottomBar : ContentView
     {
         InitializeComponent();
         StartIconRotation();
+
+        // Ensure we collapse when navigating back to this page
+        if (Shell.Current != null)
+        {
+            Shell.Current.Navigated += (s, e) => 
+            {
+                Dispatcher.Dispatch(() => UpdateActiveTab());
+            };
+        }
     }
 
     private void UpdateIslandState()

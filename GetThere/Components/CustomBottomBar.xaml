@@ -8,7 +8,7 @@
 
     <Grid
         x:Name="MainGrid"
-        Margin="40,0,0,30"
+        Margin="40,0,0,20"
         VerticalOptions="End"
         HorizontalOptions="Center"
         WidthRequest="460">
@@ -17,9 +17,9 @@
         <Border
             x:Name="CollapsedIsland"
             Grid.Column="1"
-            WidthRequest="60"
-            HeightRequest="40"
-            Margin="0,0,0,10"
+            WidthRequest="50"
+            HeightRequest="50"
+            Margin="0,0,0,0"
             HorizontalOptions="Center"
             VerticalOptions="End"
             BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
@@ -27,7 +27,7 @@
             Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}"
             IsVisible="False">
             <Border.StrokeShape>
-                <RoundRectangle CornerRadius="20" />
+                <RoundRectangle CornerRadius="25" />
             </Border.StrokeShape>
             <Border.Shadow>
                 <Shadow x:Name="IslandShadow" Brush="Gray" Offset="0,0" Radius="15" Opacity="0.5" />
