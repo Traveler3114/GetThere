@@ -1,25 +1,38 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             x:Class="GetThere.Components.CustomBottomBar"
-             x:Name="this">
+<ContentView
+    x:Class="GetThere.Components.CustomBottomBar"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    x:Name="this">
 
-    <Grid VerticalOptions="End" HorizontalOptions="Center" WidthRequest="460" Margin="40,0,0,30" IgnoreSafeArea="True" ColumnDefinitions="Auto,300,Auto">
-        
-        <!-- ── LOGOUT CIRCLE (Left) ── -->
-        <Border Grid.Column="0"
-                WidthRequest="60"
-                HeightRequest="60"
-                Margin="0,0,15,0"
-                VerticalOptions="Center"
-                BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
-                StrokeThickness="1"
-                Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
+    <Grid
+        x:Name="MainGrid"
+        Margin="40,0,0,30"
+        ColumnDefinitions="Auto,300,Auto"
+        HorizontalOptions="Center"
+        VerticalOptions="End"
+        WidthRequest="460">
+
+        <!--  ── LOGOUT CIRCLE (Left) ──  -->
+        <Border
+            Grid.Column="0"
+            Margin="0,0,15,0"
+            BackgroundColor="{AppThemeBinding Light=#F0FFFFFF,
+                                              Dark=#C0121212}"
+            HeightRequest="60"
+            Stroke="{AppThemeBinding Light=#20000000,
+                                     Dark=#20FFFFFF}"
+            StrokeThickness="1"
+            VerticalOptions="Center"
+            WidthRequest="60">
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="30" />
             </Border.StrokeShape>
-            <Image Source="icon_logout.svg" WidthRequest="26" HeightRequest="26">
+            <Image
+                HeightRequest="26"
+                Source="icon_logout.svg"
+                WidthRequest="26">
                 <Image.Behaviors>
                     <toolkit:IconTintColorBehavior TintColor="Gray" />
                 </Image.Behaviors>
@@ -29,23 +42,28 @@
             </Border.GestureRecognizers>
         </Border>
 
-        <!-- ── MAIN BOTTOM BAR (Center) ── -->
-        <Border Grid.Column="1"
-                HeightRequest="80"
-                WidthRequest="300"
-                BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
-                StrokeThickness="1"
-                Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
+        <!--  ── MAIN BOTTOM BAR (Center) ──  -->
+        <Border
+            Grid.Column="1"
+            BackgroundColor="{AppThemeBinding Light=#F0FFFFFF,
+                                              Dark=#C0121212}"
+            HeightRequest="80"
+            Stroke="{AppThemeBinding Light=#20000000,
+                                     Dark=#20FFFFFF}"
+            StrokeThickness="1"
+            WidthRequest="300">
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="40" />
             </Border.StrokeShape>
 
-            <Grid ColumnDefinitions="*,*,*" Padding="5">
-                <!-- Profile Tab -->
-                <ContentView Grid.Column="0" x:Name="ProfileTabContainer">
-                    <Image Source="icon_profile.svg" 
-                           WidthRequest="32" HeightRequest="32"
-                           Aspect="AspectFit">
+            <Grid Padding="5" ColumnDefinitions="*,*,*">
+                <!--  Profile Tab  -->
+                <ContentView x:Name="ProfileTabContainer" Grid.Column="0">
+                    <Image
+                        Aspect="AspectFit"
+                        HeightRequest="32"
+                        Source="icon_profile.svg"
+                        WidthRequest="32">
                         <Image.Behaviors>
                             <toolkit:IconTintColorBehavior x:Name="ProfileTint" TintColor="Gray" />
                         </Image.Behaviors>
@@ -55,11 +73,13 @@
                     </ContentView.GestureRecognizers>
                 </ContentView>
 
-                <!-- Map Tab -->
+                <!--  Map Tab  -->
                 <ContentView Grid.Column="1">
-                    <Image Source="icon_location_pin.svg" 
-                           WidthRequest="32" HeightRequest="32"
-                           Aspect="AspectFit">
+                    <Image
+                        Aspect="AspectFit"
+                        HeightRequest="32"
+                        Source="icon_location_pin.svg"
+                        WidthRequest="32">
                         <Image.Behaviors>
                             <toolkit:IconTintColorBehavior x:Name="MapTint" TintColor="Gray" />
                         </Image.Behaviors>
@@ -69,12 +89,14 @@
                     </ContentView.GestureRecognizers>
                 </ContentView>
 
-                <!-- Operators Tab -->
+                <!--  Operators Tab  -->
                 <ContentView Grid.Column="2">
-                    <Image x:Name="OperatorsIcon"
-                           Source="tab_bus.png" 
-                           WidthRequest="38" HeightRequest="38"
-                           Aspect="AspectFit">
+                    <Image
+                        x:Name="OperatorsIcon"
+                        Aspect="AspectFit"
+                        HeightRequest="38"
+                        Source="tab_bus.png"
+                        WidthRequest="38">
                         <Image.Behaviors>
                             <toolkit:IconTintColorBehavior x:Name="OperatorsTint" TintColor="Gray" />
                         </Image.Behaviors>
@@ -86,7 +108,10 @@
             </Grid>
         </Border>
 
-        <!-- Invisible Spacer to balance the Logout button (keeps bar perfectly centered) -->
-        <ContentView Grid.Column="2" WidthRequest="60" Margin="20,0,0,0" />
+        <!--  Invisible Spacer to balance the Logout button (keeps bar perfectly centered)  -->
+        <ContentView
+            Grid.Column="2"
+            Margin="20,0,0,0"
+            WidthRequest="60" />
     </Grid>
 </ContentView>
