@@ -549,7 +549,7 @@
 
         // ─── State ───────────────────────────────────────────────────
         let routeColorMap = {}, routeNameMap = {}, routeTypeMap = {}, routeShapeMap = {};
-        let vehicleMarkers = {}, activeRouteId = null, stopMarkers = [];
+        let vehicleMarkers = {}, activeRouteId = null;
         let _suppressMapClick = false;
 
         // ─── All panel element refs declared up-front ─────────────────
@@ -581,17 +581,33 @@
         function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
         function pillClass(t) { return t === 0 || t === 11 ? 'tram' : t === 1 || t === 2 ? 'rail' : 'bus'; }
 
-        // ─── Stop icon ───────────────────────────────────────────────
-        function makeStopIcon(routeType) {
-            const isTram = routeType === 0 || routeType === 11;
-            const color = isTram ? '#c62828' : '#1565C0', label = isTram ? 'T' : 'B';
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
-                    <circle cx="10" cy="10" r="9" fill="white" stroke="${color}" stroke-width="2.5"/>
-                    <text x="10" y="14" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="bold" fill="${color}">${label}</text>
-                </svg>`;
-            const el = document.createElement('div');
-            el.innerHTML = svg; el.style.cssText = 'cursor:pointer;width:20px;height:20px;';
-            return el;
+        // ─── Stop data index ──────────────────────────────────────────
+        // OSM already draws stop icons — we draw nothing.
+        // We just index the GTFS stop data so we can look it up when the user
+        // taps near a stop icon that the map tile rendered.
+        const _stopIndex = [];
+
+        function renderStops(stops) {
+            _stopIndex.length = 0;
+            for (const s of stops)
+                _stopIndex.push({ stopId: s.stopId, name: s.name, routeType: s.routeType ?? 3, lon: s.lon, lat: s.lat });
+        }
+
+        // Returns all stops within radiusPx screen pixels of pt, closest first.
+        // OSM merges nearby stops visually at low zoom — at high zoom they're
+        // individual icons. Either way we return whatever falls in the tap radius
+        // and let the UI decide: 1 stop → open schedule, 2+ → show direction picker.
+        function stopsNearPoint(pt, radiusPx) {
+            const hits = [];
+            for (const s of _stopIndex) {
+                const sp = map.project([s.lon, s.lat]);
+                const dx = sp.x - pt.x, dy = sp.y - pt.y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 <= radiusPx * radiusPx)
+                    hits.push({ ...s, _d: d2 });
+            }
+            hits.sort((a, b) => a._d - b._d);
+            return hits;
         }
 
         // ─── Vehicle icon ─────────────────────────────────────────────
@@ -601,33 +617,22 @@
             const label = shortName || '', border = isTram ? '#FF6F00' : isRail ? '#6A1B9A' : '#fff';
             const icon = isTram ? '🚋' : isRail ? '🚇' : '🚌', fsize = label.length > 2 ? '9' : '11';
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="42" viewBox="0 0 36 42">
-                    <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
-                    <rect x="2" y="9" width="32" height="26" rx="6" ry="6" fill="${hex}" stroke="${border}" stroke-width="2"/>
-                    <text x="8" y="21" text-anchor="middle" font-size="9" font-family="Arial" fill="rgba(255,255,255,0.75)">${icon}</text>
-                    <text x="20" y="27" text-anchor="middle" font-size="${fsize}" font-family="Arial,sans-serif" font-weight="bold"
-                          fill="white" paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">${label}</text>
-                </svg>`;
+                        <polygon points="18,0 24,10 12,10" fill="${hex}" opacity="0.95"/>
+                        <rect x="2" y="9" width="32" height="26" rx="6" ry="6" fill="${hex}" stroke="${border}" stroke-width="2"/>
+                        <text x="8" y="21" text-anchor="middle" font-size="9" font-family="Arial" fill="rgba(255,255,255,0.75)">${icon}</text>
+                        <text x="20" y="27" text-anchor="middle" font-size="${fsize}" font-family="Arial,sans-serif" font-weight="bold"
+                              fill="white" paint-order="stroke" stroke="rgba(0,0,0,0.3)" stroke-width="2">${label}</text>
+                    </svg>`;
             const el = document.createElement('div');
             el.innerHTML = svg;
             el.style.cssText = `cursor:pointer;width:36px;height:42px;transform:rotate(${bearing || 0}deg);transform-origin:18px 21px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));`;
             return el;
         }
 
-        // ─── renderStops ─────────────────────────────────────────────
-        function renderStops(stops) {
-            stopMarkers.forEach(m => m.remove()); stopMarkers = [];
-            stops.forEach(s => {
-                const el = makeStopIcon(s.routeType ?? 3);
-                el.addEventListener('click', e => {
-                    _suppressMapClick = true;
-                    openStopSheet(s.stopId, s.name, s.routeType ?? 3);
-                });
-                stopMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lon, s.lat]).addTo(map));
-            });
-        }
 
         // ─── Stop schedule sheet ──────────────────────────────────────
         document.getElementById('sheet-close').addEventListener('click', e => { e.stopPropagation(); closeStopSheet(); });
+        sheet.addEventListener('pointerdown', e => e.stopPropagation());
         sheet.addEventListener('click', e => e.stopPropagation());
 
         function openStopSheet(stopId, stopName, stopRouteType) {
@@ -700,13 +705,13 @@
                 const div = document.createElement('div');
                 div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
                 div.innerHTML = `
-                        <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-                            <span class="route-pill ${pc}">${escHtml(g.shortName)}</span>
-                            <span class="route-headsign">${escHtml(g.headsign)}</span>
-                            <span class="route-count">${countHtml}</span>
-                            <span class="route-chevron">▾</span>
-                        </div>
-                        <div class="route-times">${timesHtml}</div>`;
+                            <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
+                                <span class="route-pill ${pc}">${escHtml(g.shortName)}</span>
+                                <span class="route-headsign">${escHtml(g.headsign)}</span>
+                                <span class="route-count">${countHtml}</span>
+                                <span class="route-chevron">▾</span>
+                            </div>
+                            <div class="route-times">${timesHtml}</div>`;
                 sheetBody.appendChild(div);
             });
 
@@ -718,6 +723,7 @@
 
         // ─── Trip detail panel ────────────────────────────────────────
         document.getElementById('trip-panel-close').addEventListener('click', e => { e.stopPropagation(); closeTripPanel(); });
+        tripPanel.addEventListener('pointerdown', e => e.stopPropagation());
         tripPanel.addEventListener('click', e => e.stopPropagation());
 
         function closeTripPanel() {
@@ -768,20 +774,20 @@
                     const d = s.delayMinutes ?? 0;
                     const ec = d > 1 ? 'late' : d < -1 ? 'early' : 'ontime';
                     timesHtml = `<div class="trip-stop-times">
-                            <span class="ts-sched">${s.scheduledTime}</span>
-                            <span class="ts-eta ${ec}">${s.estimatedTime}</span>
-                        </div>`;
+                                <span class="ts-sched">${s.scheduledTime}</span>
+                                <span class="ts-eta ${ec}">${s.estimatedTime}</span>
+                            </div>`;
                 } else {
                     timesHtml = `<div class="trip-stop-times">
-                            <span class="ts-only">${s.scheduledTime}</span>
-                        </div>`;
+                                <span class="ts-only">${s.scheduledTime}</span>
+                            </div>`;
                 }
 
                 const row = document.createElement('div');
                 row.className = cls;
                 row.innerHTML = `<div class="trip-stop-dot"></div>
-                        <div class="trip-stop-info"><div class="trip-stop-name">${escHtml(s.stopName)}</div></div>
-                        ${timesHtml}`;
+                            <div class="trip-stop-info"><div class="trip-stop-name">${escHtml(s.stopName)}</div></div>
+                            ${timesHtml}`;
                 tripBody.appendChild(row);
             });
 
@@ -797,14 +803,19 @@
             });
         }
 
-        // Attach vehicle click to open trip panel
+        // Attach vehicle click to open trip panel.
+        // pointerdown stopPropagation prevents MapLibre canvas from seeing the
+        // event, so the map.on('click') handler never fires for vehicle taps.
         function attachVehicleClick(el, v, color, rId) {
+            el.addEventListener('pointerdown', e => e.stopPropagation());
             el.addEventListener('click', e => {
-                e.stopPropagation(); _suppressMapClick = true;
+                e.stopPropagation();
+                _suppressMapClick = true;
                 closeStopSheet();
+                closeDirectionPicker();
                 const tid = v.tripId || v.vehicleId;
                 if (tid) openTripPanel(tid);
-                else { showRoute(rId); }
+                else showRoute(rId);
             });
         }
 
@@ -875,10 +886,102 @@
         }
 
         // ─── Map click ────────────────────────────────────────────────
-        map.on('click', () => {
+        // Radius in px: ~28px matches the OSM stop icon tap target at any zoom.
+        // At low zoom OSM draws one merged icon for two opposite-direction stops
+        // that are close together — stopsNearPoint will return both, so we show
+        // a direction picker. At high zoom they're separate — single result → go
+        // straight to schedule. Exactly like Google Maps.
+        const STOP_HIT_PX = 28;
+
+        map.on('click', e => {
             if (_suppressMapClick) { _suppressMapClick = false; return; }
-            clearActiveRoute(); vehiclePopup.remove(); closeTripPanel();
+
+            const hits = stopsNearPoint(e.point, STOP_HIT_PX);
+
+            if (hits.length === 0) {
+                // Tapped empty map — dismiss everything
+                clearActiveRoute(); vehiclePopup.remove(); closeTripPanel(); closeStopSheet();
+                return;
+            }
+
+            if (hits.length === 1) {
+                // Single stop in tap radius → open schedule immediately
+                openStopSheet(hits[0].stopId, hits[0].name, hits[0].routeType);
+            } else {
+                // Multiple stops (opposite directions merged at this zoom level)
+                // → show a direction picker, then open the chosen stop's schedule
+                openDirectionPicker(hits);
+            }
         });
+
+        // ─── Direction picker ─────────────────────────────────────────
+        // Shown when two stops are visually merged at current zoom (e.g. both
+        // directions of a bus stop on opposite sides of the road).
+        let _pickerEl = null;
+
+        function openDirectionPicker(stops) {
+            closeDirectionPicker();
+            tripPanel.classList.remove('open');
+            sheet.classList.remove('open');
+
+            const el = document.createElement('div');
+            el.style.cssText = `
+                    position:absolute;bottom:0;left:0;right:0;z-index:1002;
+                    background:#fff;border-radius:18px 18px 0 0;
+                    box-shadow:0 -4px 24px rgba(0,0,0,0.18);
+                    padding-bottom:env(safe-area-inset-bottom,0);
+                    animation:slideUp .25s cubic-bezier(.4,0,.2,1);
+                `;
+            // Insert keyframe once
+            if (!document.getElementById('_pu_style')) {
+                const st = document.createElement('style');
+                st.id = '_pu_style';
+                st.textContent = '@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+                document.head.appendChild(st);
+            }
+
+            const isTram = stops.some(s => s.routeType === 0 || s.routeType === 11);
+            const icon = isTram ? '🚋' : '🚌';
+
+            el.innerHTML = `
+                    <div style="width:44px;height:5px;background:#d0d0d0;border-radius:3px;margin:10px auto 0"></div>
+                    <div style="display:flex;align-items:center;padding:12px 16px 10px;border-bottom:1px solid #f0f0f0">
+                        <span style="font-size:15px;font-weight:700;color:#1a1a1a;flex:1">Choose direction</span>
+                        <button onclick="closeDirectionPicker()" style="background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1">✕</button>
+                    </div>
+                    <div id="_picker_list" style="padding:6px 0 20px"></div>
+                `;
+
+            stops.forEach(s => {
+                const pc = pillClass(s.routeType);
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:14px;padding:14px 16px;cursor:pointer;border-bottom:1px solid #f8f8f8;active:background:#f5f5f5';
+                row.innerHTML = `
+                        <span style="font-size:26px;line-height:1">${icon}</span>
+                        <div style="flex:1;min-width:0">
+                            <div style="font-size:15px;font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(s.name)}</div>
+                            <div style="font-size:11px;color:#aaa;margin-top:2px">#${s.stopId}</div>
+                        </div>
+                        <span style="font-size:20px;color:#ccc">›</span>
+                    `;
+                row.addEventListener('pointerdown', () => row.style.background = '#f5f5f5');
+                row.addEventListener('pointerup', () => row.style.background = '');
+                row.addEventListener('click', () => {
+                    closeDirectionPicker();
+                    openStopSheet(s.stopId, s.name, s.routeType);
+                });
+                el.querySelector('#_picker_list').appendChild(row);
+            });
+
+            el.addEventListener('pointerdown', e => e.stopPropagation());
+            el.addEventListener('click', e => e.stopPropagation());
+            document.body.appendChild(el);
+            _pickerEl = el;
+        }
+
+        function closeDirectionPicker() {
+            if (_pickerEl) { _pickerEl.remove(); _pickerEl = null; }
+        }
 
         // ─── Swipe to close ───────────────────────────────────────────
         function addSwipeClose(el, closeFn) {
