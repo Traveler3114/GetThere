@@ -2,7 +2,6 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:helpers="clr-namespace:GetThere.Helpers"
-             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.OperatorsPage"
              Title="Operators">
 
@@ -14,7 +13,6 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,*,Auto">
-        <components:AnimatedBackground Grid.RowSpan="4" />
         <SearchBar Grid.Row="0" x:Name="SearchBar" Placeholder="Search..." Margin="12,8" TextChanged="SearchBar_TextChanged" />
         <HorizontalStackLayout Grid.Row="1" Margin="12,8" Spacing="8">
             <Button x:Name="AllBtn" Text="All" Clicked="Filter_Clicked" />
@@ -51,8 +49,5 @@
                            IsVisible="False"
                            HorizontalOptions="Center"
                            VerticalOptions="Center" />
-        
-        <!-- ── CUSTOM BOTTOM BAR ── -->
-        <components:CustomBottomBar Grid.RowSpan="4" VerticalOptions="End" />
     </Grid>
 </ContentPage>

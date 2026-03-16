@@ -79,7 +79,7 @@
             <!-- ── BUSY ── -->
             <ActivityIndicator x:Name="BusyIndicator"
                                IsRunning="False" IsVisible="False"
-                               Color="#4CAF50"
+                               Color="#800080"
                                HorizontalOptions="Center" />
 
 

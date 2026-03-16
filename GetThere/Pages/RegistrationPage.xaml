@@ -122,14 +122,14 @@
                     HeightRequest="52" Margin="0,8,0,0" />
 
             <!-- ── BUSY ── -->
-            <components:ModernLoader x:Name="BusyIndicator"
-                                     IsRunning="False"
-                                     VerticalOptions="Center"
-                                     HorizontalOptions="Center"
-                                     Margin="0,20" />
+            <ActivityIndicator x:Name="BusyIndicator"
+                            IsRunning="False" 
+                            IsVisible="False"
+                            Color="#800080"
+                            HorizontalOptions="Center" />
 
 
-            <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
+                <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
             <Label Text="OR SIGN UP WITH"
                    FontSize="11" TextColor="Gray" FontAttributes="Bold"
                    HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />

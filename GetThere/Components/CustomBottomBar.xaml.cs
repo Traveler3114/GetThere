@@ -81,7 +81,7 @@ public partial class CustomBottomBar : ContentView
 
     private async void OnConfirmLogoutClicked(object? sender, EventArgs e)
     {
-        bool confirm = await Shell.Current.DisplayAlert("Logout", "Are you sure you want to log out?", "Yes", "No");
+        bool confirm = await Shell.Current.DisplayAlertAsync("Logout", "Are you sure you want to log out?", "Yes", "No");
         if (!confirm) return;
 
         // Perform actual logout

@@ -1,45 +1,18 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:components="clr-namespace:GetThere.Components"
-             xmlns:behaviors="clr-namespace:GetThere.Behaviors"
              x:Class="GetThere.Pages.MapPage"
              Title="MapPage">
 
-    <Grid RowDefinitions="*,Auto">
-        <!-- Animated Background -->
-        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="2" />
-
+    <Grid>
         <!-- Map WebView -->
-        <WebView x:Name="MapWebView"
-                 Grid.Row="0"
-                 Source="HybridWebViewRoot/index.html"
-                 HorizontalOptions="Fill"
-                 VerticalOptions="Fill" />
-
-        <Border Grid.Row="1"
-                Margin="20,10,20,120"
-                Padding="0"
-                HeightRequest="60"
-                BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#C0121212}"
-                StrokeThickness="1"
-                Stroke="{AppThemeBinding Light=#20000000, Dark=#20FFFFFF}">
-            <Border.StrokeShape>
-                <RoundRectangle CornerRadius="30" />
-            </Border.StrokeShape>
-            <Button x:Name="SimulateLocationBtn"
-                    Text="Stimuliraj GPS pokret (5km)"
-                    Clicked="OnSimulateLocationClicked"
-                    BackgroundColor="Transparent"
-                    TextColor="{AppThemeBinding Light=#444444, Dark=White}"
-                    FontSize="15"
-                    FontAttributes="Bold"
-                    Padding="20,0" />
-        </Border>
+        <HybridWebView x:Name="MapWebView"
+                     HybridRoot="HybridWebViewRoot"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill" />
 
         <!-- Loading Overlay -->
         <Grid x:Name="LoadingOverlay"
-              Grid.Row="0"
               IsVisible="True"
               BackgroundColor="#80000000"
               HorizontalOptions="Fill"
@@ -60,8 +33,7 @@
                     HorizontalOptions="Center" />
             </VerticalStackLayout>
         </Grid>
-
-        <!-- ── CUSTOM BOTTOM BAR ── -->
-        <components:CustomBottomBar Grid.RowSpan="2" VerticalOptions="End" />
     </Grid>
+    
+
 </ContentPage>

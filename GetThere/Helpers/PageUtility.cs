@@ -1,6 +1,6 @@
+﻿using GetThere.Components;
 using GetThereShared.Enums;
 using System.Globalization;
-using GetThere.Components;
 
 namespace GetThere.Helpers;
 
@@ -24,13 +24,6 @@ public static class PageUtility
     {
         indicator.IsVisible = isBusy;
         indicator.IsRunning = isBusy;
-        if (button != null)
-            button.IsEnabled = !isBusy;
-    }
-
-    public static void SetBusy(ModernLoader loader, Button? button, bool isBusy)
-    {
-        loader.IsRunning = isBusy;
         if (button != null)
             button.IsEnabled = !isBusy;
     }
