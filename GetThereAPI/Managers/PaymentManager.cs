@@ -1,5 +1,6 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereShared.Common;
 using GetThereShared.Dtos;
 using GetThereShared.Enums;
 using Microsoft.EntityFrameworkCore;

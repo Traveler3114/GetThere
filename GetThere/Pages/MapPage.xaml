@@ -2,38 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="GetThere.Pages.MapPage"
-             Title="MapPage">
+             Shell.NavBarIsVisible="False">
 
-    <Grid>
-        <!-- Map WebView -->
-        <HybridWebView x:Name="MapWebView"
-                     HybridRoot="HybridWebViewRoot"
-                     HorizontalOptions="Fill"
-                     VerticalOptions="Fill" />
-
-        <!-- Loading Overlay -->
-        <Grid x:Name="LoadingOverlay"
-              IsVisible="True"
-              BackgroundColor="#80000000"
-              HorizontalOptions="Fill"
-              VerticalOptions="Fill">
-            <VerticalStackLayout
-                HorizontalOptions="Center"
-                VerticalOptions="Center"
-                Spacing="10">
-                <ActivityIndicator
-                    IsRunning="True"
-                    Color="White"
-                    HeightRequest="50"
-                    WidthRequest="50" />
-                <Label
-                    Text="Loading map..."
-                    TextColor="White"
-                    FontSize="16"
-                    HorizontalOptions="Center" />
-            </VerticalStackLayout>
-        </Grid>
-    </Grid>
-    
+    <HybridWebView x:Name="MapWebView"
+                   HybridRoot="HybridWebViewRoot" />
 
 </ContentPage>

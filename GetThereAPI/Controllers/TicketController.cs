@@ -1,4 +1,5 @@
 ﻿using GetThereAPI.Managers;
+using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

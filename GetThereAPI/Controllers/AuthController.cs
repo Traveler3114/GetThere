@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using GetThereAPI.Entities;
+using GetThereShared.Common;
 using GetThereShared.Dtos;
 using GetThereAPI.Managers; // WalletManager and TokenManager live here
 

@@ -11,12 +11,12 @@ namespace GetThere.Services.Realtime;
 /// </summary>
 public class GtfsRtJsonParser : IRealtimeParser
 {
-    public Task<List<VehiclePositionDto>> ParseAsync(
+    public Task<List<VehicleDto>> ParseAsync(
         byte[] data,
-        TransitOperatorDto op,
+        OperatorDto op,
         Dictionary<string, string>? tripRouteMap)
     {
-        var result = new List<VehiclePositionDto>();
+        var result = new List<VehicleDto>();
 
         try
         {
@@ -31,7 +31,7 @@ public class GtfsRtJsonParser : IRealtimeParser
                           || entity.TryGetProperty("vehiclePosition", out vp);
                 if (!found) continue;
 
-                var dto = new VehiclePositionDto();
+                var dto = new VehicleDto();
 
                 // Position
                 if (vp.TryGetProperty("position", out var pos))

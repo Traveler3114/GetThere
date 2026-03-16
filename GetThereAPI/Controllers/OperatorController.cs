@@ -1,4 +1,5 @@
 using GetThereAPI.Managers;
+using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,10 +17,10 @@ public class OperatorController : ControllerBase
     }
 
     // GET /operator
-    [HttpGet]
-    public async Task<ActionResult<OperationResult<IEnumerable<TransitOperatorDto>>>> GetAll()
-    {
-        var operators = await _manager.GetAllAsync();
-        return Ok(OperationResult<IEnumerable<TransitOperatorDto>>.Ok(operators));
-    }
+    //[HttpGet]
+    //public async Task<ActionResult<OperationResult<IEnumerable<OperatorDto>>>> GetAll()
+    //{
+    //    var operators = await _manager.GetAllAsync();
+    //    return Ok(OperationResult<IEnumerable<OperatorDto>>.Ok(operators));
+    //}
 }

@@ -1,3 +1,4 @@
+using GetThereShared.Common;
 using GetThereShared.Dtos;
 using System.Diagnostics;
 
@@ -16,12 +17,12 @@ namespace GetThere.Services.Realtime;
 /// </summary>
 public class GtfsRtProtoParser : IRealtimeParser
 {
-    public Task<List<VehiclePositionDto>> ParseAsync(
+    public Task<List<VehicleDto>> ParseAsync(
         byte[] data,
-        TransitOperatorDto op,
+        OperatorDto op,
         Dictionary<string, string>? tripRouteMap)
     {
-        var vehicles = new List<VehiclePositionDto>();
+        var vehicles = new List<VehiclenDto>();
         var tripUpdates = new Dictionary<string, List<StopTimeUpdateDto>>(StringComparer.Ordinal);
         int pos = 0;
 
@@ -49,7 +50,7 @@ public class GtfsRtProtoParser : IRealtimeParser
         foreach (var (tripId, updates) in tripUpdates)
         {
             if (vehicles.Any(v => v.TripId == tripId)) continue;
-            vehicles.Add(new VehiclePositionDto
+            vehicles.Add(new VehicleDto
             {
                 VehicleId = tripId,
                 TripId = tripId,
@@ -69,7 +70,7 @@ public class GtfsRtProtoParser : IRealtimeParser
     private static void ParseEntity(
         byte[] data,
         Dictionary<string, string>? tripRouteMap,
-        List<VehiclePositionDto> vehicles,
+        List<VehicleDto> vehicles,
         Dictionary<string, List<StopTimeUpdateDto>> tripUpdates)
     {
         int pos = 0;
@@ -96,7 +97,7 @@ public class GtfsRtProtoParser : IRealtimeParser
                 }
                 else if (fieldNum == 4) // VehiclePosition
                 {
-                    var dto = new VehiclePositionDto();
+                    var dto = new VehicleDto();
                     ParseVehiclePosition(sub, dto, tripRouteMap);
                     if (dto.Lat != 0 || dto.Lon != 0)
                     {

@@ -1,4 +1,5 @@
-﻿using GetThereShared.Dtos;
+﻿using GetThereShared.Common;
+using GetThereShared.Dtos;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
