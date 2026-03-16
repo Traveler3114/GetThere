@@ -1,3 +1,5 @@
+using GetThere.Pages;
+
 namespace GetThere
 {
     public partial class LoginShell : Shell
@@ -5,6 +7,7 @@ namespace GetThere
         public LoginShell()
         {
             InitializeComponent();
+            Routing.RegisterRoute("registration", typeof(RegistrationPage));
         }
     }
 }

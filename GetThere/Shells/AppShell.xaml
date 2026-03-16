@@ -8,23 +8,29 @@
     Shell.NavBarIsVisible="False"
     Shell.TabBarIsVisible="False">
 
+
+
+
     <FlyoutItem FlyoutDisplayOptions="AsMultipleItems">
         <ShellContent
             x:Name="ProfileTab"
             Title="Profile"
-            Icon="icon_profile.svg"
             ContentTemplate="{DataTemplate pages:ProfilePage}"
+            Icon="icon_profile.svg"
             Route="profile" />
         <ShellContent
             Title="Map"
-            Icon="icon_location_pin.svg"
             ContentTemplate="{DataTemplate pages:MapPage}"
+            Icon="icon_location_pin.svg"
             Route="map" />
         <ShellContent
             Title="Operators"
-            Icon="icon_operators.svg"
             ContentTemplate="{DataTemplate pages:OperatorsPage}"
+            Icon="icon_operators.svg"
             Route="operators" />
     </FlyoutItem>
 
 </Shell>
+
+
+

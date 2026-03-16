@@ -92,7 +92,7 @@ public partial class RegistrationPage : ContentPage
     }
 
     private async void LoginButton_Clicked(object? sender, TappedEventArgs e)
-        => await Shell.Current.GoToAsync("///login");
+        => await Shell.Current.GoToAsync("..");
 
     private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
     {
