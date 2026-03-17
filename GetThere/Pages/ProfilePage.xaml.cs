@@ -44,12 +44,10 @@ public partial class ProfilePage : ContentPage
             if (fullName == null && email == null)
             {
                 NameLabelOnCard.Text = "Guest";
-                WalletIdLabel.Text = "Not logged in";
                 return;
             }
 
             NameLabelOnCard.Text = fullName ?? "User";
-            WalletIdLabel.Text = $"•••• {new Random().Next(1000, 9999)}";
 
             await LoadWalletAsync();
 
@@ -145,16 +143,32 @@ public partial class ProfilePage : ContentPage
 
     private async void OnShowFilterOptions(object? sender, EventArgs e)
     {
-        string[] options = [ "Active", "Expired", "Used" ];
-        var chosen = await DisplayActionSheetAsync("Show Tickets", "Cancel", null, options);
-        
-        if (chosen != null && chosen != "Cancel")
+        FilterBottomSheet.IsVisible = true;
+        await Task.WhenAll(
+            FilterBottomSheet.FadeToAsync(1, 200),
+            FilterContent.TranslateToAsync(0, 0, 300, Easing.CubicOut)
+        );
+    }
+
+    private async void OnHideFilterBottomSheet(object? sender, EventArgs e)
+    {
+        await Task.WhenAll(
+            FilterBottomSheet.FadeToAsync(0, 200),
+            FilterContent.TranslateToAsync(0, 600, 300, Easing.CubicIn)
+        );
+        FilterBottomSheet.IsVisible = false;
+    }
+
+    private async void OnFilterOptionClicked(object? sender, EventArgs e)
+    {
+        if (sender is Button button && button.CommandParameter is string chosen)
         {
             if (Enum.TryParse<TicketStatus>(chosen, out var status))
             {
                 ApplyTicketFilter(status);
             }
         }
+        OnHideFilterBottomSheet(sender, e);
     }
 
     private async void TicketsTab_Clicked(object? sender, EventArgs e)
