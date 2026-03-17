@@ -20,6 +20,11 @@
             Icon="icon_location_pin.svg"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
+        <ShellContent
+            Title="Operators"
+            Icon="icon_operators.svg"
+            ContentTemplate="{DataTemplate pages:OperatorsPage}"
+            Route="operators" />
     </FlyoutItem>
 
 </Shell>
