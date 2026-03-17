@@ -4,7 +4,6 @@
              x:Class="GetThere.Pages.MapPage"
              Shell.NavBarIsVisible="False">
 
-    <HybridWebView x:Name="MapWebView"
-                   HybridRoot="HybridWebViewRoot" />
+    <WebView x:Name="MapWebView" />
 
 </ContentPage>
