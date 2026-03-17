@@ -1,33 +1,32 @@
-using GetThereShared.Dtos;
+using GetThereAPI.Entities;
 using System.Diagnostics;
 using System.Text.Json;
 
-namespace GetThere.Services.Realtime;
+namespace GetThereAPI.Parsers.Realtime;
 
 /// <summary>
-/// Parses proprietary REST/JSON feeds using a field-mapping config stored in the DB.
+/// Parses proprietary REST/JSON feeds using a field-mapping config
+/// stored in TransitOperator.RealtimeAdapterConfig.
 ///
 /// RealtimeAdapterConfig JSON schema:
 /// {
-///   "arrayPath":   "data.vehicles",   // dot-path to the array of vehicles (empty = root array)
-///   "lat":         "lat",             // field name for latitude
-///   "lon":         "lng",             // field name for longitude
-///   "bearing":     "heading",         // field name for bearing (optional)
-///   "vehicleId":   "vehicle_id",      // field name for vehicle id
-///   "routeId":     "route_number",    // field name for route id (optional)
-///   "label":       "display_name"     // field name for display label (optional)
+///   "arrayPath": "data.vehicles",  // dot-path to vehicle array (empty = root)
+///   "lat":       "lat",            // field name for latitude
+///   "lon":       "lng",            // field name for longitude
+///   "bearing":   "heading",        // field name for bearing (optional)
+///   "vehicleId": "vehicle_id",     // field name for vehicle id
+///   "routeId":   "route_number",   // field name for route id (optional)
+///   "label":     "display_name"    // field name for display label (optional)
 /// }
-///
-/// Example operators: some city APIs, OpenSky for aircraft, etc.
 /// </summary>
 public class RestJsonParser : IRealtimeParser
 {
-    public Task<List<VehiclePositionDto>> ParseAsync(
+    public Task<List<ParsedVehicle>> ParseAsync(
         byte[] data,
-        TransitOperatorDto op,
+        TransitOperator op,
         Dictionary<string, string>? tripRouteMap)
     {
-        var result = new List<VehiclePositionDto>();
+        var result = new List<ParsedVehicle>();
 
         if (string.IsNullOrEmpty(op.RealtimeAdapterConfig))
         {
@@ -37,49 +36,51 @@ public class RestJsonParser : IRealtimeParser
 
         try
         {
-            var cfg = JsonDocument.Parse(op.RealtimeAdapterConfig).RootElement;
+            var cfg  = JsonDocument.Parse(op.RealtimeAdapterConfig).RootElement;
             var root = JsonDocument.Parse(data).RootElement;
 
-            // Navigate to the vehicles array via dot-path
+            // Navigate to the vehicle array via dot-path
             var arrayPath = cfg.TryGetProperty("arrayPath", out var ap) ? ap.GetString() : null;
-            var array = ResolveJsonPath(root, arrayPath);
+            var array     = ResolveJsonPath(root, arrayPath);
             if (array.ValueKind != JsonValueKind.Array)
             {
-                Trace.WriteLine($"[REST:{op.Name}] Could not find vehicle array at path '{arrayPath}'");
+                Trace.WriteLine($"[REST:{op.Name}] Vehicle array not found at '{arrayPath}'");
                 return Task.FromResult(result);
             }
 
-            // Field name mappings
-            string fLat = cfg.TryGetProperty("lat", out var v) ? v.GetString()! : "lat";
-            string fLon = cfg.TryGetProperty("lon", out v) ? v.GetString()! : "lon";
-            string fBearing = cfg.TryGetProperty("bearing", out v) ? v.GetString()! : "bearing";
-            string fVehicleId = cfg.TryGetProperty("vehicleId", out v) ? v.GetString()! : "id";
-            string fRouteId = cfg.TryGetProperty("routeId", out v) ? v.GetString()! : "routeId";
-            string fLabel = cfg.TryGetProperty("label", out v) ? v.GetString()! : "label";
+            // Field name mappings from config
+            string fLat       = Str(cfg, "lat",       "lat");
+            string fLon       = Str(cfg, "lon",       "lon");
+            string fBearing   = Str(cfg, "bearing",   "bearing");
+            string fVehicleId = Str(cfg, "vehicleId", "id");
+            string fRouteId   = Str(cfg, "routeId",   "routeId");
+            string fLabel     = Str(cfg, "label",     "label");
 
             foreach (var item in array.EnumerateArray())
             {
-                var dto = new VehiclePositionDto
-                {
-                    Lat = GetDouble(item, fLat),
-                    Lon = GetDouble(item, fLon),
-                    Bearing = (float)GetDouble(item, fBearing),
-                    VehicleId = GetString(item, fVehicleId) ?? Guid.NewGuid().ToString(),
-                    RouteId = GetString(item, fRouteId),
-                    Label = GetString(item, fLabel),
-                };
+                var lat = GetDouble(item, fLat);
+                var lon = GetDouble(item, fLon);
+                if (lat == 0 && lon == 0) continue;
 
-                if (dto.Lat == 0 && dto.Lon == 0) continue;
+                var routeId = GetString(item, fRouteId);
 
-                // Trip→route fallback
-                if (string.IsNullOrEmpty(dto.RouteId) && tripRouteMap != null)
+                // Trip→route fallback if routeId not in feed
+                if (string.IsNullOrEmpty(routeId) && tripRouteMap != null)
                 {
                     var tripId = GetString(item, "trip_id") ?? GetString(item, "tripId");
-                    if (tripId != null && tripRouteMap.TryGetValue(tripId, out var mappedRoute))
-                        dto.RouteId = mappedRoute;
+                    if (tripId != null)
+                        tripRouteMap.TryGetValue(tripId, out routeId);
                 }
 
-                result.Add(dto);
+                result.Add(new ParsedVehicle
+                {
+                    VehicleId = GetString(item, fVehicleId) ?? Guid.NewGuid().ToString(),
+                    RouteId   = routeId,
+                    Label     = GetString(item, fLabel),
+                    Lat       = lat,
+                    Lon       = lon,
+                    Bearing   = (float)GetDouble(item, fBearing),
+                });
             }
         }
         catch (Exception ex)
@@ -93,7 +94,9 @@ public class RestJsonParser : IRealtimeParser
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    /// Resolves a dot-separated path like "data.vehicles" into a JsonElement.
+    private static string Str(JsonElement cfg, string key, string fallback)
+        => cfg.TryGetProperty(key, out var v) ? v.GetString() ?? fallback : fallback;
+
     private static JsonElement ResolveJsonPath(JsonElement root, string? path)
     {
         if (string.IsNullOrEmpty(path)) return root;

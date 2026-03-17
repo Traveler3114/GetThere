@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitalCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -273,6 +273,7 @@ namespace GetThereAPI.Migrations
                     TicketApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     TicketApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     GtfsFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StaticFeedFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     GtfsRealtimeFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     RealtimeFeedFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     RealtimeAuthType = table.Column<string>(type: "nvarchar(max)", nullable: false),
@@ -384,8 +385,8 @@ namespace GetThereAPI.Migrations
 
             migrationBuilder.InsertData(
                 table: "TransitOperators",
-                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
-                values: new object[] { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "", "" });
+                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
+                values: new object[] { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",

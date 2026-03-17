@@ -340,6 +340,10 @@ namespace GetThereAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("StaticFeedFormat")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("TicketApiBaseUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -368,6 +372,7 @@ namespace GetThereAPI.Migrations
                             Name = "ZET",
                             RealtimeAuthType = "NONE",
                             RealtimeFeedFormat = "GTFS_RT_PROTO",
+                            StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         });

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260313092316_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260316211440_InitalCreate")]
+    partial class InitalCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -343,6 +343,10 @@ namespace GetThereAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("StaticFeedFormat")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("TicketApiBaseUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -371,6 +375,7 @@ namespace GetThereAPI.Migrations
                             Name = "ZET",
                             RealtimeAuthType = "NONE",
                             RealtimeFeedFormat = "GTFS_RT_PROTO",
+                            StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         });

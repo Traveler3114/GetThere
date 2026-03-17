@@ -1,8 +1,8 @@
-using GetThereShared.Dtos;
+using GetThereAPI.Entities;
 using System.Diagnostics;
 using System.Xml.Linq;
 
-namespace GetThere.Services.Realtime;
+namespace GetThereAPI.Parsers.Realtime;
 
 /// <summary>
 /// Parses SIRI (Service Interface for Real Time Information) XML feeds.
@@ -11,16 +11,16 @@ namespace GetThere.Services.Realtime;
 /// </summary>
 public class SiriParser : IRealtimeParser
 {
-    public Task<List<VehiclePositionDto>> ParseAsync(
+    public Task<List<ParsedVehicle>> ParseAsync(
         byte[] data,
-        TransitOperatorDto op,
+        TransitOperator op,
         Dictionary<string, string>? tripRouteMap)
     {
-        var result = new List<VehiclePositionDto>();
+        var result = new List<ParsedVehicle>();
 
         try
         {
-            var xml = XDocument.Parse(System.Text.Encoding.UTF8.GetString(data));
+            var xml  = XDocument.Parse(System.Text.Encoding.UTF8.GetString(data));
             XNamespace siri = "http://www.siri.org.uk/siri";
 
             // SIRI VM response path:
@@ -29,27 +29,26 @@ public class SiriParser : IRealtimeParser
 
             foreach (var j in journeys)
             {
-                var dto = new VehiclePositionDto();
-
-                // Location
                 var loc = j.Element(siri + "VehicleLocation");
-                if (loc == null) continue;
-                dto.Lat = ParseDouble(loc.Element(siri + "Latitude")?.Value);
-                dto.Lon = ParseDouble(loc.Element(siri + "Longitude")?.Value);
-                if (dto.Lat == 0 && dto.Lon == 0) continue;
+                if (loc is null) continue;
 
-                dto.Bearing = (float)ParseDouble(j.Element(siri + "Bearing")?.Value);
+                var lat = ParseDouble(loc.Element(siri + "Latitude")?.Value);
+                var lon = ParseDouble(loc.Element(siri + "Longitude")?.Value);
+                if (lat == 0 && lon == 0) continue;
 
-                // Route / line
-                dto.RouteId = j.Element(siri + "LineRef")?.Value
-                           ?? j.Element(siri + "PublishedLineName")?.Value;
-
-                // Vehicle
                 var vehicleRef = j.Element(siri + "VehicleRef")?.Value;
-                dto.VehicleId = vehicleRef ?? Guid.NewGuid().ToString();
-                dto.Label     = j.Element(siri + "PublishedLineName")?.Value;
+                var routeId    = j.Element(siri + "LineRef")?.Value
+                              ?? j.Element(siri + "PublishedLineName")?.Value;
 
-                result.Add(dto);
+                result.Add(new ParsedVehicle
+                {
+                    VehicleId = vehicleRef ?? Guid.NewGuid().ToString(),
+                    RouteId   = routeId,
+                    Label     = j.Element(siri + "PublishedLineName")?.Value,
+                    Lat       = lat,
+                    Lon       = lon,
+                    Bearing   = (float)ParseDouble(j.Element(siri + "Bearing")?.Value),
+                });
             }
         }
         catch (Exception ex)
@@ -62,6 +61,8 @@ public class SiriParser : IRealtimeParser
     }
 
     private static double ParseDouble(string? s) =>
-        double.TryParse(s, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+        double.TryParse(s,
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var d) ? d : 0;
 }

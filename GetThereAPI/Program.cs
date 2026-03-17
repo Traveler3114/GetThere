@@ -14,11 +14,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// SQL Server — unchanged
+// ── Database ──────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Identity — unchanged
+// ── Identity ──────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
     options.Password.RequiredLength = 8;
@@ -30,19 +30,30 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// Register our TokenManager so controllers can inject it
+builder.Services.AddHttpClient();
+// ── Singletons (in-memory cache — must NOT be scoped) ─────────────────────
+// Registered before the reflection loop so the loop skips them.
+builder.Services.AddSingleton<StaticDataManager>();
+builder.Services.AddSingleton<RealtimeManager>();
+
+// Starts RealtimeManager's background polling loop when the server starts
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RealtimeManager>());
+
+// ── All other managers (scoped — auto-registered by reflection) ───────────
 var managerTypes = Assembly.GetExecutingAssembly()
     .GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers"
                 && t.IsClass
-                && !t.IsAbstract);
+                && !t.IsAbstract
+                && t != typeof(StaticDataManager)   // already registered as singleton
+                && t != typeof(RealtimeManager));    // already registered as singleton
 
 foreach (var managerType in managerTypes)
 {
     builder.Services.AddScoped(managerType);
 }
 
-// Tell ASP.NET "use JWT Bearer as the default way to authenticate"
+// ── JWT Authentication ────────────────────────────────────────────────────
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -50,8 +61,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.MapInboundClaims = false; // ← Add this line
-
+    options.MapInboundClaims = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -65,8 +75,20 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// ─────────────────────────────────────────────────────────────────────────
 var app = builder.Build();
+// ─────────────────────────────────────────────────────────────────────────
 
+// ── Load GTFS data for all operators on startup ───────────────────────────
+// Must run after app.Build() so the DI container is ready,
+// but before app.Run() so data is in memory before first request arrives.
+using (var scope = app.Services.CreateScope())
+{
+    var manager = scope.ServiceProvider.GetRequiredService<OperatorManager>();
+    await manager.InitialiseAsync();
+}
+
+// ── Middleware pipeline ───────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -74,12 +96,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-// Order matters! Authentication must come before Authorization
-app.UseAuthentication();  // "Who are you?" — reads and validates the JWT
-app.UseAuthorization();   // "Are you allowed here?" — checks [Authorize] attributes
+app.UseAuthentication();   // "Who are you?"    — validates the JWT
+app.UseAuthorization();    // "Are you allowed?" — checks [Authorize] attributes
 app.MapControllers();
+
 app.Run();
 
-
-//https://localhost:7230/scalar/v1
+// https://localhost:7230/scalar/v1

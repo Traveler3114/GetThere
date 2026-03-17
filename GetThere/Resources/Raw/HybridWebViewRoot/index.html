@@ -5,12 +5,505 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         html, body, #map {
             width: 100%;
             height: 100%;
             overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        /* ── Bottom panels ──────────────────────────────────────────── */
+        .bottom-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 18px 18px 0 0;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+            display: flex;
+            flex-direction: column;
+            touch-action: pan-y;
+            z-index: 100;
+        }
+
+            .bottom-panel.open {
+                transform: translateY(0);
+            }
+
+        .panel-handle {
+            width: 44px;
+            height: 5px;
+            background: #d0d0d0;
+            border-radius: 3px;
+            margin: 10px auto 0;
+            flex-shrink: 0;
+            cursor: grab;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px 8px;
+            flex-shrink: 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .panel-close {
+            background: none;
+            border: none;
+            font-size: 22px;
+            color: #888;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            margin-left: auto;
+        }
+
+            .panel-close:hover {
+                color: #333;
+            }
+
+        .panel-body {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* ── Stop schedule panel ────────────────────────────────────── */
+        #stop-sheet {
+            max-height: 72vh;
+        }
+
+        #sheet-stop-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #sheet-stop-id {
+            font-size: 11px;
+            color: #999;
+        }
+
+        #sheet-date {
+            padding: 4px 16px 8px;
+            font-size: 12px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        #sheet-body {
+            padding: 0 12px 20px;
+        }
+
+        /* ── Trip detail panel ──────────────────────────────────────── */
+        #trip-panel {
+            max-height: 80vh;
+            z-index: 101;
+        }
+
+        .trip-panel-route {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        #trip-panel-headsign {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a1a1a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #trip-panel-subtitle {
+            padding: 4px 16px 10px;
+            font-size: 12px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        #trip-panel-loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 40px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        #trip-panel-body {
+            padding: 0 0 24px;
+        }
+
+        /* ── Route pill ─────────────────────────────────────────────── */
+        .route-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            height: 28px;
+            padding: 0 10px;
+            border-radius: 7px;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            flex-shrink: 0;
+        }
+
+            .route-pill.tram {
+                background: #e53935;
+                color: #fff;
+            }
+
+            .route-pill.bus {
+                background: #1565c0;
+                color: #fff;
+            }
+
+            .route-pill.metro {
+                background: #00796b;
+                color: #fff;
+            }
+
+            .route-pill.rail {
+                background: #6a1b9a;
+                color: #fff;
+            }
+
+            .route-pill.ferry {
+                background: #0277bd;
+                color: #fff;
+            }
+
+        /* ── Trip stop list ─────────────────────────────────────────── */
+        .trip-stop {
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            min-height: 56px;
+            position: relative;
+        }
+
+            .trip-stop::before {
+                content: '';
+                position: absolute;
+                left: 28px;
+                top: 0;
+                bottom: 0;
+                width: 2px;
+                background: #e8e8e8;
+                z-index: 0;
+            }
+
+            .trip-stop:first-child::before {
+                top: 50%;
+            }
+
+            .trip-stop:last-child::before {
+                bottom: 50%;
+            }
+
+        .trip-stop-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: #d0d0d0;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px #d0d0d0;
+            z-index: 1;
+            margin-right: 14px;
+            transition: all 0.15s;
+        }
+
+        .trip-stop.current .trip-stop-dot {
+            width: 18px;
+            height: 18px;
+            background: #1565c0;
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 3px rgba(21,101,192,0.3);
+        }
+
+        .trip-stop.passed .trip-stop-dot {
+            background: #c8e6c9;
+            box-shadow: 0 0 0 2px #c8e6c9;
+        }
+
+        .trip-stop-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .trip-stop-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #222;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .trip-stop.current .trip-stop-name {
+            font-weight: 700;
+            color: #1565c0;
+        }
+
+        .trip-stop.passed .trip-stop-name {
+            color: #aaa;
+        }
+
+        .trip-stop.passed {
+            opacity: 0.6;
+        }
+
+        .trip-stop-times {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 1px;
+            flex-shrink: 0;
+            margin-left: 10px;
+        }
+
+        .ts-sched {
+            font-size: 11px;
+            color: #bbb;
+            text-decoration: line-through;
+        }
+
+        .ts-eta {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+            .ts-eta.late {
+                color: #e53935;
+            }
+
+            .ts-eta.early {
+                color: #ef6c00;
+            }
+
+            .ts-eta.ontime {
+                color: #2e7d32;
+            }
+
+        .ts-only {
+            font-size: 14px;
+            font-weight: 500;
+            color: #444;
+        }
+
+        .trip-stop.passed .ts-only {
+            color: #bbb;
+        }
+
+        .trip-stop.current .ts-only {
+            color: #1565c0;
+            font-weight: 700;
+        }
+
+        /* ── Schedule UI ────────────────────────────────────────────── */
+        .sched-loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 32px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .sched-empty {
+            display: none;
+            padding: 32px;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #1565c0;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .route-group {
+            margin-top: 12px;
+            border: 1px solid #ebebeb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .route-group-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #f8f8f8;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .route-group-header:active {
+                background: #f0f0f0;
+            }
+
+        .route-headsign {
+            font-size: 14px;
+            font-weight: 600;
+            color: #222;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .route-count {
+            font-size: 12px;
+            color: #888;
+            flex-shrink: 0;
+        }
+
+        .route-chevron {
+            font-size: 16px;
+            color: #bbb;
+            transition: transform 0.2s;
+        }
+
+        .route-group.expanded .route-chevron {
+            transform: rotate(180deg);
+        }
+
+        .route-times {
+            display: none;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 12px 12px;
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .route-group.expanded .route-times {
+            display: flex;
+        }
+
+        .time-chip {
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1565c0;
+            background: #e8f0fe;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+            .time-chip.next {
+                background: #1565c0;
+                color: #fff;
+            }
+
+            .time-chip.click {
+                cursor: pointer;
+            }
+
+                .time-chip.click:active {
+                    opacity: 0.75;
+                }
+
+        .sched-strike {
+            text-decoration: line-through;
+            opacity: 0.5;
+            font-size: 11px;
+        }
+
+        .eta-time {
+            font-weight: 700;
+        }
+
+        .delay-badge {
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+            .delay-badge.late {
+                color: #e53935;
+            }
+
+            .delay-badge.early {
+                color: #ef6c00;
+            }
+
+            .delay-badge.ontime {
+                color: #4caf50;
+            }
+
+        .time-chip.next .delay-badge.late {
+            color: #ffcdd2;
+        }
+
+        .time-chip.next .delay-badge.early {
+            color: #ffe0b2;
+        }
+
+        .time-chip.next .delay-badge.ontime {
+            color: #c8e6c9;
+        }
+
+        .live-dot {
+            color: #4caf50;
+            font-size: 9px;
+            animation: pulse 1.5s infinite;
+        }
+
+        .time-chip.next .live-dot {
+            color: #a5d6a7;
+        }
+
+        .tracked-count {
+            font-size: 11px;
+            color: #4caf50;
+            font-weight: 600;
+        }
+
+        @keyframes pulse {
+            0%,100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
         }
     </style>
 </head>
@@ -18,37 +511,729 @@
 
     <div id="map"></div>
 
+    <!-- Stop schedule panel -->
+    <div id="stop-sheet" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <span id="sheet-stop-name">Stop</span>
+            <span id="sheet-stop-id"></span>
+            <button class="panel-close" id="sheet-close">✕</button>
+        </div>
+        <div id="sheet-date"></div>
+        <div class="sched-loading" id="sheet-loading"><div class="spinner"></div> Loading…</div>
+        <div class="sched-empty" id="sheet-empty">No departures today.</div>
+        <div class="panel-body" id="sheet-body"></div>
+    </div>
+
+    <!-- Trip detail panel -->
+    <div id="trip-panel" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <div class="trip-panel-route">
+                <span id="trip-panel-pill" class="route-pill bus">1</span>
+                <span id="trip-panel-headsign">Route</span>
+            </div>
+            <button class="panel-close" id="trip-panel-close">✕</button>
+        </div>
+        <div id="trip-panel-subtitle"></div>
+        <div id="trip-panel-loading" class="sched-loading"><div class="spinner"></div> Loading…</div>
+        <div class="panel-body" id="trip-panel-body"></div>
+    </div>
+
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script>
 
-        // ── Load zetko's mapstyle, strip the transit stop icon layers,
-        //    then init the map.  We remove only 'Transit' and
-        //    'Transit tunnel' — everything else (roads, tram tracks,
-        //    bridges) stays exactly as zetko has it.
-        (async () => {
+        // ═══════════════════════════════════════════════════════════════════
+        // CONFIG
+        // ═══════════════════════════════════════════════════════════════════
 
+        const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
+
+        // ═══════════════════════════════════════════════════════════════════
+        // BOOT — fetch zetko style, strip OSM transit layers, init map
+        // ═══════════════════════════════════════════════════════════════════
+        (async () => {
             const style = await fetch('mapstyle.json').then(r => r.json());
 
+            // Remove only the OSM transit stop icon layers.
+            // Keep everything else (roads, tram tracks, bridges).
             const REMOVE = new Set(['Transit', 'Transit tunnel', 'Station labels']);
             style.layers = style.layers.filter(l => !REMOVE.has(l.id));
 
             window.map = new maplibregl.Map({
                 container: 'map',
-                style:     style,
-                center:    [15.9775, 45.8129],   // Zagreb
-                zoom:      13,
-                minZoom:   3,
-                maxPitch:  60
+                style,
+                center: [15.9775, 45.8129],
+                zoom: 13,
+                minZoom: 10,
+                maxPitch: 60
             });
 
             map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-            map.on('load', () => {
-                console.log('[GetThere] Map ready');
-                // Brick 2 will add stops, vehicles etc here
+            map.on('load', _onMapLoad);
+        })();
+
+        // ═══════════════════════════════════════════════════════════════════
+        // MAP LOAD — set up all sources and layers
+        // ═══════════════════════════════════════════════════════════════════
+        function _onMapLoad() {
+
+            // ── Stop source + layers ───────────────────────────────────────
+            map.addSource('gtfs-stops', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+                cluster: true,
+                clusterMaxZoom: STOPS_MIN_ZOOM - 1,
+                clusterRadius: 15
             });
 
-        })();
+            // Generate stop icons on canvas and register with MapLibre
+            _addStopIcon('stop-tram', '#c62828', '#ffebee');
+            _addStopIcon('stop-bus', '#1565c0', '#e3f2fd');
+            _addStopIcon('stop-metro', '#00796b', '#e0f2f1');
+            _addStopIcon('stop-rail', '#6a1b9a', '#f3e5f5');
+            _addStopIcon('stop-ferry', '#0277bd', '#e1f5fe');
+
+            // One symbol layer per transport type, filtered by stopCategory property
+            [
+                { id: 'stops-tram', icon: 'stop-tram', cat: 'tram', text: '#b71c1c' },
+                { id: 'stops-bus', icon: 'stop-bus', cat: 'bus', text: '#0d47a1' },
+                { id: 'stops-metro', icon: 'stop-metro', cat: 'metro', text: '#004d40' },
+                { id: 'stops-rail', icon: 'stop-rail', cat: 'rail', text: '#4a148c' },
+                { id: 'stops-ferry', icon: 'stop-ferry', cat: 'ferry', text: '#01579b' },
+            ].forEach(({ id, icon, cat, text }) => {
+                map.addLayer({
+                    id, type: 'symbol', source: 'gtfs-stops',
+                    minzoom: STOPS_MIN_ZOOM,
+                    filter: ['==', ['get', 'stopCategory'], cat],
+                    layout: {
+                        'icon-image': icon,
+                        'icon-size': 0.55,
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true,
+                        'text-field': ['step', ['zoom'], '', 16, ['get', 'name']],
+                        'text-size': 11,
+                        'text-offset': [0, 1.6],
+                        'text-anchor': 'top',
+                        'text-allow-overlap': false,
+                        'text-optional': true,
+                        'text-font': ['Noto Sans Regular'],
+                    },
+                    paint: {
+                        'text-color': text,
+                        'text-halo-color': '#fff',
+                        'text-halo-width': 1.5,
+                    }
+                });
+                map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
+                map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
+            });
+
+            // Cluster dot shown below STOPS_MIN_ZOOM
+            map.addLayer({
+                id: 'stops-cluster', type: 'circle', source: 'gtfs-stops',
+                filter: ['has', 'point_count'],
+                paint: {
+                    'circle-color': '#607d8b',
+                    'circle-radius': 10,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#fff',
+                    'circle-opacity': 0.7,
+                }
+            });
+
+            // ── Vehicle source + layers ────────────────────────────────────
+            map.addSource('vehicles', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            // Generate vehicle icons lazily — one canvas image per unique
+            // routeShortName + routeType + isRealtime combination
+            map.on('styleimagemissing', async e => {
+                const id = e.id;
+                if (!id.endsWith('-bg') && !id.endsWith('-fg')) return;
+
+                const parts = id.split('-');
+                const suffix = parts.pop();
+                const realtime = parts.pop() === 'true';
+                const type = parseInt(parts.pop(), 10);
+                const name = parts.join('-');
+
+                const colors = _routeTypeColors(type);
+                const color = realtime ? colors.rt : colors.sched;
+
+                const size = suffix === 'bg' ? 64 : 42;
+                const data = suffix === 'bg'
+                    ? _genVehicleBg(color)
+                    : await _genVehicleFg(color, name);
+
+                if (!map.hasImage(id))
+                    map.addImage(id, { width: size, height: size, data });
+            });
+
+            // bg layer — directional arrow, rotates with bearing
+            map.addLayer({
+                id: 'vehicles-bg', type: 'symbol', source: 'vehicles',
+                layout: {
+                    'icon-image': ['concat',
+                        ['get', 'routeShortName'], '-',
+                        ['to-string', ['get', 'routeType']], '-',
+                        ['to-string', ['get', 'isRealtime']], '-bg'
+                    ],
+                    'icon-size': 0.65,
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                    'icon-rotation-alignment': 'map',
+                    'icon-rotate': ['get', 'bearing'],
+                    'symbol-sort-key': ['get', 'idx'],
+                    'symbol-z-order': 'auto',
+                    'text-font': ['Noto Sans Regular'],
+                }
+            });
+
+            // fg layer — coloured circle with route number, no rotation
+            map.addLayer({
+                id: 'vehicles-fg', type: 'symbol', source: 'vehicles',
+                layout: {
+                    'icon-image': ['concat',
+                        ['get', 'routeShortName'], '-',
+                        ['to-string', ['get', 'routeType']], '-',
+                        ['to-string', ['get', 'isRealtime']], '-fg'
+                    ],
+                    'icon-size': 0.65,
+                    'icon-allow-overlap': true,
+                    'text-allow-overlap': true,
+                    'symbol-sort-key': ['get', 'idx'],
+                    'symbol-z-order': 'source',
+                    'text-font': ['Noto Sans Regular'],
+                }
+            });
+
+            // Vehicle detail labels at zoom 15+
+            map.addLayer({
+                id: 'vehicle-labels', type: 'symbol', source: 'vehicles',
+                minzoom: 15,
+                layout: {
+                    'text-field': ['concat', ['get', 'vehicleId']],
+                    'text-font': ['Noto Sans Regular'],
+                    'text-size': 11,
+                    'text-anchor': 'left',
+                    'text-offset': [2, 0],
+                    'icon-allow-overlap': true,
+                    'text-allow-overlap': true,
+                },
+                paint: {
+                    'text-color': '#111',
+                    'text-halo-color': '#fff',
+                    'text-halo-width': 10,
+                }
+            });
+
+            // ── Active route line ──────────────────────────────────────────
+            map.addSource('active-route', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+            map.addLayer({
+                id: 'active-route-outline', type: 'line', source: 'active-route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.10 }
+            });
+            map.addLayer({
+                id: 'active-route', type: 'line', source: 'active-route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#1565c0', 'line-width': 5, 'line-opacity': 0.92 }
+            });
+
+            // ── Click events ───────────────────────────────────────────────
+            // Stop click → request schedule from C#
+            ['stops-tram', 'stops-bus', 'stops-metro', 'stops-rail', 'stops-ferry'].forEach(lyr => {
+                map.on('click', lyr, e => {
+                    if (e.defaultPrevented) return;
+                    e.preventDefault();
+                    const p = e.features[0].properties;
+                    _openStopSheet(p.stopId, p.name,
+                        typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
+                });
+            });
+
+            // Vehicle click → request trip detail from C#
+            ['vehicles-fg', 'vehicles-bg'].forEach(lyr => {
+                map.on('click', lyr, e => {
+                    if (e.defaultPrevented) return;
+                    e.preventDefault();
+                    const p = e.features[0].properties;
+                    if (p.tripId) _openTripPanel(p.tripId);
+                });
+                map.on('mouseenter', lyr, () => map.getCanvas().style.cursor = 'pointer');
+                map.on('mouseleave', lyr, () => map.getCanvas().style.cursor = '');
+            });
+
+            // Empty tap → close panels
+            map.on('click', e => {
+                if (e.defaultPrevented) return;
+                _clearRoute();
+                _closeStopSheet();
+                _closeTripPanel();
+            });
+
+            // Signal C# that the map is ready for data
+            window._mapReady = true;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // PUBLIC FUNCTIONS — called by C# via CallJsAsync
+        // ═══════════════════════════════════════════════════════════════════
+
+        // ── renderStops ────────────────────────────────────────────────────
+        // Called once on startup with all stops from the API.
+        function renderStops(stops) {
+            const features = (stops || []).map(s => ({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+                properties: {
+                    stopId: s.stopId,
+                    name: s.name,
+                    routeType: s.routeType ?? 3,
+                    stopCategory: _stopCategory(s.routeType ?? 3),
+                }
+            }));
+
+            map.getSource('gtfs-stops')?.setData({
+                type: 'FeatureCollection', features
+            });
+        }
+
+        // ── renderRoutes ───────────────────────────────────────────────────
+        // Stores route metadata (name, type, color, shape) for later use.
+        function renderRoutes(routes) {
+            _routeMap = {};
+            (routes || []).forEach(r => {
+                _routeMap[r.routeId] = r;
+            });
+        }
+
+        // ── renderVehicles ─────────────────────────────────────────────────
+        // Called every 10 seconds with live vehicle positions.
+        function renderVehicles(vehicles) {
+            const features = (vehicles || []).map((v, i) => {
+                const route = _routeMap[v.routeId] || {};
+                return {
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
+                    properties: {
+                        idx: i,
+                        vehicleId: v.vehicleId || '',
+                        tripId: v.tripId || '',
+                        routeId: v.routeId || '',
+                        routeShortName: v.routeShortName || route.shortName || '?',
+                        routeType: v.routeType ?? route.routeType ?? 3,
+                        isRealtime: v.isRealtime ?? false,
+                        bearing: v.bearing ?? 0,
+                        blockId: v.blockId || '',
+                    }
+                };
+            });
+
+            map.getSource('vehicles')?.setData({
+                type: 'FeatureCollection', features
+            });
+        }
+
+        // ── renderStopSchedule ─────────────────────────────────────────────
+        // Called by C# after user taps a stop.
+        function renderStopSchedule(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+
+            _sheetLoad.style.display = 'none';
+            _sheetBody.innerHTML = '';
+
+            const groups = data.groups || [];
+            if (!groups.length) { _sheetEmpty.style.display = 'block'; return; }
+
+            groups.forEach((g, gi) => {
+                const route = _routeMap[g.routeId] || {};
+                const rType = route.routeType ?? 3;
+                const pc = _pillClass(rType);
+                const deps = g.departures || [];
+
+                const timesHtml = deps.map((d, i) => {
+                    let cls = 'time-chip' + (i === 0 ? ' next' : '');
+                    const canClick = d.isRealtime || !!d.estimatedTime;
+                    if (canClick) cls += ' click';
+                    const onClick = canClick
+                        ? `onclick="window._pendingMsg='tripDetail:${d.tripId}'"` : '';
+
+                    const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
+                    if (hasEta) {
+                        const delay = d.delayMinutes ?? 0;
+                        const badge = delay > 1
+                            ? `<span class="delay-badge late">+${delay}'</span>`
+                            : delay < -1
+                                ? `<span class="delay-badge early">${delay}'</span>`
+                                : `<span class="delay-badge ontime">✓</span>`;
+                        const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
+                        return `<span class="${cls}" ${onClick}>
+                            <span class="sched-strike">${d.scheduledTime}</span>
+                            <span class="eta-time">${d.estimatedTime}</span>
+                            ${badge}${dot}
+                        </span>`;
+                    } else if (d.isRealtime) {
+                        return `<span class="${cls}" ${onClick}>${d.scheduledTime}<span class="live-dot">●</span></span>`;
+                    } else {
+                        return `<span class="${cls}">${d.scheduledTime}</span>`;
+                    }
+                }).join('');
+
+                const tracked = deps.filter(d => d.isRealtime).length;
+                const rtBadge = tracked > 0
+                    ? `&nbsp;<span class="tracked-count">📡&nbsp;${tracked}</span>` : '';
+
+                const div = document.createElement('div');
+                div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
+                div.innerHTML = `
+                    <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
+                        <span class="route-headsign">${_esc(g.headsign)}</span>
+                        <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
+                        <span class="route-chevron">▾</span>
+                    </div>
+                    <div class="route-times">${timesHtml}</div>`;
+                _sheetBody.appendChild(div);
+            });
+
+            requestAnimationFrame(() => {
+                const next = _sheetBody.querySelector('.time-chip.next');
+                if (next) next.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        // ── renderTripDetail ───────────────────────────────────────────────
+        // Called by C# after user taps a vehicle.
+        function renderTripDetail(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+
+            _tripLoading.style.display = 'none';
+
+            const rType = data.routeType ?? 3;
+            _tripPill.className = 'route-pill ' + _pillClass(rType);
+            _tripPill.textContent = data.shortName || data.routeId || '?';
+            _tripHead.textContent = data.headsign || '';
+
+            const status = data.isRealtime
+                ? '📡 Live'
+                : (data.stops || []).some(s => s.estimatedTime) ? '⏱ Predicted' : '📅 Scheduled';
+            _tripSubtitle.textContent = status;
+            _tripSubtitle.style.cssText = 'padding:2px 16px 10px;font-size:12px;color:#888;flex-shrink:0';
+
+            _tripBody.innerHTML = '';
+            const stops = data.stops || [];
+            const curIdx = data.currentStopIndex ?? 0;
+
+            stops.forEach((s, i) => {
+                const isPassed = s.isPassed;
+                const isCurrent = i === curIdx && !isPassed;
+                let cls = 'trip-stop';
+                if (isPassed) cls += ' passed';
+                if (isCurrent) cls += ' current';
+
+                const hasEta = s.estimatedTime && s.estimatedTime !== s.scheduledTime;
+                let times = '';
+                if (hasEta) {
+                    const d = s.delayMinutes ?? 0;
+                    const ec = d > 1 ? 'late' : d < -1 ? 'early' : 'ontime';
+                    times = `<div class="trip-stop-times">
+                        <span class="ts-sched">${s.scheduledTime}</span>
+                        <span class="ts-eta ${ec}">${s.estimatedTime}</span>
+                    </div>`;
+                } else {
+                    times = `<div class="trip-stop-times">
+                        <span class="ts-only">${s.scheduledTime}</span>
+                    </div>`;
+                }
+
+                const row = document.createElement('div');
+                row.className = cls;
+                row.innerHTML = `
+                    <div class="trip-stop-dot"></div>
+                    <div class="trip-stop-info">
+                        <div class="trip-stop-name">${_esc(s.stopName)}</div>
+                    </div>
+                    ${times}`;
+                _tripBody.appendChild(row);
+            });
+
+            // Fly to vehicle if tracked
+            if (data.isRealtime && data.vehicleLat && data.vehicleLon)
+                map.flyTo({ center: [data.vehicleLon, data.vehicleLat], zoom: 15, duration: 600 });
+
+            // Draw route shape
+            if (data.routeId) _showRoute(data.routeId);
+
+            requestAnimationFrame(() => {
+                const cur = _tripBody.querySelector('.trip-stop.current');
+                if (cur) cur.scrollIntoView({ block: 'center' });
+            });
+        }
+
+        // ── updateMapLocation ──────────────────────────────────────────────
+        // Called by C# when GPS location is available.
+        function updateMapLocation(lng, lat) {
+            if (!_userMarker) {
+                _userMarker = new maplibregl.Marker({ color: '#4285F4' })
+                    .setLngLat([lng, lat]).addTo(map);
+            } else {
+                _userMarker.setLngLat([lng, lat]);
+            }
+            map.setCenter([lng, lat]);
+            map.setZoom(15);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════════════════
+
+        let _routeMap = {};
+        let _userMarker = null;
+        let _currentStop = null;
+
+        // Panel element refs
+        const _sheet = document.getElementById('stop-sheet');
+        const _sheetName = document.getElementById('sheet-stop-name');
+        const _sheetSid = document.getElementById('sheet-stop-id');
+        const _sheetDate = document.getElementById('sheet-date');
+        const _sheetLoad = document.getElementById('sheet-loading');
+        const _sheetEmpty = document.getElementById('sheet-empty');
+        const _sheetBody = document.getElementById('sheet-body');
+        const _tripPanel = document.getElementById('trip-panel');
+        const _tripPill = document.getElementById('trip-panel-pill');
+        const _tripHead = document.getElementById('trip-panel-headsign');
+        const _tripSubtitle = document.getElementById('trip-panel-subtitle');
+        const _tripLoading = document.getElementById('trip-panel-loading');
+        const _tripBody = document.getElementById('trip-panel-body');
+
+        // ═══════════════════════════════════════════════════════════════════
+        // PANELS
+        // ═══════════════════════════════════════════════════════════════════
+
+        function _openStopSheet(stopId, stopName, routeType) {
+            _tripPanel.classList.remove('open');
+            _currentStop = stopId;
+
+            _sheetName.textContent = stopName;
+            const isTram = routeType === 0 || routeType === 11;
+            _sheetSid.textContent = (isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
+
+            const now = new Date();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            _sheetDate.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+
+            _sheetLoad.style.display = 'flex';
+            _sheetEmpty.style.display = 'none';
+            _sheetBody.innerHTML = '';
+            _sheet.classList.add('open');
+
+            // Tell C# to fetch the schedule
+            window._pendingMsg = 'stopSchedule:' + stopId;
+        }
+
+        function _closeStopSheet() {
+            _sheet.classList.remove('open');
+            _currentStop = null;
+        }
+
+        function _openTripPanel(tripId) {
+            _sheet.classList.remove('open');
+            _currentStop = null;
+
+            _tripPill.className = 'route-pill bus';
+            _tripPill.textContent = '…';
+            _tripHead.textContent = 'Loading…';
+            _tripSubtitle.textContent = '';
+            _tripLoading.style.display = 'flex';
+            _tripBody.innerHTML = '';
+            _tripPanel.classList.add('open');
+
+            // Tell C# to fetch the trip detail
+            window._pendingMsg = 'tripDetail:' + tripId;
+        }
+
+        function _closeTripPanel() {
+            _tripPanel.classList.remove('open');
+            _clearRoute();
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ROUTE LINE
+        // ═══════════════════════════════════════════════════════════════════
+
+        function _showRoute(routeId) {
+            const route = _routeMap[routeId];
+            const shape = route?.shape;
+            const color = route?.color ? '#' + route.color : '#1565c0';
+
+            map.getSource('active-route')?.setData(
+                shape && shape.length >= 2
+                    ? { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } }
+                    : { type: 'FeatureCollection', features: [] }
+            );
+
+            if (map.getLayer('active-route'))
+                map.setPaintProperty('active-route', 'line-color', color);
+        }
+
+        function _clearRoute() {
+            map.getSource('active-route')?.setData(
+                { type: 'FeatureCollection', features: [] }
+            );
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // STOP ICON GENERATOR
+        // Canvas passed directly to map.addImage() — no pixel offset issues.
+        // ═══════════════════════════════════════════════════════════════════
+
+        function _addStopIcon(id, borderColor, fillColor) {
+            const size = 44, cx = size / 2;
+            const c = document.createElement('canvas');
+            c.width = c.height = size;
+            const ctx = c.getContext('2d');
+
+            ctx.beginPath(); ctx.arc(cx, cx, cx - 2, 0, Math.PI * 2);
+            ctx.fillStyle = fillColor; ctx.fill();
+            ctx.lineWidth = 4; ctx.strokeStyle = borderColor; ctx.stroke();
+            ctx.beginPath(); ctx.arc(cx, cx, 5, 0, Math.PI * 2);
+            ctx.fillStyle = borderColor; ctx.fill();
+
+            map.addImage(id, c);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // VEHICLE ICON GENERATORS (zetko's bg/fg approach)
+        // ═══════════════════════════════════════════════════════════════════
+
+        function _genVehicleBg(color) {
+            const c = document.createElement('canvas');
+            c.width = c.height = 64;
+            const ctx = c.getContext('2d');
+            const cx = 32;
+
+            ctx.fillStyle = _darken(color);
+            ctx.beginPath();
+            ctx.moveTo(cx, 0);
+            ctx.lineTo(cx - 18, 20);
+            ctx.lineTo(cx + 18, 20);
+            ctx.closePath();
+            ctx.fill();
+
+            return ctx.getImageData(0, 0, 64, 64).data;
+        }
+
+        async function _genVehicleFg(color, text) {
+            const c = document.createElement('canvas');
+            c.width = c.height = 42;
+            const ctx = c.getContext('2d');
+            const cx = 21;
+
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(cx, cx, 20, 0, Math.PI * 2); ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = _darken(color); ctx.stroke();
+
+            try {
+                await Promise.race([
+                    document.fonts.load('bold 20px "Noto Sans"'),
+                    new Promise(r => setTimeout(r, 400))
+                ]);
+            } catch (_) { }
+
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = text.length > 3 ? 'bold 14px Noto Sans,Arial,sans-serif'
+                : text.length > 2 ? 'bold 16px Noto Sans,Arial,sans-serif'
+                    : 'bold 20px Noto Sans,Arial,sans-serif';
+            ctx.fillText(text, cx, cx);
+
+            return ctx.getImageData(0, 0, 42, 42).data;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // HELPERS
+        // ═══════════════════════════════════════════════════════════════════
+
+        function _stopCategory(t) {
+            if (t === 0 || t === 11) return 'tram';
+            if (t === 1) return 'metro';
+            if (t === 2) return 'rail';
+            if (t === 4) return 'ferry';
+            return 'bus';
+        }
+
+        function _pillClass(t) {
+            if (t === 0 || t === 11) return 'tram';
+            if (t === 1) return 'metro';
+            if (t === 2) return 'rail';
+            if (t === 4) return 'ferry';
+            return 'bus';
+        }
+
+        function _routeTypeColors(t) {
+            const map = {
+                0: { rt: '#e53935', sched: '#757575' },  // tram
+                1: { rt: '#00796b', sched: '#757575' },  // metro
+                2: { rt: '#6a1b9a', sched: '#757575' },  // rail
+                3: { rt: '#2e7d32', sched: '#757575' },  // bus (green=live, grey=sched)
+                4: { rt: '#0277bd', sched: '#757575' },  // ferry
+                11: { rt: '#e65100', sched: '#757575' },  // trolleybus
+            };
+            return map[t] || { rt: '#2e7d32', sched: '#757575' };
+        }
+
+        function _darken(hex, f = 0.75) {
+            const h = hex.replace('#', '');
+            const r = Math.floor(parseInt(h.slice(0, 2), 16) * f);
+            const g = Math.floor(parseInt(h.slice(2, 4), 16) * f);
+            const b = Math.floor(parseInt(h.slice(4, 6), 16) * f);
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function _esc(s) {
+            return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // PANEL CLOSE BUTTONS + SWIPE TO CLOSE
+        // ═══════════════════════════════════════════════════════════════════
+
+        document.getElementById('sheet-close').addEventListener('click', e => {
+            e.stopPropagation(); _closeStopSheet();
+        });
+        document.getElementById('trip-panel-close').addEventListener('click', e => {
+            e.stopPropagation(); _closeTripPanel();
+        });
+
+        // Prevent map clicks from firing when touching panels
+        [_sheet, _tripPanel].forEach(p => {
+            p.addEventListener('pointerdown', e => e.stopPropagation());
+            p.addEventListener('click', e => e.stopPropagation());
+        });
+
+        // Swipe down to close
+        function _addSwipeClose(panel, closeFn) {
+            let startY = 0, dragging = false;
+            panel.addEventListener('pointerdown', e => { startY = e.clientY; dragging = true; });
+            panel.addEventListener('pointermove', e => {
+                if (!dragging) return;
+                if (e.clientY - startY > 60) { dragging = false; closeFn(); }
+            });
+            panel.addEventListener('pointerup', () => { dragging = false; });
+        }
+
+        _addSwipeClose(_sheet, _closeStopSheet);
+        _addSwipeClose(_tripPanel, _closeTripPanel);
 
     </script>
 </body>

@@ -9,10 +9,19 @@ namespace GetThereAPI.Entities
         public string TicketApiBaseUrl { get; set; } = string.Empty;
         public string TicketApiKey { get; set; } = string.Empty;
 
-        // ── GTFS Static ────────────────────────────────────────────────────
+        // ── Static feed ────────────────────────────────────────────────────
+
         public string? GtfsFeedUrl { get; set; }
 
-        // ── GTFS Realtime ──────────────────────────────────────────────────
+        /// <summary>
+        /// How to parse the static feed.
+        /// Values: GTFS (default, used by almost every city worldwide)
+        /// Future values: NETEX | TRANSXCHANGE
+        /// </summary>
+        public string StaticFeedFormat { get; set; } = "GTFS";
+
+        // ── Realtime feed ──────────────────────────────────────────────────
+
         public string? GtfsRealtimeFeedUrl { get; set; }
 
         /// <summary>
@@ -28,21 +37,22 @@ namespace GetThereAPI.Entities
         public string RealtimeAuthType { get; set; } = "NONE";
 
         /// <summary>
-        /// The key, token, or header name depending on RealtimeAuthType.
-        /// For API_KEY_HEADER / BEARER: "HeaderName:Value"
-        /// For API_KEY_QUERY: "paramName:Value"
+        /// Auth credentials depending on RealtimeAuthType.
+        /// API_KEY_HEADER / BEARER: "HeaderName:Value"
+        /// API_KEY_QUERY:           "paramName:Value"
         /// </summary>
         public string? RealtimeAuthConfig { get; set; }
 
         /// <summary>
-        /// For REST adapters: JSON template describing how to map the
-        /// operator's proprietary response to VehiclePositionDto.
+        /// For REST adapters: JSON config describing how to map the
+        /// operator's proprietary response to our vehicle format.
         /// Null for standard GTFS-RT operators.
         /// </summary>
         public string? RealtimeAdapterConfig { get; set; }
 
-        // ── Feature flags ──────────────────────────────────────────────────
-        public DateTime CreatedAt      { get; set; } = DateTime.UtcNow;
+        // ── Metadata ───────────────────────────────────────────────────────
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public int CountryId { get; set; }
         public Country Country { get; set; } = null!;

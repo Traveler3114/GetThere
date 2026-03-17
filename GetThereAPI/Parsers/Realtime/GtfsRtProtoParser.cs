@@ -1,8 +1,7 @@
-using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereAPI.Entities;
 using System.Diagnostics;
 
-namespace GetThere.Services.Realtime;
+namespace GetThereAPI.Parsers.Realtime;
 
 /// <summary>
 /// Parses GTFS-RT protobuf feeds — fully generic, handles both spec-compliant
@@ -17,13 +16,13 @@ namespace GetThere.Services.Realtime;
 /// </summary>
 public class GtfsRtProtoParser : IRealtimeParser
 {
-    public Task<List<VehicleDto>> ParseAsync(
+    public Task<List<ParsedVehicle>> ParseAsync(
         byte[] data,
-        OperatorDto op,
+        TransitOperator op,
         Dictionary<string, string>? tripRouteMap)
     {
-        var vehicles = new List<VehiclenDto>();
-        var tripUpdates = new Dictionary<string, List<StopTimeUpdateDto>>(StringComparer.Ordinal);
+        var vehicles    = new List<ParsedVehicle>();
+        var tripUpdates = new Dictionary<string, List<ParsedStopTimeUpdate>>(StringComparer.Ordinal);
         int pos = 0;
 
         while (pos < data.Length)
@@ -41,19 +40,19 @@ public class GtfsRtProtoParser : IRealtimeParser
             else pos = SkipField(data, pos, wireType);
         }
 
-        // Attach TripUpdate data to matching VehiclePositions
+        // Attach TripUpdate data to matching vehicles
         foreach (var v in vehicles)
             if (v.TripId != null && tripUpdates.TryGetValue(v.TripId, out var updates))
                 v.StopTimeUpdates = updates;
 
-        // Expose TripUpdate-only entries (no GPS yet but have predictions)
+        // Add TripUpdate-only entries (no GPS yet but have delay predictions)
         foreach (var (tripId, updates) in tripUpdates)
         {
             if (vehicles.Any(v => v.TripId == tripId)) continue;
-            vehicles.Add(new VehicleDto
+            vehicles.Add(new ParsedVehicle
             {
-                VehicleId = tripId,
-                TripId = tripId,
+                VehicleId       = tripId,
+                TripId          = tripId,
                 StopTimeUpdates = updates,
                 IsScheduledOnly = true,
             });
@@ -62,6 +61,7 @@ public class GtfsRtProtoParser : IRealtimeParser
         Trace.WriteLine($"[GtfsRtProto:{op.Name}] " +
                         $"{vehicles.Count(v => !v.IsScheduledOnly)} vehicles, " +
                         $"{tripUpdates.Count} trip updates");
+
         return Task.FromResult(vehicles);
     }
 
@@ -70,8 +70,8 @@ public class GtfsRtProtoParser : IRealtimeParser
     private static void ParseEntity(
         byte[] data,
         Dictionary<string, string>? tripRouteMap,
-        List<VehicleDto> vehicles,
-        Dictionary<string, List<StopTimeUpdateDto>> tripUpdates)
+        List<ParsedVehicle> vehicles,
+        Dictionary<string, List<ParsedStopTimeUpdate>> tripUpdates)
     {
         int pos = 0;
         string entityId = string.Empty;
@@ -97,12 +97,13 @@ public class GtfsRtProtoParser : IRealtimeParser
                 }
                 else if (fieldNum == 4) // VehiclePosition
                 {
-                    var dto = new VehicleDto();
-                    ParseVehiclePosition(sub, dto, tripRouteMap);
-                    if (dto.Lat != 0 || dto.Lon != 0)
+                    var vehicle = new ParsedVehicle();
+                    ParseVehiclePosition(sub, vehicle, tripRouteMap);
+                    if (vehicle.Lat != 0 || vehicle.Lon != 0)
                     {
-                        if (string.IsNullOrEmpty(dto.VehicleId)) dto.VehicleId = entityId;
-                        vehicles.Add(dto);
+                        if (string.IsNullOrEmpty(vehicle.VehicleId))
+                            vehicle.VehicleId = entityId;
+                        vehicles.Add(vehicle);
                     }
                 }
             }
@@ -112,11 +113,12 @@ public class GtfsRtProtoParser : IRealtimeParser
 
     // ── TripUpdate ────────────────────────────────────────────────────────
 
-    private static (string? TripId, List<StopTimeUpdateDto> Updates) ParseTripUpdate(byte[] data)
+    private static (string? TripId, List<ParsedStopTimeUpdate> Updates) ParseTripUpdate(
+        byte[] data)
     {
-        int pos = 0;
+        int pos    = 0;
         string? tripId = null;
-        var updates = new List<StopTimeUpdateDto>();
+        var updates    = new List<ParsedStopTimeUpdate>();
 
         while (pos < data.Length)
         {
@@ -128,11 +130,11 @@ public class GtfsRtProtoParser : IRealtimeParser
             {
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
-                if (fieldNum == 1) // TripDescriptor
+                if (fieldNum == 1)                          // TripDescriptor
                     tripId = ParseTripId(sub);
-                else if (fieldNum == 2 || fieldNum == 3) // StopTimeUpdate
+                else if (fieldNum == 2 || fieldNum == 3)    // StopTimeUpdate
                 {
-                    // SPEC: field 3.  Some feeds (e.g. ZET): field 2.  Accept both.
+                    // SPEC: field 3. Some feeds (e.g. ZET): field 2. Accept both.
                     var stu = ParseStopTimeUpdate(sub);
                     if (stu != null) updates.Add(stu);
                 }
@@ -162,10 +164,10 @@ public class GtfsRtProtoParser : IRealtimeParser
         return null;
     }
 
-    private static StopTimeUpdateDto? ParseStopTimeUpdate(byte[] data)
+    private static ParsedStopTimeUpdate? ParseStopTimeUpdate(byte[] data)
     {
-        int pos = 0;
-        var stu = new StopTimeUpdateDto();
+        int pos  = 0;
+        var stu  = new ParsedStopTimeUpdate();
 
         while (pos < data.Length)
         {
@@ -182,8 +184,8 @@ public class GtfsRtProtoParser : IRealtimeParser
                 {
                     // field 3 = arrival (spec) or departure (spec)
                     // field 4 = departure (spec) OR stop_id (ZET)
-                    // Disambiguate: if sub looks like a StopTimeEvent (contains varint fields),
-                    // treat as event. Otherwise treat field 4 as stop_id string.
+                    // Disambiguate: if sub looks like a StopTimeEvent treat as event,
+                    // otherwise treat field 4 as stop_id string.
                     if (fieldNum == 3 || LooksLikeStopTimeEvent(sub))
                         ParseStopTimeEvent(sub, stu);
                     else if (fieldNum == 4 && string.IsNullOrEmpty(stu.StopId))
@@ -192,8 +194,6 @@ public class GtfsRtProtoParser : IRealtimeParser
                 else if (fieldNum == 2)
                 {
                     // field 2 = stop_id (spec) OR arrival StopTimeEvent (ZET)
-                    // Disambiguate: if sub contains protobuf-encoded fields (varint tag+value),
-                    // it's a StopTimeEvent. Otherwise it's a plain string stop_id.
                     if (LooksLikeStopTimeEvent(sub))
                         ParseStopTimeEvent(sub, stu);
                     else if (string.IsNullOrEmpty(stu.StopId))
@@ -204,7 +204,7 @@ public class GtfsRtProtoParser : IRealtimeParser
             {
                 var (v, p2) = ReadVarint(data, pos);
                 pos = p2;
-                if (fieldNum == 1) stu.StopSequence = (int)v; // stop_sequence
+                if (fieldNum == 1) stu.StopSequence = (int)v;
             }
             else pos = SkipField(data, pos, wireType);
         }
@@ -213,31 +213,22 @@ public class GtfsRtProtoParser : IRealtimeParser
     }
 
     /// <summary>
-    /// Heuristic: returns true if the bytes look like a StopTimeEvent submessage
-    /// (contains at least one protobuf field with wire type 0 = varint, which
-    /// would be delay or timestamp), rather than a plain UTF-8 stop_id string.
+    /// Heuristic: returns true if bytes look like a StopTimeEvent submessage
+    /// rather than a plain UTF-8 stop_id string.
     /// </summary>
     private static bool LooksLikeStopTimeEvent(byte[] data)
     {
         if (data.Length == 0) return false;
-        // Try to read the first tag
         try
         {
             var (fieldNum, wireType, _) = ReadTag(data, 0);
-            // A StopTimeEvent has field 1 (delay) or field 2 (time), both varint (wire 0)
-            // A stop_id string would have its first byte be a printable ASCII char (0x20-0x7E)
-            // or UTF-8 lead byte (0x80+), never a valid protobuf tag byte for these fields
-            // field 1, wire 0 = tag byte 0x08
-            // field 2, wire 0 = tag byte 0x10
-            // field 3, wire 0 = tag byte 0x18
             return (fieldNum == 1 || fieldNum == 2 || fieldNum == 3) && wireType == 0;
         }
         catch { return false; }
     }
 
-    private static void ParseStopTimeEvent(byte[] data, StopTimeUpdateDto stu)
+    private static void ParseStopTimeEvent(byte[] data, ParsedStopTimeUpdate stu)
     {
-        // StopTimeEvent: field 1 = delay (int32), field 2 = time (int64), field 3 = uncertainty
         int pos = 0;
         while (pos < data.Length)
         {
@@ -252,34 +243,16 @@ public class GtfsRtProtoParser : IRealtimeParser
 
                 if (fieldNum == 1) // delay in seconds
                 {
-                    // The GTFS-RT spec defines delay as int32 (not sint32),
-                    // meaning negative values are varint-encoded as large uint64
-                    // (10-byte two's complement), NOT zigzag-encoded.
-                    //
-                    // However some feeds incorrectly use zigzag sint32.
-                    // Detect which encoding:
-                    //   - Zigzag: odd numbers = negative (e.g. 1→-1, 3→-2, 97→-49)
-                    //   - Two's complement uint64: negative int32s appear as values > 2^31
-                    //     specifically in range [2^32-1800, 2^32] for ±30min delays
-                    //
-                    // Heuristic: if value > 2^33 it must be two's complement int32
-                    // (a real zigzag delay that large would be ±1 billion seconds).
-                    // If value is odd and small it's likely zigzag.
-                    // If value is in (2^31, 2^33) it's ambiguous but treat as two's complement.
-
+                    // GTFS-RT spec: delay is int32 (not sint32).
+                    // Negative values encoded as large uint64 (two's complement), NOT zigzag.
+                    // Some feeds incorrectly use zigzag — detect and handle both.
                     int delaySeconds;
-                    if (v > 0x1_0000_0000UL) // > 2^32 → definitely two's complement int32
-                    {
+                    if (v > 0x1_0000_0000UL)        // > 2^32 → definitely two's complement
                         delaySeconds = (int)(uint)(v & 0xFFFFFFFF);
-                    }
-                    else if (v <= 0x7FFF_FFFFUL) // fits in positive int32 → same either way
-                    {
+                    else if (v <= 0x7FFF_FFFFUL)     // fits in positive int32 → same either way
                         delaySeconds = (int)v;
-                    }
-                    else // in range [2^31, 2^32] — use two's complement (most common for GTFS-RT)
-                    {
+                    else                              // [2^31, 2^32] → treat as two's complement
                         delaySeconds = (int)(uint)v;
-                    }
 
                     stu.DelaySeconds = delaySeconds;
                 }
@@ -295,7 +268,7 @@ public class GtfsRtProtoParser : IRealtimeParser
     // ── VehiclePosition ───────────────────────────────────────────────────
 
     private static void ParseVehiclePosition(
-        byte[] data, VehiclePositionDto dto, Dictionary<string, string>? tripRouteMap)
+        byte[] data, ParsedVehicle vehicle, Dictionary<string, string>? tripRouteMap)
     {
         int pos = 0;
         while (pos < data.Length)
@@ -307,19 +280,20 @@ public class GtfsRtProtoParser : IRealtimeParser
             {
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
-                if (fieldNum == 1) ParseTrip(sub, dto, tripRouteMap);
-                else if (fieldNum == 2) ParsePosition(sub, dto);
-                else if (fieldNum == 3) ParseVehicleDescriptor(sub, dto);
+                if (fieldNum == 1)      ParseTrip(sub, vehicle, tripRouteMap);
+                else if (fieldNum == 2) ParsePosition(sub, vehicle);
+                else if (fieldNum == 3) ParseVehicleDescriptor(sub, vehicle);
             }
             else pos = SkipField(data, pos, wireType);
         }
     }
 
     private static void ParseTrip(
-        byte[] data, VehiclePositionDto dto, Dictionary<string, string>? tripRouteMap)
+            byte[] data, ParsedVehicle vehicle, Dictionary<string, string>? tripRouteMap)
     {
         int pos = 0;
         string? tripId = null;
+
         while (pos < data.Length)
         {
             var (fieldNum, wireType, p1) = ReadTag(data, pos);
@@ -330,23 +304,26 @@ public class GtfsRtProtoParser : IRealtimeParser
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
                 var str = System.Text.Encoding.UTF8.GetString(sub);
-                if (fieldNum == 1) tripId = str; // trip_id
-                else if (fieldNum == 5) dto.RouteId = str; // route_id
+                if (fieldNum == 1) tripId = str;   // trip_id
+                else if (fieldNum == 5) vehicle.RouteId = str;   // route_id
             }
             else pos = SkipField(data, pos, wireType);
         }
 
-        if (tripId != null) dto.TripId = tripId;
+        if (tripId != null) vehicle.TripId = tripId;
 
-        if (string.IsNullOrEmpty(dto.RouteId) && tripId != null)
-            if (tripRouteMap != null && tripRouteMap.TryGetValue(tripId, out var mapped))
-                dto.RouteId = mapped;
+        // Use local variable — can't use property as out parameter
+        if (string.IsNullOrEmpty(vehicle.RouteId) && tripId != null && tripRouteMap != null)
+        {
+            if (tripRouteMap.TryGetValue(tripId, out var mappedRouteId))
+                vehicle.RouteId = mappedRouteId;
+        }
 
-        if (string.IsNullOrEmpty(dto.VehicleId) && tripId != null)
-            dto.VehicleId = tripId;
+        if (string.IsNullOrEmpty(vehicle.VehicleId) && tripId != null)
+            vehicle.VehicleId = tripId;
     }
 
-    private static void ParsePosition(byte[] data, VehiclePositionDto dto)
+    private static void ParsePosition(byte[] data, ParsedVehicle vehicle)
     {
         int pos = 0;
         while (pos < data.Length)
@@ -357,15 +334,15 @@ public class GtfsRtProtoParser : IRealtimeParser
             if (wireType == 5 && pos + 4 <= data.Length)
             {
                 float val = BitConverter.ToSingle(data, pos); pos += 4;
-                if (fieldNum == 1) dto.Lat = val;
-                else if (fieldNum == 2) dto.Lon = val;
-                else if (fieldNum == 3) dto.Bearing = val;
+                if (fieldNum == 1)      vehicle.Lat     = val;
+                else if (fieldNum == 2) vehicle.Lon     = val;
+                else if (fieldNum == 3) vehicle.Bearing = val;
             }
             else pos = SkipField(data, pos, wireType);
         }
     }
 
-    private static void ParseVehicleDescriptor(byte[] data, VehiclePositionDto dto)
+    private static void ParseVehicleDescriptor(byte[] data, ParsedVehicle vehicle)
     {
         int pos = 0;
         while (pos < data.Length)
@@ -378,8 +355,8 @@ public class GtfsRtProtoParser : IRealtimeParser
                 var (sub, p2) = ReadLengthDelimited(data, pos);
                 pos = p2;
                 var str = System.Text.Encoding.UTF8.GetString(sub);
-                if (fieldNum == 1) dto.VehicleId = str; // id
-                else if (fieldNum == 2) dto.Label = str; // label
+                if (fieldNum == 1)      vehicle.VehicleId = str;   // id
+                else if (fieldNum == 2) vehicle.Label     = str;   // label
             }
             else pos = SkipField(data, pos, wireType);
         }
@@ -410,7 +387,7 @@ public class GtfsRtProtoParser : IRealtimeParser
     internal static (byte[] bytes, int pos) ReadLengthDelimited(byte[] data, int pos)
     {
         var (length, newPos) = ReadVarint(data, pos);
-        int len = (int)length;
+        int len   = (int)length;
         var bytes = new byte[len];
         Array.Copy(data, newPos, bytes, 0, Math.Min(len, data.Length - newPos));
         return (bytes, newPos + len);
