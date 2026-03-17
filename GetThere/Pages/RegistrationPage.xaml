@@ -132,13 +132,10 @@
                             Color="#800080"
                             HorizontalOptions="Center" />
 
-
-                <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
+            <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
             <Label Text="OR SIGN UP WITH"
                    FontSize="11" TextColor="Gray" FontAttributes="Bold"
                    HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />
-            
-
 
             </VerticalStackLayout>
         </ScrollView>
