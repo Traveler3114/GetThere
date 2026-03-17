@@ -12,7 +12,8 @@ public partial class MapPage : ContentPage
     private System.Timers.Timer? _vehicleTimer;
     private System.Timers.Timer? _jsMessageTimer;
 
-    // Signals that WebView2 navigation is complete and JS calls will work.
+    // Completes once WebView2 finishes navigating — before this,
+    // EvaluateJavaScriptAsync returns null on Windows.
     private readonly TaskCompletionSource _navigatedTcs = new();
 
     public MapPage(OperatorService operatorService)
@@ -20,6 +21,7 @@ public partial class MapPage : ContentPage
         InitializeComponent();
         _operatorService = operatorService;
 
+        // Hook before setting Source so the event is never missed.
         MapWebView.Navigated += OnWebViewNavigated;
         _ = LoadHtmlAsync();
     }
@@ -28,13 +30,12 @@ public partial class MapPage : ContentPage
 
     private void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
     {
-        Trace.WriteLine($"[MapPage] Navigated: result={e.Result} url={e.Url}");
         if (e.Result == WebNavigationResult.Success)
             _navigatedTcs.TrySetResult();
     }
 
     // ── Load HTML ─────────────────────────────────────────────────────────
-    // index.html already contains the map style hardcoded — no injection needed.
+    // index.html has the map style hardcoded inline — no fetch or injection needed.
 
     private async Task LoadHtmlAsync()
     {
@@ -43,8 +44,6 @@ public partial class MapPage : ContentPage
             using var stream = await FileSystem.OpenAppPackageFileAsync("index.html");
             using var reader = new StreamReader(stream);
             var html = await reader.ReadToEndAsync();
-
-            Trace.WriteLine($"[MapPage] HTML loaded, length={html.Length}");
 
             await MainThread.InvokeOnMainThreadAsync(() =>
                 MapWebView.Source = new HtmlWebViewSource { Html = html });
@@ -60,11 +59,7 @@ public partial class MapPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-
-        Trace.WriteLine("[MapPage] Waiting for WebView navigation...");
         await _navigatedTcs.Task;
-        Trace.WriteLine("[MapPage] Navigation done, polling map ready...");
-
         await WaitForMapReadyAsync();
         await LoadStaticDataAsync();
         await GetLocationAsync();
@@ -83,38 +78,26 @@ public partial class MapPage : ContentPage
 
     private async Task WaitForMapReadyAsync()
     {
-        var attempts = 0;
         while (true)
         {
             try
             {
-                // Also read any JS error so we can log it
-                var ready = await MainThread.InvokeOnMainThreadAsync(async () =>
+                var result = await MainThread.InvokeOnMainThreadAsync(async () =>
                     await MapWebView.EvaluateJavaScriptAsync(
                         "window._mapReady === true ? '1' : (window._jsError || '0')"));
 
-                attempts++;
-                var clean = ready?.Trim('"', '\'', ' ') ?? "";
-                Trace.WriteLine($"[MapPage] poll #{attempts}: '{clean}'");
-
+                var clean = result?.Trim('"', '\'', ' ') ?? "0";
                 if (clean == "1") break;
 
-                // If we got an actual error message back, log it loudly
-                if (clean.StartsWith("ERROR:"))
-                {
-                    Trace.WriteLine($"[MapPage] JS CRASH DETECTED: {clean}");
-                    // Still keep polling — don't give up, maybe it recovers
-                }
+                if (clean.StartsWith("JS ERROR:") || clean.StartsWith("onMapLoad ERROR:"))
+                    Trace.WriteLine($"[MapPage] {clean}");
             }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"[MapPage] poll error: {ex.Message}");
-            }
+            catch { /* WebView not ready yet */ }
 
             await Task.Delay(300);
         }
 
-        Trace.WriteLine("[MapPage] Map is ready!");
+        Trace.WriteLine("[MapPage] Map ready");
     }
 
     // ── Static data ───────────────────────────────────────────────────────
@@ -123,28 +106,20 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            var stopsTask = _operatorService.GetStopsAsync();
-            var routesTask = _operatorService.GetRoutesAsync();
-            await Task.WhenAll(stopsTask, routesTask);
-
-            var stops = stopsTask.Result;
-            var routes = routesTask.Result;
-
-            if (stops is not null)
-            {
-                Trace.WriteLine($"[MapPage] Sending {stops.Count} stops");
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderStops", stops));
-            }
-            else Trace.WriteLine("[MapPage] stops == null");
-
-            if (routes is not null)
-            {
-                Trace.WriteLine($"[MapPage] Sending {routes.Count} routes");
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderRoutes", routes));
-            }
-            else Trace.WriteLine("[MapPage] routes == null");
+            await Task.WhenAll(
+                _operatorService.GetStopsAsync().ContinueWith(async t =>
+                {
+                    if (t.Result is { } stops)
+                        await MainThread.InvokeOnMainThreadAsync(async () =>
+                            await CallJsAsync("renderStops", stops));
+                }),
+                _operatorService.GetRoutesAsync().ContinueWith(async t =>
+                {
+                    if (t.Result is { } routes)
+                        await MainThread.InvokeOnMainThreadAsync(async () =>
+                            await CallJsAsync("renderRoutes", routes));
+                })
+            );
         }
         catch (Exception ex)
         {
@@ -170,11 +145,11 @@ public partial class MapPage : ContentPage
             });
             if (location is null) return;
 
+            var lon = location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var lat = location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
             await MainThread.InvokeOnMainThreadAsync(async () =>
-                await MapWebView.EvaluateJavaScriptAsync(
-                    $"updateMapLocation(" +
-                    $"{location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}," +
-                    $"{location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)})"));
+                await MapWebView.EvaluateJavaScriptAsync($"updateMapLocation({lon},{lat})"));
         }
         catch (Exception ex)
         {
@@ -190,7 +165,7 @@ public partial class MapPage : ContentPage
         _vehicleTimer.Elapsed += async (_, _) => await PollVehiclesAsync();
         _vehicleTimer.AutoReset = true;
         _vehicleTimer.Start();
-        Task.Run(PollVehiclesAsync);
+        Task.Run(PollVehiclesAsync);   // immediate first fetch
     }
 
     private void StopVehiclePolling()
@@ -206,7 +181,7 @@ public partial class MapPage : ContentPage
         {
             var vehicles = await _operatorService.GetVehiclesAsync();
             if (vehicles is null) return;
-            Trace.WriteLine($"[MapPage] {vehicles.Count} vehicles");
+
             await MainThread.InvokeOnMainThreadAsync(async () =>
                 await CallJsAsync("renderVehicles", vehicles));
         }
@@ -216,7 +191,7 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // ── JS message polling ────────────────────────────────────────────────
+    // ── JS → C# message polling ───────────────────────────────────────────
 
     private void StartJsMessagePolling()
     {
@@ -240,16 +215,15 @@ public partial class MapPage : ContentPage
             string? raw = null;
             await MainThread.InvokeOnMainThreadAsync(async () =>
                 raw = await MapWebView.EvaluateJavaScriptAsync(
-                    "(function(){ var m = window._pendingMsg || ''; window._pendingMsg = ''; return m; })()"));
+                    "(function(){ var m=window._pendingMsg||''; window._pendingMsg=''; return m; })()"));
 
             if (string.IsNullOrEmpty(raw) || raw == "null") return;
 
+            // Strip outer quotes added by some WebView implementations
             var msg = raw.Trim();
             if (msg.Length >= 2 && msg[0] == '"' && msg[^1] == '"')
                 msg = msg[1..^1];
             if (string.IsNullOrEmpty(msg)) return;
-
-            Trace.WriteLine($"[MapPage] JS message: {msg}");
 
             if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
                 await HandleStopTappedAsync(msg["stopSchedule:".Length..]);
@@ -266,24 +240,31 @@ public partial class MapPage : ContentPage
 
     private async Task HandleStopTappedAsync(string stopId)
     {
-        Trace.WriteLine($"[MapPage] Stop tapped: {stopId}");
         var schedule = await _operatorService.GetStopScheduleAsync(stopId);
+
         await MainThread.InvokeOnMainThreadAsync(async () =>
-        {
-            if (schedule is null)
-                await CallJsAsync("renderStopSchedule", new { stopId, groups = Array.Empty<object>() });
-            else
-                await CallJsAsync("renderStopSchedule", schedule);
-        });
+            await CallJsAsync("renderStopSchedule",
+                schedule ?? (object)new { stopId, groups = Array.Empty<object>() }));
     }
 
     private async Task HandleVehicleTappedAsync(string tripId)
     {
-        Trace.WriteLine($"[MapPage] Vehicle tapped: {tripId}");
         var detail = await _operatorService.GetTripDetailAsync(tripId);
-        if (detail is null) return;
+        if (detail is null)
+        {
+            Trace.WriteLine($"[MapPage] GetTripDetail({tripId}) returned null");
+            return;
+        }
+
+        Trace.WriteLine($"[MapPage] TripDetail routeId={detail.RouteId} stops={detail.Stops?.Count}");
+
         await MainThread.InvokeOnMainThreadAsync(async () =>
-            await CallJsAsync("renderTripDetail", detail));
+        {
+            await CallJsAsync("renderTripDetail", detail);
+            // Read route debug info written by _showRoute in JS
+            var debug = await MapWebView.EvaluateJavaScriptAsync("window._routeDebug || 'not set'");
+            Trace.WriteLine($"[MapPage] _routeDebug: {debug}");
+        });
     }
 
     // ── JS bridge ─────────────────────────────────────────────────────────
@@ -294,10 +275,9 @@ public partial class MapPage : ContentPage
         {
             var json = JsonSerializer.Serialize(data,
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-            var result = await MapWebView.EvaluateJavaScriptAsync(
-                $"{function}(JSON.parse(atob('{base64}')))");
-            Trace.WriteLine($"[MapPage] CallJs({function}) => '{result}'");
+            var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+            await MapWebView.EvaluateJavaScriptAsync(
+                $"{function}(JSON.parse(atob('{b64}')))");
         }
         catch (Exception ex)
         {

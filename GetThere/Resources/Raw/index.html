@@ -738,7 +738,7 @@
                 }
             });
 
-            // ── Active route line ──────────────────────────────────────────
+            // ── Active route line ─────────────────────────────────────────
             map.addSource('active-route', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] }
@@ -746,7 +746,7 @@
             map.addLayer({
                 id: 'active-route-outline', type: 'line', source: 'active-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.10 }
+                paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.08 }
             });
             map.addLayer({
                 id: 'active-route', type: 'line', source: 'active-route',
@@ -976,7 +976,7 @@
             if (data.isRealtime && data.vehicleLat && data.vehicleLon)
                 map.flyTo({ center: [data.vehicleLon, data.vehicleLat], zoom: 15, duration: 600 });
 
-            // Draw route shape
+            // Draw full route shape
             if (data.routeId) _showRoute(data.routeId);
 
             requestAnimationFrame(() => {
@@ -1077,10 +1077,17 @@
         // ROUTE LINE
         // ═══════════════════════════════════════════════════════════════════
 
+        // Draw the full route shape for the given routeId in the route's colour.
         function _showRoute(routeId) {
             const route = _routeMap[routeId];
             const shape = route?.shape;
             const color = route?.color ? '#' + route.color : '#1565c0';
+
+            // Debug: expose diagnostics so C# can read them
+            window._routeDebug = 'routeId=' + routeId
+                + ' routeMapSize=' + Object.keys(_routeMap).length
+                + ' routeFound=' + (!!route)
+                + ' shapeLen=' + (shape ? shape.length : 'null');
 
             map.getSource('active-route')?.setData(
                 shape && shape.length >= 2
@@ -1100,7 +1107,6 @@
 
         // ═══════════════════════════════════════════════════════════════════
         // STOP ICON GENERATOR
-        // Canvas passed directly to map.addImage() — no pixel offset issues.
         // ═══════════════════════════════════════════════════════════════════
 
         function _addStopIcon(id, borderColor, fillColor) {
