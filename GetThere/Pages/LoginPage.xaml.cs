@@ -67,7 +67,7 @@ public partial class LoginPage : ContentPage
 
     private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
     {
-        App.GoToRegistration();
+        await Shell.Current.GoToAsync("registration");
     }
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)

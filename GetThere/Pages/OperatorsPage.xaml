@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:helpers="clr-namespace:GetThere.Helpers"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.OperatorsPage"
              Title="Operators">
 
@@ -13,41 +14,73 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,*,Auto">
-        <SearchBar Grid.Row="0" x:Name="SearchBar" Placeholder="Search..." Margin="12,8" TextChanged="SearchBar_TextChanged" />
-        <HorizontalStackLayout Grid.Row="1" Margin="12,8" Spacing="8">
-            <Button x:Name="AllBtn" Text="All" Clicked="Filter_Clicked" />
-            <Button x:Name="InstalledBtn" Text="Installed" Clicked="Filter_Clicked" />
-            <Button x:Name="NotInstalledBtn" Text="Not Installed" Clicked="Filter_Clicked" />
+        <!-- ── DECORATIVE BACKGROUND CIRCLES ── -->
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="4" />
+
+        <!-- ── NATIVE SEARCH BAR ── -->
+        <SearchBar Grid.Row="0" x:Name="SearchBar" Placeholder="Search operator..." Margin="12,8" 
+                   TextChanged="SearchBar_TextChanged" BackgroundColor="Transparent" />
+
+        <!-- ── FILTER BUTTONS ── -->
+        <HorizontalStackLayout Grid.Row="1" Margin="16,5" Spacing="8">
+            <Button x:Name="AllBtn" Style="{x:Null}" Background="{x:Null}" Text="All" Clicked="Filter_Clicked" 
+                    CornerRadius="18" HeightRequest="36" Padding="15,0" FontAttributes="Bold" />
+            <Button x:Name="InstalledBtn" Style="{x:Null}" Background="{x:Null}" Text="Installed" Clicked="Filter_Clicked" 
+                    CornerRadius="18" HeightRequest="36" Padding="15,0" FontAttributes="Bold" />
+            <Button x:Name="NotInstalledBtn" Style="{x:Null}" Background="{x:Null}" Text="Not Installed" Clicked="Filter_Clicked" 
+                    CornerRadius="18" HeightRequest="36" Padding="15,0" FontAttributes="Bold" />
         </HorizontalStackLayout>
-        <CollectionView Grid.Row="2" x:Name="OperatorList">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Border Margin="12,4" Padding="12">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <VerticalStackLayout>
-                                <Label Text="{Binding Name}" FontSize="16" FontAttributes="Bold" />
-                                <Label Text="{Binding City}" FontSize="13" TextColor="Gray" />
-                                <Label Text="{Binding Country}" FontSize="12" TextColor="Gray" />
-                                <Label Text="{Binding SizeText}" FontSize="11" TextColor="#4CAF50"
-                                       IsVisible="{Binding IsInstalled}" />
-                            </VerticalStackLayout>
-                            <Button Grid.Column="1"
-                                    Text="{Binding IsInstalled, Converter={StaticResource InstallBtnTextConverter}}"
-                                    BackgroundColor="{Binding IsInstalled, Converter={StaticResource InstallBtnColorConverter}}"
-                                    TextColor="White"
-                                    CornerRadius="8"
-                                    Clicked="InstallRemove_Clicked"
-                                    CommandParameter="{Binding Id}" />
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+        <!-- ── MAIN CONTENT CONTAINER ── -->
+        <Border Grid.Row="2" Margin="16,10,16,100" Padding="0" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+            <Border.StrokeShape><RoundRectangle CornerRadius="24"/></Border.StrokeShape>
+            <Border.Shadow>
+                <Shadow Brush="Black" Offset="0,2" Radius="15" Opacity="0.05" />
+            </Border.Shadow>
+            
+            <CollectionView x:Name="OperatorList" Margin="0,10">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="12,4" Padding="15" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#F8F8F8, Dark=#2C2C2E}">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="16"/></Border.StrokeShape>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="{Binding Name}" FontSize="16" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                    <HorizontalStackLayout Spacing="4">
+                                        <Label Text="{Binding City}" FontSize="13" TextColor="Gray" />
+                                        <Label Text="•" TextColor="Gray" Opacity="0.5" />
+                                        <Label Text="{Binding Country}" FontSize="13" TextColor="Gray" />
+                                    </HorizontalStackLayout>
+                                    <Label Text="{Binding SizeText}" FontSize="11" TextColor="#4CAF50" FontAttributes="Bold"
+                                           IsVisible="{Binding IsInstalled}" Margin="0,3,0,0" />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1"
+                                        Style="{x:Null}" Background="{x:Null}"
+                                        Text="{Binding IsInstalled, Converter={StaticResource InstallBtnTextConverter}}"
+                                        BackgroundColor="{AppThemeBinding Light=#EBEBEC, Dark=#3C3C3E}"
+                                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                        CornerRadius="14" HeightRequest="32" Padding="15,0" FontSize="12" FontAttributes="Bold"
+                                        VerticalOptions="Center"
+                                        Clicked="InstallRemove_Clicked"
+                                        CommandParameter="{Binding Id}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Border>
         <ActivityIndicator Grid.Row="3"
                            x:Name="BusyIndicator"
                            IsRunning="False"
                            IsVisible="False"
                            HorizontalOptions="Center"
                            VerticalOptions="Center" />
+
+        <!-- ── CUSTOM BOTTOM BAR (Island Mode) ── -->
+        <components:CustomBottomBar 
+            Grid.Row="2"
+            Grid.RowSpan="2"
+            VerticalOptions="End" 
+            HorizontalOptions="Center"
+            IsIslandMode="True" />
     </Grid>
 </ContentPage>

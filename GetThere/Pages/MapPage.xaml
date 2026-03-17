@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.MapPage"
              Title="MapPage">
 
@@ -33,6 +34,12 @@
                     HorizontalOptions="Center" />
             </VerticalStackLayout>
         </Grid>
+
+        <!-- ── CUSTOM BOTTOM BAR (Island Mode) ── -->
+        <components:CustomBottomBar 
+            VerticalOptions="End" 
+            HorizontalOptions="Center"
+            IsIslandMode="True" />
     </Grid>
     
 

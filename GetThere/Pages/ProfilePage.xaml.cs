@@ -16,6 +16,7 @@ public partial class ProfilePage : ContentPage
 
     private IEnumerable<TicketDto> _allTickets = [];
     private TicketStatus _currentFilter = TicketStatus.Active;
+    private bool _isShowingTickets = true;
 
     public ProfilePage(WalletService walletService, TicketService ticketService,
                        PaymentService paymentService, AuthService authService)
@@ -33,14 +34,8 @@ public partial class ProfilePage : ContentPage
         await LoadProfileAsync();
     }
 
-    // ── Profile header ─────────────────────────────────────────────────────
-
     private async Task LoadProfileAsync()
     {
-        WalletBusy.IsVisible = true;
-        WalletBusy.IsRunning = true;
-        ErrorLabel.IsVisible = false;
-
         try
         {
             var fullName = await _authService.GetFullNameAsync();
@@ -48,71 +43,39 @@ public partial class ProfilePage : ContentPage
 
             if (fullName == null && email == null)
             {
-                // User is not logged in (guest mode)
-                LoginRequiredOverlay.IsVisible = true;
-                NameLabel.Text = "Guest";
-                EmailLabel.Text = "Not logged in";
-                AvatarLabel.Text = "?";
-                WalletBusy.IsVisible = false;
-                WalletBusy.IsRunning = false;
-                ErrorLabel.IsVisible = false;
-                TicketsBusy.IsVisible = false;
-                TicketsBusy.IsRunning = false;
+                NameLabelOnCard.Text = "Guest";
                 return;
             }
 
-            // User is logged in
-            LoginRequiredOverlay.IsVisible = false;
-            NameLabel.Text = fullName ?? "User";
-            EmailLabel.Text = email ?? string.Empty;
-            AvatarLabel.Text = string.IsNullOrWhiteSpace(fullName)
-                ? "?"
-                : fullName[0].ToString().ToUpper();
+            NameLabelOnCard.Text = fullName ?? "User";
 
-            // Notify shell to potentially update its icon (e.g. if we had a picture)
-            if (Shell.Current is AppShell appShell)
-            {
-                // We don't have a picture URL yet, but if we did:
-                // appShell.UpdateProfileIcon(ImageSource.FromUri(new Uri(pictureUrl)));
-                appShell.UpdateProfileIcon(null); // Resets to default icon_profile.svg
-            }
+            await LoadWalletAsync();
 
-            await Task.WhenAll(LoadWalletAsync(), LoadTicketsAsync());
+            if (_isShowingTickets)
+                await LoadTicketsAsync();
+            else
+                await LoadHistoryAsync();
         }
         catch (Exception ex)
         {
-            PageUtility.ShowError(ErrorLabel, "Error loading profile: " + ex.Message);
-        }
-        finally
-        {
-            WalletBusy.IsVisible = false;
-            WalletBusy.IsRunning = false;
+            await DisplayAlertAsync("Error", "Could not load profile: " + ex.Message, "OK");
         }
     }
-
-    // ── Wallet ─────────────────────────────────────────────────────────────
 
     private async Task LoadWalletAsync()
     {
         var result = await _walletService.GetWalletAsync();
         if (result.Success && result.Data != null)
         {
-            BalanceLabel.Text = $"€ {result.Data.Balance:F2}";
-            LastUpdatedLabel.Text = $"Updated {result.Data.LastUpdated:dd MMM yyyy, HH:mm}";
-        }
-        else
-        {
-            PageUtility.ShowError(ErrorLabel, result.Message ?? "Failed to load wallet.");
+            BalanceLabelOnCard.Text = $"€{result.Data.Balance:F2}";
         }
     }
 
-    // ── Tickets ────────────────────────────────────────────────────────────
-
     private async Task LoadTicketsAsync()
     {
-        TicketsBusy.IsVisible = true;
-        TicketsBusy.IsRunning = true;
-        NoTicketsLabel.IsVisible = false;
+        BusyLoader.IsVisible = true;
+        BusyLoader.IsRunning = true;
+        NoItemsLabel.IsVisible = false;
 
         try
         {
@@ -124,19 +87,45 @@ public partial class ProfilePage : ContentPage
             }
             else
             {
-                _allTickets = [];
-                NoTicketsLabel.IsVisible = true;
+                NoItemsLabel.IsVisible = true;
             }
         }
         catch
         {
-            _allTickets = [];
-            NoTicketsLabel.IsVisible = true;
+            NoItemsLabel.IsVisible = true;
         }
         finally
         {
-            TicketsBusy.IsVisible = false;
-            TicketsBusy.IsRunning = false;
+            BusyLoader.IsVisible = false;
+            BusyLoader.IsRunning = false;
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        BusyLoader.IsVisible = true;
+        BusyLoader.IsRunning = true;
+        NoItemsLabel.IsVisible = false;
+
+        try
+        {
+            var result = await _walletService.GetTransactionsAsync();
+            if (result.Success && result.Data != null)
+            {
+                var list = result.Data.OrderByDescending(t => t.Timestamp).ToList();
+                MainCollection.ItemsSource = list;
+                MainCollection.ItemTemplate = (DataTemplate)Resources["HistoryTemplate"];
+                NoItemsLabel.IsVisible = !list.Any();
+            }
+        }
+        catch
+        {
+            NoItemsLabel.IsVisible = true;
+        }
+        finally
+        {
+            BusyLoader.IsVisible = false;
+            BusyLoader.IsRunning = false;
         }
     }
 
@@ -144,247 +133,117 @@ public partial class ProfilePage : ContentPage
     {
         _currentFilter = filter;
         var filtered = _allTickets.Where(t => t.Status == filter).ToList();
-        TicketsCollection.ItemsSource = filtered;
-        NoTicketsLabel.IsVisible = filtered.Count == 0;
+        
+        MainCollection.ItemTemplate = (DataTemplate)Resources["TicketTemplate"];
+        MainCollection.ItemsSource = filtered;
+        NoItemsLabel.IsVisible = !filtered.Any();
 
-        ResetFilterChips();
-        SetChipActive(filter switch
-        {
-            TicketStatus.Active => ActiveBtn,
-            TicketStatus.Expired => ExpiredBtn,
-            TicketStatus.Used => UsedBtn,
-            _ => ActiveBtn
-        });
+        CurrentFilterLabel.Text = $"{filter} Tickets";
     }
 
-    private void ResetFilterChips()
+    private async void OnShowFilterOptions(object? sender, EventArgs e)
     {
-        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
-        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
-        var inactiveText = isDark ? Colors.White : Colors.Black;
-
-        foreach (var btn in new[] { ActiveBtn, ExpiredBtn, UsedBtn })
-        {
-            btn.BackgroundColor = inactiveColor;
-            btn.TextColor = inactiveText;
-        }
+        FilterBottomSheet.IsVisible = true;
+        await Task.WhenAll(
+            FilterBottomSheet.FadeToAsync(1, 200),
+            FilterContent.TranslateToAsync(0, 0, 300, Easing.CubicOut)
+        );
     }
 
-    private static void SetChipActive(Button btn)
+    private async void OnHideFilterBottomSheet(object? sender, EventArgs e)
     {
-        btn.BackgroundColor = Color.FromArgb("#4CAF50");
-        btn.TextColor = Colors.White;
+        await Task.WhenAll(
+            FilterBottomSheet.FadeToAsync(0, 200),
+            FilterContent.TranslateToAsync(0, 600, 300, Easing.CubicIn)
+        );
+        FilterBottomSheet.IsVisible = false;
     }
 
-    // ── History ────────────────────────────────────────────────────────────
-
-    private async Task LoadHistoryAsync()
+    private async void OnFilterOptionClicked(object? sender, EventArgs e)
     {
-        HistoryBusy.IsVisible = true;
-        HistoryBusy.IsRunning = true;
-        NoHistoryLabel.IsVisible = false;
-
-        try
+        if (sender is Button button && button.CommandParameter is string chosen)
         {
-            var result = await _walletService.GetTransactionsAsync();
-            if (result.Success && result.Data != null)
+            if (Enum.TryParse<TicketStatus>(chosen, out var status))
             {
-                var list = result.Data.ToList();
-                HistoryCollection.ItemsSource = list;
-                NoHistoryLabel.IsVisible = list.Count == 0;
-            }
-            else
-            {
-                NoHistoryLabel.IsVisible = true;
+                ApplyTicketFilter(status);
             }
         }
-        catch
-        {
-            NoHistoryLabel.IsVisible = true;
-        }
-        finally
-        {
-            HistoryBusy.IsVisible = false;
-            HistoryBusy.IsRunning = false;
-        }
+        OnHideFilterBottomSheet(sender, e);
     }
 
-    // ── Segment tab switchers ──────────────────────────────────────────────
-
-    private void TicketsTab_Clicked(object? sender, EventArgs e)
+    private async void TicketsTab_Clicked(object? sender, EventArgs e)
     {
-        TicketsView.IsVisible = true;
-        HistoryView.IsVisible = false;
-        FilterChipsRow.IsVisible = true;
+        _isShowingTickets = true;
+        FilterRow.IsVisible = true;
+        
+        bool isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        
+        TicketsTabBtn.Background = null;
+        TicketsTabBtn.BackgroundColor = Color.FromArgb(isDark ? "#2C2C2E" : "#EBEBEC");
+        TicketsTabBtn.TextColor = isDark ? Colors.White : Colors.Black;
+        
+        HistoryTabBtn.Background = null;
+        HistoryTabBtn.BackgroundColor = Colors.Transparent;
+        HistoryTabBtn.TextColor = isDark ? Color.FromArgb("#AAAAAA") : Colors.Gray;
 
-        TicketsTabBtn.BackgroundColor = Color.FromArgb("#4CAF50");
-        TicketsTabBtn.TextColor = Colors.White;
-
-        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
-        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
-        var inactiveText = isDark ? Colors.White : Colors.Black;
-
-        HistoryTabBtn.BackgroundColor = inactiveColor;
-        HistoryTabBtn.TextColor = inactiveText;
+        await LoadTicketsAsync();
     }
 
     private async void HistoryTab_Clicked(object? sender, EventArgs e)
     {
-        TicketsView.IsVisible = false;
-        HistoryView.IsVisible = true;
-        FilterChipsRow.IsVisible = false;
-
-        HistoryTabBtn.BackgroundColor = Color.FromArgb("#4CAF50");
-        HistoryTabBtn.TextColor = Colors.White;
-
-        var isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
-        var inactiveColor = isDark ? Color.FromArgb("#2C2C2E") : Color.FromArgb("#E0E0E0");
-        var inactiveText = isDark ? Colors.White : Colors.Black;
-
-        TicketsTabBtn.BackgroundColor = inactiveColor;
-        TicketsTabBtn.TextColor = inactiveText;
+        _isShowingTickets = false;
+        FilterRow.IsVisible = false;
+        
+        bool isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        
+        HistoryTabBtn.Background = null;
+        HistoryTabBtn.BackgroundColor = Color.FromArgb(isDark ? "#2C2C2E" : "#EBEBEC");
+        HistoryTabBtn.TextColor = isDark ? Colors.White : Colors.Black;
+        
+        TicketsTabBtn.Background = null;
+        TicketsTabBtn.BackgroundColor = Colors.Transparent;
+        TicketsTabBtn.TextColor = isDark ? Color.FromArgb("#AAAAAA") : Colors.Gray;
 
         await LoadHistoryAsync();
     }
 
-    private void ActiveFilter_Clicked(object? sender, EventArgs e)
-        => ApplyTicketFilter(TicketStatus.Active);
-
-    private void ExpiredFilter_Clicked(object? sender, EventArgs e)
-        => ApplyTicketFilter(TicketStatus.Expired);
-
-    private void UsedFilter_Clicked(object? sender, EventArgs e)
-        => ApplyTicketFilter(TicketStatus.Used);
-
-    private async void TopUpButton_Clicked(object? sender, EventArgs e)
+    private async void OnTopUpClicked(object? sender, EventArgs e)
     {
-        var input = await DisplayPromptAsync(
-            "Top Up Wallet",
-            "Enter amount to add (€):",
-            accept: "Next",
-            cancel: "Cancel",
-            placeholder: "e.g. 10.00",
-            keyboard: Keyboard.Numeric);
+        var input = await DisplayPromptAsync("Top Up", "Amount (€):", "Next", "Cancel", "10.00", -1, Keyboard.Numeric);
+        if (string.IsNullOrWhiteSpace(input)) return;
 
-        if (string.IsNullOrWhiteSpace(input))
-            return;
-
-        input = input.Replace(',', '.');
-        if (!decimal.TryParse(input,
-                System.Globalization.NumberStyles.Any,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var amount) || amount <= 0)
+        if (decimal.TryParse(input.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
         {
-            await DisplayAlertAsync("Invalid Amount", "Please enter a valid positive number.", "OK");
-            return;
-        }
-
-        PageUtility.SetBusy(WalletBusy, TopUpButton, true);
-        ErrorLabel.IsVisible = false;
-
-        List<PaymentProviderDto> providers;
-        try
-        {
-            var result = await _paymentService.GetProvidersAsync();
-            if (!result.Success || result.Data == null || !result.Data.Any())
+            try
             {
-                PageUtility.ShowError(ErrorLabel, "No payment providers available.");
-                return;
+                var provResult = await _paymentService.GetProvidersAsync();
+                if (provResult.Success && provResult.Data != null && provResult.Data.Any())
+                {
+                    var providers = provResult.Data.ToList();
+                    var chosen = await DisplayActionSheetAsync("Provider", "Cancel", null, providers.Select(p => p.Name).ToArray());
+                    if (chosen != null && chosen != "Cancel")
+                    {
+                        var provider = providers.First(p => p.Name == chosen);
+                        var success = await _paymentService.TopUpAsync(new TopUpDto { Amount = amount, PaymentProviderId = provider.Id });
+                        if (success.Success)
+                        {
+                            await LoadWalletAsync();
+                            await DisplayAlertAsync("Success", $"€{amount:F2} added!", "OK");
+                            if (!_isShowingTickets) await LoadHistoryAsync();
+                        }
+                    }
+                }
             }
-            providers = result.Data.ToList();
-        }
-        catch (Exception ex)
-        {
-            PageUtility.ShowError(ErrorLabel, "Could not load payment providers: " + ex.Message);
-            return;
-        }
-        finally
-        {
-            PageUtility.SetBusy(WalletBusy, TopUpButton, false);
-        }
-
-        var converter = new ProviderIconConverter();
-
-        var providerNames = providers
-            .Select(p => $"{converter.Convert(p.Name, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture)}  {p.Name}")
-            .ToArray();
-
-        var chosen = await DisplayActionSheetAsync(
-            $"Pay €{amount:F2} with",
-            "Cancel",
-            null,
-            providerNames);
-
-        if (string.IsNullOrEmpty(chosen) || chosen == "Cancel")
-            return;
-
-        var selectedProvider = providers[Array.IndexOf(providerNames, chosen)];
-
-        var confirmed = await DisplayAlertAsync(
-            "Confirm Top Up",
-            $"Add €{amount:F2} to your wallet via {selectedProvider.Name}?",
-            "Confirm",
-            "Cancel");
-
-        if (!confirmed)
-            return;
-
-        PageUtility.SetBusy(WalletBusy, TopUpButton, true);
-        ErrorLabel.IsVisible = false;
-
-        try
-        {
-            var dto = new TopUpDto
-            {
-                Amount = amount,
-                PaymentProviderId = selectedProvider.Id
-            };
-
-            var result = await _paymentService.TopUpAsync(dto);
-
-            if (result.Success && result.Data != null)
-            {
-                BalanceLabel.Text = $"€ {result.Data.Balance:F2}";
-                await DisplayAlertAsync("✅ Success", $"€{amount:F2} added via {selectedProvider.Name}!", "OK");
-            }
-            else
-            {
-                PageUtility.ShowError(ErrorLabel, result.Message ?? "Top-up failed.");
-            }
-        }
-        catch (Exception ex)
-        {
-            PageUtility.ShowError(ErrorLabel, "Top-up error: " + ex.Message);
-        }
-        finally
-        {
-            PageUtility.SetBusy(WalletBusy, TopUpButton, false);
+            catch (Exception ex) { await DisplayAlertAsync("Error", ex.Message, "OK"); }
         }
     }
 
-    private async void RefreshBalance_Clicked(object? sender, EventArgs e)
+    private async void OnLogoutClicked(object? sender, EventArgs e)
     {
-        RefreshBusy.IsVisible = true;
-        RefreshBusy.IsRunning = true;
-        await LoadWalletAsync();
-        RefreshBusy.IsVisible = false;
-        RefreshBusy.IsRunning = false;
-    }
-
-    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
-    {
-        // Using FindByName as a workaround for cases where the auto-generated field 'AnimatedBg' 
-        // is not recognized by the compiler/IDE in the partial class.
-        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
-        if (animatedBg != null)
+        if (await DisplayAlertAsync("Logout", "Are you sure?", "Yes", "No"))
         {
-            animatedBg.XOffset = (float)e.TotalX;
-            animatedBg.YOffset = (float)e.TotalY;
+            _authService.Logout();
+            App.GoToLogin();
         }
-    }
-
-    private void GoBackToLogInButton_Clicked(object? sender, EventArgs e)
-    {
-        App.GoToLogin();
     }
 }

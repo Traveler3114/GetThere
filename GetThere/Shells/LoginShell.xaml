@@ -8,15 +8,8 @@
     Shell.NavBarIsVisible="False"
     Shell.TabBarIsVisible="False">
 
-    <TabBar>
-        <ShellContent
-            Title="Login"
-            ContentTemplate="{DataTemplate pages:LoginPage}"
-            Route="login" />
-        <ShellContent
-            Title="Register"
-            ContentTemplate="{DataTemplate pages:RegistrationPage}"
-            Route="registration" />
-    </TabBar>
-
+    <ShellContent
+        Title="Login"
+        ContentTemplate="{DataTemplate pages:LoginPage}"
+        Route="login" />
 </Shell>

@@ -80,18 +80,22 @@ public partial class OperatorsPage : ContentPage
 
     private void UpdateFilterButtons()
     {
-        var active = Color.FromArgb("#4CAF50");
-        var inactive = Color.FromArgb("#E0E0E0");
-        var activeText = Colors.White;
-        var inactiveText = Color.FromArgb("#333333");
+        bool isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
+        var active = Color.FromArgb(isDark ? "#2C2C2E" : "#EBEBEC");
+        var activeText = isDark ? Colors.White : Colors.Black;
+        var inactive = Colors.Transparent;
+        var inactiveText = isDark ? Color.FromArgb("#AAAAAA") : Colors.Gray;
 
-        AllBtn.BackgroundColor = _filter == "All" ? active : inactive;
-        InstalledBtn.BackgroundColor = _filter == "Installed" ? active : inactive;
-        NotInstalledBtn.BackgroundColor = _filter == "Not Installed" ? active : inactive;
+        void UpdateBtn(Button btn, bool isActive)
+        {
+            btn.Background = null;
+            btn.BackgroundColor = isActive ? active : inactive;
+            btn.TextColor = isActive ? activeText : inactiveText;
+        }
 
-        AllBtn.TextColor = _filter == "All" ? activeText : inactiveText;
-        InstalledBtn.TextColor = _filter == "Installed" ? activeText : inactiveText;
-        NotInstalledBtn.TextColor = _filter == "Not Installed" ? activeText : inactiveText;
+        UpdateBtn(AllBtn, _filter == "All");
+        UpdateBtn(InstalledBtn, _filter == "Installed");
+        UpdateBtn(NotInstalledBtn, _filter == "Not Installed");
     }
 
     private void Filter_Clicked(object? sender, EventArgs e)
