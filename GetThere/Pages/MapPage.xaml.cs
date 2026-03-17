@@ -35,7 +35,9 @@ public partial class MapPage : ContentPage
     }
 
     // ── Load HTML ─────────────────────────────────────────────────────────
-    // index.html has the map style hardcoded inline — no fetch or injection needed.
+    // ── Load HTML ─────────────────────────────────────────────────────────
+    // Injects window._API_BASE so the JS icon loader can build absolute URLs.
+    // The style JSON is already baked into index.html at build time (no injection needed).
 
     private async Task LoadHtmlAsync()
     {
@@ -44,6 +46,12 @@ public partial class MapPage : ContentPage
             using var stream = await FileSystem.OpenAppPackageFileAsync("index.html");
             using var reader = new StreamReader(stream);
             var html = await reader.ReadToEndAsync();
+
+            // Inject the API base URL so JS can load icons via GET /operator/images/*.png
+            var apiBase = _operatorService.GetApiBaseUrl().TrimEnd('/');
+            var injection = $"<script>window._API_BASE = '{apiBase}';</script>";
+            html = html.Replace("</head>", injection + "</head>",
+                StringComparison.OrdinalIgnoreCase);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
                 MapWebView.Source = new HtmlWebViewSource { Html = html });
@@ -250,21 +258,10 @@ public partial class MapPage : ContentPage
     private async Task HandleVehicleTappedAsync(string tripId)
     {
         var detail = await _operatorService.GetTripDetailAsync(tripId);
-        if (detail is null)
-        {
-            Trace.WriteLine($"[MapPage] GetTripDetail({tripId}) returned null");
-            return;
-        }
-
-        Trace.WriteLine($"[MapPage] TripDetail routeId={detail.RouteId} stops={detail.Stops?.Count}");
+        if (detail is null) return;
 
         await MainThread.InvokeOnMainThreadAsync(async () =>
-        {
-            await CallJsAsync("renderTripDetail", detail);
-            // Read route debug info written by _showRoute in JS
-            var debug = await MapWebView.EvaluateJavaScriptAsync("window._routeDebug || 'not set'");
-            Trace.WriteLine($"[MapPage] _routeDebug: {debug}");
-        });
+            await CallJsAsync("renderTripDetail", detail));
     }
 
     // ── JS bridge ─────────────────────────────────────────────────────────
