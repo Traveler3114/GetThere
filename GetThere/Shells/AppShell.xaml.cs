@@ -7,7 +7,7 @@ namespace GetThere
     {
         public ICommand GoToProfileCommand { get; }
         public ICommand GoToMapCommand { get; }
-        public ICommand GoToOperatorsCommand { get; }
+        public ICommand GoToTicketsCommand { get; }
 
         public AppShell()
         {
@@ -15,7 +15,7 @@ namespace GetThere
 
             GoToProfileCommand = new Command(async () => await GoToAsync("///profile"));
             GoToMapCommand = new Command(async () => await GoToAsync("///map"));
-            GoToOperatorsCommand = new Command(async () => await GoToAsync("///operators"));
+            GoToTicketsCommand = new Command(async () => await GoToAsync("///tickets"));
 
             BindingContext = this;
         }

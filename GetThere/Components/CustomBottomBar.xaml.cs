@@ -11,7 +11,7 @@ public partial class CustomBottomBar : ContentView
 {
     private System.Timers.Timer? _iconTimer;
     private int _iconIndex = 0;
-    private readonly string[] _icons = { "tab_bus.png", "tab_tram.png", "tab_train.png" };
+    private readonly string[] _icons = { "tab_train.png", "tab_bus.png", "tab_tram.png" };
 
     public static readonly BindableProperty IsIslandModeProperty =
         BindableProperty.Create(nameof(IsIslandMode), typeof(bool), typeof(CustomBottomBar), false, propertyChanged: OnIsIslandModeChanged);
@@ -89,13 +89,13 @@ public partial class CustomBottomBar : ContentView
             _iconIndex = (_iconIndex + 1) % _icons.Length;
             MainThread.BeginInvokeOnMainThread(() => {
                 var iconSource = _icons[_iconIndex];
-                if (OperatorsIcon != null)
+                if (TicketsIcon != null)
                 {
-                    OperatorsIcon.Source = iconSource;
+                    TicketsIcon.Source = iconSource;
                 }
-                // If we are in island mode on the operators page, update the island icon too
+                // If we are in island mode on the tickets page, update the island icon too
                 var islandIcon = this.FindByName<Image>("IslandIcon");
-                if (IsIslandMode && islandIcon != null && IsCurrentRoute("operators"))
+                if (IsIslandMode && islandIcon != null && IsCurrentRoute("tickets"))
                 {
                     islandIcon.Source = iconSource;
                 }
@@ -124,21 +124,21 @@ public partial class CustomBottomBar : ContentView
             // Find behaviors by name if they are not automatically assigned as fields
             var profileTint = this.FindByName<IconTintColorBehavior>("ProfileTint");
             var mapTint = this.FindByName<IconTintColorBehavior>("MapTint");
-            var operatorsTint = this.FindByName<IconTintColorBehavior>("OperatorsTint");
+            var ticketsTint = this.FindByName<IconTintColorBehavior>("TicketsTint");
 
             var islandIcon = this.FindByName<Image>("IslandIcon");
             var islandTint = this.FindByName<IconTintColorBehavior>("IslandTint");
             var islandShadow = this.FindByName<Shadow>("IslandShadow");
 
             // Safety check: if behaviors are not found or Shell is not ready, exit quietly
-            if (profileTint == null || mapTint == null || operatorsTint == null) return;
+            if (profileTint == null || mapTint == null || ticketsTint == null) return;
             if (Shell.Current?.CurrentState?.Location == null) return;
 
             var route = Shell.Current.CurrentState.Location.ToString() ?? "";
             
             profileTint.TintColor = Colors.Gray;
             mapTint.TintColor = Colors.Gray;
-            operatorsTint.TintColor = Colors.Gray;
+            ticketsTint.TintColor = Colors.Gray;
 
             // Default island state
             if (islandTint != null) islandTint.TintColor = Colors.Gray;
@@ -160,10 +160,10 @@ public partial class CustomBottomBar : ContentView
                 if (islandTint != null) islandTint.TintColor = color;
                 if (islandShadow != null) islandShadow.Brush = color;
             }
-            else if (route.Contains("operators"))
+            else if (route.Contains("tickets"))
             {
                 var color = Color.FromArgb("#4CAF50");
-                operatorsTint.TintColor = color;
+                ticketsTint.TintColor = color;
                 if (islandIcon != null) islandIcon.Source = _icons[_iconIndex];
                 if (islandTint != null) islandTint.TintColor = color;
                 if (islandShadow != null) islandShadow.Brush = color;
@@ -207,14 +207,14 @@ public partial class CustomBottomBar : ContentView
         await Shell.Current.GoToAsync("///map");
     }
 
-    private async void OnOperatorsTapped(object? sender, TappedEventArgs e)
+    private async void OnTicketsTapped(object? sender, TappedEventArgs e)
     {
-        if (IsIslandMode && !CollapsedIsland.IsVisible && IsCurrentRoute("operators"))
+        if (IsIslandMode && !CollapsedIsland.IsVisible && IsCurrentRoute("tickets"))
         {
             await CollapseAsync();
             return;
         }
-        await Shell.Current.GoToAsync("///operators");
+        await Shell.Current.GoToAsync("///tickets");
     }
 
     private bool IsCurrentRoute(string target)

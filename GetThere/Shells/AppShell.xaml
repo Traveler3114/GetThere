@@ -21,10 +21,10 @@
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent
-            Title="Operators"
+            Title="Tickets"
             Icon="icon_operators.svg"
-            ContentTemplate="{DataTemplate pages:OperatorsPage}"
-            Route="operators" />
+            ContentTemplate="{DataTemplate pages:TicketsPage}"
+            Route="tickets" />
     </FlyoutItem>
 
 </Shell>

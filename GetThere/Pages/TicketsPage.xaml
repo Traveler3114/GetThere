@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:helpers="clr-namespace:GetThere.Helpers"
+             xmlns:components="clr-namespace:GetThere.Components"
+             x:Class="GetThere.Pages.TicketsPage"
+             Title="My Tickets"
+             BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#000000}">
+
+    <ContentPage.Resources>
+        <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- ── DECORATIVE BACKGROUND CIRCLES ── -->
+        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="3" />
+
+        <!-- ── HEADER ── -->
+        <Label Grid.Row="0" Text="My Tickets" FontSize="28" FontAttributes="Bold" Margin="20,20,20,10" 
+               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+
+        <VerticalStackLayout Grid.Row="1" Spacing="20" Padding="16,0,16,100">
+            <!-- ── FILTER SECTION (Matches Profile Style) ── -->
+            <Grid ColumnDefinitions="*,Auto" Margin="4,0,4,0">
+                <Label x:Name="CurrentFilterLabel" Text="Active Tickets" VerticalOptions="Center" FontSize="18" FontAttributes="Bold" TextColor="Gray" />
+                <Button x:Name="FilterBtn" Style="{x:Null}" Background="{x:Null}" Grid.Column="1" Text="Filter ▾" Clicked="OnShowFilterOptions" 
+                        BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}" 
+                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                        CornerRadius="16" HeightRequest="36" Padding="20,0" FontSize="14" FontAttributes="Bold">
+                    <Button.Shadow>
+                        <Shadow Brush="Black" Offset="0,2" Radius="5" Opacity="0.05" />
+                    </Button.Shadow>
+                </Button>
+            </Grid>
+            
+            <!-- ── TICKETS LIST ── -->
+            <CollectionView x:Name="TicketsList" SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,0,16" Padding="20" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1C1C1E}">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="20"/></Border.StrokeShape>
+                            <Border.Shadow>
+                                <Shadow Brush="Black" Offset="0,4" Radius="10" Opacity="0.05" />
+                            </Border.Shadow>
+                            
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                <!-- Info -->
+                                <Label Text="{Binding TicketType}" FontSize="18" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                
+                                <HorizontalStackLayout Grid.Row="1" Spacing="5">
+                                    <Label Text="Expires:" FontSize="13" TextColor="Gray" />
+                                    <Label Text="{Binding ValidUntil, StringFormat='{0:dd MMM HH:mm}'}" FontSize="13" TextColor="Gray" FontAttributes="Bold" />
+                                </HorizontalStackLayout>
+
+                                <Label Grid.Row="2" Text="{Binding OperatorName}" FontSize="13" TextColor="#4CAF50" FontAttributes="Bold" />
+
+                                <!-- Status -->
+                                <Border Grid.Column="1" Grid.RowSpan="3" VerticalOptions="Center" Padding="15,8" StrokeThickness="0" 
+                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}">
+                                    <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                                    <Label Text="{Binding Status}" TextColor="White" FontSize="12" FontAttributes="Bold" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Margin="0,50">
+                        <Label Text="No tickets found" FontSize="18" TextColor="Gray" HorizontalOptions="Center" />
+                        <Label Text="Try changing your filter" FontSize="14" TextColor="Gray" Opacity="0.7" HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+            </CollectionView>
+        </VerticalStackLayout>
+
+        <!-- Loading Indicator -->
+        <ActivityIndicator x:Name="BusyIndicator" Grid.Row="1" VerticalOptions="Center" HorizontalOptions="Center" WidthRequest="40" HeightRequest="40" Color="#4CAF50" IsVisible="False" />
+
+        <!-- ── CUSTOM FILTER BOTTOM SHEET ── -->
+        <Grid x:Name="FilterBottomSheet" Grid.RowSpan="3" IsVisible="False" Opacity="0" ZIndex="1000" VerticalOptions="Fill" HorizontalOptions="Fill">
+            <BoxView BackgroundColor="Black" Opacity="0.5">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnHideFilterBottomSheet" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+            <Grid VerticalOptions="End" InputTransparent="False">
+                <Border x:Name="FilterContent" Margin="10,0,10,20" Padding="0" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}" 
+                        TranslationY="600" HeightRequest="320" WidthRequest="360" HorizontalOptions="Center">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
+                    <Border.Shadow><Shadow Brush="Black" Offset="0,10" Radius="30" Opacity="0.4" /></Border.Shadow>
+                    <VerticalStackLayout Padding="24" Spacing="12">
+                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="Gray" Opacity="0.3" HorizontalOptions="Center" Margin="0,0,0,15" />
+                        <Label Text="Filter Tickets" HorizontalOptions="Center" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                        <Button Text="Active" Clicked="OnFilterOptionClicked" CommandParameter="Active" BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" TextColor="{AppThemeBinding Light=Black, Dark=White}" CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                        <Button Text="Expired" Clicked="OnFilterOptionClicked" CommandParameter="Expired" BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" TextColor="{AppThemeBinding Light=Black, Dark=White}" CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                        <Button Text="Used" Clicked="OnFilterOptionClicked" CommandParameter="Used" BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" TextColor="{AppThemeBinding Light=Black, Dark=White}" CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ── CUSTOM BOTTOM BAR ── -->
+        <components:CustomBottomBar Grid.Row="2" VerticalOptions="End" IsIslandMode="True" />
+    </Grid>
+</ContentPage>

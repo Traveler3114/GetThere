@@ -3,15 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:components="clr-namespace:GetThere.Components"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:behaviors="clr-namespace:GetThere.Behaviors"
              x:Class="GetThere.Pages.RegistrationPage"
              Title="Create account"
              BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
 
     <Grid RowDefinitions="*">
-        <Grid.Behaviors>
-            <behaviors:BackSwipeBehavior />
-        </Grid.Behaviors>
         <!-- Animated background (behind everything) -->
         <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
 
