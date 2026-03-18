@@ -199,5 +199,14 @@
                 </Border>
             </Grid>
         </Grid>
+
+        <!-- ── GUEST OVERLAY ── -->
+        <Grid x:Name="GuestOverlay" IsVisible="False" BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}" ZIndex="2000" InputTransparent="False">
+            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="20">
+                <Label Text="Guest Mode" FontSize="26" FontAttributes="Bold" HorizontalOptions="Center" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                <Label Text="Please log in or register to access your profile." FontSize="16" HorizontalOptions="Center" TextColor="Gray" />
+                <Button Text="Login / Register" Clicked="OnLoginRegisterClicked" CornerRadius="12" HeightRequest="50" Padding="30,0" FontAttributes="Bold" Margin="0,15,0,0" />
+            </VerticalStackLayout>
+        </Grid>
     </Grid>
 </ContentPage>

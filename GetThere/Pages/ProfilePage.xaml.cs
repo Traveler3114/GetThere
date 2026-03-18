@@ -41,12 +41,14 @@ public partial class ProfilePage : ContentPage
             var fullName = await _authService.GetFullNameAsync();
             var email = await _authService.GetEmailAsync();
 
-            if (fullName == null && email == null)
+            if (string.IsNullOrWhiteSpace(fullName) && string.IsNullOrWhiteSpace(email))
             {
                 NameLabelOnCard.Text = "Guest";
+                GuestOverlay.IsVisible = true;
                 return;
             }
 
+            GuestOverlay.IsVisible = false;
             NameLabelOnCard.Text = fullName ?? "User";
 
             await LoadWalletAsync();
@@ -127,6 +129,11 @@ public partial class ProfilePage : ContentPage
             BusyLoader.IsVisible = false;
             BusyLoader.IsRunning = false;
         }
+    }
+
+    private void OnLoginRegisterClicked(object? sender, EventArgs e)
+    {
+        App.GoToLogin();
     }
 
     private void ApplyTicketFilter(TicketStatus filter)
