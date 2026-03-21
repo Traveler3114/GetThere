@@ -554,7 +554,7 @@
         // CONFIG
         // ═══════════════════════════════════════════════════════════════════
 
-        const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
+        const STOPS_MIN_ZOOM = 12;   // stop icons visible at this zoom and above
 
         // ═══════════════════════════════════════════════════════════════════
         // BOOT — fetch zetko style, strip OSM transit layers, init map
@@ -598,16 +598,16 @@
             // by a network call, so stops/vehicles show up instantly.
             _loadStopIcons();
 
-            // Single stops layer, no clustering, visible at all zoom levels ≥ 14
+            // Single stops layer, no clustering, visible at all zoom levels ≥ STOPS_MIN_ZOOM
             map.addLayer({
                 id: 'stops',
                 type: 'symbol',
                 source: 'gtfs-stops',
-                minzoom: 14,
+                minzoom: STOPS_MIN_ZOOM,
                 layout: {
                     'icon-image': ['case',
-                        ['==', ['get', 'routeType'], 0], 'stop-tram',
-                        ['==', ['get', 'routeType'], 11], 'stop-tram',
+                        ['==', ['to-number', ['get', 'routeType']], 0], 'stop-tram',
+                        ['==', ['to-number', ['get', 'routeType']], 11], 'stop-tram',
                         'stop-bus'
                     ],
                     'icon-size': 0.375,
@@ -624,8 +624,8 @@
                 },
                 paint: {
                     'text-color': ['case',
-                        ['==', ['get', 'routeType'], 0], '#1264AB',
-                        ['==', ['get', 'routeType'], 11], '#1264AB',
+                        ['==', ['to-number', ['get', 'routeType']], 0], '#1264AB',
+                        ['==', ['to-number', ['get', 'routeType']], 11], '#1264AB',
                         '#126400'
                     ],
                     'text-halo-color': '#fff',
@@ -646,6 +646,14 @@
             // bg = directional arrow (64x64), fg = coloured circle + route number (42x42)
             map.on('styleimagemissing', async e => {
                 const id = e.id;
+
+                if (id === 'stop-tram' || id === 'stop-bus') {
+                    const color = id === 'stop-tram' ? '#1264AB' : '#126400';
+                    const data = await _genVehicleFg(color, 'white', id === 'stop-tram' ? 'T' : 'B');
+                    if (!map.hasImage(id)) map.addImage(id, { width: 42, height: 42, data });
+                    return;
+                }
+
                 if (!id.endsWith('-bg') && !id.endsWith('-fg')) return;
 
                 const suffix = id.endsWith('-bg') ? 'bg' : 'fg';
@@ -805,7 +813,7 @@
                 properties: {
                     stopId: s.stopId,
                     name: s.name,
-                    routeType: s.routeType ?? 3,
+                    routeType: typeof s.routeType === 'number' ? s.routeType : (parseInt(s.routeType) || 3),
                     stopCategory: _stopCategory(s.routeType ?? 3),
                 }
             }));
