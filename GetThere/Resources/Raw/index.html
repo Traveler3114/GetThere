@@ -506,6 +506,13 @@
             }
         }
     </style>
+    <script>
+        window._MAP_STYLE = { "version": 8, "metadata": { "maputnik:renderer": "mlgljs" }, "center": [0, 0], "zoom": 1, "bearing": 0, "pitch": 0, "sources": { "ne2_shaded": { "maxzoom": 6, "tileSize": 256, "tiles": ["https://tiles.openfreemap.org/natural_earth/ne2sr/{z}/{x}/{y}.png"], "type": "raster" }, "openmaptiles": { "url": "https://tiles.openfreemap.org/planet", "type": "vector" } }, "sprite": "https://tiles.openfreemap.org/sprites/ofm_f384/ofm", "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf", "layers": [{ "id": "Background", "type": "background", "layout": { "visibility": "visible" }, "paint": { "background-color": { "stops": [[6, "hsl(60,16%,91%)"], [20, "hsl(60,18%,96%)"]] } } }, { "id": "Residential", "type": "fill", "source": "openmaptiles", "source-layer": "landuse", "maxzoom": 14, "filter": ["in", "class", "neighbourhood", "residential", "suburb"], "layout": { "visibility": "visible" }, "paint": { "fill-color": { "stops": [[2, "hsl(60,20%,84%)"], [14, "hsl(60,18%,88%)"]] } } }, { "id": "Sand", "type": "fill", "source": "openmaptiles", "source-layer": "landcover", "minzoom": 8, "filter": ["==", "class", "sand"], "layout": { "visibility": "visible" }, "paint": { "fill-antialias": false, "fill-color": "hsla(54,72%,56%,0.3)", "fill-opacity": { "stops": [[7, 0.7], [12, 1]] } } }, { "id": "Grass", "type": "fill", "source": "openmaptiles", "source-layer": "landcover", "minzoom": 8, "filter": ["==", "class", "grass"], "layout": { "visibility": "visible" }, "paint": { "fill-antialias": false, "fill-color": "hsla(89,36%,81%,0.8)", "fill-opacity": { "stops": [[7, 0.7], [12, 1]] } } }, { "id": "Wood", "type": "fill", "source": "openmaptiles", "source-layer": "landcover", "minzoom": 8, "filter": ["==", "class", "wood"], "layout": { "visibility": "visible" }, "paint": { "fill-antialias": false, "fill-color": "hsla(91,36%,73%,0.8)", "fill-opacity": { "stops": [[7, 0.7], [12, 1]] } } }, { "id": "Water", "type": "fill", "source": "openmaptiles", "source-layer": "water", "filter": ["!=", "brunnel", "tunnel"], "layout": { "visibility": "visible" }, "paint": { "fill-color": "hsl(205,50%,76%)", "fill-opacity": ["match", ["get", "intermittent"], 1, 0.7, 1] } }, { "id": "River", "type": "line", "source": "openmaptiles", "source-layer": "waterway", "filter": ["!=", "intermittent", 1], "layout": { "visibility": "visible" }, "paint": { "line-color": "hsl(205,50%,76%)", "line-opacity": ["match", ["get", "brunnel"], "tunnel", 0.7, 1], "line-width": { "stops": [[9, 1], [18, 3]] } } }, { "id": "River intermittent", "type": "line", "source": "openmaptiles", "source-layer": "waterway", "filter": ["==", "intermittent", 1], "layout": { "visibility": "visible" }, "paint": { "line-color": "hsl(205,50%,76%)", "line-dasharray": [2, 1], "line-opacity": 0.92, "line-width": { "stops": [[9, 1], [18, 3]] } } }, { "id": "Bridge", "type": "fill", "source": "openmaptiles", "source-layer": "transportation", "filter": ["all", ["==", "$type", "Polygon"], ["==", "brunnel", "bridge"]], "layout": { "visibility": "visible" }, "paint": { "fill-color": "hsl(47,23%,91%)", "fill-opacity": 0.64 } }, { "id": "Pier", "type": "fill", "metadata": {}, "source": "openmaptiles", "source-layer": "transportation", "filter": ["==", "class", "pier"], "layout": { "visibility": "visible" }, "paint": { "fill-antialias": true, "fill-color": "hsl(60,21%,91%)", "fill-opacity": 0.92 } }, { "id": "Road network", "type": "line", "source": "openmaptiles", "source-layer": "transportation", "minzoom": 4, "filter": ["!in", "class", "bridge", "ferry", "path", "rail", "transit"], "layout": { "line-cap": "round", "line-join": "round", "visibility": "visible" }, "paint": { "line-color": "hsl(0,0%,100%)", "line-opacity": ["match", ["get", "brunnel"], "tunnel", 0.5, 1], "line-width": ["interpolate", ["linear", 2], ["zoom"], 4, 0.5, 5, 0.75, 6, 1, 10, ["match", ["get", "class"], ["motorway"], ["match", ["get", "brunnel"], ["bridge"], 0, 2.5], ["trunk"], 1.5, 1], 12, ["match", ["get", "class"], ["motorway"], ["match", ["get", "ramp"], 1, 1, 4], ["trunk"], 2, ["primary"], 2.5, ["secondary", "tertiary"], 2, ["minor"], 1, ["pier", "service", "track"], 0.5, 0.5], 14, ["match", ["get", "class"], ["motorway"], ["match", ["get", "ramp"], 1, 5, 6], ["trunk"], 3, ["primary"], 5, ["secondary"], 4, ["tertiary"], 3, ["minor"], 2, ["pier", "service", "track"], 1, 2], 16, ["match", ["get", "class"], ["motorway", "trunk", "primary"], 8, ["secondary"], 7, ["tertiary"], 6, ["minor"], 4, ["pier", "service", "track"], 2, 4], 20, ["match", ["get", "class"], ["motorway", "trunk", "primary"], 28, ["secondary"], 24, ["tertiary"], 20, ["minor", "service", "track", "pier"], 16, 16]] } }, { "id": "Path minor", "type": "line", "source": "openmaptiles", "source-layer": "transportation", "minzoom": 15, "filter": ["==", "class", "path_pedestrian"], "layout": { "line-cap": "square", "line-join": "bevel", "visibility": "visible" }, "paint": { "line-color": "hsl(0,0%,100%)", "line-dasharray": [1, 1], "line-width": { "base": 1.55, "stops": [[15, 0.5], [16, 1], [18, 2], [20, 3], [22, 4]] } } }, { "id": "Path", "type": "line", "source": "openmaptiles", "source-layer": "transportation", "minzoom": 15, "filter": ["==", "class", "path"], "layout": { "line-cap": "square", "line-join": "bevel", "visibility": "visible" }, "paint": { "line-color": "hsl(0,0%,100%)", "line-dasharray": [1, 1], "line-width": { "base": 1.55, "stops": [[15, 0.5], [16, 1], [18, 2], [20, 3], [22, 4]] } } }, { "id": "Building", "type": "fill", "source": "openmaptiles", "source-layer": "building", "layout": { "visibility": "visible" }, "paint": { "fill-antialias": true, "fill-color": { "stops": [[13, "hsl(48,22%,76%)"], [16, "hsl(47,28%,80%)"]] }, "fill-opacity": 0.92 } }, { "id": "Railway", "type": "line", "source": "openmaptiles", "source-layer": "transportation", "minzoom": 9, "filter": ["==", "class", "rail"], "layout": { "visibility": "visible" }, "paint": { "line-color": "hsla(33,10%,70%,0.8)", "line-opacity": ["match", ["get", "brunnel"], "tunnel", 0.25, 1], "line-width": ["interpolate", ["linear", 1], ["zoom"], 9, ["match", ["get", "service"], ["yard", "spur"], 0, 0.5], 12, ["match", ["get", "service"], ["yard", "spur"], 0, 0.6], 16, ["match", ["get", "service"], ["yard", "spur"], 0.75, 2], 22, ["match", ["get", "service"], ["yard", "spur"], 1.5, 3]] } }, { "id": "Aeroway", "type": "line", "source": "openmaptiles", "source-layer": "aeroway", "minzoom": 10, "layout": { "line-cap": "round", "line-join": "round", "visibility": "visible" }, "paint": { "line-color": "hsl(0,0%,100%)", "line-opacity": 0.92, "line-width": ["interpolate", ["linear", 2], ["zoom"], 10, ["match", ["get", "class"], ["runway"], 1, ["taxiway"], 0.5, 0], 14, ["match", ["get", "class"], ["runway"], 3, ["taxiway"], 2, 0], 16, ["match", ["get", "class"], ["runway"], 10, ["taxiway"], 6, 0]] } }, { "id": "Airport labels", "type": "symbol", "source": "openmaptiles", "source-layer": "aerodrome_label", "minzoom": 10, "filter": ["has", "iata"], "layout": { "text-anchor": "top", "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]], "text-font": ["Noto Sans Italic"], "text-max-width": 8, "text-offset": [0, 0.5], "text-size": { "stops": [[10, 10], [14, 12], [16, 14]] }, "visibility": "visible" }, "paint": { "text-color": "hsl(0,0%,15%)", "text-halo-blur": 1, "text-halo-color": "hsl(0,0%,100%)", "text-halo-width": 1.4 } }, { "id": "Road labels", "type": "symbol", "source": "openmaptiles", "source-layer": "transportation_name", "minzoom": 14, "filter": ["all", ["==", "$type", "LineString"], ["!in", "class", "aerialway", "ferry", "service"]], "layout": { "symbol-placement": "line", "symbol-spacing": { "stops": [[13, 250], [20, 350], [21, 1000]] }, "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]], "text-font": ["Noto Sans Regular"], "text-letter-spacing": 0.1, "text-rotation-alignment": "map", "text-size": { "base": 1.4, "stops": [[14, 8], [17, 10], [20, 12]] }, "visibility": "visible" }, "paint": { "text-color": "hsl(0,0%,8%)", "text-halo-color": "hsl(0,90%,100%)", "text-halo-width": 1 } }, { "id": "Other border", "type": "line", "source": "openmaptiles", "source-layer": "boundary", "minzoom": 3, "filter": ["all", ["in", "admin_level", 3, 4, 5, 6, 7, 8, 9, 10], ["==", "maritime", 0]], "layout": { "visibility": "visible" }, "paint": { "line-color": "hsla(0,0%,63%,0.65)", "line-dasharray": [2, 1], "line-width": { "stops": [[4, 0.8], [11, 1.75], [18, 2.5]] } } }, { "id": "Disputed border", "type": "line", "source": "openmaptiles", "source-layer": "boundary", "minzoom": 0, "filter": ["all", ["==", "admin_level", 2], ["==", "maritime", 0], ["==", "disputed", 1]], "layout": { "line-cap": "round", "line-join": "round", "visibility": "visible" }, "paint": { "line-color": "hsl(0,0%,67%)", "line-dasharray": [2, 2], "line-width": { "stops": [[1, 1], [5, 1.5], [10, 2]] } } }, { "id": "Country border", "type": "line", "source": "openmaptiles", "source-layer": "boundary", "minzoom": 0, "filter": ["all", ["==", "admin_level", 2], ["==", "disputed", 0], ["==", "maritime", 0]], "layout": { "line-cap": "round", "line-join": "round", "visibility": "visible" }, "paint": { "line-blur": { "stops": [[4, 0.5], [10, 0]] }, "line-color": "hsl(0,0%,67%)", "line-width": { "stops": [[1, 1], [5, 1.5], [10, 2]] } } }, { "id": "Place labels", "type": "symbol", "source": "openmaptiles", "source-layer": "place", "minzoom": 0, "maxzoom": 16, "filter": ["in", "class", "hamlet", "isolated_dwelling", "neighbourhood", "province", "quarter", "suburb", "town", "village", "place"], "layout": { "symbol-sort-key": ["to-number", ["get", "rank"]], "text-field": "{name}", "text-font": ["Noto Sans Regular"], "text-max-width": 10, "text-size": ["interpolate", ["linear", 1], ["zoom"], 3, 11, 8, ["match", ["get", "class"], "city", 15, 13], 11, ["match", ["get", "class"], "city", 16, ["suburb", "neighbourhood", "quarter", "hamlet", "isolated_dwelling"], 10, 13], 16, ["match", ["get", "class"], "city", 21, ["suburb", "neighbourhood", "quarter", "hamlet", "isolated_dwelling"], 14, 16]], "visibility": "visible" }, "paint": { "text-color": "hsl(0,0%,3%)", "text-halo-blur": 0, "text-halo-color": "hsla(0, 0%, 92%, 0.6)", "text-halo-width": 2 } }, { "id": "City labels", "type": "symbol", "source": "openmaptiles", "source-layer": "place", "maxzoom": 16, "filter": ["==", "class", "city"], "layout": { "symbol-sort-key": ["to-number", ["get", "rank"]], "text-field": "{name:hr}", "text-font": ["Noto Sans Regular"], "text-max-width": 10, "text-size": ["interpolate", ["linear", 1], ["zoom"], 3, 11, 8, 15, 11, 16, 16, 21], "visibility": "visible" }, "paint": { "text-color": "hsl(0,0%,3%)", "text-halo-blur": 0, "text-halo-color": "hsla(0, 0%, 92%, 0.6)", "text-halo-width": 2 } }, { "id": "Country labels", "type": "symbol", "source": "openmaptiles", "source-layer": "place", "minzoom": 1, "maxzoom": 12, "filter": ["all", ["==", "class", "country"], ["!=", "iso_a2", "VA"]], "layout": { "symbol-sort-key": ["to-number", ["get", "rank"]], "text-field": "{name:hr}", "text-font": ["Noto Sans Bold"], "text-max-width": 8, "text-padding": { "stops": [[1, 0], [4, 2]] }, "text-size": ["interpolate", ["linear", 1], ["zoom"], 0, 8, 1, 10, 4, ["case", [">", ["get", "rank"], 2], 13, 15], 8, ["case", [">", ["get", "rank"], 2], 18, 22]], "visibility": "visible" }, "paint": { "text-color": "hsl(0,0%,16%)", "text-halo-blur": 1, "text-halo-color": "hsla(0, 0%, 92%, 0.6)", "text-halo-width": 2 } }, { "id": "Continent labels", "type": "symbol", "metadata": {}, "source": "openmaptiles", "source-layer": "place", "maxzoom": 1, "filter": ["==", "class", "continent"], "layout": { "text-field": "{name:hr}", "text-font": ["Noto Sans Bold"], "text-justify": "center", "text-size": { "stops": [[0, 12], [2, 13]] }, "text-transform": "uppercase", "visibility": "visible" }, "paint": { "text-color": "hsl(0,0%,16%)", "text-halo-blur": 1, "text-halo-color": "hsla(0, 0%, 92%, 0.6)", "text-halo-width": 2 } }], "id": "maplibre-v2" };
+        window._jsError = '';
+        window.onerror = function (msg, src, line, col, err) {
+            window._jsError = 'JS ERROR: ' + msg + ' @ ' + line;
+        };
+    </script>
 </head>
 <body>
 
@@ -552,96 +559,81 @@
         // ═══════════════════════════════════════════════════════════════════
         // BOOT — fetch zetko style, strip OSM transit layers, init map
         // ═══════════════════════════════════════════════════════════════════
-        (async () => {
-            const style = await fetch('mapstyle.json').then(r => r.json());
+        // Style is hardcoded in window._MAP_STYLE — no fetch needed.
+        // We set _mapReady on 'style.load' (fires when base style tiles are
+        // ready) rather than 'load' (which can stall waiting for all tiles).
+        window.map = new maplibregl.Map({
+            container: 'map',
+            style: window._MAP_STYLE,
+            center: [15.9775, 45.8129],
+            zoom: 13,
+            minZoom: 10,
+            maxPitch: 60
+        });
 
-            // Remove only the OSM transit stop icon layers.
-            // Keep everything else (roads, tram tracks, bridges).
-            const REMOVE = new Set(['Transit', 'Transit tunnel', 'Station labels']);
-            style.layers = style.layers.filter(l => !REMOVE.has(l.id));
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-            window.map = new maplibregl.Map({
-                container: 'map',
-                style,
-                center: [15.9775, 45.8129],
-                zoom: 13,
-                minZoom: 10,
-                maxPitch: 60
-            });
-
-            map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-            map.on('load', _onMapLoad);
-        })();
+        map.on('style.load', async function () {
+            try {
+                await _onMapLoad();
+            } catch (e) {
+                window._jsError = 'onMapLoad ERROR: ' + e.message;
+            }
+        });
 
         // ═══════════════════════════════════════════════════════════════════
         // MAP LOAD — set up all sources and layers
         // ═══════════════════════════════════════════════════════════════════
-        function _onMapLoad() {
+        async function _onMapLoad() {
 
             // ── Stop source + layers ───────────────────────────────────────
             map.addSource('gtfs-stops', {
                 type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] },
-                cluster: true,
-                clusterMaxZoom: STOPS_MIN_ZOOM - 1,
-                clusterRadius: 15
+                data: { type: 'FeatureCollection', features: [] }
             });
 
-            // Generate stop icons on canvas and register with MapLibre
-            _addStopIcon('stop-tram', '#c62828', '#ffebee');
-            _addStopIcon('stop-bus', '#1565c0', '#e3f2fd');
-            _addStopIcon('stop-metro', '#00796b', '#e0f2f1');
-            _addStopIcon('stop-rail', '#6a1b9a', '#f3e5f5');
-            _addStopIcon('stop-ferry', '#0277bd', '#e1f5fe');
+            // Start loading stop icons from API in the background.
+            // We don't await here — layers are added immediately and icons
+            // will appear once the API responds. _mapReady is never blocked
+            // by a network call, so stops/vehicles show up instantly.
+            _loadStopIcons();
 
-            // One symbol layer per transport type, filtered by stopCategory property
-            [
-                { id: 'stops-tram', icon: 'stop-tram', cat: 'tram', text: '#b71c1c' },
-                { id: 'stops-bus', icon: 'stop-bus', cat: 'bus', text: '#0d47a1' },
-                { id: 'stops-metro', icon: 'stop-metro', cat: 'metro', text: '#004d40' },
-                { id: 'stops-rail', icon: 'stop-rail', cat: 'rail', text: '#4a148c' },
-                { id: 'stops-ferry', icon: 'stop-ferry', cat: 'ferry', text: '#01579b' },
-            ].forEach(({ id, icon, cat, text }) => {
-                map.addLayer({
-                    id, type: 'symbol', source: 'gtfs-stops',
-                    minzoom: STOPS_MIN_ZOOM,
-                    filter: ['==', ['get', 'stopCategory'], cat],
-                    layout: {
-                        'icon-image': icon,
-                        'icon-size': 0.55,
-                        'icon-allow-overlap': true,
-                        'icon-ignore-placement': true,
-                        'text-field': ['step', ['zoom'], '', 16, ['get', 'name']],
-                        'text-size': 11,
-                        'text-offset': [0, 1.6],
-                        'text-anchor': 'top',
-                        'text-allow-overlap': false,
-                        'text-optional': true,
-                        'text-font': ['Noto Sans Regular'],
-                    },
-                    paint: {
-                        'text-color': text,
-                        'text-halo-color': '#fff',
-                        'text-halo-width': 1.5,
-                    }
-                });
-                map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
-                map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
-            });
-
-            // Cluster dot shown below STOPS_MIN_ZOOM
+            // Single stops layer, no clustering, visible at all zoom levels ≥ 14
             map.addLayer({
-                id: 'stops-cluster', type: 'circle', source: 'gtfs-stops',
-                filter: ['has', 'point_count'],
+                id: 'stops',
+                type: 'symbol',
+                source: 'gtfs-stops',
+                minzoom: 14,
+                layout: {
+                    'icon-image': ['case',
+                        ['==', ['get', 'routeType'], 0], 'stop-tram',
+                        ['==', ['get', 'routeType'], 11], 'stop-tram',
+                        'stop-bus'
+                    ],
+                    'icon-size': 0.375,
+                    'icon-anchor': 'bottom',
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                    'text-field': ['step', ['zoom'], '', 17, ['get', 'name']],
+                    'text-size': 11,
+                    'text-offset': [0, 0.2],
+                    'text-anchor': 'top',
+                    'text-allow-overlap': false,
+                    'text-optional': true,
+                    'text-font': ['Noto Sans Regular'],
+                },
                 paint: {
-                    'circle-color': '#607d8b',
-                    'circle-radius': 10,
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#fff',
-                    'circle-opacity': 0.7,
+                    'text-color': ['case',
+                        ['==', ['get', 'routeType'], 0], '#1264AB',
+                        ['==', ['get', 'routeType'], 11], '#1264AB',
+                        '#126400'
+                    ],
+                    'text-halo-color': '#fff',
+                    'text-halo-width': 1,
                 }
             });
+            map.on('mouseenter', 'stops', () => map.getCanvas().style.cursor = 'pointer');
+            map.on('mouseleave', 'stops', () => map.getCanvas().style.cursor = '');
 
             // ── Vehicle source + layers ────────────────────────────────────
             map.addSource('vehicles', {
@@ -649,31 +641,42 @@
                 data: { type: 'FeatureCollection', features: [] }
             });
 
-            // Generate vehicle icons lazily — one canvas image per unique
-            // routeShortName + routeType + isRealtime combination
+            // Vehicle icons — exact zetRt approach.
+            // Key format: "{routeShortName}-{routeType}-{realTime}-bg" or "-fg"
+            // bg = directional arrow (64x64), fg = coloured circle + route number (42x42)
             map.on('styleimagemissing', async e => {
                 const id = e.id;
                 if (!id.endsWith('-bg') && !id.endsWith('-fg')) return;
 
-                const parts = id.split('-');
-                const suffix = parts.pop();
-                const realtime = parts.pop() === 'true';
-                const type = parseInt(parts.pop(), 10);
-                const name = parts.join('-');
+                const suffix = id.endsWith('-bg') ? 'bg' : 'fg';
+                const base = id.slice(0, -(suffix.length + 1)); // strip "-bg"/"-fg"
+                const parts = base.split('-');
+                // parts = [routeShortName, routeType, realTime]
+                // routeShortName can contain digits only so split is safe
+                const realTime = parts[parts.length - 1] === 'true';
+                const routeType = parseInt(parts[parts.length - 2], 10);
+                const routeShortName = parts.slice(0, parts.length - 2).join('-');
 
-                const colors = _routeTypeColors(type);
-                const color = realtime ? colors.rt : colors.sched;
+                let color;
+                if (routeType === 0) {
+                    color = realTime ? '#1264AB' : '#535353'; // tram blue / grey
+                } else {
+                    color = realTime ? '#126400' : '#727272'; // bus green / grey
+                }
 
-                const size = suffix === 'bg' ? 64 : 42;
                 const data = suffix === 'bg'
                     ? _genVehicleBg(color)
-                    : await _genVehicleFg(color, name);
+                    : await _genVehicleFg(color, 'white', routeShortName);
 
                 if (!map.hasImage(id))
-                    map.addImage(id, { width: size, height: size, data });
+                    map.addImage(id, {
+                        width: suffix === 'bg' ? 64 : 42,
+                        height: suffix === 'bg' ? 64 : 42,
+                        data
+                    });
             });
 
-            // bg layer — directional arrow, rotates with bearing
+            // bg layer: directional arrow, rotates with vehicle bearing
             map.addLayer({
                 id: 'vehicles-bg', type: 'symbol', source: 'vehicles',
                 layout: {
@@ -687,13 +690,13 @@
                     'icon-ignore-placement': true,
                     'icon-rotation-alignment': 'map',
                     'icon-rotate': ['get', 'bearing'],
-                    'symbol-sort-key': ['get', 'idx'],
+                    'symbol-sort-key': ['*', ['get', 'idx'], 2],
                     'symbol-z-order': 'auto',
                     'text-font': ['Noto Sans Regular'],
                 }
             });
 
-            // fg layer — coloured circle with route number, no rotation
+            // fg layer: coloured circle with route number, no rotation
             map.addLayer({
                 id: 'vehicles-fg', type: 'symbol', source: 'vehicles',
                 layout: {
@@ -704,34 +707,42 @@
                     ],
                     'icon-size': 0.65,
                     'icon-allow-overlap': true,
-                    'text-allow-overlap': true,
-                    'symbol-sort-key': ['get', 'idx'],
+                    'icon-ignore-placement': true,
+                    'symbol-sort-key': ['*', ['get', 'idx'], 2],
                     'symbol-z-order': 'source',
                     'text-font': ['Noto Sans Regular'],
                 }
             });
 
-            // Vehicle detail labels at zoom 15+
+            // Vehicle detail labels at zoom 15+ (VR + vehicle number, same as zetRt)
             map.addLayer({
-                id: 'vehicle-labels', type: 'symbol', source: 'vehicles',
+                id: 'vehicle-details', type: 'symbol', source: 'vehicles',
                 minzoom: 15,
                 layout: {
-                    'text-field': ['concat', ['get', 'vehicleId']],
+                    'text-field': ['concat',
+                        ['literal', 'VR: '], ['get', 'blockId'],
+                        ['literal', '\nGB: '], ['get', 'vehicleId']
+                    ],
                     'text-font': ['Noto Sans Regular'],
-                    'text-size': 11,
+                    'text-size': 12,
                     'text-anchor': 'left',
                     'text-offset': [2, 0],
+                    'text-justify': 'left',
+                    'symbol-z-order': 'source',
                     'icon-allow-overlap': true,
                     'text-allow-overlap': true,
                 },
                 paint: {
-                    'text-color': '#111',
+                    'text-color': '#000',
                     'text-halo-color': '#fff',
-                    'text-halo-width': 10,
+                    'text-halo-width': 12,
                 }
             });
 
-            // ── Active route line ──────────────────────────────────────────
+            // Stops sit below vehicle bg layer
+            map.moveLayer('stops', 'vehicles-bg');
+
+            // ── Active route line ─────────────────────────────────────────
             map.addSource('active-route', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] }
@@ -739,7 +750,7 @@
             map.addLayer({
                 id: 'active-route-outline', type: 'line', source: 'active-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.10 }
+                paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.08 }
             });
             map.addLayer({
                 id: 'active-route', type: 'line', source: 'active-route',
@@ -749,14 +760,12 @@
 
             // ── Click events ───────────────────────────────────────────────
             // Stop click → request schedule from C#
-            ['stops-tram', 'stops-bus', 'stops-metro', 'stops-rail', 'stops-ferry'].forEach(lyr => {
-                map.on('click', lyr, e => {
-                    if (e.defaultPrevented) return;
-                    e.preventDefault();
-                    const p = e.features[0].properties;
-                    _openStopSheet(p.stopId, p.name,
-                        typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
-                });
+            map.on('click', 'stops', e => {
+                if (e.defaultPrevented) return;
+                e.preventDefault();
+                const p = e.features[0].properties;
+                _openStopSheet(p.stopId, p.name,
+                    typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
             });
 
             // Vehicle click → request trip detail from C#
@@ -876,10 +885,10 @@
                                 : `<span class="delay-badge ontime">✓</span>`;
                         const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
                         return `<span class="${cls}" ${onClick}>
-                            <span class="sched-strike">${d.scheduledTime}</span>
-                            <span class="eta-time">${d.estimatedTime}</span>
-                            ${badge}${dot}
-                        </span>`;
+                                <span class="sched-strike">${d.scheduledTime}</span>
+                                <span class="eta-time">${d.estimatedTime}</span>
+                                ${badge}${dot}
+                            </span>`;
                     } else if (d.isRealtime) {
                         return `<span class="${cls}" ${onClick}>${d.scheduledTime}<span class="live-dot">●</span></span>`;
                     } else {
@@ -894,13 +903,13 @@
                 const div = document.createElement('div');
                 div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
                 div.innerHTML = `
-                    <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-                        <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
-                        <span class="route-headsign">${_esc(g.headsign)}</span>
-                        <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
-                        <span class="route-chevron">▾</span>
-                    </div>
-                    <div class="route-times">${timesHtml}</div>`;
+                        <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
+                            <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
+                            <span class="route-headsign">${_esc(g.headsign)}</span>
+                            <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
+                            <span class="route-chevron">▾</span>
+                        </div>
+                        <div class="route-times">${timesHtml}</div>`;
                 _sheetBody.appendChild(div);
             });
 
@@ -945,23 +954,23 @@
                     const d = s.delayMinutes ?? 0;
                     const ec = d > 1 ? 'late' : d < -1 ? 'early' : 'ontime';
                     times = `<div class="trip-stop-times">
-                        <span class="ts-sched">${s.scheduledTime}</span>
-                        <span class="ts-eta ${ec}">${s.estimatedTime}</span>
-                    </div>`;
+                            <span class="ts-sched">${s.scheduledTime}</span>
+                            <span class="ts-eta ${ec}">${s.estimatedTime}</span>
+                        </div>`;
                 } else {
                     times = `<div class="trip-stop-times">
-                        <span class="ts-only">${s.scheduledTime}</span>
-                    </div>`;
+                            <span class="ts-only">${s.scheduledTime}</span>
+                        </div>`;
                 }
 
                 const row = document.createElement('div');
                 row.className = cls;
                 row.innerHTML = `
-                    <div class="trip-stop-dot"></div>
-                    <div class="trip-stop-info">
-                        <div class="trip-stop-name">${_esc(s.stopName)}</div>
-                    </div>
-                    ${times}`;
+                        <div class="trip-stop-dot"></div>
+                        <div class="trip-stop-info">
+                            <div class="trip-stop-name">${_esc(s.stopName)}</div>
+                        </div>
+                        ${times}`;
                 _tripBody.appendChild(row);
             });
 
@@ -969,7 +978,7 @@
             if (data.isRealtime && data.vehicleLat && data.vehicleLon)
                 map.flyTo({ center: [data.vehicleLon, data.vehicleLat], zoom: 15, duration: 600 });
 
-            // Draw route shape
+            // Draw full route shape
             if (data.routeId) _showRoute(data.routeId);
 
             requestAnimationFrame(() => {
@@ -1070,6 +1079,7 @@
         // ROUTE LINE
         // ═══════════════════════════════════════════════════════════════════
 
+        // Draw the full route shape for the given routeId in the route's colour.
         function _showRoute(routeId) {
             const route = _routeMap[routeId];
             const shape = route?.shape;
@@ -1092,70 +1102,96 @@
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // STOP ICON GENERATOR
-        // Canvas passed directly to map.addImage() — no pixel offset issues.
+        // STOP ICON LOADER
+        //
+        // Icons are served by the API from GET /operator/images/{filename}.
+        // To add a new stop type: drop a PNG in GetThereAPI/wwwroot/images/
+        // then add one entry to STOP_ICON_MAP — no other changes needed.
+        //
+        // GTFS routeType numbers:
+        //   0  = tram / light-rail   → tram.png
+        //   3  = bus                 → bus.png
+        //   11 = trolleybus          → tram.png  (reuses tram icon)
+        //   2  = rail/train          → add rail.png + uncomment below
+        //   4  = ferry               → add ferry.png + uncomment below
         // ═══════════════════════════════════════════════════════════════════
 
-        function _addStopIcon(id, borderColor, fillColor) {
-            const size = 44, cx = size / 2;
-            const c = document.createElement('canvas');
-            c.width = c.height = size;
-            const ctx = c.getContext('2d');
+        const STOP_ICON_MAP = {
+            0: { id: 'stop-tram', file: 'tram.png' },
+            11: { id: 'stop-tram', file: 'tram.png' },   // trolleybus reuses tram icon
+            3: { id: 'stop-bus', file: 'bus.png' },
+            // 2:  { id: 'stop-rail',  file: 'rail.png'  },   // uncomment when rail.png added
+            // 4:  { id: 'stop-ferry', file: 'ferry.png' },   // uncomment when ferry.png added
+        };
 
-            ctx.beginPath(); ctx.arc(cx, cx, cx - 2, 0, Math.PI * 2);
-            ctx.fillStyle = fillColor; ctx.fill();
-            ctx.lineWidth = 4; ctx.strokeStyle = borderColor; ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cx, 5, 0, Math.PI * 2);
-            ctx.fillStyle = borderColor; ctx.fill();
-
-            map.addImage(id, c);
+        function _loadStopIcons() {
+            // Deduplicate — tram + trolleybus share the same file/id
+            const unique = Object.values(
+                Object.values(STOP_ICON_MAP).reduce((acc, e) => { acc[e.id] = e; return acc; }, {})
+            );
+            return Promise.all(unique.map(({ id, file }) =>
+                new Promise(resolve => {
+                    const url = (window._API_BASE || '') + '/operator/images/' + file;
+                    map.loadImage(url, (err, img) => {
+                        if (err) { console.warn('[StopIcons] Failed to load', url, err); return resolve(); }
+                        if (!map.hasImage(id)) map.addImage(id, img);
+                        resolve();
+                    });
+                })
+            ));
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // VEHICLE ICON GENERATORS (zetko's bg/fg approach)
+        // VEHICLE ICON GENERATORS — exact zetRt code
         // ═══════════════════════════════════════════════════════════════════
 
         function _genVehicleBg(color) {
-            const c = document.createElement('canvas');
-            c.width = c.height = 64;
-            const ctx = c.getContext('2d');
-            const cx = 32;
-
-            ctx.fillStyle = _darken(color);
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const center = 32;
+            ctx.fillStyle = darkenColor(color, 0.8);
             ctx.beginPath();
-            ctx.moveTo(cx, 0);
-            ctx.lineTo(cx - 18, 20);
-            ctx.lineTo(cx + 18, 20);
+            ctx.moveTo(center, 0);
+            ctx.lineTo(center - 18, 20);
+            ctx.lineTo(center + 18, 20);
             ctx.closePath();
             ctx.fill();
-
             return ctx.getImageData(0, 0, 64, 64).data;
         }
 
-        async function _genVehicleFg(color, text) {
-            const c = document.createElement('canvas');
-            c.width = c.height = 42;
-            const ctx = c.getContext('2d');
-            const cx = 21;
+        async function _genVehicleFg(bg, fg, text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 42;
+            const ctx = canvas.getContext('2d');
+            const center = 21;
 
-            ctx.fillStyle = color;
-            ctx.beginPath(); ctx.arc(cx, cx, 20, 0, Math.PI * 2); ctx.fill();
-            ctx.lineWidth = 2; ctx.strokeStyle = _darken(color); ctx.stroke();
+            ctx.fillStyle = bg;
+            ctx.beginPath();
+            ctx.arc(center, center, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = darkenColor(bg, 0.8);
+            ctx.stroke();
 
             try {
-                await Promise.race([
+                await Promise.all([
+                    document.fonts.load('bold 24px "Noto Sans"'),
                     document.fonts.load('bold 20px "Noto Sans"'),
-                    new Promise(r => setTimeout(r, 400))
+                    document.fonts.load('bold 18px "Noto Sans"')
                 ]);
             } catch (_) { }
 
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = fg;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.font = text.length > 3 ? 'bold 14px Noto Sans,Arial,sans-serif'
-                : text.length > 2 ? 'bold 16px Noto Sans,Arial,sans-serif'
-                    : 'bold 20px Noto Sans,Arial,sans-serif';
-            ctx.fillText(text, cx, cx);
+            ctx.font = text.length > 3
+                ? 'bold 18px Noto Sans, sans-serif'
+                : text.length > 2
+                    ? 'bold 20px Noto Sans, sans-serif'
+                    : 'bold 24px Noto Sans, sans-serif';
+            ctx.fillText(text, center, center);
 
             return ctx.getImageData(0, 0, 42, 42).data;
         }
@@ -1180,23 +1216,11 @@
             return 'bus';
         }
 
-        function _routeTypeColors(t) {
-            const map = {
-                0: { rt: '#e53935', sched: '#757575' },  // tram
-                1: { rt: '#00796b', sched: '#757575' },  // metro
-                2: { rt: '#6a1b9a', sched: '#757575' },  // rail
-                3: { rt: '#2e7d32', sched: '#757575' },  // bus (green=live, grey=sched)
-                4: { rt: '#0277bd', sched: '#757575' },  // ferry
-                11: { rt: '#e65100', sched: '#757575' },  // trolleybus
-            };
-            return map[t] || { rt: '#2e7d32', sched: '#757575' };
-        }
-
-        function _darken(hex, f = 0.75) {
-            const h = hex.replace('#', '');
-            const r = Math.floor(parseInt(h.slice(0, 2), 16) * f);
-            const g = Math.floor(parseInt(h.slice(2, 4), 16) * f);
-            const b = Math.floor(parseInt(h.slice(4, 6), 16) * f);
+        // darkenColor — exact zetRt implementation
+        function darkenColor(hex, factor = 0.8) {
+            const r = Math.floor(parseInt(hex.slice(1, 3), 16) * factor);
+            const g = Math.floor(parseInt(hex.slice(3, 5), 16) * factor);
+            const b = Math.floor(parseInt(hex.slice(5, 7), 16) * factor);
             return `rgb(${r},${g},${b})`;
         }
 

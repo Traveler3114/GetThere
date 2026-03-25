@@ -19,6 +19,16 @@ public class OperatorService
         _http = http;
     }
 
+    // ── API base URL ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the base URL of the API (e.g. "https://localhost:7230").
+    /// Used by MapPage to inject window._API_BASE into the WebView so the
+    /// JS icon loader can fetch map icons via GET /operator/images/*.png.
+    /// </summary>
+    public string GetApiBaseUrl()
+        => _http.BaseAddress?.ToString().TrimEnd('/') ?? string.Empty;
+
     // ── Operators ─────────────────────────────────────────────────────────
 
     /// <summary>Returns all available transit operators.</summary>

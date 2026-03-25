@@ -122,5 +122,60 @@
             <components:CustomBottomBar Grid.Row="1" VerticalOptions="End" />
         </Grid>
 
+<<<<<<< HEAD
+=======
+        <!-- ── CUSTOM FILTER BOTTOM SHEET (Moved to end) ── -->
+        <Grid x:Name="FilterBottomSheet" Grid.RowSpan="2" IsVisible="False" Opacity="0" ZIndex="1000" VerticalOptions="Fill" HorizontalOptions="Fill">
+            <!-- Background Overlay -->
+            <BoxView BackgroundColor="Black" Opacity="0.5">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnHideFilterBottomSheet" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+
+            <!-- Sheet Content container to help with clipping -->
+            <Grid VerticalOptions="End" InputTransparent="False">
+                <Border x:Name="FilterContent" Margin="10,0,10,20" Padding="0" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}" 
+                        TranslationY="600" HeightRequest="320" WidthRequest="360" HorizontalOptions="Center">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="28" />
+                    </Border.StrokeShape>
+                    <Border.Shadow>
+                        <Shadow Brush="Black" Offset="0,10" Radius="30" Opacity="0.4" />
+                    </Border.Shadow>
+    
+                    <VerticalStackLayout Padding="24" Spacing="12">
+                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="Gray" Opacity="0.3" HorizontalOptions="Center" Margin="0,0,0,15" />
+                        
+                        <Label Text="Filter Tickets" HorizontalOptions="Center" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                        
+                        <Button Text="Active" Clicked="OnFilterOptionClicked" CommandParameter="Active" 
+                                BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" 
+                                TextColor="{AppThemeBinding Light=Black, Dark=White}" 
+                                CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                        
+                        <Button Text="Expired" Clicked="OnFilterOptionClicked" CommandParameter="Expired" 
+                                BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" 
+                                TextColor="{AppThemeBinding Light=Black, Dark=White}" 
+                                CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                        
+                        <Button Text="Used" Clicked="OnFilterOptionClicked" CommandParameter="Used" 
+                                BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" 
+                                TextColor="{AppThemeBinding Light=Black, Dark=White}" 
+                                CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ── GUEST OVERLAY ── -->
+        <Grid x:Name="GuestOverlay" IsVisible="False" BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}" ZIndex="2000" InputTransparent="False">
+            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="20">
+                <Label Text="Guest Mode" FontSize="26" FontAttributes="Bold" HorizontalOptions="Center" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                <Label Text="Please log in or register to access your profile." FontSize="16" HorizontalOptions="Center" TextColor="Gray" />
+                <Button Text="Login / Register" Clicked="OnLoginRegisterClicked" CornerRadius="12" HeightRequest="50" Padding="30,0" FontAttributes="Bold" Margin="0,15,0,0" />
+            </VerticalStackLayout>
+        </Grid>
+>>>>>>> main
     </Grid>
 </ContentPage>

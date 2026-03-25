@@ -5,6 +5,7 @@
              x:Class="GetThere.Pages.MapPage"
              Shell.NavBarIsVisible="False">
 
+<<<<<<< HEAD
     <Grid>
         <HybridWebView x:Name="MapWebView"
                        HybridRoot="HybridWebViewRoot" />
@@ -13,5 +14,8 @@
             VerticalOptions="End"
             IsIslandMode="True" />
     </Grid>
+=======
+    <WebView x:Name="MapWebView" />
+>>>>>>> main
 
 </ContentPage>

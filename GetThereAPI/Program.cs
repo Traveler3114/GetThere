@@ -31,6 +31,7 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddHttpClient();
+
 // ── Singletons (in-memory cache — must NOT be scoped) ─────────────────────
 // Registered before the reflection loop so the loop skips them.
 builder.Services.AddSingleton<StaticDataManager>();
@@ -75,6 +76,18 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// ── CORS — allows the MAUI WebView to fetch map icons from this API ────────
+// WebView2 (Windows) and Android WebView have unpredictable or null Origins,
+// so we allow any origin specifically for the image assets endpoint.
+// All other endpoints are protected by JWT so this is safe.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MapAssets", policy =>
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader());
+});
+
 // ─────────────────────────────────────────────────────────────────────────
 var app = builder.Build();
 // ─────────────────────────────────────────────────────────────────────────
@@ -94,6 +107,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+// Serves wwwroot/ — needed for GET /operator/images/*.png
+// Must be before UseAuthentication so icons don't require a JWT token.
+//app.UseStaticFiles();
+
+// Allows MAUI WebView to fetch icons cross-origin
+app.UseCors("MapAssets");
 
 app.UseHttpsRedirection();
 app.UseAuthentication();   // "Who are you?"    — validates the JWT

@@ -86,6 +86,18 @@
             <Label Text="OR LOG IN WITH"
                    FontSize="11" TextColor="Gray" FontAttributes="Bold"
                    HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />
+<<<<<<< HEAD
+=======
+
+            <!-- ── GUEST BUTTON ── -->
+            <Button x:Name="GuestButton"
+                    Text="Continue as Guest"
+                    Clicked="GuestButton_Clicked"
+                    BackgroundColor="{AppThemeBinding Light=#EBEBEC, Dark=#2C2C2E}"
+                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                    CornerRadius="12" FontAttributes="Bold"
+                    HeightRequest="52" Margin="0,8,0,0" />
+>>>>>>> main
 
             </VerticalStackLayout>
         </ScrollView>

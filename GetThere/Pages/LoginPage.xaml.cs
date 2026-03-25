@@ -71,7 +71,10 @@ public partial class LoginPage : ContentPage
     }
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)
-        => App.GoToApp();
+    {
+        _authService.Logout();
+        App.GoToApp();
+    }
 
     private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
     {
