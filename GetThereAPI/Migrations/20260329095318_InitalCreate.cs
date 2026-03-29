@@ -386,7 +386,11 @@ namespace GetThereAPI.Migrations
             migrationBuilder.InsertData(
                 table: "TransitOperators",
                 columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
-                values: new object[] { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" });
+                values: new object[,]
+                {
+                    { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", null, null, "HZPP", null, null, "NONE", "NONE", "GTFS", "", "" },
+                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" }
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",

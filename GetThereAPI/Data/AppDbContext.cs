@@ -71,6 +71,27 @@ namespace GetThereAPI.Data
                 }
             );
 
+
+            modelBuilder.Entity<TransitOperator>().HasData(
+            new TransitOperator
+            {
+                Id = 2,
+                Name = "HZPP",
+                LogoUrl = null,
+                TicketApiBaseUrl = "",
+                TicketApiKey = "",
+                GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                GtfsRealtimeFeedUrl = null,
+                RealtimeFeedFormat = "NONE",
+                RealtimeAuthType = "NONE",
+                RealtimeAuthConfig = null,
+                RealtimeAdapterConfig = null,
+                CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                CountryId = 1,
+                CityId = null
+            }
+        );
+
             modelBuilder.Entity<PaymentProvider>().HasData(
                 new PaymentProvider
                 {

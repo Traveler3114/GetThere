@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260316211440_InitalCreate")]
+    [Migration("20260329095318_InitalCreate")]
     partial class InitalCreate
     {
         /// <inheritdoc />
@@ -375,6 +375,19 @@ namespace GetThereAPI.Migrations
                             Name = "ZET",
                             RealtimeAuthType = "NONE",
                             RealtimeFeedFormat = "GTFS_RT_PROTO",
+                            StaticFeedFormat = "GTFS",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CountryId = 1,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                            Name = "HZPP",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "NONE",
                             StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""

@@ -568,7 +568,7 @@ const STOP_ICON_MAP = {
     0: { id: 'stop-tram', file: 'tram.png' },
     11: { id: 'stop-tram', file: 'tram.png' },   // trolleybus reuses tram icon
     3: { id: 'stop-bus', file: 'bus.png' },
-    // 2:  { id: 'stop-rail',  file: 'rail.png'  },   // uncomment when rail.png added
+    2:  { id: 'stop-train',  file: 'train.png'  },   // uncomment when rail.png added
     // 4:  { id: 'stop-ferry', file: 'ferry.png' },   // uncomment when ferry.png added
 };
 

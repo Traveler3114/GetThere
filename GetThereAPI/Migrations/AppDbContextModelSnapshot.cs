@@ -375,6 +375,19 @@ namespace GetThereAPI.Migrations
                             StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CountryId = 1,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                            Name = "HZPP",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "NONE",
+                            StaticFeedFormat = "GTFS",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
                         });
                 });
 
