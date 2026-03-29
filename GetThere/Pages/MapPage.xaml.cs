@@ -37,19 +37,28 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            using var stream = await FileSystem.OpenAppPackageFileAsync("index.html");
-            using var reader = new StreamReader(stream);
-            var html = await reader.ReadToEndAsync();
+            using var htmlStream = await FileSystem.OpenAppPackageFileAsync("map.html");
+            using var htmlReader = new StreamReader(htmlStream);
+            var html = await htmlReader.ReadToEndAsync();
 
             var apiBase = _operatorService.GetApiBaseUrl().TrimEnd('/');
 
-            // Inject API base URL
-            var injection = $"<script>window._API_BASE = '{apiBase}';</script>";
-            html = html.Replace("</head>", injection + "</head>",
+            // 1. Inline map.css — replace the <link> tag with a <style> block
+            html = await InlineCssAsync(html);
+
+            // 2. Inject API base URL
+            html = html.Replace("</head>",
+                $"<script>window._API_BASE = '{apiBase}';</script></head>",
                 StringComparison.OrdinalIgnoreCase);
 
-            // Pre-fetch stop icons and inject as base64 to avoid CORS
+            // 3. Inject map style JSON as window._MAP_STYLE
+            html = await InjectMapStyleAsync(html);
+
+            // 4. Pre-fetch stop icons and inject as base64
             html = await InjectIconsAsBase64Async(html, apiBase);
+
+            // 5. Inline map.js — replace the <script src="map.js"> tag
+            html = await InlineJsAsync(html);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
                 MapWebView.Source = new HtmlWebViewSource { Html = html });
@@ -60,9 +69,78 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // Downloads each stop icon from the API and injects it into the HTML as a
-    // base64 data URI stored in window._ICON_DATA[filename].
-    // JS reads from there instead of fetching directly — no CORS needed.
+    // Reads map.css and replaces the <link href="map.css"> tag with an inline <style> block.
+    private async Task<string> InlineCssAsync(string html)
+    {
+        try
+        {
+            using var stream = await FileSystem.OpenAppPackageFileAsync("map.css");
+            using var reader = new StreamReader(stream);
+            var css = await reader.ReadToEndAsync();
+
+            html = html.Replace(
+                "<link href=\"map.css\" rel=\"stylesheet\" />",
+                $"<style>{css}</style>",
+                StringComparison.OrdinalIgnoreCase);
+
+            Trace.WriteLine("[MapPage] map.css inlined.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MapPage] InlineCss error: {ex.Message}");
+        }
+
+        return html;
+    }
+
+    // Reads map.js and replaces the <script src="map.js"> tag with an inline <script> block.
+    private async Task<string> InlineJsAsync(string html)
+    {
+        try
+        {
+            using var stream = await FileSystem.OpenAppPackageFileAsync("map.js");
+            using var reader = new StreamReader(stream);
+            var js = await reader.ReadToEndAsync();
+
+            html = html.Replace(
+                "<script src=\"map.js\"></script>",
+                $"<script>{js}</script>",
+                StringComparison.OrdinalIgnoreCase);
+
+            Trace.WriteLine("[MapPage] map.js inlined.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MapPage] InlineJs error: {ex.Message}");
+        }
+
+        return html;
+    }
+
+    // Reads mapstyle.json and injects it as window._MAP_STYLE.
+    private async Task<string> InjectMapStyleAsync(string html)
+    {
+        try
+        {
+            using var stream = await FileSystem.OpenAppPackageFileAsync("mapstyle.json");
+            using var reader = new StreamReader(stream);
+            var styleJson = await reader.ReadToEndAsync();
+
+            html = html.Replace("</head>",
+                $"<script>window._MAP_STYLE = {styleJson};</script></head>",
+                StringComparison.OrdinalIgnoreCase);
+
+            Trace.WriteLine("[MapPage] Map style injected.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MapPage] InjectMapStyle error: {ex.Message}");
+        }
+
+        return html;
+    }
+
+    // Downloads each stop icon from the API and injects it as base64 in window._ICON_DATA.
     private async Task<string> InjectIconsAsBase64Async(string html, string apiBase)
     {
         var icons = new[] { "tram.png", "bus.png" };

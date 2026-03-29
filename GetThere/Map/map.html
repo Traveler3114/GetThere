@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link href="map.css" rel="stylesheet" />
+
+    <!--
+        C# injects two <script> blocks here (before </head>):
+          1. window._API_BASE  — API base URL
+          2. window._ICON_DATA — stop icon PNGs pre-fetched as base64
+          3. window._MAP_STYLE — map style JSON (loaded from mapstyle.json by C#)
+    -->
+    <script>
+        window._jsError = '';
+        window.onerror = function (msg, src, line, col, err) {
+            window._jsError = 'JS ERROR: ' + msg + ' @ ' + line;
+        };
+    </script>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <!-- Stop schedule panel -->
+    <div id="stop-sheet" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <span id="sheet-stop-name">Stop</span>
+            <span id="sheet-stop-id"></span>
+            <button class="panel-close" id="sheet-close">✕</button>
+        </div>
+        <div id="sheet-date"></div>
+        <div class="sched-loading" id="sheet-loading"><div class="spinner"></div> Loading…</div>
+        <div class="sched-empty" id="sheet-empty">No departures today.</div>
+        <div class="panel-body" id="sheet-body"></div>
+    </div>
+
+    <!-- Trip detail panel -->
+    <div id="trip-panel" class="bottom-panel">
+        <div class="panel-handle"></div>
+        <div class="panel-header">
+            <div class="trip-panel-route">
+                <span id="trip-panel-pill" class="route-pill bus">1</span>
+                <span id="trip-panel-headsign">Route</span>
+            </div>
+            <button class="panel-close" id="trip-panel-close">✕</button>
+        </div>
+        <div id="trip-panel-subtitle"></div>
+        <div id="trip-panel-loading" class="sched-loading"><div class="spinner"></div> Loading…</div>
+        <div class="panel-body" id="trip-panel-body"></div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="map.js"></script>
+</body>
+</html>
