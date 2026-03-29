@@ -12,8 +12,6 @@ public partial class MapPage : ContentPage
     private System.Timers.Timer? _vehicleTimer;
     private System.Timers.Timer? _jsMessageTimer;
 
-    // Completes once WebView2 finishes navigating — before this,
-    // EvaluateJavaScriptAsync returns null on Windows.
     private readonly TaskCompletionSource _navigatedTcs = new();
 
     public MapPage(OperatorService operatorService)
@@ -21,7 +19,6 @@ public partial class MapPage : ContentPage
         InitializeComponent();
         _operatorService = operatorService;
 
-        // Hook before setting Source so the event is never missed.
         MapWebView.Navigated += OnWebViewNavigated;
         _ = LoadHtmlAsync();
     }
@@ -35,9 +32,6 @@ public partial class MapPage : ContentPage
     }
 
     // ── Load HTML ─────────────────────────────────────────────────────────
-    // ── Load HTML ─────────────────────────────────────────────────────────
-    // Injects window._API_BASE so the JS icon loader can build absolute URLs.
-    // The style JSON is already baked into index.html at build time (no injection needed).
 
     private async Task LoadHtmlAsync()
     {
@@ -47,11 +41,15 @@ public partial class MapPage : ContentPage
             using var reader = new StreamReader(stream);
             var html = await reader.ReadToEndAsync();
 
-            // Inject the API base URL so JS can load icons via GET /operator/images/*.png
             var apiBase = _operatorService.GetApiBaseUrl().TrimEnd('/');
+
+            // Inject API base URL
             var injection = $"<script>window._API_BASE = '{apiBase}';</script>";
             html = html.Replace("</head>", injection + "</head>",
                 StringComparison.OrdinalIgnoreCase);
+
+            // Pre-fetch stop icons and inject as base64 to avoid CORS
+            html = await InjectIconsAsBase64Async(html, apiBase);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
                 MapWebView.Source = new HtmlWebViewSource { Html = html });
@@ -60,6 +58,37 @@ public partial class MapPage : ContentPage
         {
             Trace.WriteLine($"[MapPage] LoadHtml error: {ex.Message}");
         }
+    }
+
+    // Downloads each stop icon from the API and injects it into the HTML as a
+    // base64 data URI stored in window._ICON_DATA[filename].
+    // JS reads from there instead of fetching directly — no CORS needed.
+    private async Task<string> InjectIconsAsBase64Async(string html, string apiBase)
+    {
+        var icons = new[] { "tram.png", "bus.png" };
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<script>");
+        sb.AppendLine("window._ICON_DATA = {};");
+
+        using var http = new HttpClient();
+        foreach (var file in icons)
+        {
+            try
+            {
+                var bytes = await http.GetByteArrayAsync($"{apiBase}/images/{file}");
+                var b64 = Convert.ToBase64String(bytes);
+                sb.AppendLine($"window._ICON_DATA['{file}'] = 'data:image/png;base64,{b64}';");
+                Trace.WriteLine($"[MapPage] Icon injected: {file} ({bytes.Length} bytes)");
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[MapPage] Icon prefetch failed for {file}: {ex.Message}");
+            }
+        }
+
+        sb.AppendLine("</script>");
+        return html.Replace("</head>", sb + "</head>", StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -173,7 +202,7 @@ public partial class MapPage : ContentPage
         _vehicleTimer.Elapsed += async (_, _) => await PollVehiclesAsync();
         _vehicleTimer.AutoReset = true;
         _vehicleTimer.Start();
-        Task.Run(PollVehiclesAsync);   // immediate first fetch
+        Task.Run(PollVehiclesAsync);
     }
 
     private void StopVehiclePolling()
@@ -227,7 +256,6 @@ public partial class MapPage : ContentPage
 
             if (string.IsNullOrEmpty(raw) || raw == "null") return;
 
-            // Strip outer quotes added by some WebView implementations
             var msg = raw.Trim();
             if (msg.Length >= 2 && msg[0] == '"' && msg[^1] == '"')
                 msg = msg[1..^1];

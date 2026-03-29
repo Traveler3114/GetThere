@@ -592,10 +592,9 @@
                 data: { type: 'FeatureCollection', features: [] }
             });
 
-            // Start loading stop icons from API in the background.
-            // We don't await here — layers are added immediately and icons
-            // will appear once the API responds. _mapReady is never blocked
-            // by a network call, so stops/vehicles show up instantly.
+            // Load stop icons. Called without await so _mapReady is never
+            // blocked by a network call. Icons register themselves and then
+            // MapLibre re-renders the stops layer automatically.
             _loadStopIcons();
 
             // Single stops layer, no clustering, visible at all zoom levels ≥ 14
@@ -885,10 +884,10 @@
                                 : `<span class="delay-badge ontime">✓</span>`;
                         const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
                         return `<span class="${cls}" ${onClick}>
-                                <span class="sched-strike">${d.scheduledTime}</span>
-                                <span class="eta-time">${d.estimatedTime}</span>
-                                ${badge}${dot}
-                            </span>`;
+                                    <span class="sched-strike">${d.scheduledTime}</span>
+                                    <span class="eta-time">${d.estimatedTime}</span>
+                                    ${badge}${dot}
+                                </span>`;
                     } else if (d.isRealtime) {
                         return `<span class="${cls}" ${onClick}>${d.scheduledTime}<span class="live-dot">●</span></span>`;
                     } else {
@@ -903,13 +902,13 @@
                 const div = document.createElement('div');
                 div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
                 div.innerHTML = `
-                        <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-                            <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
-                            <span class="route-headsign">${_esc(g.headsign)}</span>
-                            <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
-                            <span class="route-chevron">▾</span>
-                        </div>
-                        <div class="route-times">${timesHtml}</div>`;
+                            <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
+                                <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
+                                <span class="route-headsign">${_esc(g.headsign)}</span>
+                                <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
+                                <span class="route-chevron">▾</span>
+                            </div>
+                            <div class="route-times">${timesHtml}</div>`;
                 _sheetBody.appendChild(div);
             });
 
@@ -954,23 +953,23 @@
                     const d = s.delayMinutes ?? 0;
                     const ec = d > 1 ? 'late' : d < -1 ? 'early' : 'ontime';
                     times = `<div class="trip-stop-times">
-                            <span class="ts-sched">${s.scheduledTime}</span>
-                            <span class="ts-eta ${ec}">${s.estimatedTime}</span>
-                        </div>`;
+                                <span class="ts-sched">${s.scheduledTime}</span>
+                                <span class="ts-eta ${ec}">${s.estimatedTime}</span>
+                            </div>`;
                 } else {
                     times = `<div class="trip-stop-times">
-                            <span class="ts-only">${s.scheduledTime}</span>
-                        </div>`;
+                                <span class="ts-only">${s.scheduledTime}</span>
+                            </div>`;
                 }
 
                 const row = document.createElement('div');
                 row.className = cls;
                 row.innerHTML = `
-                        <div class="trip-stop-dot"></div>
-                        <div class="trip-stop-info">
-                            <div class="trip-stop-name">${_esc(s.stopName)}</div>
-                        </div>
-                        ${times}`;
+                            <div class="trip-stop-dot"></div>
+                            <div class="trip-stop-info">
+                                <div class="trip-stop-name">${_esc(s.stopName)}</div>
+                            </div>
+                            ${times}`;
                 _tripBody.appendChild(row);
             });
 
@@ -1125,18 +1124,36 @@
         };
 
         function _loadStopIcons() {
-            // Deduplicate — tram + trolleybus share the same file/id
             const unique = Object.values(
                 Object.values(STOP_ICON_MAP).reduce((acc, e) => { acc[e.id] = e; return acc; }, {})
             );
             return Promise.all(unique.map(({ id, file }) =>
                 new Promise(resolve => {
-                    const url = (window._API_BASE || '') + '/operator/images/' + file;
-                    map.loadImage(url, (err, img) => {
-                        if (err) { console.warn('[StopIcons] Failed to load', url, err); return resolve(); }
-                        if (!map.hasImage(id)) map.addImage(id, img);
+                    const url = (window._API_BASE || '') + '/images/' + file;
+                    console.log('[StopIcons] Loading:', url);
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            canvas.getContext('2d').drawImage(img, 0, 0);
+                            const imageData = canvas.getContext('2d').getImageData(0, 0, img.width, img.height);
+                            if (!map.hasImage(id)) {
+                                map.addImage(id, imageData);
+                                console.log('[StopIcons] Added:', id, img.width, img.height);
+                            }
+                        } catch (e) {
+                            console.error('[StopIcons] addImage failed:', id, e);
+                        }
                         resolve();
-                    });
+                    };
+                    img.onerror = (e) => {
+                        console.error('[StopIcons] FAILED to load:', url, e);
+                        resolve();
+                    };
+                    img.crossOrigin = 'anonymous';
+                    img.src = url;
                 })
             ));
         }

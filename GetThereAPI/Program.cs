@@ -108,12 +108,8 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-// Serves wwwroot/ — needed for GET /operator/images/*.png
-// Must be before UseAuthentication so icons don't require a JWT token.
-app.UseStaticFiles();
-
-// Allows MAUI WebView to fetch icons cross-origin
 app.UseCors("MapAssets");
+app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 app.UseAuthentication();   // "Who are you?"    — validates the JWT
