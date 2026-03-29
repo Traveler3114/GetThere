@@ -27,4 +27,9 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="wwwroot\images\bus.png" />
+    <None Include="wwwroot\images\tram.png" />
+  </ItemGroup>
+
 </Project>

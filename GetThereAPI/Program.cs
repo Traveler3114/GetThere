@@ -110,7 +110,7 @@ if (app.Environment.IsDevelopment())
 
 // Serves wwwroot/ — needed for GET /operator/images/*.png
 // Must be before UseAuthentication so icons don't require a JWT token.
-//app.UseStaticFiles();
+app.UseStaticFiles();
 
 // Allows MAUI WebView to fetch icons cross-origin
 app.UseCors("MapAssets");
