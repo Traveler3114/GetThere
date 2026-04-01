@@ -56,6 +56,7 @@ async function _onMapLoad() {
             'icon-image': ['case',
                 ['==', ['get', 'routeType'], 0], 'stop-tram',
                 ['==', ['get', 'routeType'], 11], 'stop-tram',
+                ['==', ['get', 'routeType'], 2], 'stop-train',
                 'stop-bus'
             ],
             'icon-size': 0.375,
@@ -74,6 +75,7 @@ async function _onMapLoad() {
             'text-color': ['case',
                 ['==', ['get', 'routeType'], 0], '#1264AB',
                 ['==', ['get', 'routeType'], 11], '#1264AB',
+                ['==', ['get', 'routeType'], 2], '#6a1b9a',
                 '#126400'
             ],
             'text-halo-color': '#fff',
