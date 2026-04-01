@@ -1,181 +1,464 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:helpers="clr-namespace:GetThere.Helpers"
-             xmlns:components="clr-namespace:GetThere.Components"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             x:Class="GetThere.Pages.ProfilePage"
-             Title="Profile"
-             BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#000000}">
+<ContentPage
+    x:Class="GetThere.Pages.ProfilePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    Title="Profile"
+    BackgroundColor="{AppThemeBinding Light=#F2F2F7,
+                                      Dark=#000000}">
 
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
-        <helpers:TxTypeToIconConverter  x:Key="TxTypeToIconConverter" />
-
-
+        <helpers:TxTypeToIconConverter x:Key="TxTypeToIconConverter" />
 
         <DataTemplate x:Key="HistoryTemplate">
-            <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12" Padding="0,10">
-                <Border Grid.Column="0" WidthRequest="48" HeightRequest="48" BackgroundColor="{AppThemeBinding Light=#ECECEC, Dark=#2C2C2E}" StrokeThickness="0">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="24"/></Border.StrokeShape>
-                    <Label Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+            <Grid
+                Padding="0,10"
+                ColumnDefinitions="48,*,Auto"
+                ColumnSpacing="12">
+                <Border
+                    Grid.Column="0"
+                    BackgroundColor="{AppThemeBinding Light=#ECECEC,
+                                                      Dark=#2C2C2E}"
+                    HeightRequest="48"
+                    StrokeThickness="0"
+                    WidthRequest="48">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="24" />
+                    </Border.StrokeShape>
+                    <Label
+                        FontSize="22"
+                        HorizontalOptions="Center"
+                        Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}"
+                        VerticalOptions="Center" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                    <Label Text="{Binding Description}" FontSize="15" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" MaxLines="1" LineBreakMode="TailTruncation" />
-                    <Label Text="{Binding Timestamp, StringFormat='{0:dddd}'}" FontSize="12" TextColor="Gray" />
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="15"
+                        LineBreakMode="TailTruncation"
+                        MaxLines="1"
+                        Text="{Binding Description}"
+                        TextColor="{AppThemeBinding Light=Black,
+                                                    Dark=White}" />
+                    <Label
+                        FontSize="12"
+                        Text="{Binding Timestamp, StringFormat='{0:dddd}'}"
+                        TextColor="Gray" />
                 </VerticalStackLayout>
-                <HorizontalStackLayout Grid.Column="2" Spacing="2" VerticalOptions="Center">
-                    <Label Text="{Binding Amount, StringFormat='+€{0:F2}'}" FontSize="16" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                    <Label Text="›" FontSize="20" TextColor="#C7C7CC" VerticalOptions="Center" />
+                <HorizontalStackLayout
+                    Grid.Column="2"
+                    Spacing="2"
+                    VerticalOptions="Center">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="16"
+                        Text="{Binding Amount, StringFormat='+€{0:F2}'}"
+                        TextColor="{AppThemeBinding Light=Black,
+                                                    Dark=White}" />
+                    <Label
+                        FontSize="20"
+                        Text="›"
+                        TextColor="#C7C7CC"
+                        VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="TicketTemplate">
+            <Grid
+                Padding="0,10"
+                ColumnDefinitions="48,*,Auto"
+                ColumnSpacing="12">
+                <Border
+                    Grid.Column="0"
+                    BackgroundColor="{AppThemeBinding Light=#ECECEC,
+                                                      Dark=#2C2C2E}"
+                    HeightRequest="48"
+                    StrokeThickness="0"
+                    WidthRequest="48">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="24" />
+                    </Border.StrokeShape>
+                    <Image
+                        HeightRequest="24"
+                        HorizontalOptions="Center"
+                        Source="tab_tram.png"
+                        VerticalOptions="Center"
+                        WidthRequest="24">
+                        <Image.Behaviors>
+                            <toolkit:IconTintColorBehavior TintColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}" />
+                        </Image.Behaviors>
+                    </Image>
+                </Border>
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="15"
+                        Text="{Binding Name}"
+                        TextColor="{AppThemeBinding Light=Black,
+                                                    Dark=White}" />
+                    <Label
+                        FontSize="12"
+                        Text="{Binding Status}"
+                        TextColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}" />
+                </VerticalStackLayout>
+                <HorizontalStackLayout Grid.Column="2" VerticalOptions="Center">
+                    <Label
+                        FontSize="20"
+                        Text="›"
+                        TextColor="#C7C7CC" />
                 </HorizontalStackLayout>
             </Grid>
         </DataTemplate>
     </ContentPage.Resources>
 
     <Grid RowDefinitions="*">
-        <!-- ── DECORATIVE BACKGROUND CIRCLES ── -->
-        <!-- Animated background (behind everything) -->
+        <!--  ── DECORATIVE BACKGROUND CIRCLES ──  -->
         <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
 
-        <Grid RowDefinitions="Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*">
 
+            <!--  ── TABS ──  -->
+            <Grid
+                Grid.Row="0"
+                Padding="16,10"
+                ColumnDefinitions="*,*"
+                ColumnSpacing="8">
+                <Button
+                    x:Name="HistoryTabBtn"
+                    Grid.Column="0"
+                    BackgroundColor="{AppThemeBinding Light=#EBEBEC,
+                                                      Dark=#2C2C2E}"
+                    Clicked="HistoryTab_Clicked"
+                    CornerRadius="10"
+                    FontAttributes="Bold"
+                    FontSize="14"
+                    HeightRequest="40"
+                    Text="History"
+                    TextColor="{AppThemeBinding Light=Black,
+                                                Dark=White}" />
+                <Button
+                    x:Name="TicketsTabBtn"
+                    Grid.Column="1"
+                    BackgroundColor="Transparent"
+                    Clicked="TicketsTab_Clicked"
+                    CornerRadius="10"
+                    FontAttributes="Bold"
+                    FontSize="14"
+                    HeightRequest="40"
+                    Text="Tickets"
+                    TextColor="Gray" />
+            </Grid>
 
-            <ScrollView Grid.Row="1">
+            <!--  ── FILTER ROW ──  -->
+            <Grid
+                x:Name="FilterRow"
+                Grid.Row="1"
+                Padding="20,0,20,10"
+                ColumnDefinitions="*,Auto"
+                IsVisible="False">
+                <Label
+                    x:Name="CurrentFilterLabel"
+                    FontAttributes="Bold"
+                    FontSize="13"
+                    Text="Active Tickets"
+                    TextColor="Gray"
+                    VerticalOptions="Center" />
+                <Button
+                    Grid.Column="1"
+                    BackgroundColor="Transparent"
+                    Clicked="OnShowFilterOptions"
+                    FontSize="13"
+                    FontAttributes="Bold"
+                    Padding="0"
+                    HeightRequest="30"
+                    Text="Filter"
+                    TextColor="#4CAF50" />
+            </Grid>
+
+            <ScrollView Grid.Row="2">
                 <VerticalStackLayout Padding="0,0,0,100" Spacing="20">
-                    
-                    <!-- ── MAIN PASS CARD (Apple Style) ── -->
-                    <Border Margin="16,5,16,10" HeightRequest="210" StrokeThickness="0">
+
+                    <!--  ── MAIN PASS CARD (Apple Style) ──  -->
+                    <Border
+                        Margin="16,5,16,10"
+                        HeightRequest="210"
+                        StrokeThickness="0">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="16" />
                         </Border.StrokeShape>
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#A2AAEE" Offset="0.1" />
-                                <GradientStop Color="#E1BEE7" Offset="0.4" />
-                                <GradientStop Color="#FFB2A0" Offset="0.7" />
-                                <GradientStop Color="#FFE082" Offset="1.0" />
+                                <GradientStop Offset="0.1" Color="#A2AAEE" />
+                                <GradientStop Offset="0.4" Color="#E1BEE7" />
+                                <GradientStop Offset="0.7" Color="#FFB2A0" />
+                                <GradientStop Offset="1.0" Color="#FFE082" />
                             </LinearGradientBrush>
                         </Border.Background>
                         <Border.Shadow>
-                            <Shadow Brush="Black" Offset="0,6" Radius="15" Opacity="0.1" />
+                            <Shadow
+                                Brush="Black"
+                                Opacity="0.1"
+                                Radius="15"
+                                Offset="0,6" />
                         </Border.Shadow>
-                        
+
                         <Grid Padding="20">
-                            <Label Text="Gt" FontSize="28" FontAttributes="Bold" TextColor="#40000000" HorizontalOptions="Start" VerticalOptions="Start" />
-                            
-                            <!-- CENTER BALANCE SECTION (NO PLUS BUTTON HERE) -->
-                            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="0">
-                                <Label x:Name="BalanceLabelOnCard" Text="€0.00" FontSize="44" FontAttributes="Bold" TextColor="#D0000000" HorizontalTextAlignment="Center" />
+                            <Label
+                                FontAttributes="Bold"
+                                FontSize="28"
+                                HorizontalOptions="Start"
+                                Text="Gt"
+                                TextColor="#40000000"
+                                VerticalOptions="Start" />
+
+                            <!--  CENTER BALANCE SECTION (NO PLUS BUTTON HERE)  -->
+                            <VerticalStackLayout
+                                HorizontalOptions="Center"
+                                Spacing="0"
+                                VerticalOptions="Center">
+                                <Label
+                                    x:Name="BalanceLabelOnCard"
+                                    FontAttributes="Bold"
+                                    FontSize="44"
+                                    HorizontalTextAlignment="Center"
+                                    Text="€0.00"
+                                    TextColor="#D0000000" />
                             </VerticalStackLayout>
-                            
-                            <VerticalStackLayout VerticalOptions="End" Spacing="2">
-                                <Label x:Name="NameLabelOnCard" Text="User Name" FontSize="18" FontAttributes="Bold" TextColor="#50000000" />
+
+                            <VerticalStackLayout Spacing="2" VerticalOptions="End">
+                                <Label
+                                    x:Name="NameLabelOnCard"
+                                    FontAttributes="Bold"
+                                    FontSize="18"
+                                    Text="User Name"
+                                    TextColor="#50000000" />
                             </VerticalStackLayout>
-                            
-                            <Image Source="tab_tram.png" HorizontalOptions="End" VerticalOptions="Start" WidthRequest="40" Opacity="0.1" />
+
+                            <Image
+                                HorizontalOptions="End"
+                                Opacity="0.1"
+                                Source="tab_tram.png"
+                                VerticalOptions="Start"
+                                WidthRequest="40" />
                         </Grid>
                     </Border>
 
-                    <!-- ── PLUS BUTTON BELOW CARD ── -->
-                    <Button Style="{x:Null}" Background="{x:Null}" Text="+" Clicked="OnTopUpClicked" 
-                            BackgroundColor="#EBEBEC" 
-                            TextColor="Black" 
-                            FontSize="28" FontAttributes="Bold"
-                            HeightRequest="56" WidthRequest="56"
-                            CornerRadius="28" Padding="0" 
-                            HorizontalOptions="Center" 
-                            Margin="0,-48,0,0"
-                            ZIndex="1">
+                    <!--  ── PLUS BUTTON BELOW CARD ──  -->
+                    <Button
+                        Margin="0,-48,0,0"
+                        Padding="0"
+                        Background="{x:Null}"
+                        BackgroundColor="#EBEBEC"
+                        Clicked="OnTopUpClicked"
+                        CornerRadius="28"
+                        FontAttributes="Bold"
+                        FontSize="28"
+                        HeightRequest="56"
+                        HorizontalOptions="Center"
+                        Style="{x:Null}"
+                        Text="+"
+                        TextColor="Black"
+                        WidthRequest="56"
+                        ZIndex="1">
                         <Button.Shadow>
-                            <Shadow Brush="Black" Offset="0,4" Radius="10" Opacity="0.1" />
+                            <Shadow
+                                Brush="Black"
+                                Opacity="0.1"
+                                Radius="10"
+                                Offset="0,4" />
                         </Button.Shadow>
                     </Button>
 
-                    <Label Text="TRANSACTION HISTORY"
-                           FontSize="11" TextColor="Gray" FontAttributes="Bold"
-                           HorizontalOptions="Center" Margin="0,10,0,0" CharacterSpacing="1" />
-
-                    <!-- ── CONTENT SECTION ── -->
-                    <Border Margin="16,10,16,0" Padding="15" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
-                        <Border.StrokeShape><RoundRectangle CornerRadius="20"/></Border.StrokeShape>
+                    <!--  ── LIST SECTION ──  -->
+                    <Border
+                        Margin="16,10,16,0"
+                        Padding="15"
+                        BackgroundColor="{AppThemeBinding Light=#FFFFFF,
+                                                          Dark=#1C1C1E}"
+                        StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="20" />
+                        </Border.StrokeShape>
                         <Border.Shadow>
-                            <Shadow Brush="Black" Offset="0,2" Radius="10" Opacity="0.05" />
+                            <Shadow
+                                Brush="Black"
+                                Opacity="0.05"
+                                Radius="10"
+                                Offset="0,2" />
                         </Border.Shadow>
                         <VerticalStackLayout Spacing="10">
+                            <!--  Loaders  -->
+                            <ActivityIndicator
+                                x:Name="BusyLoader"
+                                HeightRequest="40"
+                                IsRunning="False"
+                                IsVisible="False"
+                                Color="#4CAF50" />
 
-    
-                            <!-- Loaders -->
-                            <ActivityIndicator x:Name="BusyLoader" IsRunning="False" IsVisible="False" Color="#4CAF50" HeightRequest="40" />
-    
-                            <!-- List Content -->
-                            <CollectionView x:Name="MainCollection" SelectionMode="None" 
-                                            ItemTemplate="{StaticResource HistoryTemplate}" />
-                            
-                            <Label x:Name="NoItemsLabel" Text="No items found." IsVisible="False" HorizontalOptions="Center" TextColor="Gray" Margin="0,30" />
+                            <!--  List Content  -->
+                            <CollectionView
+                                x:Name="MainCollection"
+                                ItemTemplate="{StaticResource HistoryTemplate}"
+                                SelectionMode="None" />
+
+                            <Label
+                                x:Name="NoItemsLabel"
+                                Margin="0,30"
+                                HorizontalOptions="Center"
+                                IsVisible="False"
+                                Text="No items found."
+                                TextColor="Gray" />
                         </VerticalStackLayout>
                     </Border>
 
                 </VerticalStackLayout>
             </ScrollView>
 
-            <!-- ── CUSTOM BOTTOM BAR ── -->
-            <components:CustomBottomBar Grid.Row="1" VerticalOptions="End" />
+            <!--  ── CUSTOM BOTTOM BAR ──  -->
+            <components:CustomBottomBar Grid.Row="2" VerticalOptions="End" />
         </Grid>
 
-<<<<<<< HEAD
-=======
-        <!-- ── CUSTOM FILTER BOTTOM SHEET (Moved to end) ── -->
-        <Grid x:Name="FilterBottomSheet" Grid.RowSpan="2" IsVisible="False" Opacity="0" ZIndex="1000" VerticalOptions="Fill" HorizontalOptions="Fill">
-            <!-- Background Overlay -->
+        <!--  ── CUSTOM FILTER BOTTOM SHEET ──  -->
+        <Grid
+            x:Name="FilterBottomSheet"
+            Grid.RowSpan="2"
+            HorizontalOptions="Fill"
+            InputTransparent="False"
+            IsVisible="False"
+            Opacity="0"
+            VerticalOptions="Fill"
+            ZIndex="1000">
+            <!--  Background Overlay  -->
             <BoxView BackgroundColor="Black" Opacity="0.5">
                 <BoxView.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnHideFilterBottomSheet" />
                 </BoxView.GestureRecognizers>
             </BoxView>
 
-            <!-- Sheet Content container to help with clipping -->
-            <Grid VerticalOptions="End" InputTransparent="False">
-                <Border x:Name="FilterContent" Margin="10,0,10,20" Padding="0" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}" 
-                        TranslationY="600" HeightRequest="320" WidthRequest="360" HorizontalOptions="Center">
+            <!--  Sheet Content container  -->
+            <Grid InputTransparent="False" VerticalOptions="End">
+                <Border
+                    x:Name="FilterContent"
+                    Margin="10,0,10,20"
+                    Padding="0"
+                    BackgroundColor="{AppThemeBinding Light=#FFFFFF,
+                                                      Dark=#1C1C1E}"
+                    HeightRequest="320"
+                    HorizontalOptions="Center"
+                    StrokeThickness="0"
+                    TranslationY="600"
+                    WidthRequest="360">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="28" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Offset="0,10" Radius="30" Opacity="0.4" />
+                        <Shadow
+                            Brush="Black"
+                            Opacity="0.4"
+                            Radius="30"
+                            Offset="0,10" />
                     </Border.Shadow>
-    
+
                     <VerticalStackLayout Padding="24" Spacing="12">
-                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="Gray" Opacity="0.3" HorizontalOptions="Center" Margin="0,0,0,15" />
-                        
-                        <Label Text="Filter Tickets" HorizontalOptions="Center" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        
-                        <Button Text="Active" Clicked="OnFilterOptionClicked" CommandParameter="Active" 
-                                BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" 
-                                TextColor="{AppThemeBinding Light=Black, Dark=White}" 
-                                CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
-                        
-                        <Button Text="Expired" Clicked="OnFilterOptionClicked" CommandParameter="Expired" 
-                                BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" 
-                                TextColor="{AppThemeBinding Light=Black, Dark=White}" 
-                                CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
-                        
-                        <Button Text="Used" Clicked="OnFilterOptionClicked" CommandParameter="Used" 
-                                BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" 
-                                TextColor="{AppThemeBinding Light=Black, Dark=White}" 
-                                CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
+                        <BoxView
+                            Margin="0,0,0,15"
+                            BackgroundColor="Gray"
+                            CornerRadius="2"
+                            HeightRequest="4"
+                            HorizontalOptions="Center"
+                            Opacity="0.3"
+                            WidthRequest="40" />
+
+                        <Label
+                            FontAttributes="Bold"
+                            FontSize="20"
+                            HorizontalOptions="Center"
+                            Text="Filter Tickets"
+                            TextColor="{AppThemeBinding Light=Black,
+                                                        Dark=White}" />
+
+                        <Button
+                            BackgroundColor="{AppThemeBinding Light=#F2F2F7,
+                                                              Dark=#2C2C2E}"
+                            Clicked="OnFilterOptionClicked"
+                            CommandParameter="Active"
+                            CornerRadius="12"
+                            FontAttributes="Bold"
+                            FontSize="16"
+                            HeightRequest="50"
+                            Text="Active"
+                            TextColor="{AppThemeBinding Light=Black,
+                                                        Dark=White}" />
+
+                        <Button
+                            BackgroundColor="{AppThemeBinding Light=#F2F2F7,
+                                                              Dark=#2C2C2E}"
+                            Clicked="OnFilterOptionClicked"
+                            CommandParameter="Expired"
+                            CornerRadius="12"
+                            FontAttributes="Bold"
+                            FontSize="16"
+                            HeightRequest="50"
+                            Text="Expired"
+                            TextColor="{AppThemeBinding Light=Black,
+                                                        Dark=White}" />
+
+                        <Button
+                            BackgroundColor="{AppThemeBinding Light=#F2F2F7,
+                                                              Dark=#2C2C2E}"
+                            Clicked="OnFilterOptionClicked"
+                            CommandParameter="Used"
+                            CornerRadius="12"
+                            FontAttributes="Bold"
+                            FontSize="16"
+                            HeightRequest="50"
+                            Text="Used"
+                            TextColor="{AppThemeBinding Light=Black,
+                                                        Dark=White}" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
         </Grid>
 
-        <!-- ── GUEST OVERLAY ── -->
-        <Grid x:Name="GuestOverlay" IsVisible="False" BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}" ZIndex="2000" InputTransparent="False">
-            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="20">
-                <Label Text="Guest Mode" FontSize="26" FontAttributes="Bold" HorizontalOptions="Center" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                <Label Text="Please log in or register to access your profile." FontSize="16" HorizontalOptions="Center" TextColor="Gray" />
-                <Button Text="Login / Register" Clicked="OnLoginRegisterClicked" CornerRadius="12" HeightRequest="50" Padding="30,0" FontAttributes="Bold" Margin="0,15,0,0" />
+        <!--  ── GUEST OVERLAY ──  -->
+        <Grid
+            x:Name="GuestOverlay"
+            BackgroundColor="{AppThemeBinding Light=#E6FFFFFF,
+                                              Dark=#E6000000}"
+            InputTransparent="False"
+            IsVisible="False"
+            ZIndex="2000">
+            <VerticalStackLayout
+                HorizontalOptions="Center"
+                Spacing="20"
+                VerticalOptions="Center">
+                <Label
+                    FontAttributes="Bold"
+                    FontSize="26"
+                    HorizontalOptions="Center"
+                    Text="Guest Mode"
+                    TextColor="{AppThemeBinding Light=Black,
+                                                Dark=White}" />
+                <Label
+                    FontSize="16"
+                    HorizontalOptions="Center"
+                    Text="Please log in or register to access your profile."
+                    TextColor="Gray" />
+                <Button
+                    Margin="0,15,0,0"
+                    Padding="30,0"
+                    Clicked="OnLoginRegisterClicked"
+                    CornerRadius="12"
+                    FontAttributes="Bold"
+                    HeightRequest="50"
+                    Text="Login / Register" />
             </VerticalStackLayout>
         </Grid>
->>>>>>> main
+
     </Grid>
 </ContentPage>

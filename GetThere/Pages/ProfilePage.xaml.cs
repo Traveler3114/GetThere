@@ -12,13 +12,19 @@ public partial class ProfilePage : ContentPage
     private readonly WalletService _walletService;
     private readonly PaymentService _paymentService;
     private readonly AuthService _authService;
+    private readonly TicketService _ticketService;
 
-    public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService)
+    private bool _isShowingTickets = false;
+    private TicketStatus _currentFilter = TicketStatus.Active;
+    private List<TicketDto> _allTickets = new();
+
+    public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService, TicketService ticketService)
     {
         InitializeComponent();
         _walletService = walletService;
         _paymentService = paymentService;
         _authService = authService;
+        _ticketService = ticketService;
     }
 
     protected override async void OnAppearing()
@@ -89,8 +95,32 @@ public partial class ProfilePage : ContentPage
         }
     }
 
-<<<<<<< HEAD
-=======
+    private async Task LoadTicketsAsync()
+    {
+        BusyLoader.IsVisible = true;
+        BusyLoader.IsRunning = true;
+        NoItemsLabel.IsVisible = false;
+        
+        try
+        {
+            var result = await _ticketService.GetTicketsAsync();
+            if (result.Success && result.Data != null)
+            {
+                _allTickets = result.Data.ToList();
+                ApplyTicketFilter(_currentFilter);
+            }
+        }
+        catch
+        {
+            NoItemsLabel.IsVisible = true;
+        }
+        finally
+        {
+            BusyLoader.IsVisible = false;
+            BusyLoader.IsRunning = false;
+        }
+    }
+
     private void OnLoginRegisterClicked(object? sender, EventArgs e)
     {
         App.GoToLogin();
@@ -174,7 +204,7 @@ public partial class ProfilePage : ContentPage
         await LoadHistoryAsync();
     }
 
->>>>>>> main
+
     private async void OnTopUpClicked(object? sender, EventArgs e)
     {
         var input = await DisplayPromptAsync("Top Up", "Amount (€):", "Next", "Cancel", "10.00", -1, Keyboard.Numeric);
