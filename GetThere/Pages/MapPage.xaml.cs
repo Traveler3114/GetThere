@@ -143,7 +143,7 @@ public partial class MapPage : ContentPage
     // Downloads each stop icon from the API and injects it as base64 in window._ICON_DATA.
     private async Task<string> InjectIconsAsBase64Async(string html, string apiBase)
     {
-        var icons = new[] { "tram.png", "bus.png" };
+        var icons = new[] { "tram.png", "bus.png", "train.png" };
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("<script>");
