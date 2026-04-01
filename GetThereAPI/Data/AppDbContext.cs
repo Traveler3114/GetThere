@@ -14,6 +14,8 @@ namespace GetThereAPI.Data
         public DbSet<Ticket> Tickets { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<TransitOperator> TransitOperators { get; set; }
+
+        public DbSet<TransportType> TransportTypes { get; set; }
         public DbSet<PaymentProvider> PaymentProviders { get; set; }
         public DbSet<Country> Countries { get; set; }
         public DbSet<City> Cities { get; set; }

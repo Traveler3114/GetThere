@@ -74,19 +74,19 @@ public class StaticDataManager
     /// Downloads and parses static data for one operator.
     /// Called by OperatorManager on server startup and weekly thereafter.
     /// </summary>
-    public async Task LoadOperatorAsync(TransitOperator op)
+    public async Task<HashSet<int>> LoadOperatorAsync(TransitOperator op)
     {
         if (string.IsNullOrEmpty(op.GtfsFeedUrl))
         {
             _logger.LogWarning("[Static:{Name}] No GtfsFeedUrl set, skipping", op.Name);
-            return;
+            return [];
         }
 
         _logger.LogInformation("[Static:{Name}] Downloading from {Url}", op.Name, op.GtfsFeedUrl);
 
         try
         {
-            var http     = _httpFactory.CreateClient();
+            var http = _httpFactory.CreateClient();
             var zipBytes = await http.GetByteArrayAsync(op.GtfsFeedUrl);
             _logger.LogInformation("[Static:{Name}] Downloaded {Kb} KB",
                 op.Name, zipBytes.Length / 1024);
@@ -96,21 +96,22 @@ public class StaticDataManager
             _parsers[op.Id] = parser;
 
             // Parse everything upfront — all subsequent reads are from RAM
-            var stops        = await parser.ParseStopsAsync(zipBytes);
-            var routes       = await parser.ParseRoutesAsync(zipBytes);
+            var stops = await parser.ParseStopsAsync(zipBytes);
+            var routes = await parser.ParseRoutesAsync(zipBytes);
             var tripRouteMap = await parser.ParseTripRouteMapAsync(zipBytes);
+            var usedTypes = await parser.ParseUsedRouteTypesAsync(zipBytes);
 
             // Build quick-lookup maps for route names and types
             var routeNames = routes.ToDictionary(r => r.RouteId, r => r.ShortName);
             var routeTypes = routes.ToDictionary(r => r.RouteId, r => r.RouteType);
 
             // Store in memory
-            _stops[op.Id]        = stops;
-            _routes[op.Id]       = routes;
+            _stops[op.Id] = stops;
+            _routes[op.Id] = routes;
             _tripRouteMap[op.Id] = tripRouteMap;
-            _routeNames[op.Id]   = routeNames;
-            _routeTypes[op.Id]   = routeTypes;
-            _zipBytes[op.Id]     = zipBytes;   // kept for on-demand schedule parsing
+            _routeNames[op.Id] = routeNames;
+            _routeTypes[op.Id] = routeTypes;
+            _zipBytes[op.Id] = zipBytes;
 
             // Clear trip cache since we have fresh data
             _tripStopCache.Clear();
@@ -118,10 +119,13 @@ public class StaticDataManager
             _logger.LogInformation(
                 "[Static:{Name}] Loaded {S} stops, {R} routes, {T} trips",
                 op.Name, stops.Count, routes.Count, tripRouteMap.Count);
+
+            return usedTypes;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[Static:{Name}] Failed to load", op.Name);
+            return [];
         }
     }
 

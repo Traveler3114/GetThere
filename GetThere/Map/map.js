@@ -53,12 +53,7 @@ async function _onMapLoad() {
         source: 'gtfs-stops',
         minzoom: 14,
         layout: {
-            'icon-image': ['case',
-                ['==', ['get', 'routeType'], 0], 'stop-tram',
-                ['==', ['get', 'routeType'], 11], 'stop-tram',
-                ['==', ['get', 'routeType'], 2], 'stop-train',
-                'stop-bus'
-            ],
+            'icon-image': _buildIconExpression(),
             'icon-size': 0.375,
             'icon-anchor': 'bottom',
             'icon-allow-overlap': true,
@@ -72,12 +67,7 @@ async function _onMapLoad() {
             'text-font': ['Noto Sans Regular'],
         },
         paint: {
-            'text-color': ['case',
-                ['==', ['get', 'routeType'], 0], '#1264AB',
-                ['==', ['get', 'routeType'], 11], '#1264AB',
-                ['==', ['get', 'routeType'], 2], '#6a1b9a',
-                '#126400'
-            ],
+            'text-color': _buildColorExpression(),
             'text-halo-color': '#fff',
             'text-halo-width': 1,
         }
@@ -566,13 +556,31 @@ function _clearRoute() {
 //   4  = ferry               → add ferry.png + uncomment below
 // ═══════════════════════════════════════════════════════════════════
 
-const STOP_ICON_MAP = {
-    0: { id: 'stop-tram', file: 'tram.png' },
-    11: { id: 'stop-tram', file: 'tram.png' },   // trolleybus reuses tram icon
-    3: { id: 'stop-bus', file: 'bus.png' },
-    2:  { id: 'stop-train',  file: 'train.png'  },   // uncomment when rail.png added
-    // 4:  { id: 'stop-ferry', file: 'ferry.png' },   // uncomment when ferry.png added
-};
+const STOP_ICON_MAP = Object.fromEntries(
+    (window._TRANSPORT_TYPES || []).map(t => [
+        t.gtfsRouteType,
+        { id: 'stop-' + t.iconFile.replace('.png', ''), file: t.iconFile, color: t.color }
+    ])
+);
+function _buildIconExpression() {
+    const expr = ['case'];
+    for (const [type, cfg] of Object.entries(STOP_ICON_MAP)) {
+        if (cfg.id === _defaultIconId) continue;
+        expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.id);
+    }
+    expr.push(_defaultIconId);
+    return expr;
+}
+
+function _buildColorExpression() {
+    const expr = ['case'];
+    for (const [type, cfg] of Object.entries(STOP_ICON_MAP)) {
+        if (cfg.color === _defaultColor) continue;
+        expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.color);
+    }
+    expr.push(_defaultColor);
+    return expr;
+}
 
 function _loadStopIcons() {
     const unique = Object.values(

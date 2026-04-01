@@ -1,3 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+
 namespace GetThereAPI.Entities
 {
     public class TransitOperator
@@ -59,5 +63,9 @@ namespace GetThereAPI.Entities
 
         public int? CityId { get; set; }
         public City? City { get; set; }
+
+
+        // Navigation: Transport types this operator runs (tram, bus, train etc.)
+        public ICollection<TransportType> TransportTypes { get; set; } = new List<TransportType>();
     }
 }

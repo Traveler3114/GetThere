@@ -190,6 +190,30 @@ public class GtfsStaticParser : IStaticDataParser
         return result;
     }
 
+    public async Task<HashSet<int>> ParseUsedRouteTypesAsync(byte[] data)
+    {
+        using var zip = Open(data);
+        var result = new HashSet<int>();
+        var entry = zip.GetEntry("routes.txt");
+        if (entry is null) return result;
+
+        await using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        var cols = Header(await reader.ReadLineAsync());
+        int iType = Col(cols, "route_type");
+        if (iType < 0) return result;
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) is not null)
+        {
+            var v = Split(line);
+            if (v.Count <= iType) continue;
+            if (int.TryParse(Cell(v, iType), out int rt))
+                result.Add(rt);
+        }
+        return result;
+    }
+
     // ── Internal parsers ──────────────────────────────────────────────────
 
     private static async Task<Dictionary<string, int>> ParseRouteTypesAsync(ZipArchive zip)
@@ -583,6 +607,7 @@ public class GtfsStaticParser : IStaticDataParser
         }
         return result;
     }
+
 
     // ── CSV utilities ─────────────────────────────────────────────────────
 

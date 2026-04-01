@@ -40,4 +40,7 @@ public interface IStaticDataParser
 
     /// <summary>Full ordered stop sequence for one trip.</summary>
     Task<List<TripStopDto>> ParseTripStopsAsync(byte[] data, string tripId);
+
+    /// <summary>Distinct route types present in this feed.</summary>
+    Task<HashSet<int>> ParseUsedRouteTypesAsync(byte[] data);
 }

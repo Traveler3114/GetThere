@@ -43,7 +43,7 @@ public partial class MapPage : ContentPage
 
             var apiBase = _operatorService.GetApiBaseUrl().TrimEnd('/');
 
-            // 1. Inline map.css — replace the <link> tag with a <style> block
+            // 1. Inline map.css
             html = await InlineCssAsync(html);
 
             // 2. Inject API base URL
@@ -54,10 +54,10 @@ public partial class MapPage : ContentPage
             // 3. Inject map style JSON as window._MAP_STYLE
             html = await InjectMapStyleAsync(html);
 
-            // 4. Pre-fetch stop icons and inject as base64
-            html = await InjectIconsAsBase64Async(html, apiBase);
+            // 4. Fetch transport types from server, inject icons + config
+            html = await InjectTransportTypesAsync(html, apiBase);
 
-            // 5. Inline map.js — replace the <script src="map.js"> tag
+            // 5. Inline map.js
             html = await InlineJsAsync(html);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -140,33 +140,54 @@ public partial class MapPage : ContentPage
         return html;
     }
 
-    // Downloads each stop icon from the API and injects it as base64 in window._ICON_DATA.
-    private async Task<string> InjectIconsAsBase64Async(string html, string apiBase)
+    // Fetches transport types from the API, injects window._TRANSPORT_TYPES
+    // and pre-fetches each icon as base64 into window._ICON_DATA.
+    private async Task<string> InjectTransportTypesAsync(string html, string apiBase)
     {
-        var icons = new[] { "tram.png", "bus.png", "train.png" };
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("<script>");
-        sb.AppendLine("window._ICON_DATA = {};");
-
-        using var http = new HttpClient();
-        foreach (var file in icons)
+        try
         {
-            try
+            var types = await _operatorService.GetTransportTypesAsync() ?? [];
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("<script>");
+
+            // Inject transport type config for map.js to build icon map dynamically
+            var typesJson = JsonSerializer.Serialize(types,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            sb.AppendLine($"window._TRANSPORT_TYPES = {typesJson};");
+
+            // Pre-fetch each icon as base64 to avoid CORS issues in WebView
+            sb.AppendLine("window._ICON_DATA = {};");
+            using var http = new HttpClient();
+
+            // Deduplicate — multiple types can share the same icon file (e.g. tram + trolleybus)
+            var uniqueFiles = types.Select(t => t.IconFile).Distinct();
+            foreach (var file in uniqueFiles)
             {
-                var bytes = await http.GetByteArrayAsync($"{apiBase}/images/{file}");
-                var b64 = Convert.ToBase64String(bytes);
-                sb.AppendLine($"window._ICON_DATA['{file}'] = 'data:image/png;base64,{b64}';");
-                Trace.WriteLine($"[MapPage] Icon injected: {file} ({bytes.Length} bytes)");
+                try
+                {
+                    var bytes = await http.GetByteArrayAsync($"{apiBase}/images/{file}");
+                    var b64 = Convert.ToBase64String(bytes);
+                    sb.AppendLine($"window._ICON_DATA['{file}'] = 'data:image/png;base64,{b64}';");
+                    Trace.WriteLine($"[MapPage] Icon injected: {file} ({bytes.Length} bytes)");
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"[MapPage] Icon prefetch failed for {file}: {ex.Message}");
+                }
             }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"[MapPage] Icon prefetch failed for {file}: {ex.Message}");
-            }
+
+            sb.AppendLine("</script>");
+            html = html.Replace("</head>", sb + "</head>", StringComparison.OrdinalIgnoreCase);
+
+            Trace.WriteLine($"[MapPage] Transport types injected: {types.Count} types.");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MapPage] InjectTransportTypes error: {ex.Message}");
         }
 
-        sb.AppendLine("</script>");
-        return html.Replace("</head>", sb + "</head>", StringComparison.OrdinalIgnoreCase);
+        return html;
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────

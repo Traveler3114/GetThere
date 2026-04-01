@@ -265,17 +265,31 @@ public class OperatorManager
         var operators = await _db.TransitOperators
             .Include(o => o.Country)
             .Include(o => o.City)
+            .Include(o => o.TransportTypes)
             .ToListAsync();
 
         _logger.LogInformation("[Startup] Loading {Count} operators", operators.Count);
 
         foreach (var op in operators)
         {
-            // Load static data (stops, routes, trips)
             if (!string.IsNullOrEmpty(op.GtfsFeedUrl))
-                await _staticData.LoadOperatorAsync(op);
+            {
+                var usedTypes = await _staticData.LoadOperatorAsync(op);
 
-            // Register for realtime polling if feed URL is set
+                // Link operator to its transport types in the join table
+                // Only links types that have been manually added to TransportTypes by admin
+                // Skips any route type not in the DB — admin controls what's supported
+                var matchingTypes = await _db.TransportTypes
+                    .Where(t => usedTypes.Contains(t.GtfsRouteType))
+                    .ToListAsync();
+
+                foreach (var type in matchingTypes)
+                    if (!op.TransportTypes.Any(t => t.Id == type.Id))
+                        op.TransportTypes.Add(type);
+
+                await _db.SaveChangesAsync();
+            }
+
             if (!string.IsNullOrEmpty(op.GtfsRealtimeFeedUrl))
                 _realtime.RegisterOperator(op);
         }
