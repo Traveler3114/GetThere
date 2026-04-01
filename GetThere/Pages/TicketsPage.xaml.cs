@@ -2,6 +2,7 @@ using GetThereShared.Dtos;
 using GetThereShared.Enums;
 using GetThere.Services;
 using GetThere.Helpers;
+using Microsoft.Maui.Controls;
 
 namespace GetThere.Pages;
 
@@ -52,8 +53,12 @@ public partial class TicketsPage : ContentPage
             .OrderByDescending(t => t.ValidUntil)
             .ToList();
 
-        TicketsList.ItemsSource = filtered;
-        CurrentFilterLabel.Text = $"{_activeFilter} Tickets";
+        BindableLayout.SetItemsSource(TicketsRows, filtered);
+        BindableLayout.SetItemTemplate(TicketsRows, (DataTemplate)Resources["TicketRowTemplate"]);
+        TicketsRows.IsVisible = filtered.Any();
+        TicketsEmptyState.IsVisible = !filtered.Any();
+        TicketsEmptyLabel.Text = $"No {_activeFilter.ToString().ToLower()} tickets";
+        FilterBtn.Text = $"{_activeFilter} ▾";
     }
 
     private async void OnShowFilterOptions(object? sender, EventArgs e)

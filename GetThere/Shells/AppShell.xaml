@@ -17,17 +17,18 @@
         <ShellContent
             x:Name="ProfileTab"
             Title=""
-            Icon="icon_profile.svg"
+            Icon="tab_train.png"
             ContentTemplate="{DataTemplate pages:ProfilePage}"
             Route="profile" />
         <ShellContent
             Title=""
-            Icon="icon_location_pin.svg"
+            Icon="tab_bus.png"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent
+            x:Name="TicketsTab"
             Title=""
-            Icon="icon_operators.svg"
+            Icon="tab_tram.png"
             ContentTemplate="{DataTemplate pages:TicketsPage}"
             Route="tickets" />
     </TabBar>

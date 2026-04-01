@@ -116,72 +116,13 @@
         </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="*">
+    <Grid RowDefinitions="*,Auto">
         <!--  ── DECORATIVE BACKGROUND CIRCLES ──  -->
         <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
 
-        <Grid RowDefinitions="Auto,Auto,*">
-
-            <!--  ── TABS ──  -->
-            <Grid
-                Grid.Row="0"
-                Padding="16,10"
-                ColumnDefinitions="*,*"
-                ColumnSpacing="8">
-                <Button
-                    x:Name="HistoryTabBtn"
-                    Grid.Column="0"
-                    BackgroundColor="{AppThemeBinding Light=#EBEBEC,
-                                                      Dark=#2C2C2E}"
-                    Clicked="HistoryTab_Clicked"
-                    CornerRadius="10"
-                    FontAttributes="Bold"
-                    FontSize="14"
-                    HeightRequest="40"
-                    Text="History"
-                    TextColor="{AppThemeBinding Light=Black,
-                                                Dark=White}" />
-                <Button
-                    x:Name="TicketsTabBtn"
-                    Grid.Column="1"
-                    BackgroundColor="Transparent"
-                    Clicked="TicketsTab_Clicked"
-                    CornerRadius="10"
-                    FontAttributes="Bold"
-                    FontSize="14"
-                    HeightRequest="40"
-                    Text="Tickets"
-                    TextColor="Gray" />
-            </Grid>
-
-            <!--  ── FILTER ROW ──  -->
-            <Grid
-                x:Name="FilterRow"
-                Grid.Row="1"
-                Padding="20,0,20,10"
-                ColumnDefinitions="*,Auto"
-                IsVisible="False">
-                <Label
-                    x:Name="CurrentFilterLabel"
-                    FontAttributes="Bold"
-                    FontSize="13"
-                    Text="Active Tickets"
-                    TextColor="Gray"
-                    VerticalOptions="Center" />
-                <Button
-                    Grid.Column="1"
-                    BackgroundColor="Transparent"
-                    Clicked="OnShowFilterOptions"
-                    FontSize="13"
-                    FontAttributes="Bold"
-                    Padding="0"
-                    HeightRequest="30"
-                    Text="Filter"
-                    TextColor="#4CAF50" />
-            </Grid>
-
-            <ScrollView Grid.Row="2">
-                <VerticalStackLayout Padding="0,0,0,100" Spacing="20">
+        <Grid Grid.Row="0" RowDefinitions="Auto,*">
+            <ScrollView Grid.Row="0">
+                <VerticalStackLayout Padding="0,0,0,100" Spacing="14">
 
                     <!--  ── MAIN PASS CARD (Apple Style) ──  -->
                     <Border
@@ -274,9 +215,24 @@
                         </Button.Shadow>
                     </Button>
 
+                    <VerticalStackLayout Margin="0,4,0,0" Spacing="6" HorizontalOptions="Center">
+                        <Label
+                            FontAttributes="Bold"
+                            FontSize="18"
+                            HorizontalOptions="Center"
+                            Text="History"
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                        <BoxView
+                            WidthRequest="70"
+                            HeightRequest="3"
+                            CornerRadius="2"
+                            HorizontalOptions="Center"
+                            BackgroundColor="{AppThemeBinding Light=#D1D1D6, Dark=#3A3A3C}" />
+                    </VerticalStackLayout>
+
                     <!--  ── LIST SECTION ──  -->
                     <Border
-                        Margin="16,10,16,0"
+                        Margin="16,2,16,0"
                         Padding="15"
                         BackgroundColor="{AppThemeBinding Light=#FFFFFF,
                                                           Dark=#1C1C1E}"
@@ -318,109 +274,6 @@
 
                 </VerticalStackLayout>
             </ScrollView>
-
-        </Grid>
-
-        <!--  ── CUSTOM FILTER BOTTOM SHEET ──  -->
-        <Grid
-            x:Name="FilterBottomSheet"
-            Grid.RowSpan="2"
-            HorizontalOptions="Fill"
-            InputTransparent="False"
-            IsVisible="False"
-            Opacity="0"
-            VerticalOptions="Fill"
-            ZIndex="1000">
-            <!--  Background Overlay  -->
-            <BoxView BackgroundColor="Black" Opacity="0.5">
-                <BoxView.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnHideFilterBottomSheet" />
-                </BoxView.GestureRecognizers>
-            </BoxView>
-
-            <!--  Sheet Content container  -->
-            <Grid InputTransparent="False" VerticalOptions="End">
-                <Border
-                    x:Name="FilterContent"
-                    Margin="10,0,10,20"
-                    Padding="0"
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF,
-                                                      Dark=#1C1C1E}"
-                    HeightRequest="320"
-                    HorizontalOptions="Center"
-                    StrokeThickness="0"
-                    TranslationY="600"
-                    WidthRequest="360">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="28" />
-                    </Border.StrokeShape>
-                    <Border.Shadow>
-                        <Shadow
-                            Brush="Black"
-                            Opacity="0.4"
-                            Radius="30"
-                            Offset="0,10" />
-                    </Border.Shadow>
-
-                    <VerticalStackLayout Padding="24" Spacing="12">
-                        <BoxView
-                            Margin="0,0,0,15"
-                            BackgroundColor="Gray"
-                            CornerRadius="2"
-                            HeightRequest="4"
-                            HorizontalOptions="Center"
-                            Opacity="0.3"
-                            WidthRequest="40" />
-
-                        <Label
-                            FontAttributes="Bold"
-                            FontSize="20"
-                            HorizontalOptions="Center"
-                            Text="Filter Tickets"
-                            TextColor="{AppThemeBinding Light=Black,
-                                                        Dark=White}" />
-
-                        <Button
-                            BackgroundColor="{AppThemeBinding Light=#F2F2F7,
-                                                              Dark=#2C2C2E}"
-                            Clicked="OnFilterOptionClicked"
-                            CommandParameter="Active"
-                            CornerRadius="12"
-                            FontAttributes="Bold"
-                            FontSize="16"
-                            HeightRequest="50"
-                            Text="Active"
-                            TextColor="{AppThemeBinding Light=Black,
-                                                        Dark=White}" />
-
-                        <Button
-                            BackgroundColor="{AppThemeBinding Light=#F2F2F7,
-                                                              Dark=#2C2C2E}"
-                            Clicked="OnFilterOptionClicked"
-                            CommandParameter="Expired"
-                            CornerRadius="12"
-                            FontAttributes="Bold"
-                            FontSize="16"
-                            HeightRequest="50"
-                            Text="Expired"
-                            TextColor="{AppThemeBinding Light=Black,
-                                                        Dark=White}" />
-
-                        <Button
-                            BackgroundColor="{AppThemeBinding Light=#F2F2F7,
-                                                              Dark=#2C2C2E}"
-                            Clicked="OnFilterOptionClicked"
-                            CommandParameter="Used"
-                            CornerRadius="12"
-                            FontAttributes="Bold"
-                            FontSize="16"
-                            HeightRequest="50"
-                            Text="Used"
-                            TextColor="{AppThemeBinding Light=Black,
-                                                        Dark=White}" />
-                    </VerticalStackLayout>
-                </Border>
-            </Grid>
         </Grid>
 
         <!--  ── GUEST OVERLAY ──  -->

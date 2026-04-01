@@ -5,77 +5,141 @@
              xmlns:helpers="clr-namespace:GetThere.Helpers"
              x:Class="GetThere.Pages.TicketsPage"
              Title="My Tickets"
-             BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#000000}">
+              BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#120D14}">
 
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
+        <DataTemplate x:Key="TicketRowTemplate">
+            <Grid Padding="0,10" ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
+                <Border Grid.Column="0"
+                        WidthRequest="48"
+                        HeightRequest="48"
+                        StrokeThickness="0"
+                    BackgroundColor="{AppThemeBinding Light=#ECECEC, Dark=#3A2A42}">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="24" />
+                    </Border.StrokeShape>
+                    <Image Source="ticket_icon.png"
+                           WidthRequest="24"
+                           HeightRequest="24"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                </Border>
+
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                    <Label Text="{Binding TicketType}"
+                           FontSize="15"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                    <Label Text="{Binding PurchasedAt, StringFormat='{0:dddd}'}"
+                           FontSize="12"
+                           TextColor="Gray" />
+                </VerticalStackLayout>
+
+                <Border Grid.Column="2"
+                        VerticalOptions="Center"
+                        Padding="12,8"
+                        StrokeThickness="0"
+                        BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="12" />
+                    </Border.StrokeShape>
+                    <HorizontalStackLayout Spacing="2">
+                        <Label Text="{Binding Status}"
+                               TextColor="White"
+                               FontSize="12"
+                               FontAttributes="Bold" />
+                        <Label Text="›"
+                               FontSize="16"
+                               TextColor="White"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+            </Grid>
+        </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,*">
         <!-- ── DECORATIVE BACKGROUND CIRCLES ── -->
-        <components:AnimatedBackground x:Name="AnimatedBg" Grid.RowSpan="3" />
+        <components:AnimatedBackground x:Name="AnimatedBg" />
 
         <!-- ── HEADER ── -->
-        <Label Grid.Row="0" Text="My Tickets" FontSize="28" FontAttributes="Bold" Margin="20,20,20,10" 
-               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,*" Padding="16,18,16,0">
+            <Label Grid.ColumnSpan="3"
+                   Text="My Tickets"
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   HorizontalTextAlignment="Center"
+                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+            <Button x:Name="FilterBtn"
+                    Grid.Column="2"
+                    Style="{x:Null}"
+                    Background="{x:Null}"
+                    Text="Active ▾"
+                    Clicked="OnShowFilterOptions"
+                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#261A2B}"
+                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                    CornerRadius="16"
+                    HeightRequest="36"
+                    Padding="20,0"
+                    FontSize="14"
+                    FontAttributes="Bold"
+                    HorizontalOptions="End">
+                <Button.Shadow>
+                    <Shadow Brush="Transparent" Offset="0,2" Radius="5" Opacity="1" />
+                </Button.Shadow>
+            </Button>
+        </Grid>
 
-        <VerticalStackLayout Grid.Row="1" Spacing="20" Padding="16,0,16,100">
-            <!-- ── FILTER SECTION (Matches Profile Style) ── -->
-            <Grid ColumnDefinitions="*,Auto" Margin="4,0,4,0">
-                <Label x:Name="CurrentFilterLabel" Text="Active Tickets" VerticalOptions="Center" FontSize="18" FontAttributes="Bold" TextColor="Gray" />
-                <Button x:Name="FilterBtn" Style="{x:Null}" Background="{x:Null}" Grid.Column="1" Text="Filter ▾" Clicked="OnShowFilterOptions" 
-                        BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}" 
-                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                        CornerRadius="16" HeightRequest="36" Padding="20,0" FontSize="14" FontAttributes="Bold">
-                    <Button.Shadow>
-                        <Shadow Brush="Black" Offset="0,2" Radius="5" Opacity="0.05" />
-                    </Button.Shadow>
-                </Button>
-            </Grid>
-            
-            <!-- ── TICKETS LIST ── -->
-            <CollectionView x:Name="TicketsList" SelectionMode="None">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Border Margin="0,0,0,16" Padding="20" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1C1C1E}">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="20"/></Border.StrokeShape>
-                            <Border.Shadow>
-                                <Shadow Brush="Black" Offset="0,4" Radius="10" Opacity="0.05" />
-                            </Border.Shadow>
-                            
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                                <!-- Info -->
-                                <Label Text="{Binding TicketType}" FontSize="18" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                
-                                <HorizontalStackLayout Grid.Row="1" Spacing="5">
-                                    <Label Text="Expires:" FontSize="13" TextColor="Gray" />
-                                    <Label Text="{Binding ValidUntil, StringFormat='{0:dd MMM HH:mm}'}" FontSize="13" TextColor="Gray" FontAttributes="Bold" />
-                                </HorizontalStackLayout>
-
-                                <Label Grid.Row="2" Text="{Binding OperatorName}" FontSize="13" TextColor="#4CAF50" FontAttributes="Bold" />
-
-                                <!-- Status -->
-                                <Border Grid.Column="1" Grid.RowSpan="3" VerticalOptions="Center" Padding="15,8" StrokeThickness="0" 
-                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}">
-                                    <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
-                                    <Label Text="{Binding Status}" TextColor="White" FontSize="12" FontAttributes="Bold" />
-                                </Border>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-                
-                <CollectionView.EmptyView>
-                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Margin="0,50">
-                        <Label Text="No tickets found" FontSize="18" TextColor="Gray" HorizontalOptions="Center" />
-                        <Label Text="Try changing your filter" FontSize="14" TextColor="Gray" Opacity="0.7" HorizontalOptions="Center" />
-                    </VerticalStackLayout>
-                </CollectionView.EmptyView>
-            </CollectionView>
+        <VerticalStackLayout Grid.Row="1" Margin="0,4,0,0" Spacing="6" HorizontalOptions="Center">
+            <BoxView WidthRequest="70"
+                     HeightRequest="3"
+                     CornerRadius="2"
+                     HorizontalOptions="Center"
+                     BackgroundColor="{AppThemeBinding Light=#D1D1D6, Dark=#3A3A3C}" />
         </VerticalStackLayout>
 
-        <!-- Loading Indicator -->
-        <ActivityIndicator x:Name="BusyIndicator" Grid.Row="1" VerticalOptions="Center" HorizontalOptions="Center" WidthRequest="40" HeightRequest="40" Color="#4CAF50" IsVisible="False" />
+        <Grid Grid.Row="2" Padding="16,8,16,100" BackgroundColor="Transparent" VerticalOptions="Start">
+            <Border x:Name="TicketsContainer"
+                    Padding="15"
+                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                    StrokeThickness="0"
+                    VerticalOptions="Start">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="20" />
+                </Border.StrokeShape>
+
+                <VerticalStackLayout Spacing="10" VerticalOptions="Start">
+                    <ActivityIndicator x:Name="BusyIndicator"
+                                       HeightRequest="40"
+                                       IsRunning="False"
+                                       IsVisible="False"
+                                       Color="#4CAF50" />
+
+                    <VerticalStackLayout x:Name="TicketsRows"
+                                         Spacing="0"
+                                         VerticalOptions="Start" />
+
+                    <VerticalStackLayout x:Name="TicketsEmptyState"
+                                         IsVisible="False"
+                                         HorizontalOptions="Center"
+                                         VerticalOptions="Center"
+                                         Padding="0,12"
+                                         Spacing="10">
+                        <Label x:Name="TicketsEmptyLabel"
+                               Text="No tickets found"
+                               FontSize="18"
+                               TextColor="Gray"
+                               HorizontalOptions="Center" />
+                        <Label Text="Try changing your filter"
+                               FontSize="14"
+                               TextColor="Gray"
+                               Opacity="1"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
 
         <!-- ── CUSTOM FILTER BOTTOM SHEET ── -->
         <Grid x:Name="FilterBottomSheet" Grid.RowSpan="3" IsVisible="False" Opacity="0" ZIndex="1000" VerticalOptions="Fill" HorizontalOptions="Fill">
