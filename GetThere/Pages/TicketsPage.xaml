@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:helpers="clr-namespace:GetThere.Helpers"
              xmlns:components="clr-namespace:GetThere.Components"
+             xmlns:helpers="clr-namespace:GetThere.Helpers"
              x:Class="GetThere.Pages.TicketsPage"
              Title="My Tickets"
              BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#000000}">
@@ -100,7 +100,5 @@
             </Grid>
         </Grid>
 
-        <!-- ── CUSTOM BOTTOM BAR ── -->
-        <components:CustomBottomBar Grid.Row="2" VerticalOptions="End" IsIslandMode="True" />
     </Grid>
 </ContentPage>

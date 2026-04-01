@@ -1,38 +1,19 @@
 #nullable enable
-using System.Windows.Input;
 
-namespace GetThere
+namespace GetThere;
+
+public partial class AppShell : Shell
 {
-    public partial class AppShell : Shell
+    public AppShell()
     {
-        public ICommand GoToProfileCommand { get; }
-        public ICommand GoToMapCommand { get; }
-        public ICommand GoToTicketsCommand { get; }
+        InitializeComponent();
+    }
 
-        public AppShell()
-        {
-            InitializeComponent();
+    public void UpdateProfileIcon(ImageSource? source)
+    {
+        var profileTab = this.FindByName<ShellContent>("ProfileTab");
+        if (profileTab == null) return;
 
-            GoToProfileCommand = new Command(async () => await GoToAsync("///profile"));
-            GoToMapCommand = new Command(async () => await GoToAsync("///map"));
-            GoToTicketsCommand = new Command(async () => await GoToAsync("///tickets"));
-
-            BindingContext = this;
-        }
-
-        public void UpdateProfileIcon(ImageSource? source)
-        {
-            var profileTab = this.FindByName<ShellContent>("ProfileTab");
-            if (profileTab == null) return;
-
-            if (source != null)
-            {
-                profileTab.Icon = source;
-            }
-            else
-            {
-                profileTab.Icon = "icon_profile.svg";
-            }
-        }
+        profileTab.Icon = source ?? "icon_profile.svg";
     }
 }
