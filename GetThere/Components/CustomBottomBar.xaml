@@ -126,20 +126,20 @@
                     </ContentView.GestureRecognizers>
                 </ContentView>
 
-                <!--  Operators Tab  -->
+                <!--  Tickets Tab  -->
                 <ContentView Grid.Column="2">
                     <Image
-                        x:Name="OperatorsIcon"
+                        x:Name="TicketsIcon"
                         Aspect="AspectFit"
                         HeightRequest="30"
-                        Source="tab_bus.png"
+                        Source="icon_operators.svg"
                         WidthRequest="30">
                         <Image.Behaviors>
-                            <toolkit:IconTintColorBehavior x:Name="OperatorsTint" TintColor="Gray" />
+                            <toolkit:IconTintColorBehavior x:Name="TicketsTint" TintColor="Gray" />
                         </Image.Behaviors>
                     </Image>
                     <ContentView.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnOperatorsTapped" />
+                        <TapGestureRecognizer Tapped="OnTicketsTapped" />
                     </ContentView.GestureRecognizers>
                 </ContentView>
             </Grid>

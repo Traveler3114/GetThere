@@ -3,15 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:components="clr-namespace:GetThere.Components"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:behaviors="clr-namespace:GetThere.Behaviors"
              x:Class="GetThere.Pages.RegistrationPage"
              Title="Create account"
              BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
 
     <Grid RowDefinitions="*">
-        <Grid.Behaviors>
-            <behaviors:BackSwipeBehavior />
-        </Grid.Behaviors>
         <!-- Animated background (behind everything) -->
         <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
 
@@ -132,13 +128,10 @@
                             Color="#800080"
                             HorizontalOptions="Center" />
 
-
-                <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
+            <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
             <Label Text="OR SIGN UP WITH"
                    FontSize="11" TextColor="Gray" FontAttributes="Bold"
                    HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />
-            
-
 
             </VerticalStackLayout>
         </ScrollView>
