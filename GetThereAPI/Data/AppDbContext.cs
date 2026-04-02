@@ -14,6 +14,7 @@ namespace GetThereAPI.Data
         public DbSet<Ticket> Tickets { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<TransitOperator> TransitOperators { get; set; }
+        public DbSet<TransportType> TransportTypes { get; set; }
         public DbSet<PaymentProvider> PaymentProviders { get; set; }
         public DbSet<Country> Countries { get; set; }
         public DbSet<City> Cities { get; set; }
@@ -44,7 +45,7 @@ namespace GetThereAPI.Data
 
 
             modelBuilder.Entity<Country>().HasData(
-            new Country { Id = 1, Name = "Croatia" }
+                new Country { Id = 1, Name = "Croatia" }
             );
 
             modelBuilder.Entity<City>().HasData(
@@ -68,29 +69,31 @@ namespace GetThereAPI.Data
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                     CountryId = 1,
                     CityId = 1
+                },
+                new TransitOperator
+                {
+                    Id = 2,
+                    Name = "HZPP",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    RealtimeFeedFormat = "NONE",
+                    RealtimeAuthType = "NONE",
+                    RealtimeAuthConfig = null,
+                    RealtimeAdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 1,
+                    CityId = null
                 }
             );
 
-
-            modelBuilder.Entity<TransitOperator>().HasData(
-            new TransitOperator
-            {
-                Id = 2,
-                Name = "HZPP",
-                LogoUrl = null,
-                TicketApiBaseUrl = "",
-                TicketApiKey = "",
-                GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                GtfsRealtimeFeedUrl = null,
-                RealtimeFeedFormat = "NONE",
-                RealtimeAuthType = "NONE",
-                RealtimeAuthConfig = null,
-                RealtimeAdapterConfig = null,
-                CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                CountryId = 1,
-                CityId = null
-            }
-        );
+            modelBuilder.Entity<TransportType>().HasData(
+                new TransportType { Id = 1, GtfsRouteType = 0, Name = "Tram", IconFile = "tram.png", Color = "#1264AB" },
+                new TransportType { Id = 2, GtfsRouteType = 3, Name = "Bus", IconFile = "bus.png", Color = "#126400" },
+                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#6a1b9a" }
+            );
 
             modelBuilder.Entity<PaymentProvider>().HasData(
                 new PaymentProvider

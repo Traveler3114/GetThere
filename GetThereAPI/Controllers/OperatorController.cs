@@ -2,6 +2,7 @@ using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
 
 namespace GetThereAPI.Controllers;
 
@@ -14,16 +15,19 @@ namespace GetThereAPI.Controllers;
 /// GET /operator/vehicles           → all live vehicles across all operators
 /// GET /operator/stops/{id}/schedule → departures for a stop (with realtime)
 /// GET /operator/trips/{id}         → full stop sequence for a trip (with realtime)
+/// GET /operator/transport-types    → transport types with available icons
 /// </summary>
 [ApiController]
 [Route("[controller]")]
 public class OperatorController : ControllerBase
 {
     private readonly OperatorManager _manager;
+    private readonly IWebHostEnvironment _env;
 
-    public OperatorController(OperatorManager manager)
+    public OperatorController(OperatorManager manager, IWebHostEnvironment env)
     {
         _manager = manager;
+        _env = env;
     }
 
     // GET /operator
@@ -82,5 +86,13 @@ public class OperatorController : ControllerBase
                 $"Trip '{tripId}' not found"));
 
         return Ok(OperationResult<TripDetailDto>.Ok(detail));
+    }
+
+    // GET /operator/transport-types
+    [HttpGet("transport-types")]
+    public async Task<ActionResult<OperationResult<List<TransportTypeDto>>>> GetTransportTypes()
+    {
+        var types = await _manager.GetTransportTypesAsync(_env);
+        return Ok(OperationResult<List<TransportTypeDto>>.Ok(types));
     }
 }

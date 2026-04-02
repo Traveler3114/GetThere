@@ -53,12 +53,7 @@ async function _onMapLoad() {
         source: 'gtfs-stops',
         minzoom: 14,
         layout: {
-            'icon-image': ['case',
-                ['==', ['get', 'routeType'], 0], 'stop-tram',
-                ['==', ['get', 'routeType'], 11], 'stop-tram',
-                ['==', ['get', 'routeType'], 2], 'stop-train',
-                'stop-bus'
-            ],
+            'icon-image': _buildIconExpression(),
             'icon-size': 0.375,
             'icon-anchor': 'bottom',
             'icon-allow-overlap': true,
@@ -72,12 +67,7 @@ async function _onMapLoad() {
             'text-font': ['Noto Sans Regular'],
         },
         paint: {
-            'text-color': ['case',
-                ['==', ['get', 'routeType'], 0], '#1264AB',
-                ['==', ['get', 'routeType'], 11], '#1264AB',
-                ['==', ['get', 'routeType'], 2], '#6a1b9a',
-                '#126400'
-            ],
+            'text-color': _buildColorExpression(),
             'text-halo-color': '#fff',
             'text-halo-width': 1,
         }
@@ -566,13 +556,39 @@ function _clearRoute() {
 //   4  = ferry               → add ferry.png + uncomment below
 // ═══════════════════════════════════════════════════════════════════
 
-const STOP_ICON_MAP = {
-    0: { id: 'stop-tram', file: 'tram.png' },
-    11: { id: 'stop-tram', file: 'tram.png' },   // trolleybus reuses tram icon
-    3: { id: 'stop-bus', file: 'bus.png' },
-    2:  { id: 'stop-train',  file: 'train.png'  },   // uncomment when rail.png added
-    // 4:  { id: 'stop-ferry', file: 'ferry.png' },   // uncomment when ferry.png added
-};
+const STOP_ICON_MAP = Object.fromEntries(
+    (window._TRANSPORT_TYPES || []).map(t => [
+        t.gtfsRouteType,
+        { id: 'stop-' + t.iconFile.replace('.png', ''), file: t.iconFile, color: t.color }
+    ])
+);
+
+// Default fallback: prefer bus (routeType 3), otherwise first available type
+const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { id: 'stop-bus', color: '#126400' };
+const _defaultIconId = _defaultEntry.id;
+const _defaultColor = _defaultEntry.color;
+
+function _buildIconExpression() {
+    const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.id !== _defaultIconId);
+    if (!nonDefault.length) return _defaultIconId;
+    const expr = ['case'];
+    for (const [type, cfg] of nonDefault) {
+        expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.id);
+    }
+    expr.push(_defaultIconId);
+    return expr;
+}
+
+function _buildColorExpression() {
+    const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.color !== _defaultColor);
+    if (!nonDefault.length) return _defaultColor;
+    const expr = ['case'];
+    for (const [type, cfg] of nonDefault) {
+        expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.color);
+    }
+    expr.push(_defaultColor);
+    return expr;
+}
 
 function _loadStopIcons() {
     const unique = Object.values(

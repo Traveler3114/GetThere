@@ -106,6 +106,28 @@ public class OperatorService
         }
     }
 
+    // ── Transport types ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns transport types that have icons available on the server.
+    /// Used by the map to build icon map and layer expressions dynamically.
+    /// Called once on app startup.
+    /// </summary>
+    public async Task<List<TransportTypeDto>?> GetTransportTypesAsync()
+    {
+        try
+        {
+            var result = await _http.GetFromJsonAsync<OperationResult<List<TransportTypeDto>>>(
+                "operator/transport-types");
+            return result?.Data;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[OperatorService] GetTransportTypes failed: {ex.Message}");
+            return null;
+        }
+    }
+
     // ── Schedule ──────────────────────────────────────────────────────────
 
     /// <summary>

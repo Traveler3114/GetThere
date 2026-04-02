@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <None Include="wwwroot\images\bus.png" />
+    <None Include="wwwroot\images\train.png" />
     <None Include="wwwroot\images\tram.png" />
   </ItemGroup>
 

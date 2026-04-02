@@ -391,6 +391,60 @@ namespace GetThereAPI.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GetThereAPI.Entities.TransportType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("GtfsRouteType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IconFile")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TransportTypes");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Color = "#1264AB",
+                            GtfsRouteType = 0,
+                            IconFile = "tram.png",
+                            Name = "Tram"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Color = "#126400",
+                            GtfsRouteType = 3,
+                            IconFile = "bus.png",
+                            Name = "Bus"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Color = "#6a1b9a",
+                            GtfsRouteType = 2,
+                            IconFile = "train.png",
+                            Name = "Train"
+                        });
+                });
+
             modelBuilder.Entity("GetThereAPI.Entities.Wallet", b =>
                 {
                     b.Property<int>("Id")
@@ -585,6 +639,21 @@ namespace GetThereAPI.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("TransitOperatorTransportType", b =>
+                {
+                    b.Property<int>("OperatorsId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TransportTypesId")
+                        .HasColumnType("int");
+
+                    b.HasKey("OperatorsId", "TransportTypesId");
+
+                    b.HasIndex("TransportTypesId");
+
+                    b.ToTable("TransitOperatorTransportType");
+                });
+
             modelBuilder.Entity("GetThereAPI.Entities.City", b =>
                 {
                     b.HasOne("GetThereAPI.Entities.Country", "Country")
@@ -724,6 +793,21 @@ namespace GetThereAPI.Migrations
                     b.HasOne("GetThereAPI.Entities.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TransitOperatorTransportType", b =>
+                {
+                    b.HasOne("GetThereAPI.Entities.TransitOperator", null)
+                        .WithMany()
+                        .HasForeignKey("OperatorsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GetThereAPI.Entities.TransportType", null)
+                        .WithMany()
+                        .HasForeignKey("TransportTypesId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
