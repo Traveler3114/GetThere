@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class InitalCreate : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -84,6 +84,22 @@ namespace GetThereAPI.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_PaymentProviders", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TransportTypes",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    GtfsRouteType = table.Column<int>(type: "int", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IconFile = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Color = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TransportTypes", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -336,6 +352,30 @@ namespace GetThereAPI.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TransitOperatorTransportType",
+                columns: table => new
+                {
+                    OperatorsId = table.Column<int>(type: "int", nullable: false),
+                    TransportTypesId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TransitOperatorTransportType", x => new { x.OperatorsId, x.TransportTypesId });
+                    table.ForeignKey(
+                        name: "FK_TransitOperatorTransportType_TransitOperators_OperatorsId",
+                        column: x => x.OperatorsId,
+                        principalTable: "TransitOperators",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_TransitOperatorTransportType_TransportTypes_TransportTypesId",
+                        column: x => x.TransportTypesId,
+                        principalTable: "TransportTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "WalletTransactions",
                 columns: table => new
                 {
@@ -376,6 +416,16 @@ namespace GetThereAPI.Migrations
                 {
                     { 1, "https://mockpay.example.com", "MOCK_API_KEY", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "MockPay", null },
                     { 2, "https://testpay.example.com", "TEST_API_KEY", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "TestPay", "SECRET123" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "TransportTypes",
+                columns: new[] { "Id", "Color", "GtfsRouteType", "IconFile", "Name" },
+                values: new object[,]
+                {
+                    { 1, "#1264AB", 0, "tram.png", "Tram" },
+                    { 2, "#126400", 3, "bus.png", "Bus" },
+                    { 3, "#6a1b9a", 2, "train.png", "Train" }
                 });
 
             migrationBuilder.InsertData(
@@ -467,6 +517,11 @@ namespace GetThereAPI.Migrations
                 column: "CountryId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TransitOperatorTransportType_TransportTypesId",
+                table: "TransitOperatorTransportType",
+                column: "TransportTypesId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Wallets_UserId",
                 table: "Wallets",
                 column: "UserId");
@@ -504,6 +559,9 @@ namespace GetThereAPI.Migrations
                 name: "Payments");
 
             migrationBuilder.DropTable(
+                name: "TransitOperatorTransportType");
+
+            migrationBuilder.DropTable(
                 name: "WalletTransactions");
 
             migrationBuilder.DropTable(
@@ -511,6 +569,9 @@ namespace GetThereAPI.Migrations
 
             migrationBuilder.DropTable(
                 name: "PaymentProviders");
+
+            migrationBuilder.DropTable(
+                name: "TransportTypes");
 
             migrationBuilder.DropTable(
                 name: "Tickets");

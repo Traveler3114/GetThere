@@ -34,6 +34,21 @@ public class OperatorManager
     }
 
     // ── Operators ─────────────────────────────────────────────────────────
+    public async Task<List<TransportTypeDto>> GetTransportTypesAsync(IWebHostEnvironment env)
+    {
+        var imagesPath = Path.Combine(env.WebRootPath, "images");
+
+        return await _db.TransportTypes
+            .Where(t => File.Exists(Path.Combine(imagesPath, t.IconFile)))
+            .Select(t => new TransportTypeDto
+            {
+                GtfsRouteType = t.GtfsRouteType,
+                Name = t.Name,
+                IconFile = t.IconFile,
+                Color = t.Color,
+            })
+            .ToListAsync();
+    }
 
     /// <summary>
     /// Returns all operators from the database.
