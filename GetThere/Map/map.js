@@ -562,6 +562,12 @@ const STOP_ICON_MAP = Object.fromEntries(
         { id: 'stop-' + t.iconFile.replace('.png', ''), file: t.iconFile, color: t.color }
     ])
 );
+
+// Default fallback: prefer bus (routeType 3), otherwise first available type
+const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { id: 'stop-bus', color: '#126400' };
+const _defaultIconId = _defaultEntry.id;
+const _defaultColor = _defaultEntry.color;
+
 function _buildIconExpression() {
     const expr = ['case'];
     for (const [type, cfg] of Object.entries(STOP_ICON_MAP)) {
