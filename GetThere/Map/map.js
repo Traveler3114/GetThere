@@ -569,9 +569,10 @@ const _defaultIconId = _defaultEntry.id;
 const _defaultColor = _defaultEntry.color;
 
 function _buildIconExpression() {
+    const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.id !== _defaultIconId);
+    if (!nonDefault.length) return _defaultIconId;
     const expr = ['case'];
-    for (const [type, cfg] of Object.entries(STOP_ICON_MAP)) {
-        if (cfg.id === _defaultIconId) continue;
+    for (const [type, cfg] of nonDefault) {
         expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.id);
     }
     expr.push(_defaultIconId);
@@ -579,9 +580,10 @@ function _buildIconExpression() {
 }
 
 function _buildColorExpression() {
+    const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.color !== _defaultColor);
+    if (!nonDefault.length) return _defaultColor;
     const expr = ['case'];
-    for (const [type, cfg] of Object.entries(STOP_ICON_MAP)) {
-        if (cfg.color === _defaultColor) continue;
+    for (const [type, cfg] of nonDefault) {
         expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.color);
     }
     expr.push(_defaultColor);
