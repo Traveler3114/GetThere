@@ -97,7 +97,9 @@ public class GtfsStaticParser : IStaticDataParser
             var route = new RouteDto
             {
                 RouteId   = routeId,
-                ShortName = iShort >= 0 && iShort < v.Count ? Cell(v, iShort) : routeId,
+                ShortName = iShort >= 0 && iShort < v.Count && !string.IsNullOrEmpty(Cell(v, iShort)) ? Cell(v, iShort)
+                          : iLong  >= 0 && iLong  < v.Count && !string.IsNullOrEmpty(Cell(v, iLong))  ? Cell(v, iLong)
+                          : routeId,
                 LongName  = iLong  >= 0 && iLong  < v.Count ? Cell(v, iLong)  : "",
                 Color     = string.IsNullOrWhiteSpace(color) ? null : color,
                 RouteType = routeTypes.TryGetValue(routeId, out var rt) ? rt : 3,
@@ -252,6 +254,7 @@ public class GtfsStaticParser : IStaticDataParser
         var cols               = Header(await reader.ReadLineAsync());
         int iId                = Col(cols, "route_id");
         int iName              = Col(cols, "route_short_name");
+        int iLong              = Col(cols, "route_long_name");
         if (iId < 0) return result;
 
         string? line;
@@ -259,8 +262,12 @@ public class GtfsStaticParser : IStaticDataParser
         {
             var v = Split(line);
             if (v.Count <= iId) continue;
-            var id   = Cell(v, iId);
-            var name = iName >= 0 && iName < v.Count ? Cell(v, iName) : id;
+            var id        = Cell(v, iId);
+            var shortName = iName >= 0 && iName < v.Count ? Cell(v, iName) : "";
+            var longName  = iLong >= 0 && iLong  < v.Count ? Cell(v, iLong) : "";
+            var name      = !string.IsNullOrEmpty(shortName) ? shortName
+                          : !string.IsNullOrEmpty(longName)  ? longName
+                          : id;
             if (!string.IsNullOrEmpty(id)) result.TryAdd(id, name);
         }
         return result;

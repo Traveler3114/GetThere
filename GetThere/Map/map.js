@@ -313,7 +313,7 @@ function renderStopSchedule(data) {
             const canClick = d.isRealtime || !!d.estimatedTime;
             if (canClick) cls += ' click';
             const onClick = canClick
-                ? `onclick="window._pendingMsg='tripDetail:${d.tripId}'"` : '';
+                ? `onclick="_openTripPanel('${d.tripId}')"` : '';
 
             const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
             if (hasEta) {
@@ -472,8 +472,9 @@ function _openStopSheet(stopId, stopName, routeType) {
     _currentStop = stopId;
 
     _sheetName.textContent = stopName;
-    const isTram = routeType === 0 || routeType === 11;
-    _sheetSid.textContent = (isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
+    const isTram  = routeType === 0 || routeType === 11;
+    const isTrain = routeType === 2;
+    _sheetSid.textContent = (isTrain ? '🚂 ' : isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
 
     const now = new Date();
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
