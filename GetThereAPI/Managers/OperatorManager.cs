@@ -38,8 +38,7 @@ public class OperatorManager
     {
         var imagesPath = Path.Combine(env.WebRootPath, "images");
 
-        return await _db.TransportTypes
-            .Where(t => File.Exists(Path.Combine(imagesPath, t.IconFile)))
+        var all = await _db.TransportTypes
             .Select(t => new TransportTypeDto
             {
                 GtfsRouteType = t.GtfsRouteType,
@@ -48,6 +47,8 @@ public class OperatorManager
                 Color = t.Color,
             })
             .ToListAsync();
+
+        return all.Where(t => File.Exists(Path.Combine(imagesPath, t.IconFile))).ToList();
     }
 
     /// <summary>
