@@ -6,25 +6,31 @@
     xmlns:pages="clr-namespace:GetThere.Pages"
     Title="GetThere"
     Shell.NavBarIsVisible="False"
-    Shell.TabBarIsVisible="False">
+    Shell.TabBarIsVisible="True"
+    Shell.BackgroundColor="{AppThemeBinding Light=#FFF8F8FC, Dark=#120D14}"
+    Shell.TabBarBackgroundColor="{AppThemeBinding Light=#F8FFFFFF, Dark=#CC1A1020}"
+    Shell.TabBarForegroundColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
+    Shell.TabBarTitleColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
+    Shell.TabBarUnselectedColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}">
 
-    <FlyoutItem FlyoutDisplayOptions="AsMultipleItems">
+    <TabBar>
         <ShellContent
             x:Name="ProfileTab"
-            Title="Profile"
-            Icon="icon_profile.svg"
+            Title=""
+            Icon="tab_train.png"
             ContentTemplate="{DataTemplate pages:ProfilePage}"
             Route="profile" />
         <ShellContent
-            Title="Map"
-            Icon="icon_location_pin.svg"
+            Title=""
+            Icon="tab_bus.png"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent
-            Title="Tickets"
-            Icon="icon_operators.svg"
+            x:Name="TicketsTab"
+            Title=""
+            Icon="tab_tram.png"
             ContentTemplate="{DataTemplate pages:TicketsPage}"
             Route="tickets" />
-    </FlyoutItem>
+    </TabBar>
 
 </Shell>

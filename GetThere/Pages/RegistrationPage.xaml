@@ -136,11 +136,10 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- ── CUSTOM FOOTER NAVIGATION (Absolute Bottom) ── -->
         <HorizontalStackLayout Grid.Row="0"
-                               HorizontalOptions="Center" 
+                               HorizontalOptions="Center"
                                VerticalOptions="End"
-                               Spacing="40" 
+                               Spacing="40"
                                Padding="0,0,0,20">
             <Label Text="Login"
                    FontSize="16"
@@ -159,6 +158,7 @@
                 </Label.GestureRecognizers>
             </Label>
         </HorizontalStackLayout>
+
     </Grid>
 
 </ContentPage>

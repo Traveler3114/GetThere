@@ -3,7 +3,6 @@ using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.Components;
 using GetThereShared.Dtos;
-using GetThereShared.Enums;
 
 namespace GetThere.Pages;
 
@@ -12,19 +11,13 @@ public partial class ProfilePage : ContentPage
     private readonly WalletService _walletService;
     private readonly PaymentService _paymentService;
     private readonly AuthService _authService;
-    private readonly TicketService _ticketService;
 
-    private bool _isShowingTickets = false;
-    private TicketStatus _currentFilter = TicketStatus.Active;
-    private List<TicketDto> _allTickets = new();
-
-    public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService, TicketService ticketService)
+    public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService)
     {
         InitializeComponent();
         _walletService = walletService;
         _paymentService = paymentService;
         _authService = authService;
-        _ticketService = ticketService;
     }
 
     protected override async void OnAppearing()
@@ -95,113 +88,9 @@ public partial class ProfilePage : ContentPage
         }
     }
 
-    private async Task LoadTicketsAsync()
-    {
-        BusyLoader.IsVisible = true;
-        BusyLoader.IsRunning = true;
-        NoItemsLabel.IsVisible = false;
-        
-        try
-        {
-            var result = await _ticketService.GetTicketsAsync();
-            if (result.Success && result.Data != null)
-            {
-                _allTickets = result.Data.ToList();
-                ApplyTicketFilter(_currentFilter);
-            }
-        }
-        catch
-        {
-            NoItemsLabel.IsVisible = true;
-        }
-        finally
-        {
-            BusyLoader.IsVisible = false;
-            BusyLoader.IsRunning = false;
-        }
-    }
-
     private void OnLoginRegisterClicked(object? sender, EventArgs e)
     {
         App.GoToLogin();
-    }
-
-    private void ApplyTicketFilter(TicketStatus filter)
-    {
-        _currentFilter = filter;
-        var filtered = _allTickets.Where(t => t.Status == filter).ToList();
-        
-        MainCollection.ItemTemplate = (DataTemplate)Resources["TicketTemplate"];
-        MainCollection.ItemsSource = filtered;
-        NoItemsLabel.IsVisible = !filtered.Any();
-
-        CurrentFilterLabel.Text = $"{filter} Tickets";
-    }
-
-    private async void OnShowFilterOptions(object? sender, EventArgs e)
-    {
-        FilterBottomSheet.IsVisible = true;
-        await Task.WhenAll(
-            FilterBottomSheet.FadeToAsync(1, 200),
-            FilterContent.TranslateToAsync(0, 0, 300, Easing.CubicOut)
-        );
-    }
-
-    private async void OnHideFilterBottomSheet(object? sender, EventArgs e)
-    {
-        await Task.WhenAll(
-            FilterBottomSheet.FadeToAsync(0, 200),
-            FilterContent.TranslateToAsync(0, 600, 300, Easing.CubicIn)
-        );
-        FilterBottomSheet.IsVisible = false;
-    }
-
-    private async void OnFilterOptionClicked(object? sender, EventArgs e)
-    {
-        if (sender is Button button && button.CommandParameter is string chosen)
-        {
-            if (Enum.TryParse<TicketStatus>(chosen, out var status))
-            {
-                ApplyTicketFilter(status);
-            }
-        }
-        OnHideFilterBottomSheet(sender, e);
-    }
-
-    private async void TicketsTab_Clicked(object? sender, EventArgs e)
-    {
-        _isShowingTickets = true;
-        FilterRow.IsVisible = true;
-        
-        bool isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
-        
-        TicketsTabBtn.Background = null;
-        TicketsTabBtn.BackgroundColor = Color.FromArgb(isDark ? "#2C2C2E" : "#EBEBEC");
-        TicketsTabBtn.TextColor = isDark ? Colors.White : Colors.Black;
-        
-        HistoryTabBtn.Background = null;
-        HistoryTabBtn.BackgroundColor = Colors.Transparent;
-        HistoryTabBtn.TextColor = isDark ? Color.FromArgb("#AAAAAA") : Colors.Gray;
-
-        await LoadTicketsAsync();
-    }
-
-    private async void HistoryTab_Clicked(object? sender, EventArgs e)
-    {
-        _isShowingTickets = false;
-        FilterRow.IsVisible = false;
-        
-        bool isDark = Application.Current!.RequestedTheme == AppTheme.Dark;
-        
-        HistoryTabBtn.Background = null;
-        HistoryTabBtn.BackgroundColor = Color.FromArgb(isDark ? "#2C2C2E" : "#EBEBEC");
-        HistoryTabBtn.TextColor = isDark ? Colors.White : Colors.Black;
-        
-        TicketsTabBtn.Background = null;
-        TicketsTabBtn.BackgroundColor = Colors.Transparent;
-        TicketsTabBtn.TextColor = isDark ? Color.FromArgb("#AAAAAA") : Colors.Gray;
-
-        await LoadHistoryAsync();
     }
 
 
