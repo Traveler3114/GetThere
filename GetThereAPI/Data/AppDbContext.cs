@@ -18,6 +18,7 @@ namespace GetThereAPI.Data
         public DbSet<PaymentProvider> PaymentProviders { get; set; }
         public DbSet<Country> Countries { get; set; }
         public DbSet<City> Cities { get; set; }
+        public DbSet<MobilityProvider> MobilityProviders { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -117,6 +118,41 @@ namespace GetThereAPI.Data
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
                 }
             );
+
+            modelBuilder.Entity<MobilityProvider>().HasData(
+                new MobilityProvider
+                {
+                    Id = 1,
+                    Name = "Bajs / Nextbike Zagreb",
+                    LogoUrl = null,
+                    Type = MobilityType.BIKE_STATION,
+                    FeedFormat = MobilityFeedFormat.NEXTBIKE_API,
+                    ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
+                    ApiKey = null,
+                    // cityUid 483 = Zagreb network on the Nextbike platform
+                    AdapterConfig = "{\"cityUid\": 483}",
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
+
+            // Bajs Zagreb ↔ Croatia (countryId=1) and Zagreb (cityId=1)
+            modelBuilder.Entity<MobilityProvider>()
+                .HasMany(mp => mp.Countries)
+                .WithMany(c => c.MobilityProviders)
+                .UsingEntity(j =>
+                {
+                    j.ToTable("MobilityProviderCountry");
+                    j.HasData(new { MobilityProvidersId = 1, CountriesId = 1 });
+                });
+
+            modelBuilder.Entity<MobilityProvider>()
+                .HasMany(mp => mp.Cities)
+                .WithMany(c => c.MobilityProviders)
+                .UsingEntity(j =>
+                {
+                    j.ToTable("MobilityProviderCity");
+                    j.HasData(new { MobilityProvidersId = 1, CitiesId = 1 });
+                });
         }
     }
 }
