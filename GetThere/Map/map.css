@@ -163,6 +163,11 @@ html, body, #map {
     transition: width 0.3s ease;
 }
 
+.bike-provider-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
 /* ── Trip detail panel ──────────────────────────────────────── */
 #trip-panel {
     max-height: 80vh;

@@ -595,7 +595,7 @@ function _openBikeSheet(p) {
 
     const avail   = p.availableBikes ?? 0;
     const cap     = p.capacity ?? 0;
-    const fillPct = cap > 0 ? Math.round((avail / cap) * 100) : 0;
+    const fillPct = cap > 0 ? Math.min(100, Math.round((avail / cap) * 100)) : 0;
 
     _bikeSheetBody.innerHTML = `
         <div class="bike-stat-row">
@@ -614,7 +614,7 @@ function _openBikeSheet(p) {
             <span class="bike-stat-icon">🏢</span>
             <div>
                 <div class="bike-stat-label">Provider</div>
-                <div style="font-size:14px;font-weight:600">${_esc(p.providerName)}</div>
+                <div class="bike-provider-name">${_esc(p.providerName)}</div>
             </div>
         </div>` : ''}
     `;
