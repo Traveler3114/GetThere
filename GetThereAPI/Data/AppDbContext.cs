@@ -130,8 +130,8 @@ namespace GetThereAPI.Data
                     FeedFormat = MobilityFeedFormat.NEXTBIKE_API,
                     ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
                     ApiKey = null,
-                    // cityUid 483 = Zagreb network on the Nextbike platform
-                    AdapterConfig = "{\"cityUid\": 483}",
+                    // No cityUid filter — fetch all Nextbike stations worldwide
+                    AdapterConfig = null,
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
                 }
             );
