@@ -44,12 +44,23 @@ public class MobilityManager : BackgroundService
     public List<BikeStationDto> GetStations(int providerId)
         => _stations.TryGetValue(providerId, out var list) ? list : [];
 
+    // ── Startup initialisation ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Performs the initial station fetch and must be awaited during startup
+    /// so that data is in memory before the first HTTP request arrives.
+    /// Called explicitly from Program.cs, mirroring the pattern used for
+    /// <see cref="OperatorManager.InitialiseAsync"/>.
+    /// </summary>
+    public Task InitialiseAsync(CancellationToken ct = default)
+        => PollAllProvidersAsync(ct);
+
     // ── Background loop ───────────────────────────────────────────────────────
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Initial fetch before accepting the first request
-        await PollAllProvidersAsync(stoppingToken);
+        // Skip the initial fetch here — InitialiseAsync() already ran it before
+        // app.Run(), so stations are in memory from the very first request.
 
         using var timer = new PeriodicTimer(_pollInterval);
 

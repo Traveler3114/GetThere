@@ -104,6 +104,12 @@ using (var scope = app.Services.CreateScope())
     await manager.InitialiseAsync();
 }
 
+// ── Pre-fetch bike stations on startup ────────────────────────────────────
+// MobilityManager is a singleton BackgroundService; calling InitialiseAsync()
+// here ensures stations are cached before the first HTTP request arrives,
+// matching the pattern used for OperatorManager above.
+await app.Services.GetRequiredService<MobilityManager>().InitialiseAsync();
+
 // ── Middleware pipeline ───────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
