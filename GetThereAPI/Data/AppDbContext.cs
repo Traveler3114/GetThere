@@ -93,7 +93,8 @@ namespace GetThereAPI.Data
             modelBuilder.Entity<TransportType>().HasData(
                 new TransportType { Id = 1, GtfsRouteType = 0, Name = "Tram", IconFile = "tram.png", Color = "#1264AB" },
                 new TransportType { Id = 2, GtfsRouteType = 3, Name = "Bus", IconFile = "bus.png", Color = "#126400" },
-                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#6a1b9a" }
+                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#FF6B00"},
+                new TransportType { Id = 4, GtfsRouteType = 715, Name = "City Bike", IconFile = "bike.png", Color = "#6a1b9a"  }
             );
 
             modelBuilder.Entity<PaymentProvider>().HasData(

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GetThereAPI.Dtos;
+using GetThereShared.Dtos;
 using GetThereAPI.Entities;
 
 namespace GetThereAPI.Parsers.Mobility;

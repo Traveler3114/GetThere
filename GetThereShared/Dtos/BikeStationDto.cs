@@ -1,4 +1,4 @@
-namespace GetThereAPI.Dtos;
+namespace GetThereShared.Dtos;
 
 /// <summary>
 /// Internal DTO representing a single bike-share station.

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using GetThereAPI.Data;
-using GetThereAPI.Dtos;
+using GetThereShared.Dtos;
 using GetThereAPI.Entities;
 using GetThereAPI.Parsers.Mobility;
 using Microsoft.EntityFrameworkCore;
