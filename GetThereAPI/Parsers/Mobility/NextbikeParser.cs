@@ -22,7 +22,11 @@ public class NextbikeParser : IMobilityParser
     {
         var url = BuildUrl(provider);
 
-        using var response = await http.GetAsync(url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", "GetThereAPI/1.0 (+https://getthere.app)");
+        request.Headers.TryAddWithoutValidation("Accept", "application/json");
+
+        using var response = await http.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync();

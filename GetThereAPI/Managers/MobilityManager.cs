@@ -98,9 +98,14 @@ public class MobilityManager : BackgroundService
             var stations = await parser.ParseStationsAsync(provider, http);
             _stations[provider.Id] = stations;
 
-            _logger.LogDebug(
-                "MobilityManager: loaded {Count} stations for provider '{Name}' (id={Id})",
-                stations.Count, provider.Name, provider.Id);
+            if (stations.Count == 0)
+                _logger.LogWarning(
+                    "MobilityManager: 0 stations returned for provider '{Name}' (id={Id}) — check city UID and API URL",
+                    provider.Name, provider.Id);
+            else
+                _logger.LogInformation(
+                    "MobilityManager: loaded {Count} stations for provider '{Name}' (id={Id})",
+                    stations.Count, provider.Name, provider.Id);
         }
         catch (Exception ex)
         {
