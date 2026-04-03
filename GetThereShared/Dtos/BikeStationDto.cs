@@ -1,8 +1,9 @@
 namespace GetThereShared.Dtos;
 
 /// <summary>
-/// Internal DTO representing a single bike-share station.
-/// Never sent to the client directly — wrapped in MapFeatureDto at the API boundary.
+/// DTO representing a single bike-share station.
+/// Returned directly via GET /map/bike-stations and also wrapped in MapFeatureDto
+/// inside the unified GET /map/features endpoint.
 /// </summary>
 public class BikeStationDto
 {

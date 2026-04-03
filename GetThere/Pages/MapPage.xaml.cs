@@ -254,6 +254,12 @@ public partial class MapPage : ContentPage
                     if (t.Result is { } routes)
                         await MainThread.InvokeOnMainThreadAsync(async () =>
                             await CallJsAsync("renderRoutes", routes));
+                }),
+                _operatorService.GetBikeStationsAsync().ContinueWith(async t =>
+                {
+                    if (t.Result is { } stations)
+                        await MainThread.InvokeOnMainThreadAsync(async () =>
+                            await CallJsAsync("renderBikeStations", stations));
                 })
             );
         }
