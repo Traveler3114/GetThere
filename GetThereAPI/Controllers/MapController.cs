@@ -73,4 +73,9 @@ public class MapController : ControllerBase
 
         return Ok(OperationResult<List<MapFeatureDto>>.Ok(features));
     }
+
+    // GET /map/bike-stations
+    [HttpGet("bike-stations")]
+    public ActionResult<OperationResult<List<BikeStationDto>>> GetBikeStations()
+        => Ok(OperationResult<List<BikeStationDto>>.Ok(_mobility.GetAllStations()));
 }

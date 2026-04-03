@@ -179,6 +179,43 @@ async function _onMapLoad() {
         }
     });
 
+    // ── Bike station source + layer ────────────────────────────────────
+    map.addSource('bike-stations', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addLayer({
+        id: 'bike-stations', type: 'circle', source: 'bike-stations',
+        minzoom: 13,
+        paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 6, 16, 10],
+            'circle-color': '#00a651',
+            'circle-stroke-color': '#fff',
+            'circle-stroke-width': 2,
+            'circle-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 16, 1],
+        }
+    });
+
+    map.addLayer({
+        id: 'bike-stations-label', type: 'symbol', source: 'bike-stations',
+        minzoom: 15,
+        layout: {
+            'text-field': ['to-string', ['get', 'availableBikes']],
+            'text-size': 11,
+            'text-font': ['Noto Sans Regular'],
+            'text-anchor': 'center',
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+        },
+        paint: {
+            'text-color': '#fff',
+        }
+    });
+
+    map.on('mouseenter', 'bike-stations', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'bike-stations', () => map.getCanvas().style.cursor = '');
+
     // Stops sit below vehicle bg layer
     map.moveLayer('stops', 'vehicles-bg');
 
@@ -220,12 +257,21 @@ async function _onMapLoad() {
         map.on('mouseleave', lyr, () => map.getCanvas().style.cursor = '');
     });
 
+    // Bike station click → show station info
+    map.on('click', 'bike-stations', e => {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        const p = e.features[0].properties;
+        _openBikeSheet(p);
+    });
+
     // Empty tap → close panels
     map.on('click', e => {
         if (e.defaultPrevented) return;
         _clearRoute();
         _closeStopSheet();
         _closeTripPanel();
+        _closeBikeSheet();
     });
 
     // Signal C# that the map is ready for data
@@ -287,6 +333,27 @@ function renderVehicles(vehicles) {
     });
 
     map.getSource('vehicles')?.setData({
+        type: 'FeatureCollection', features
+    });
+}
+
+// ── renderBikeStations ─────────────────────────────────────────
+// Called once on startup with all bike stations from the API.
+function renderBikeStations(stations) {
+    const features = (stations || []).map(s => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+        properties: {
+            stationId:     s.stationId,
+            name:          s.name,
+            availableBikes: s.availableBikes,
+            capacity:      s.capacity,
+            providerId:    s.providerId,
+            providerName:  s.providerName,
+        }
+    }));
+
+    map.getSource('bike-stations')?.setData({
         type: 'FeatureCollection', features
     });
 }
@@ -462,6 +529,9 @@ const _tripHead = document.getElementById('trip-panel-headsign');
 const _tripSubtitle = document.getElementById('trip-panel-subtitle');
 const _tripLoading = document.getElementById('trip-panel-loading');
 const _tripBody = document.getElementById('trip-panel-body');
+const _bikeSheet = document.getElementById('bike-sheet');
+const _bikeSheetName = document.getElementById('bike-sheet-name');
+const _bikeSheetBody = document.getElementById('bike-sheet-body');
 
 // ═══════════════════════════════════════════════════════════════════
 // PANELS
@@ -514,6 +584,46 @@ function _openTripPanel(tripId) {
 function _closeTripPanel() {
     _tripPanel.classList.remove('open');
     _clearRoute();
+}
+
+function _openBikeSheet(p) {
+    _sheet.classList.remove('open');
+    _tripPanel.classList.remove('open');
+    _currentStop = null;
+
+    _bikeSheetName.textContent = p.name || p.stationId;
+
+    const avail   = p.availableBikes ?? 0;
+    const cap     = p.capacity ?? 0;
+    const fillPct = cap > 0 ? Math.round((avail / cap) * 100) : 0;
+
+    _bikeSheetBody.innerHTML = `
+        <div class="bike-stat-row">
+            <span class="bike-stat-icon">🚲</span>
+            <div>
+                <div class="bike-stat-label">Available bikes</div>
+                <div class="bike-stat-value">${avail}${cap > 0 ? ' / ' + cap : ''}</div>
+            </div>
+        </div>
+        ${cap > 0 ? `
+        <div class="bike-availability-bar">
+            <div class="bike-availability-fill" style="width:${fillPct}%"></div>
+        </div>` : ''}
+        ${p.providerName ? `
+        <div class="bike-stat-row">
+            <span class="bike-stat-icon">🏢</span>
+            <div>
+                <div class="bike-stat-label">Provider</div>
+                <div style="font-size:14px;font-weight:600">${_esc(p.providerName)}</div>
+            </div>
+        </div>` : ''}
+    `;
+
+    _bikeSheet.classList.add('open');
+}
+
+function _closeBikeSheet() {
+    _bikeSheet.classList.remove('open');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -726,9 +836,12 @@ document.getElementById('sheet-close').addEventListener('click', e => {
 document.getElementById('trip-panel-close').addEventListener('click', e => {
     e.stopPropagation(); _closeTripPanel();
 });
+document.getElementById('bike-sheet-close').addEventListener('click', e => {
+    e.stopPropagation(); _closeBikeSheet();
+});
 
 // Prevent map clicks from firing when touching panels
-[_sheet, _tripPanel].forEach(p => {
+[_sheet, _tripPanel, _bikeSheet].forEach(p => {
     p.addEventListener('pointerdown', e => e.stopPropagation());
     p.addEventListener('click', e => e.stopPropagation());
 });
@@ -746,3 +859,4 @@ function _addSwipeClose(panel, closeFn) {
 
 _addSwipeClose(_sheet, _closeStopSheet);
 _addSwipeClose(_tripPanel, _closeTripPanel);
+_addSwipeClose(_bikeSheet, _closeBikeSheet);
