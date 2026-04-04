@@ -10,5 +10,8 @@
 
         // Navigation: All transit operators in this city
         public ICollection<TransitOperator> TransitOperators { get; set; } = new List<TransitOperator>();
+
+        // Navigation: mobility providers operating in this city
+        public ICollection<MobilityProvider> MobilityProviders { get; set; } = new List<MobilityProvider>();
     }
 }

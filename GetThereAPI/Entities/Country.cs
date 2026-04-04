@@ -10,5 +10,8 @@
 
         // Navigation: all cities in this country
         public ICollection<City> Cities { get; set; } = new List<City>();
+
+        // Navigation: mobility providers operating in this country
+        public ICollection<MobilityProvider> MobilityProviders { get; set; } = new List<MobilityProvider>();
     }
 }

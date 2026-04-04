@@ -36,9 +36,11 @@ builder.Services.AddHttpClient();
 // Registered before the reflection loop so the loop skips them.
 builder.Services.AddSingleton<StaticDataManager>();
 builder.Services.AddSingleton<RealtimeManager>();
+builder.Services.AddSingleton<MobilityManager>();
 
-// Starts RealtimeManager's background polling loop when the server starts
+// Starts background polling loops when the server starts
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RealtimeManager>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MobilityManager>());
 
 // ── All other managers (scoped — auto-registered by reflection) ───────────
 var managerTypes = Assembly.GetExecutingAssembly()
@@ -47,7 +49,8 @@ var managerTypes = Assembly.GetExecutingAssembly()
                 && t.IsClass
                 && !t.IsAbstract
                 && t != typeof(StaticDataManager)   // already registered as singleton
-                && t != typeof(RealtimeManager));    // already registered as singleton
+                && t != typeof(RealtimeManager)     // already registered as singleton
+                && t != typeof(MobilityManager));   // already registered as singleton
 
 foreach (var managerType in managerTypes)
 {
@@ -100,6 +103,12 @@ using (var scope = app.Services.CreateScope())
     var manager = scope.ServiceProvider.GetRequiredService<OperatorManager>();
     await manager.InitialiseAsync();
 }
+
+// ── Pre-fetch bike stations on startup ────────────────────────────────────
+// MobilityManager is a singleton BackgroundService; calling InitialiseAsync()
+// here ensures stations are cached before the first HTTP request arrives,
+// matching the pattern used for OperatorManager above.
+await app.Services.GetRequiredService<MobilityManager>().InitialiseAsync();
 
 // ── Middleware pipeline ───────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())

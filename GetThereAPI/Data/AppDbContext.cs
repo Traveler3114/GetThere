@@ -18,6 +18,7 @@ namespace GetThereAPI.Data
         public DbSet<PaymentProvider> PaymentProviders { get; set; }
         public DbSet<Country> Countries { get; set; }
         public DbSet<City> Cities { get; set; }
+        public DbSet<MobilityProvider> MobilityProviders { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -92,7 +93,8 @@ namespace GetThereAPI.Data
             modelBuilder.Entity<TransportType>().HasData(
                 new TransportType { Id = 1, GtfsRouteType = 0, Name = "Tram", IconFile = "tram.png", Color = "#1264AB" },
                 new TransportType { Id = 2, GtfsRouteType = 3, Name = "Bus", IconFile = "bus.png", Color = "#126400" },
-                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#6a1b9a" }
+                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#FF6B00"},
+                new TransportType { Id = 4, GtfsRouteType = 715, Name = "City Bike", IconFile = "bike.png", Color = "#6a1b9a"  }
             );
 
             modelBuilder.Entity<PaymentProvider>().HasData(
@@ -117,6 +119,41 @@ namespace GetThereAPI.Data
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
                 }
             );
+
+            modelBuilder.Entity<MobilityProvider>().HasData(
+                new MobilityProvider
+                {
+                    Id = 1,
+                    Name = "Bajs / Nextbike Zagreb",
+                    LogoUrl = null,
+                    Type = MobilityType.BIKE_STATION,
+                    FeedFormat = MobilityFeedFormat.NEXTBIKE_API,
+                    ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
+                    ApiKey = null,
+                    // No cityUid filter — fetch all Nextbike stations worldwide
+                    AdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
+
+            // Bajs Zagreb ↔ Croatia (countryId=1) and Zagreb (cityId=1)
+            modelBuilder.Entity<MobilityProvider>()
+                .HasMany(mp => mp.Countries)
+                .WithMany(c => c.MobilityProviders)
+                .UsingEntity(j =>
+                {
+                    j.ToTable("MobilityProviderCountry");
+                    j.HasData(new { MobilityProvidersId = 1, CountriesId = 1 });
+                });
+
+            modelBuilder.Entity<MobilityProvider>()
+                .HasMany(mp => mp.Cities)
+                .WithMany(c => c.MobilityProviders)
+                .UsingEntity(j =>
+                {
+                    j.ToTable("MobilityProviderCity");
+                    j.HasData(new { MobilityProvidersId = 1, CitiesId = 1 });
+                });
         }
     }
 }

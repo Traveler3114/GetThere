@@ -102,6 +102,72 @@ html, body, #map {
     padding: 0 12px 20px;
 }
 
+/* ── Bike station panel ─────────────────────────────────────── */
+#bike-sheet {
+    max-height: 40vh;
+}
+
+#bike-sheet-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#bike-sheet-body {
+    padding: 12px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bike-stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    color: #333;
+}
+
+.bike-stat-icon {
+    font-size: 22px;
+    width: 32px;
+    text-align: center;
+}
+
+.bike-stat-label {
+    color: #888;
+    font-size: 12px;
+}
+
+.bike-stat-value {
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.bike-availability-bar {
+    height: 6px;
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.bike-availability-fill {
+    height: 100%;
+    background: #00a651;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.bike-provider-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
 /* ── Trip detail panel ──────────────────────────────────────── */
 #trip-panel {
     max-height: 80vh;

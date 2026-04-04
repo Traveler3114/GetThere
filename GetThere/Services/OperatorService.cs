@@ -88,6 +88,25 @@ public class OperatorService
     }
 
     /// <summary>
+    /// Returns all bike-share stations across all mobility providers.
+    /// Called once on app startup; stations change slowly.
+    /// </summary>
+    public async Task<List<BikeStationDto>?> GetBikeStationsAsync()
+    {
+        try
+        {
+            var result = await _http.GetFromJsonAsync<OperationResult<List<BikeStationDto>>>(
+                "map/bike-stations");
+            return result?.Data;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[OperatorService] GetBikeStations failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Returns all live vehicle positions across all operators.
     /// Called every 10 seconds to keep the map up to date.
     /// </summary>
