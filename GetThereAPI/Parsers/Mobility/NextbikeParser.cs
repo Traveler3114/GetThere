@@ -56,7 +56,8 @@ public class NextbikeParser : IMobilityParser
                         AvailableBikes = place.BikesAvailableToRent ?? place.Bikes,
                         Capacity       = place.BikeRacks,
                         ProviderId     = provider.Id,
-                        ProviderName   = provider.Name
+                        ProviderName   = provider.Name,
+                        CountryName    = country.Name ?? "",
                     });
                 }
             }
@@ -100,6 +101,7 @@ public class NextbikeParser : IMobilityParser
 
     private class NextbikeCountry
     {
+        public string? Name   { get; set; }
         public List<NextbikeCity>? Cities { get; set; }
     }
 

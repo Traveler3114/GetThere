@@ -40,9 +40,37 @@ public class MobilityManager : BackgroundService
     public List<BikeStationDto> GetAllStations()
         => _stations.Values.SelectMany(s => s).ToList();
 
+    /// <summary>
+    /// Returns all cached bike stations, optionally filtered by country name.
+    /// Country name is matched case-insensitively against the value embedded in
+    /// each station by the feed parser — no DB join required.
+    /// </summary>
+    public List<BikeStationDto> GetAllStations(string? countryName)
+    {
+        var all = _stations.Values.SelectMany(s => s);
+        if (string.IsNullOrEmpty(countryName))
+            return all.ToList();
+        return all
+            .Where(s => s.CountryName.Equals(countryName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
     /// <summary>Returns cached stations for one provider, or an empty list.</summary>
     public List<BikeStationDto> GetStations(int providerId)
         => _stations.TryGetValue(providerId, out var list) ? list : [];
+
+    /// <summary>
+    /// Returns true when the specified provider has at least one cached station
+    /// in the given country.  Used to decide whether a mobility provider should
+    /// appear in the ticketable-operators list for a country without requiring
+    /// manual DB country links.
+    /// </summary>
+    public bool HasStationsInCountry(int providerId, string countryName)
+    {
+        if (!_stations.TryGetValue(providerId, out var list))
+            return false;
+        return list.Any(s => s.CountryName.Equals(countryName, StringComparison.OrdinalIgnoreCase));
+    }
 
     // ── Startup initialisation ────────────────────────────────────────────────
 

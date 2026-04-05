@@ -15,4 +15,10 @@ public class BikeStationDto
     public int    Capacity       { get; set; }
     public int    ProviderId     { get; set; }
     public string ProviderName   { get; set; } = "";
+
+    /// <summary>
+    /// Country name as reported by the mobility feed (e.g. "Croatia", "Slovenia").
+    /// Used for dynamic country filtering without requiring manual DB links.
+    /// </summary>
+    public string CountryName    { get; set; } = "";
 }

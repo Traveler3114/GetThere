@@ -19,9 +19,10 @@ namespace GetThereAPI.Controllers;
 /// POST /mock-tickets/{operatorId}/purchase  → purchase a mock ticket (no auth required)
 ///
 /// Operator IDs used here match those returned by GET /operator/ticketable:
-///   1 = ZET  (tram/bus, Zagreb)
+///   1 = ZET  (tram/bus, Zagreb, Croatia)
 ///   2 = HZPP (train, Croatia)
-///   3 = Bajs (city bike, Zagreb)
+///   3 = Bajs (city bike, Nextbike — multiple countries)
+///   4 = LPP  (bus, Ljubljana, Slovenia)
 /// </summary>
 [ApiController]
 [Route("mock-tickets")]
@@ -47,9 +48,15 @@ public class MockTicketController : ControllerBase
         ]),
         [3] = ("Bajs",
         [
-            new MockTicketOptionDto { OptionId = "bajs-1h",     Name = "1-Hour Pass",   Description = "Unlimited Nextbike rides in Zagreb for 1 hour.",   Price = 1.00m,  Validity = "1 hour"  },
-            new MockTicketOptionDto { OptionId = "bajs-day",    Name = "Day Pass",       Description = "Unlimited Nextbike rides in Zagreb for the day.", Price = 5.00m,  Validity = "24 hours" },
-            new MockTicketOptionDto { OptionId = "bajs-weekly", Name = "Weekly Pass",    Description = "Unlimited Nextbike rides in Zagreb for 7 days.",  Price = 15.00m, Validity = "7 days"   },
+            new MockTicketOptionDto { OptionId = "bajs-1h",     Name = "1-Hour Pass",   Description = "Unlimited Nextbike rides in your city for 1 hour.",   Price = 1.00m,  Validity = "1 hour"  },
+            new MockTicketOptionDto { OptionId = "bajs-day",    Name = "Day Pass",       Description = "Unlimited Nextbike rides in your city for the day.", Price = 5.00m,  Validity = "24 hours" },
+            new MockTicketOptionDto { OptionId = "bajs-weekly", Name = "Weekly Pass",    Description = "Unlimited Nextbike rides in your city for 7 days.",  Price = 15.00m, Validity = "7 days"   },
+        ]),
+        [4] = ("LPP",
+        [
+            new MockTicketOptionDto { OptionId = "lpp-single",  Name = "Single Ride",   Description = "Valid for 90 minutes on any LPP bus in Ljubljana.",      Price = 1.30m,  Validity = "90 minutes" },
+            new MockTicketOptionDto { OptionId = "lpp-day",     Name = "Day Pass",       Description = "Unlimited rides all day on LPP buses in Ljubljana.",     Price = 5.00m,  Validity = "24 hours"   },
+            new MockTicketOptionDto { OptionId = "lpp-10ride",  Name = "10-Ride Card",   Description = "10 single rides to use at any time on the LPP network.", Price = 11.00m, Validity = "Per ride"   },
         ]),
     };
 
@@ -65,6 +72,9 @@ public class MockTicketController : ControllerBase
         ["bajs-1h"]     = 60,
         ["bajs-day"]    = 1440,
         ["bajs-weekly"] = 10080,
+        ["lpp-single"]  = 90,
+        ["lpp-day"]     = 1440,
+        ["lpp-10ride"]  = 1440,    // per-ride — no real expiry; treat as 24h for mock
     };
 
     // TransitOperator DB ID for operators that can be saved in the Ticket table.
@@ -73,6 +83,7 @@ public class MockTicketController : ControllerBase
     {
         [1] = 1,   // ZET  → TransitOperator.Id = 1
         [2] = 2,   // HZPP → TransitOperator.Id = 2
+        [4] = 3,   // LPP  → TransitOperator.Id = 3
     };
 
     public MockTicketController(AppDbContext db)
