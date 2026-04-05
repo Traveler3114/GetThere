@@ -100,45 +100,85 @@
         </VerticalStackLayout>
 
         <Grid Grid.Row="2" Padding="16,8,16,100" BackgroundColor="Transparent" VerticalOptions="Start">
-            <Border x:Name="TicketsContainer"
-                    Padding="15"
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
-                    StrokeThickness="0"
-                    VerticalOptions="Start">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="20" />
-                </Border.StrokeShape>
+            <ScrollView>
+                <VerticalStackLayout Spacing="14">
 
-                <VerticalStackLayout Spacing="10" VerticalOptions="Start">
-                    <ActivityIndicator x:Name="BusyIndicator"
-                                       HeightRequest="40"
-                                       IsRunning="False"
-                                       IsVisible="False"
-                                       Color="#4CAF50" />
-
-                    <VerticalStackLayout x:Name="TicketsRows"
-                                         Spacing="0"
-                                         VerticalOptions="Start" />
-
-                    <VerticalStackLayout x:Name="TicketsEmptyState"
-                                         IsVisible="False"
-                                         HorizontalOptions="Center"
-                                         VerticalOptions="Center"
-                                         Padding="0,12"
-                                         Spacing="10">
-                        <Label x:Name="TicketsEmptyLabel"
-                               Text="No tickets found"
-                               FontSize="18"
-                               TextColor="Gray"
-                               HorizontalOptions="Center" />
-                        <Label Text="Try changing your filter"
-                               FontSize="14"
-                               TextColor="Gray"
-                               Opacity="1"
-                               HorizontalOptions="Center" />
+                    <!--  ── MOCK TICKETS SECTION ──  -->
+                    <VerticalStackLayout x:Name="MockTicketsSection" IsVisible="False" Spacing="8">
+                        <Label
+                            FontAttributes="Bold"
+                            FontSize="14"
+                            Text="Session Tickets (Mock)"
+                            TextColor="Gray" />
+                        <!--  Mock disclaimer  -->
+                        <Border
+                            Padding="10,6"
+                            BackgroundColor="#FFF3CD"
+                            StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="8" />
+                            </Border.StrokeShape>
+                            <Label
+                                FontSize="11"
+                                HorizontalTextAlignment="Center"
+                                Text="⚠️  MOCK TICKETS — NOT VALID FOR TRAVEL"
+                                TextColor="#856404" />
+                        </Border>
+                        <Border
+                            Padding="15"
+                            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                            StrokeThickness="0"
+                            VerticalOptions="Start">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="20" />
+                            </Border.StrokeShape>
+                            <VerticalStackLayout x:Name="MockTicketsRows" Spacing="0" VerticalOptions="Start" />
+                        </Border>
                     </VerticalStackLayout>
+
+                    <!--  ── REAL TICKETS SECTION ──  -->
+                    <Border x:Name="TicketsContainer"
+                            Padding="15"
+                            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                            StrokeThickness="0"
+                            VerticalOptions="Start">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="20" />
+                        </Border.StrokeShape>
+
+                        <VerticalStackLayout Spacing="10" VerticalOptions="Start">
+                            <ActivityIndicator x:Name="BusyIndicator"
+                                               HeightRequest="40"
+                                               IsRunning="False"
+                                               IsVisible="False"
+                                               Color="#4CAF50" />
+
+                            <VerticalStackLayout x:Name="TicketsRows"
+                                                 Spacing="0"
+                                                 VerticalOptions="Start" />
+
+                            <VerticalStackLayout x:Name="TicketsEmptyState"
+                                                 IsVisible="False"
+                                                 HorizontalOptions="Center"
+                                                 VerticalOptions="Center"
+                                                 Padding="0,12"
+                                                 Spacing="10">
+                                <Label x:Name="TicketsEmptyLabel"
+                                       Text="No tickets found"
+                                       FontSize="18"
+                                       TextColor="Gray"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Try changing your filter"
+                                       FontSize="14"
+                                       TextColor="Gray"
+                                       Opacity="1"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
+
                 </VerticalStackLayout>
-            </Border>
+            </ScrollView>
         </Grid>
 
         <!-- ── CUSTOM FILTER BOTTOM SHEET ── -->
