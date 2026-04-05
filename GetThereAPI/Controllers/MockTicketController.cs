@@ -122,14 +122,23 @@ public class MockTicketController : ControllerBase
         var quantity  = Math.Max(1, body.Quantity);
         var totalCost = option.Price * quantity;
 
+        // Use a transaction so the balance check and deduction are atomic
+        await using var dbTx = await _db.Database.BeginTransactionAsync();
+
         // Check and deduct from wallet
         var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         if (wallet is null)
+        {
+            await dbTx.RollbackAsync();
             return BadRequest(OperationResult<MockTicketResultDto>.Fail("Wallet not found."));
+        }
 
         if (wallet.Balance < totalCost)
+        {
+            await dbTx.RollbackAsync();
             return BadRequest(OperationResult<MockTicketResultDto>.Fail(
                 $"Insufficient balance. Required: €{totalCost:F2}, available: €{wallet.Balance:F2}."));
+        }
 
         wallet.Balance   -= totalCost;
         wallet.LastUpdated = DateTime.UtcNow;
@@ -174,17 +183,20 @@ public class MockTicketController : ControllerBase
         }
 
         // Record wallet transaction for history
-        _db.WalletTransactions.Add(new WalletTransaction
+        var tx = new WalletTransaction
         {
             WalletId    = wallet.Id,
             Type        = WalletTransactionType.TicketPurchase,
             Amount      = totalCost,
             Timestamp   = DateTime.UtcNow,
             Description = $"{entry.OperatorName} — {option.Name}" + (quantity > 1 ? $" ×{quantity}" : ""),
-            Ticket      = savedTicket,
-        });
+        };
+        if (savedTicket is not null)
+            tx.Ticket = savedTicket;
+        _db.WalletTransactions.Add(tx);
 
         await _db.SaveChangesAsync();
+        await dbTx.CommitAsync();
 
         return Ok(OperationResult<MockTicketResultDto>.Ok(result, "Mock ticket purchased."));
     }
