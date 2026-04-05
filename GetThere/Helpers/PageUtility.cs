@@ -112,6 +112,22 @@ public class ProviderIconConverter : IValueConverter
 }
 
 
+/// <summary>
+/// Converts a WalletTransactionType to an amount text color:
+/// TopUp/Refund = green, TicketPurchase = red.
+/// </summary>
+public class TxTypeToAmountColorConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is WalletTransactionType type && type == WalletTransactionType.TicketPurchase
+            ? Color.FromArgb("#F44336")
+            : Color.FromArgb("#4CAF50");
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotImplementedException();
+}
+
+
 public class InstallBtnTextConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

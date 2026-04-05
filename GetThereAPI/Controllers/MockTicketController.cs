@@ -3,7 +3,9 @@ using GetThereAPI.Entities;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using GetThereShared.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
@@ -92,11 +94,13 @@ public class MockTicketController : ControllerBase
 
     /// <summary>
     /// Purchases a mock ticket.
-    /// If the caller is authenticated and the operator maps to a TransitOperator row,
-    /// the ticket is persisted to the database.
-    /// For guests or mobility-provider operators the result is returned without persisting.
+    /// Requires authentication — deducts the ticket price from the user's wallet
+    /// and records the transaction in the wallet history.
+    /// Returns an error if the wallet balance is insufficient.
+    /// If the operator maps to a TransitOperator row the ticket is also persisted to the database.
     /// </summary>
     // POST /mock-tickets/{operatorId}/purchase
+    [Authorize]
     [HttpPost("{operatorId:int}/purchase")]
     public async Task<ActionResult<OperationResult<MockTicketResultDto>>> Purchase(
         int operatorId,
@@ -111,7 +115,34 @@ public class MockTicketController : ControllerBase
             return BadRequest(OperationResult<MockTicketResultDto>.Fail(
                 $"Option '{body.OptionId}' not found for operator {operatorId}."));
 
-        var quantity = Math.Max(1, body.Quantity);
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(OperationResult<MockTicketResultDto>.Fail("User not authenticated."));
+
+        var quantity  = Math.Max(1, body.Quantity);
+        var totalCost = option.Price * quantity;
+
+        // Use a transaction so the balance check and deduction are atomic
+        await using var dbTx = await _db.Database.BeginTransactionAsync();
+
+        // Check and deduct from wallet
+        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        if (wallet is null)
+        {
+            await dbTx.RollbackAsync();
+            return BadRequest(OperationResult<MockTicketResultDto>.Fail("Wallet not found."));
+        }
+
+        if (wallet.Balance < totalCost)
+        {
+            await dbTx.RollbackAsync();
+            return BadRequest(OperationResult<MockTicketResultDto>.Fail(
+                $"Insufficient balance. Required: €{totalCost:F2}, available: €{wallet.Balance:F2}."));
+        }
+
+        wallet.Balance   -= totalCost;
+        wallet.LastUpdated = DateTime.UtcNow;
+
         var validFrom  = DateTime.UtcNow;
         var mins       = ValidMinutes.TryGetValue(body.OptionId, out var m) && m > 0 ? m : 1440;
         var validUntil = validFrom.AddMinutes(mins * quantity);
@@ -122,24 +153,24 @@ public class MockTicketController : ControllerBase
             TicketId     = ticketId,
             OperatorName = entry.OperatorName,
             TicketName   = option.Name,
-            Price        = option.Price * quantity,
+            Price        = totalCost,
             ValidFrom    = validFrom.ToString("O"),
             ValidUntil   = validUntil.ToString("O"),
             QrCodeData   = ticketId,
             IsMock       = true,
         };
 
-        // Persist to DB if the user is authenticated and operator has a TransitOperator row
-        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (!string.IsNullOrEmpty(userId) && DbTransitOperatorIds.TryGetValue(operatorId, out var dbOpId))
+        // Persist ticket to DB if operator has a TransitOperator row
+        Ticket? savedTicket = null;
+        if (DbTransitOperatorIds.TryGetValue(operatorId, out var dbOpId))
         {
-            _db.Tickets.Add(new Ticket
+            savedTicket = new Ticket
             {
                 TicketType           = option.Name,
                 PurchasedAt          = validFrom,
                 ValidFrom            = validFrom,
                 ValidUntil           = validUntil,
-                PricePaid            = result.Price,
+                PricePaid            = totalCost,
                 Format               = TicketFormat.QrCode,
                 Payload              = ticketId,
                 DisplayInstructions  = "MOCK TICKET — NOT VALID FOR TRAVEL",
@@ -147,9 +178,25 @@ public class MockTicketController : ControllerBase
                 TicketDefinitionId   = body.OptionId,
                 UserId               = userId,
                 TransitOperatorId    = dbOpId,
-            });
-            await _db.SaveChangesAsync();
+            };
+            _db.Tickets.Add(savedTicket);
         }
+
+        // Record wallet transaction for history
+        var tx = new WalletTransaction
+        {
+            WalletId    = wallet.Id,
+            Type        = WalletTransactionType.TicketPurchase,
+            Amount      = totalCost,
+            Timestamp   = DateTime.UtcNow,
+            Description = $"{entry.OperatorName} — {option.Name}" + (quantity > 1 ? $" ×{quantity}" : ""),
+        };
+        if (savedTicket is not null)
+            tx.Ticket = savedTicket;
+        _db.WalletTransactions.Add(tx);
+
+        await _db.SaveChangesAsync();
+        await dbTx.CommitAsync();
 
         return Ok(OperationResult<MockTicketResultDto>.Ok(result, "Mock ticket purchased."));
     }
