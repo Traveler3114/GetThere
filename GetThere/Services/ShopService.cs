@@ -57,6 +57,8 @@ public class ShopService
         {
             var body = new MockTicketPurchaseRequest { OptionId = optionId, Quantity = quantity };
             var response = await _http.PostAsJsonAsync($"mock-tickets/{operatorId}/purchase", body);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                return OperationResult<MockTicketResultDto>.Fail("Please log in to purchase tickets.");
             return await response.Content.ReadFromJsonAsync<OperationResult<MockTicketResultDto>>();
         }
         catch (Exception ex)

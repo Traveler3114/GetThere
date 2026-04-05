@@ -12,7 +12,7 @@ namespace GetThereAPI.Controllers;
 /// GET /countries → list of all available countries { Id, Name }
 /// </summary>
 [ApiController]
-[Route("[controller]")]
+[Route("countries")]
 public class CountryController : ControllerBase
 {
     private readonly AppDbContext _db;
