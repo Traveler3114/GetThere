@@ -1,4 +1,6 @@
 #nullable enable
+using GetThere.State;
+
 namespace GetThere;
 
 public partial class AppShell : Shell
@@ -16,6 +18,21 @@ public partial class AppShell : Shell
         Navigated += (_, _) => UpdateTicketIconState();
 
         UpdateTicketIconState();
+
+        // On first launch, navigate to Settings so the user can pick a country
+        Loaded += OnShellLoaded;
+    }
+
+    private async void OnShellLoaded(object? sender, EventArgs e)
+    {
+        Loaded -= OnShellLoaded;
+
+        var prefs = Handler?.MauiContext?.Services.GetService<CountryPreferenceService>();
+        if (prefs is not null && !prefs.HasSelection)
+        {
+            await Task.Delay(400); // allow shell to settle
+            await GoToAsync("//settings");
+        }
     }
 
     public void UpdateProfileIcon(ImageSource? source)

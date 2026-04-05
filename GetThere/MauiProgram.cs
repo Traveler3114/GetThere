@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using System.Reflection;
 using GetThere.Helpers;
 using GetThere.Services;
+using GetThere.State;
 using SkiaSharp;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using CommunityToolkit.Maui;
@@ -107,6 +108,10 @@ namespace GetThere
             // Shells
             builder.Services.AddSingleton<AppShell>();
             builder.Services.AddSingleton<LoginShell>();
+
+            // State services (no HttpClient dependency)
+            builder.Services.AddSingleton<CountryPreferenceService>();
+            builder.Services.AddSingleton<MockTicketStore>();
 
             return builder.Build();
         }

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="GetThere.Pages.TicketPurchasePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#120D14}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <components:AnimatedBackground Grid.RowSpan="2" />
+
+        <!--  Header  -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Padding="16,18,16,0" ColumnSpacing="12">
+            <Button
+                Grid.Column="0"
+                BackgroundColor="Transparent"
+                Clicked="OnBackClicked"
+                FontSize="20"
+                HeightRequest="40"
+                Text="‹"
+                TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                WidthRequest="40" />
+            <Label
+                x:Name="PageTitleLabel"
+                Grid.Column="1"
+                FontAttributes="Bold"
+                FontSize="24"
+                Text="Buy Tickets"
+                TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                VerticalOptions="Center" />
+        </Grid>
+
+        <ScrollView Grid.Row="1" Padding="16,12,16,100">
+            <VerticalStackLayout Spacing="16">
+
+                <!--  Mock disclaimer banner  -->
+                <Border
+                    Padding="14,10"
+                    BackgroundColor="#FFF3CD"
+                    StrokeThickness="0">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="12" />
+                    </Border.StrokeShape>
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="13"
+                        HorizontalTextAlignment="Center"
+                        Text="⚠️  MOCK TICKETS — NOT VALID FOR TRAVEL  ⚠️"
+                        TextColor="#856404" />
+                </Border>
+
+                <ActivityIndicator
+                    x:Name="BusyIndicator"
+                    HeightRequest="40"
+                    IsRunning="False"
+                    IsVisible="False"
+                    Color="#1264AB" />
+
+                <!--  Ticket option cards injected here  -->
+                <VerticalStackLayout x:Name="OptionsContainer" Spacing="12" />
+
+                <VerticalStackLayout x:Name="EmptyState" IsVisible="False">
+                    <Label
+                        Margin="0,30"
+                        FontSize="15"
+                        HorizontalOptions="Center"
+                        Text="No ticket options available."
+                        TextColor="Gray" />
+                </VerticalStackLayout>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+</ContentPage>
