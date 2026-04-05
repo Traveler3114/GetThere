@@ -19,21 +19,40 @@ public class OperatorManager
     private readonly AppDbContext _db;
     private readonly StaticDataManager _staticData;
     private readonly RealtimeManager _realtime;
+    private readonly MobilityManager _mobility;
     private readonly ILogger<OperatorManager> _logger;
 
     public OperatorManager(
         AppDbContext db,
         StaticDataManager staticData,
         RealtimeManager realtime,
+        MobilityManager mobility,
         ILogger<OperatorManager> logger)
     {
         _db = db;
         _staticData = staticData;
         _realtime = realtime;
+        _mobility = mobility;
         _logger = logger;
     }
 
     // ── Hardcoded ticketable operator definitions ─────────────────────────
+
+    // MobilityProvider DB IDs for operators whose countries are determined
+    // dynamically from live feed data rather than static DB links.
+    private static readonly Dictionary<int, int> MobilityProviderIds = new()
+    {
+        [3] = 1,  // Bajs (ticketable Id=3) → MobilityProvider DB Id=1
+    };
+
+    // Maps ticketable list Id → TransitOperator DB Id (for logo lookups).
+    // Bajs (Id=3) is a MobilityProvider and has no TransitOperator row.
+    private static readonly Dictionary<int, int> TicketableToDbTransitId = new()
+    {
+        [1] = 1,   // ZET  → TransitOperator.Id = 1
+        [2] = 2,   // HZPP → TransitOperator.Id = 2
+        [4] = 3,   // LPP  → TransitOperator.Id = 3
+    };
 
     private static readonly List<TicketableOperatorDto> TicketableList =
     [
@@ -52,31 +71,80 @@ public class OperatorManager
         new TicketableOperatorDto
         {
             Id = 3, Name = "Bajs", Type = "BIKE", Color = "#FF6B00",
-            Description = "Nextbike Zagreb — city bike sharing service.",
-            City = "Zagreb", Country = "Croatia", IsMock = true,
+            Description = "Nextbike city bike sharing service.",
+            City = "", Country = "", IsMock = true,
+        },
+        new TicketableOperatorDto
+        {
+            Id = 4, Name = "LPP", Type = "TRANSIT", Color = "#E30613",
+            Description = "Ljubljana's city bus network.",
+            City = "Ljubljana", Country = "Slovenia", IsMock = true,
         },
     ];
 
     /// <summary>
     /// Returns operators available for ticket purchase, filtered by country.
     /// An operator is ticketable if its TicketApiBaseUrl is non-empty OR
-    /// it is in the hardcoded mock list (ZET, HZPP, Bajs).
+    /// it is in the hardcoded mock list (ZET, HZPP, Bajs, LPP).
+    ///
+    /// Mobility providers (e.g. Bajs) are included dynamically: if the live
+    /// feed has stations in the requested country they are shown — no manual
+    /// DB country links are needed.
     /// </summary>
     public async Task<List<TicketableOperatorDto>> GetTicketableOperatorsAsync(int? countryId)
     {
         // Enrich hardcoded list with LogoUrl from the DB for transit operators
-        var transitIds = new[] { 1, 2 };
         var dbOps = await _db.TransitOperators
-            .Where(o => transitIds.Contains(o.Id))
+            .Where(o => TicketableToDbTransitId.Values.Contains(o.Id))
             .Select(o => new { o.Id, o.LogoUrl })
             .ToListAsync();
 
         var logoMap = dbOps.ToDictionary(o => o.Id, o => o.LogoUrl);
 
-        var result = TicketableList.Select(t =>
+        string? countryName = null;
+        if (countryId.HasValue)
         {
-            // Clone so we don't mutate the static list
-            var dto = new TicketableOperatorDto
+            countryName = await _db.Countries
+                .Where(c => c.Id == countryId.Value)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+
+            if (countryName is null)
+                return [];
+        }
+
+        var result = new List<TicketableOperatorDto>();
+
+        foreach (var t in TicketableList)
+        {
+            // ── Mobility providers (e.g. Bajs): include dynamically ────────
+            if (MobilityProviderIds.TryGetValue(t.Id, out var mobilityDbId))
+            {
+                if (countryName is not null &&
+                    !_mobility.HasStationsInCountry(mobilityDbId, countryName))
+                    continue;
+
+                result.Add(new TicketableOperatorDto
+                {
+                    Id          = t.Id,
+                    Name        = t.Name,
+                    Type        = t.Type,
+                    Color       = t.Color,
+                    Description = t.Description,
+                    City        = t.City,
+                    Country     = countryName ?? t.Country,
+                    IsMock      = t.IsMock,
+                    LogoUrl     = t.LogoUrl,
+                });
+                continue;
+            }
+
+            // ── Transit operators: filter by static Country field ──────────
+            if (countryName is not null && t.Country != countryName)
+                continue;
+
+            TicketableToDbTransitId.TryGetValue(t.Id, out var dbId);
+            result.Add(new TicketableOperatorDto
             {
                 Id          = t.Id,
                 Name        = t.Name,
@@ -86,23 +154,8 @@ public class OperatorManager
                 City        = t.City,
                 Country     = t.Country,
                 IsMock      = t.IsMock,
-                LogoUrl     = logoMap.TryGetValue(t.Id, out var url) ? url : t.LogoUrl,
-            };
-            return dto;
-        }).ToList();
-
-        // When countryId is provided keep only operators in that country
-        if (countryId.HasValue)
-        {
-            var countryName = await _db.Countries
-                .Where(c => c.Id == countryId.Value)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync();
-
-            if (countryName is not null)
-                result = result.Where(t => t.Country == countryName).ToList();
-            else
-                result = [];
+                LogoUrl     = logoMap.TryGetValue(dbId, out var url) ? url : t.LogoUrl,
+            });
         }
 
         return result;

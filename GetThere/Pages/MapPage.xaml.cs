@@ -1,4 +1,5 @@
 using GetThere.Services;
+using GetThere.State;
 using GetThereShared.Dtos;
 using System.Diagnostics;
 using System.Text.Json;
@@ -8,16 +9,18 @@ namespace GetThere.Pages;
 public partial class MapPage : ContentPage
 {
     private readonly OperatorService _operatorService;
+    private readonly CountryPreferenceService _countryPrefs;
 
     private System.Timers.Timer? _vehicleTimer;
     private System.Timers.Timer? _jsMessageTimer;
 
     private readonly TaskCompletionSource _navigatedTcs = new();
 
-    public MapPage(OperatorService operatorService)
+    public MapPage(OperatorService operatorService, CountryPreferenceService countryPrefs)
     {
         InitializeComponent();
         _operatorService = operatorService;
+        _countryPrefs = countryPrefs;
 
         MapWebView.Navigated += OnWebViewNavigated;
         _ = LoadHtmlAsync();
@@ -242,20 +245,22 @@ public partial class MapPage : ContentPage
     {
         try
         {
+            int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
+
             await Task.WhenAll(
-                _operatorService.GetStopsAsync().ContinueWith(async t =>
+                _operatorService.GetStopsAsync(countryId).ContinueWith(async t =>
                 {
                     if (t.Result is { } stops)
                         await MainThread.InvokeOnMainThreadAsync(async () =>
                             await CallJsAsync("renderStops", stops));
                 }),
-                _operatorService.GetRoutesAsync().ContinueWith(async t =>
+                _operatorService.GetRoutesAsync(countryId).ContinueWith(async t =>
                 {
                     if (t.Result is { } routes)
                         await MainThread.InvokeOnMainThreadAsync(async () =>
                             await CallJsAsync("renderRoutes", routes));
                 }),
-                _operatorService.GetBikeStationsAsync().ContinueWith(async t =>
+                _operatorService.GetBikeStationsAsync(countryId).ContinueWith(async t =>
                 {
                     if (t.Result is { } stations)
                         await MainThread.InvokeOnMainThreadAsync(async () =>
@@ -321,7 +326,8 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            var vehicles = await _operatorService.GetVehiclesAsync();
+            int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
+            var vehicles = await _operatorService.GetVehiclesAsync(countryId);
             if (vehicles is null) return;
 
             await MainThread.InvokeOnMainThreadAsync(async () =>
