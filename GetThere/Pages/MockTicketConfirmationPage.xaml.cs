@@ -23,17 +23,15 @@ public partial class MockTicketConfirmationPage : ContentPage
         TicketNameLabel.Text = ticket.TicketName;
         PriceLabel.Text      = $"€{ticket.Price:F2}";
         TicketIdLabel.Text   = ticket.TicketId;
-
-        if (DateTime.TryParse(ticket.ValidFrom, null, System.Globalization.DateTimeStyles.RoundtripKind, out var from))
-            ValidFromLabel.Text = from.ToLocalTime().ToString("dd MMM HH:mm");
-        else
-            ValidFromLabel.Text = ticket.ValidFrom;
-
-        if (DateTime.TryParse(ticket.ValidUntil, null, System.Globalization.DateTimeStyles.RoundtripKind, out var until))
-            ValidUntilLabel.Text = until.ToLocalTime().ToString("dd MMM HH:mm");
-        else
-            ValidUntilLabel.Text = ticket.ValidUntil;
+        ValidFromLabel.Text  = ParseAndFormatLocal(ticket.ValidFrom);
+        ValidUntilLabel.Text = ParseAndFormatLocal(ticket.ValidUntil);
     }
+
+    /// <summary>Parses an ISO 8601 datetime string and formats it as local time.</summary>
+    private static string ParseAndFormatLocal(string? iso)
+        => DateTime.TryParse(iso, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+            ? dt.ToLocalTime().ToString("dd MMM HH:mm")
+            : iso ?? string.Empty;
 
     private async void OnDoneClicked(object? sender, EventArgs e)
     {

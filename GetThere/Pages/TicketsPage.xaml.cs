@@ -36,14 +36,8 @@ public partial class TicketsPage : ContentPage
 
         foreach (var t in tickets)
         {
-            if (DateTime.TryParse(t.ValidFrom, null, System.Globalization.DateTimeStyles.RoundtripKind, out var from))
-            {
-                // nothing extra needed
-            }
-            if (DateTime.TryParse(t.ValidUntil, null, System.Globalization.DateTimeStyles.RoundtripKind, out var until))
-            {
-                // nothing extra needed
-            }
+            var validFrom = ParseAndFormatLocal(t.ValidFrom);
+            var validUntil = ParseAndFormatLocal(t.ValidUntil);
 
             var row = new Grid
             {
@@ -74,13 +68,6 @@ public partial class TicketsPage : ContentPage
             };
             Grid.SetColumn(icon, 0);
             row.Children.Add(icon);
-
-            var validFrom = DateTime.TryParse(t.ValidFrom, null, System.Globalization.DateTimeStyles.RoundtripKind, out var vf)
-                ? vf.ToLocalTime().ToString("dd MMM HH:mm")
-                : t.ValidFrom;
-            var validUntil = DateTime.TryParse(t.ValidUntil, null, System.Globalization.DateTimeStyles.RoundtripKind, out var vu)
-                ? vu.ToLocalTime().ToString("dd MMM HH:mm")
-                : t.ValidUntil;
 
             var info = new VerticalStackLayout
             {
@@ -195,4 +182,10 @@ public partial class TicketsPage : ContentPage
         }
         OnHideFilterBottomSheet(sender, e);
     }
+
+    /// <summary>Parses an ISO 8601 datetime string and formats it as local time.</summary>
+    private static string ParseAndFormatLocal(string? iso)
+        => DateTime.TryParse(iso, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+            ? dt.ToLocalTime().ToString("dd MMM HH:mm")
+            : iso ?? string.Empty;
 }
