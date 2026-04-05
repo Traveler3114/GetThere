@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class NewMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -66,6 +66,26 @@ namespace GetThereAPI.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Countries", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "MobilityProviders",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    LogoUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FeedFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ApiKey = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AdapterConfig = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MobilityProviders", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -250,6 +270,30 @@ namespace GetThereAPI.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "MobilityProviderCountry",
+                columns: table => new
+                {
+                    CountriesId = table.Column<int>(type: "int", nullable: false),
+                    MobilityProvidersId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MobilityProviderCountry", x => new { x.CountriesId, x.MobilityProvidersId });
+                    table.ForeignKey(
+                        name: "FK_MobilityProviderCountry_Countries_CountriesId",
+                        column: x => x.CountriesId,
+                        principalTable: "Countries",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_MobilityProviderCountry_MobilityProviders_MobilityProvidersId",
+                        column: x => x.MobilityProvidersId,
+                        principalTable: "MobilityProviders",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Payments",
                 columns: table => new
                 {
@@ -274,6 +318,30 @@ namespace GetThereAPI.Migrations
                         name: "FK_Payments_Wallets_WalletId",
                         column: x => x.WalletId,
                         principalTable: "Wallets",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "MobilityProviderCity",
+                columns: table => new
+                {
+                    CitiesId = table.Column<int>(type: "int", nullable: false),
+                    MobilityProvidersId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MobilityProviderCity", x => new { x.CitiesId, x.MobilityProvidersId });
+                    table.ForeignKey(
+                        name: "FK_MobilityProviderCity_Cities_CitiesId",
+                        column: x => x.CitiesId,
+                        principalTable: "Cities",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_MobilityProviderCity_MobilityProviders_MobilityProvidersId",
+                        column: x => x.MobilityProvidersId,
+                        principalTable: "MobilityProviders",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -407,7 +475,16 @@ namespace GetThereAPI.Migrations
             migrationBuilder.InsertData(
                 table: "Countries",
                 columns: new[] { "Id", "Name" },
-                values: new object[] { 1, "Croatia" });
+                values: new object[,]
+                {
+                    { 1, "Croatia" },
+                    { 2, "Slovenia" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "MobilityProviders",
+                columns: new[] { "Id", "AdapterConfig", "ApiBaseUrl", "ApiKey", "CreatedAt", "FeedFormat", "LogoUrl", "Name", "Type" },
+                values: new object[] { 1, null, "https://nextbike.net/maps/nextbike-live.json", null, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "NEXTBIKE_API", null, "Bajs / Nextbike Zagreb", "BIKE_STATION" });
 
             migrationBuilder.InsertData(
                 table: "PaymentProviders",
@@ -425,21 +502,41 @@ namespace GetThereAPI.Migrations
                 {
                     { 1, "#1264AB", 0, "tram.png", "Tram" },
                     { 2, "#126400", 3, "bus.png", "Bus" },
-                    { 3, "#6a1b9a", 2, "train.png", "Train" }
+                    { 3, "#FF6B00", 2, "train.png", "Train" },
+                    { 4, "#6a1b9a", 715, "bike.png", "City Bike" }
                 });
 
             migrationBuilder.InsertData(
                 table: "Cities",
                 columns: new[] { "Id", "CountryId", "Name" },
-                values: new object[] { 1, 1, "Zagreb" });
+                values: new object[,]
+                {
+                    { 1, 1, "Zagreb" },
+                    { 2, 2, "Ljubljana" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "MobilityProviderCountry",
+                columns: new[] { "CountriesId", "MobilityProvidersId" },
+                values: new object[] { 1, 1 });
+
+            migrationBuilder.InsertData(
+                table: "TransitOperators",
+                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
+                values: new object[] { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", null, null, "HZPP", null, null, "NONE", "NONE", "GTFS", "", "" });
+
+            migrationBuilder.InsertData(
+                table: "MobilityProviderCity",
+                columns: new[] { "CitiesId", "MobilityProvidersId" },
+                values: new object[] { 1, 1 });
 
             migrationBuilder.InsertData(
                 table: "TransitOperators",
                 columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
                 values: new object[,]
                 {
-                    { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", null, null, "HZPP", null, null, "NONE", "NONE", "GTFS", "", "" },
-                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" }
+                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" },
+                    { 3, 2, 2, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://data.lpp.si/api/gtfs/feed.zip", null, null, "LPP", null, null, "NONE", "NONE", "GTFS", "", "" }
                 });
 
             migrationBuilder.CreateIndex(
@@ -485,6 +582,16 @@ namespace GetThereAPI.Migrations
                 name: "IX_Cities_CountryId",
                 table: "Cities",
                 column: "CountryId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MobilityProviderCity_MobilityProvidersId",
+                table: "MobilityProviderCity",
+                column: "MobilityProvidersId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MobilityProviderCountry_MobilityProvidersId",
+                table: "MobilityProviderCountry",
+                column: "MobilityProvidersId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Payments_PaymentProviderId",
@@ -556,6 +663,12 @@ namespace GetThereAPI.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "MobilityProviderCity");
+
+            migrationBuilder.DropTable(
+                name: "MobilityProviderCountry");
+
+            migrationBuilder.DropTable(
                 name: "Payments");
 
             migrationBuilder.DropTable(
@@ -566,6 +679,9 @@ namespace GetThereAPI.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
+
+            migrationBuilder.DropTable(
+                name: "MobilityProviders");
 
             migrationBuilder.DropTable(
                 name: "PaymentProviders");

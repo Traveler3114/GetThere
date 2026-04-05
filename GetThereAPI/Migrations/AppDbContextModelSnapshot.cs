@@ -167,6 +167,12 @@ namespace GetThereAPI.Migrations
                             Id = 1,
                             CountryId = 1,
                             Name = "Zagreb"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CountryId = 2,
+                            Name = "Ljubljana"
                         });
                 });
 
@@ -191,6 +197,11 @@ namespace GetThereAPI.Migrations
                         {
                             Id = 1,
                             Name = "Croatia"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Slovenia"
                         });
                 });
 
@@ -479,6 +490,20 @@ namespace GetThereAPI.Migrations
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
                             Name = "HZPP",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "NONE",
+                            StaticFeedFormat = "GTFS",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CityId = 2,
+                            CountryId = 2,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                            Name = "LPP",
                             RealtimeAuthType = "NONE",
                             RealtimeFeedFormat = "NONE",
                             StaticFeedFormat = "GTFS",

@@ -46,11 +46,13 @@ namespace GetThereAPI.Data
 
 
             modelBuilder.Entity<Country>().HasData(
-                new Country { Id = 1, Name = "Croatia" }
+                new Country { Id = 1, Name = "Croatia" },
+                new Country { Id = 2, Name = "Slovenia" }
             );
 
             modelBuilder.Entity<City>().HasData(
-                new City { Id = 1, Name = "Zagreb", CountryId = 1 }
+                new City { Id = 1, Name = "Zagreb", CountryId = 1 },
+                new City { Id = 2, Name = "Ljubljana", CountryId = 2 }
             );
 
             modelBuilder.Entity<TransitOperator>().HasData(
@@ -87,6 +89,23 @@ namespace GetThereAPI.Data
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                     CountryId = 1,
                     CityId = null
+                },
+                new TransitOperator
+                {
+                    Id = 3,
+                    Name = "LPP",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    RealtimeFeedFormat = "NONE",
+                    RealtimeAuthType = "NONE",
+                    RealtimeAuthConfig = null,
+                    RealtimeAdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 2,
+                    CityId = 2
                 }
             );
 
