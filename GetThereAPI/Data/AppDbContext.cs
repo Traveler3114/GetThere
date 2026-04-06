@@ -49,65 +49,85 @@ namespace GetThereAPI.Data
             modelBuilder.Entity<Country>().HasData(
                 new Country { Id = 1, Name = "Croatia" },
                 new Country { Id = 2, Name = "Slovenia" },
-                new Country { Id = 3, Name = "Austria" }
+                new Country { Id = 3, Name = "Austria" },
+                new Country { Id = 4, Name = "Germany" },
+                new Country { Id = 5, Name = "France" },
+                new Country { Id = 6, Name = "Italy" },
+                new Country { Id = 7, Name = "Poland" },
+                new Country { Id = 8, Name = "Czechia" },
+                new Country { Id = 9, Name = "Hungary" },
+                new Country { Id = 10, Name = "Switzerland" },
+                new Country { Id = 11, Name = "Slovakia" },
+                new Country { Id = 12, Name = "Spain" }
             );
 
             modelBuilder.Entity<City>().HasData(
                 new City { Id = 1, Name = "Zagreb", CountryId = 1 },
-                new City { Id = 2, Name = "Ljubljana", CountryId = 2 }
+                new City { Id = 2, Name = "Ljubljana", CountryId = 2 },
+                new City { Id = 3, Name = "Vienna", CountryId = 3 },
+                new City { Id = 4, Name = "Berlin", CountryId = 4 },
+                new City { Id = 5, Name = "Paris", CountryId = 5 },
+                new City { Id = 6, Name = "Rome", CountryId = 6 },
+                new City { Id = 7, Name = "Warsaw", CountryId = 7 },
+                new City { Id = 8, Name = "Prague", CountryId = 8 },
+                new City { Id = 9, Name = "Budapest", CountryId = 9 },
+                new City { Id = 10, Name = "Zurich", CountryId = 10 },
+                new City { Id = 11, Name = "Bratislava", CountryId = 11 },
+                new City { Id = 12, Name = "Madrid", CountryId = 12 }
             );
 
             modelBuilder.Entity<TransitOperator>().HasData(
-                new TransitOperator
-                {
-                    Id = 1,
-                    Name = "ZET",
-                    LogoUrl = null,
-                    TicketApiBaseUrl = "",
-                    TicketApiKey = "",
-                    GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
-                    GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
-                    RealtimeFeedFormat = "GTFS_RT_PROTO",
-                    RealtimeAuthType = "NONE",
-                    RealtimeAuthConfig = null,
-                    RealtimeAdapterConfig = null,
-                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                    CountryId = 1,
-                    CityId = 1
-                },
-                new TransitOperator
-                {
-                    Id = 2,
-                    Name = "HZPP",
-                    LogoUrl = null,
-                    TicketApiBaseUrl = "",
-                    TicketApiKey = "",
-                    GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                    GtfsRealtimeFeedUrl = null,
-                    RealtimeFeedFormat = "NONE",
-                    RealtimeAuthType = "NONE",
-                    RealtimeAuthConfig = null,
-                    RealtimeAdapterConfig = null,
-                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                    CountryId = 1,
-                    CityId = null
-                },
+                 new TransitOperator
+                 {
+                     Id = 1,
+                     Name = "ZET",
+                     LogoUrl = null,
+                     TicketApiBaseUrl = "",
+                     TicketApiKey = "",
+                     GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
+                     GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
+                     RealtimeFeedFormat = "GTFS_RT_PROTO",
+                     RealtimeAuthType = "NONE",
+                     RealtimeAuthConfig = null,
+                     RealtimeAdapterConfig = null,
+                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                     CountryId = 1,
+                     CityId = 1
+                 },
+                  new TransitOperator
+                  {
+                      Id = 2,
+                      Name = "HZPP",
+                      LogoUrl = null,
+                      TicketApiBaseUrl = "",
+                      TicketApiKey = "",
+                      GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                      GtfsRealtimeFeedUrl = null,
+                      RealtimeFeedFormat = "NONE",
+                      RealtimeAuthType = "NONE",
+                      RealtimeAuthConfig = null,
+                      RealtimeAdapterConfig = null,
+                      CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                      CountryId = 1,
+                      CityId = null
+                  },
+                // Additional
                 new TransitOperator
                 {
                     Id = 3,
-                    Name = "LPP",
+                    Name = "ÖBB (Austrian Federal Railways)",
                     LogoUrl = null,
                     TicketApiBaseUrl = "",
                     TicketApiKey = "",
-                    GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                    GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
                     GtfsRealtimeFeedUrl = null,
                     RealtimeFeedFormat = "NONE",
                     RealtimeAuthType = "NONE",
                     RealtimeAuthConfig = null,
                     RealtimeAdapterConfig = null,
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                    CountryId = 2,
-                    CityId = 2
+                    CountryId = 3,
+                    CityId = null
                 }
             );
 
