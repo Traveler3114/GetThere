@@ -109,24 +109,6 @@ namespace GetThereAPI.Data
                     CountryId = 2,
                     CityId = 2
                 }
-                ,
-                new TransitOperator
-                {
-                    Id = 4,
-                    Name = "OBB",
-                    LogoUrl = null,
-                    TicketApiBaseUrl = "",
-                    TicketApiKey = "",
-                    GtfsFeedUrl = "https://data.oebb.at/oebb-gtfs/full.zip",
-                    GtfsRealtimeFeedUrl = null,
-                    RealtimeFeedFormat = "NONE",
-                    RealtimeAuthType = "NONE",
-                    RealtimeAuthConfig = null,
-                    RealtimeAdapterConfig = null,
-                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                    CountryId = 3,
-                    CityId = null
-                }
             );
 
             modelBuilder.Entity<TransportType>().HasData(
