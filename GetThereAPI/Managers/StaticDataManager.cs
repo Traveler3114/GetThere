@@ -1,10 +1,7 @@
 using GetThereAPI.Entities;
-using GetThereAPI.Helpers;
 using GetThereAPI.Parsers.Realtime;
 using GetThereShared.Dtos;
-using SharpCompress.Readers;
 using System.Collections.Concurrent;
-using System.IO.Compression;
 
 namespace GetThereAPI.Managers;
 
@@ -21,16 +18,16 @@ namespace GetThereAPI.Managers;
 /// </summary>
 public class StaticDataManager
 {
-    private readonly IHttpClientFactory           _httpFactory;
-    private readonly ILogger<StaticDataManager>   _logger;
+    private readonly IHttpClientFactory _httpFactory;
+    private readonly ILogger<StaticDataManager> _logger;
 
     // ── In-memory cache, keyed by operatorId ─────────────────────────────
 
-    private readonly ConcurrentDictionary<int, List<StopDto>>   _stops      = new();
-    private readonly ConcurrentDictionary<int, List<RouteDto>>  _routes     = new();
+    private readonly ConcurrentDictionary<int, List<StopDto>> _stops = new();
+    private readonly ConcurrentDictionary<int, List<RouteDto>> _routes = new();
     private readonly ConcurrentDictionary<int, Dictionary<string, string>> _tripRouteMap = new();
-    private readonly ConcurrentDictionary<int, Dictionary<string, string>> _routeNames   = new();
-    private readonly ConcurrentDictionary<int, Dictionary<string, int>>    _routeTypes   = new();
+    private readonly ConcurrentDictionary<int, Dictionary<string, string>> _routeNames = new();
+    private readonly ConcurrentDictionary<int, Dictionary<string, int>> _routeTypes = new();
 
     // Raw ZIP bytes kept for on-demand schedule/trip parsing
     private readonly ConcurrentDictionary<int, byte[]> _zipBytes = new();
@@ -40,19 +37,18 @@ public class StaticDataManager
 
     // Trip stop cache — stop_times.txt only scanned once per trip
     private readonly ConcurrentDictionary<string, List<TripStopDto>> _tripStopCache = new();
-    private readonly ConcurrentDictionary<string, List<(int OperatorId, string StopId)>> _stationCoverage = new();
 
     public StaticDataManager(
-        IHttpClientFactory         httpFactory,
+        IHttpClientFactory httpFactory,
         ILogger<StaticDataManager> logger)
     {
         _httpFactory = httpFactory;
-        _logger      = logger;
+        _logger = logger;
     }
 
     // ── Public read API ───────────────────────────────────────────────────
 
-    public List<StopDto>  GetStops(int operatorId)
+    public List<StopDto> GetStops(int operatorId)
         => _stops.TryGetValue(operatorId, out var v) ? v : [];
 
     public List<RouteDto> GetRoutes(int operatorId)
@@ -71,17 +67,6 @@ public class StaticDataManager
            && m.TryGetValue(routeId, out var n) ? n : routeId;
 
     public bool IsLoaded(int operatorId) => _stops.ContainsKey(operatorId);
-
-    public string BuildStationKeyForStop(StopDto stop)
-    {
-        if (!string.IsNullOrWhiteSpace(stop.StationKey))
-            return stop.StationKey!;
-
-        return StationKeyHelper.Build(stop.ParentStationId, stop.Name, stop.Lat, stop.Lon);
-    }
-
-    public List<(int OperatorId, string StopId)> GetStationCoverage(string stationKey)
-        => _stationCoverage.TryGetValue(stationKey, out var v) ? v : [];
 
     // ── Load ──────────────────────────────────────────────────────────────
 
@@ -102,8 +87,7 @@ public class StaticDataManager
         try
         {
             var http = _httpFactory.CreateClient();
-            var archiveBytes = await http.GetByteArrayAsync(op.GtfsFeedUrl);
-            var zipBytes = NormalizeStaticArchiveToZip(archiveBytes);
+            var zipBytes = await http.GetByteArrayAsync(op.GtfsFeedUrl);
             _logger.LogInformation("[Static:{Name}] Downloaded {Kb} KB",
                 op.Name, zipBytes.Length / 1024);
 
@@ -131,7 +115,6 @@ public class StaticDataManager
 
             // Clear trip cache since we have fresh data
             _tripStopCache.Clear();
-            RebuildStationCoverage();
 
             _logger.LogInformation(
                 "[Static:{Name}] Loaded {S} stops, {R} routes, {T} trips",
@@ -156,7 +139,6 @@ public class StaticDataManager
         _routeTypes.TryRemove(operatorId, out _);
         _zipBytes.TryRemove(operatorId, out _);
         _parsers.TryRemove(operatorId, out _);
-        RebuildStationCoverage();
     }
 
     // ── On-demand schedule parsing ────────────────────────────────────────
@@ -188,62 +170,5 @@ public class StaticDataManager
         var result = await parser.ParseTripStopsAsync(bytes, tripId);
         _tripStopCache.TryAdd(tripId, result);
         return result;
-    }
-
-    private void RebuildStationCoverage()
-    {
-        _stationCoverage.Clear();
-
-        foreach (var kvp in _stops)
-        {
-            var operatorId = kvp.Key;
-            foreach (var stop in kvp.Value)
-            {
-                if (string.IsNullOrWhiteSpace(stop.StopId)) continue;
-                var stationKey = BuildStationKeyForStop(stop);
-                if (string.IsNullOrWhiteSpace(stationKey)) continue;
-
-                _stationCoverage.AddOrUpdate(
-                    stationKey,
-                    _ => [(operatorId, stop.StopId)],
-                    (_, existing) =>
-                    {
-                        if (existing.Any(x => x.OperatorId == operatorId && x.StopId == stop.StopId))
-                            return existing;
-                        return [..existing, (operatorId, stop.StopId)];
-                    });
-            }
-        }
-    }
-
-    private static byte[] NormalizeStaticArchiveToZip(byte[] archiveBytes)
-    {
-        if (archiveBytes.Length >= 4
-            && archiveBytes[0] == 0x50 // P
-            && archiveBytes[1] == 0x4B // K
-            && archiveBytes[2] == 0x03
-            && archiveBytes[3] == 0x04)
-        {
-            return archiveBytes; // Already ZIP
-        }
-
-        using var input = new MemoryStream(archiveBytes);
-        using var reader = ReaderFactory.OpenReader(input);
-        using var output = new MemoryStream();
-        using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
-        {
-            while (reader.MoveToNextEntry())
-            {
-                if (reader.Entry.IsDirectory) continue;
-
-                var entryName = (reader.Entry.Key ?? string.Empty).Replace('\\', '/');
-                if (string.IsNullOrWhiteSpace(entryName)) continue;
-                var zipEntry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
-                using var zipStream = zipEntry.Open();
-                reader.WriteEntryTo(zipStream);
-            }
-        }
-
-        return output.ToArray();
     }
 }
