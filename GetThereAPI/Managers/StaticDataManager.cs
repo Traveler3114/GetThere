@@ -1,4 +1,5 @@
 using GetThereAPI.Entities;
+using GetThereAPI.Helpers;
 using GetThereAPI.Parsers.Realtime;
 using GetThereShared.Dtos;
 using System.Collections.Concurrent;
@@ -74,11 +75,7 @@ public class StaticDataManager
         if (!string.IsNullOrWhiteSpace(stop.StationKey))
             return stop.StationKey!;
 
-        if (!string.IsNullOrWhiteSpace(stop.ParentStationId))
-            return $"parent:{stop.ParentStationId!.Trim()}";
-
-        var normalizedName = NormalizeName(stop.Name);
-        return $"geo:{normalizedName}:{Math.Round(stop.Lat, 4):F4}:{Math.Round(stop.Lon, 4):F4}";
+        return StationKeyHelper.Build(stop.ParentStationId, stop.Name, stop.Lat, stop.Lon);
     }
 
     public List<(int OperatorId, string StopId)> GetStationCoverage(string stationKey)
@@ -208,22 +205,11 @@ public class StaticDataManager
                     _ => [(operatorId, stop.StopId)],
                     (_, existing) =>
                     {
-                        if (!existing.Any(x => x.OperatorId == operatorId && x.StopId == stop.StopId))
-                            existing.Add((operatorId, stop.StopId));
-                        return existing;
+                        if (existing.Any(x => x.OperatorId == operatorId && x.StopId == stop.StopId))
+                            return existing;
+                        return [..existing, (operatorId, stop.StopId)];
                     });
             }
         }
-    }
-
-    private static string NormalizeName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "unknown";
-        var chars = name.Trim().ToLowerInvariant()
-            .Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c))
-            .ToArray();
-        var collapsed = string.Join(' ', new string(chars)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        return string.IsNullOrWhiteSpace(collapsed) ? "unknown" : collapsed;
     }
 }

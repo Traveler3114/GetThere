@@ -309,13 +309,13 @@ public class OperatorManager
         var owning = FindStopOwner(stopId);
         if (owning is null)
         {
-            _logger.LogWarning("[Schedule] Stop {StopId} not found in any operator", stopId);
+            _logger.LogWarning("[Schedule] Stop not found in any operator");
             return null;
         }
 
         if (countryId.HasValue && !IsOperatorInCountry(owning.Value.OperatorId, countryId.Value))
         {
-            _logger.LogInformation("[Schedule] Stop {StopId} blocked by country filter {CountryId}", stopId, countryId.Value);
+            _logger.LogInformation("[Schedule] Stop blocked by country filter");
             return null;
         }
 
@@ -397,7 +397,11 @@ public class OperatorManager
                 Headsign = kvp.Key.Headsign,
                 Departures = kvp.Value
                     .OrderBy(x => TimeToMinutes(x.Dep.ScheduledTime))
-                    .GroupBy(x => BuildDepartureDedupKey(x.Dep))
+                    .GroupBy(x => BuildDepartureDedupKey(
+                        kvp.Key.RouteId,
+                        kvp.Key.Headsign,
+                        x.Dep))
+                    // Prefer entries that already have realtime annotation over plain schedule rows.
                     .Select(g => g.OrderByDescending(x => x.Dep.IsRealtime).First())
                     .Select(x => x.Dep)
                     .ToList()
@@ -657,10 +661,11 @@ public class OperatorManager
     private bool IsOperatorInCountry(int operatorId, int countryId)
         => _db.TransitOperators.Any(o => o.Id == operatorId && o.CountryId == countryId);
 
-    private static string BuildDepartureDedupKey(DepartureDto dep)
+    private static string BuildDepartureDedupKey(string routeId, string headsign, DepartureDto dep)
     {
-        var route = dep.TripId ?? "";
+        var route = routeId ?? dep.TripId ?? "";
+        var headsignValue = headsign ?? "";
         var time = dep.EstimatedTime ?? dep.ScheduledTime;
-        return $"{route}|{time}";
+        return $"{route}|{headsignValue}|{time}";
     }
 }
