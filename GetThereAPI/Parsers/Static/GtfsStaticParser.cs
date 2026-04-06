@@ -25,7 +25,7 @@ public class GtfsStaticParser : IStaticDataParser
         var stopTypes    = await BuildStopRouteTypesAsync(zip, tripRouteMap, routeTypes);
 
         var result   = new List<StopDto>();
-        var entry    = zip.GetEntry("stops.txt");
+        var entry    = GetGtfsEntry(zip, "stops.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -73,7 +73,7 @@ public class GtfsStaticParser : IStaticDataParser
         var routeShapeMap = await BuildRouteShapeMapAsync(zip);
 
         var result = new List<RouteDto>();
-        var entry  = zip.GetEntry("routes.txt");
+        var entry  = GetGtfsEntry(zip, "routes.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -196,7 +196,7 @@ public class GtfsStaticParser : IStaticDataParser
     {
         using var zip = Open(data);
         var result = new HashSet<int>();
-        var entry = zip.GetEntry("routes.txt");
+        var entry = GetGtfsEntry(zip, "routes.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -221,7 +221,7 @@ public class GtfsStaticParser : IStaticDataParser
     private static async Task<Dictionary<string, int>> ParseRouteTypesAsync(ZipArchive zip)
     {
         var result = new Dictionary<string, int>(StringComparer.Ordinal);
-        var entry  = zip.GetEntry("routes.txt");
+        var entry  = GetGtfsEntry(zip, "routes.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -246,7 +246,7 @@ public class GtfsStaticParser : IStaticDataParser
     private static async Task<Dictionary<string, string>> ParseRouteNamesAsync(ZipArchive zip)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        var entry  = zip.GetEntry("routes.txt");
+        var entry  = GetGtfsEntry(zip, "routes.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -277,7 +277,7 @@ public class GtfsStaticParser : IStaticDataParser
         ZipArchive zip)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        var entry  = zip.GetEntry("trips.txt");
+        var entry  = GetGtfsEntry(zip, "trips.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -304,7 +304,7 @@ public class GtfsStaticParser : IStaticDataParser
         ParseTripInfoMapInternalAsync(ZipArchive zip, HashSet<string>? serviceIds)
     {
         var result = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
-        var entry  = zip.GetEntry("trips.txt");
+        var entry  = GetGtfsEntry(zip, "trips.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -350,7 +350,7 @@ public class GtfsStaticParser : IStaticDataParser
         var active = new HashSet<string>(StringComparer.Ordinal);
 
         // calendar.txt — regular weekly schedule
-        var calEntry = zip.GetEntry("calendar.txt");
+        var calEntry = GetGtfsEntry(zip, "calendar.txt");
         if (calEntry is not null)
         {
             await using var stream = calEntry.Open();
@@ -376,7 +376,7 @@ public class GtfsStaticParser : IStaticDataParser
         }
 
         // calendar_dates.txt — exceptions (added or removed days)
-        var datesEntry = zip.GetEntry("calendar_dates.txt");
+        var datesEntry = GetGtfsEntry(zip, "calendar_dates.txt");
         if (datesEntry is not null)
         {
             await using var stream = datesEntry.Open();
@@ -412,7 +412,7 @@ public class GtfsStaticParser : IStaticDataParser
         // Scan stop_times.txt to find the dominant route type per stop.
         // tram (0) beats bus (3) — a stop served by both gets the tram icon.
         var result  = new Dictionary<string, int>(StringComparer.Ordinal);
-        var stEntry = zip.GetEntry("stop_times.txt");
+        var stEntry = GetGtfsEntry(zip, "stop_times.txt");
         if (stEntry is null) return result;
 
         await using var stream = stEntry.Open();
@@ -441,7 +441,7 @@ public class GtfsStaticParser : IStaticDataParser
     private static async Task<Dictionary<string, List<double[]>>> ParseShapesAsync(ZipArchive zip)
     {
         var result = new Dictionary<string, List<double[]>>();
-        var entry  = zip.GetEntry("shapes.txt");
+        var entry  = GetGtfsEntry(zip, "shapes.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -480,7 +480,7 @@ public class GtfsStaticParser : IStaticDataParser
     private static async Task<Dictionary<string, string>> BuildRouteShapeMapAsync(ZipArchive zip)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        var entry  = zip.GetEntry("trips.txt");
+        var entry  = GetGtfsEntry(zip, "trips.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -512,7 +512,7 @@ public class GtfsStaticParser : IStaticDataParser
         Dictionary<string, (string RouteId, string Headsign)> tripInfo)
     {
         var result = new List<RawDeparture>();
-        var entry  = zip.GetEntry("stop_times.txt");
+        var entry  = GetGtfsEntry(zip, "stop_times.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -544,7 +544,7 @@ public class GtfsStaticParser : IStaticDataParser
         ParseStopMetaAsync(ZipArchive zip)
     {
         var result = new Dictionary<string, (string, double, double)>(StringComparer.Ordinal);
-        var entry  = zip.GetEntry("stops.txt");
+        var entry  = GetGtfsEntry(zip, "stops.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -576,7 +576,7 @@ public class GtfsStaticParser : IStaticDataParser
         Dictionary<string, (string Name, double Lat, double Lon)> stopMeta)
     {
         var result = new List<TripStopDto>();
-        var entry  = zip.GetEntry("stop_times.txt");
+        var entry  = GetGtfsEntry(zip, "stop_times.txt");
         if (entry is null) return result;
 
         await using var stream = entry.Open();
@@ -620,6 +620,29 @@ public class GtfsStaticParser : IStaticDataParser
 
     private static ZipArchive Open(byte[] data)
         => new(new MemoryStream(data), ZipArchiveMode.Read);
+
+    private static ZipArchiveEntry? GetGtfsEntry(ZipArchive zip, string fileName)
+    {
+        ZipArchiveEntry? bestNestedMatch = null;
+
+        foreach (var entry in zip.Entries)
+        {
+            if (string.IsNullOrEmpty(entry.Name)) continue; // directory
+            if (!string.Equals(entry.Name, fileName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (string.Equals(entry.FullName, fileName, StringComparison.OrdinalIgnoreCase))
+                return entry; // exact root-level match wins
+
+            if (bestNestedMatch is null
+                || string.Compare(entry.FullName, bestNestedMatch.FullName, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                bestNestedMatch = entry;
+            }
+        }
+
+        return bestNestedMatch;
+    }
 
     private static List<string> Header(string? line)
         => Split(line?.TrimStart('\uFEFF') ?? "");
