@@ -633,13 +633,25 @@ public class GtfsStaticParser : IStaticDataParser
 
     private static ZipArchiveEntry? GetGtfsEntry(ZipArchive zip, string fileName)
     {
+        ZipArchiveEntry? bestNestedMatch = null;
+
         foreach (var entry in zip.Entries)
         {
             if (string.IsNullOrEmpty(entry.Name)) continue; // directory
-            if (string.Equals(entry.Name, fileName, StringComparison.OrdinalIgnoreCase))
-                return entry;
+            if (!string.Equals(entry.Name, fileName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (string.Equals(entry.FullName, fileName, StringComparison.OrdinalIgnoreCase))
+                return entry; // exact root-level match wins
+
+            if (bestNestedMatch is null
+                || string.Compare(entry.FullName, bestNestedMatch.FullName, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                bestNestedMatch = entry;
+            }
         }
-        return null;
+
+        return bestNestedMatch;
     }
 
     private static List<string> Header(string? line)
