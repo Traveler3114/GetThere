@@ -2,7 +2,9 @@ using GetThereAPI.Entities;
 using GetThereAPI.Helpers;
 using GetThereAPI.Parsers.Realtime;
 using GetThereShared.Dtos;
+using SharpCompress.Readers;
 using System.Collections.Concurrent;
+using System.IO.Compression;
 
 namespace GetThereAPI.Managers;
 
@@ -100,7 +102,8 @@ public class StaticDataManager
         try
         {
             var http = _httpFactory.CreateClient();
-            var zipBytes = await http.GetByteArrayAsync(op.GtfsFeedUrl);
+            var archiveBytes = await http.GetByteArrayAsync(op.GtfsFeedUrl);
+            var zipBytes = NormalizeStaticArchiveToZip(archiveBytes);
             _logger.LogInformation("[Static:{Name}] Downloaded {Kb} KB",
                 op.Name, zipBytes.Length / 1024);
 
@@ -211,5 +214,36 @@ public class StaticDataManager
                     });
             }
         }
+    }
+
+    private static byte[] NormalizeStaticArchiveToZip(byte[] archiveBytes)
+    {
+        if (archiveBytes.Length >= 4
+            && archiveBytes[0] == 0x50 // P
+            && archiveBytes[1] == 0x4B // K
+            && archiveBytes[2] == 0x03
+            && archiveBytes[3] == 0x04)
+        {
+            return archiveBytes; // Already ZIP
+        }
+
+        using var input = new MemoryStream(archiveBytes);
+        using var reader = ReaderFactory.OpenReader(input);
+        using var output = new MemoryStream();
+        using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            while (reader.MoveToNextEntry())
+            {
+                if (reader.Entry.IsDirectory) continue;
+
+                var entryName = (reader.Entry.Key ?? string.Empty).Replace('\\', '/');
+                if (string.IsNullOrWhiteSpace(entryName)) continue;
+                var zipEntry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+                using var zipStream = zipEntry.Open();
+                reader.WriteEntryTo(zipStream);
+            }
+        }
+
+        return output.ToArray();
     }
 }

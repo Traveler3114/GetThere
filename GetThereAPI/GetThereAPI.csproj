@@ -17,6 +17,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.16.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.13.1" />
+    <PackageReference Include="SharpCompress" Version="0.47.4" />
   </ItemGroup>
 
   <ItemGroup>
