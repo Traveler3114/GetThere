@@ -161,17 +161,37 @@ public class OperatorService
     /// Returns today's departures for a stop with realtime delays merged in.
     /// Called when a user taps a stop on the map.
     /// </summary>
-    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId)
+    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId, int? countryId = null)
     {
         try
         {
+            var url = countryId.HasValue
+                ? $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule?countryId={countryId.Value}"
+                : $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule";
             var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(
-                $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule");
+                url);
             return result?.Data;
         }
         catch (Exception ex)
         {
             Trace.WriteLine($"[OperatorService] GetStopSchedule({stopId}) failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<StopScheduleDto?> GetStationScheduleAsync(string stationKey, int? countryId = null)
+    {
+        try
+        {
+            var url = countryId.HasValue
+                ? $"operator/stations/{Uri.EscapeDataString(stationKey)}/schedule?countryId={countryId.Value}"
+                : $"operator/stations/{Uri.EscapeDataString(stationKey)}/schedule";
+            var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(url);
+            return result?.Data;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[OperatorService] GetStationSchedule({stationKey}) failed: {ex.Message}");
             return null;
         }
     }

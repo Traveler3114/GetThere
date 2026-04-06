@@ -1,5 +1,6 @@
 using GetThereShared.Dtos;
 using System.IO.Compression;
+using GetThereAPI.Helpers;
 
 namespace GetThereAPI.Parsers.Realtime;
 
@@ -36,6 +37,7 @@ public class GtfsStaticParser : IStaticDataParser
         int iLat               = Col(cols, "stop_lat");
         int iLon               = Col(cols, "stop_lon");
         int iLocType           = Col(cols, "location_type");
+        int iParentStation     = Col(cols, "parent_station");
         if (iId < 0 || iName < 0 || iLat < 0 || iLon < 0) return result;
 
         string? line;
@@ -58,6 +60,14 @@ public class GtfsStaticParser : IStaticDataParser
                 Name      = Cell(v, iName),
                 Lat       = lat,
                 Lon       = lon,
+                ParentStationId = iParentStation >= 0 && iParentStation < v.Count
+                    ? Cell(v, iParentStation)
+                    : null,
+                StationKey = StationKeyHelper.Build(
+                    iParentStation >= 0 && iParentStation < v.Count ? Cell(v, iParentStation) : "",
+                    Cell(v, iName),
+                    lat,
+                    lon),
                 RouteType = stopTypes.TryGetValue(stopId, out var rt) ? rt : 3,
             });
         }
@@ -666,4 +676,5 @@ public class GtfsStaticParser : IStaticDataParser
                && int.TryParse(p[1], out int m)
             ? h * 60 + m : 0;
     }
+
 }

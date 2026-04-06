@@ -10,6 +10,8 @@ public class StopDto
     public string Name     { get; set; } = "";
     public double Lat      { get; set; }
     public double Lon      { get; set; }
+    public string? ParentStationId { get; set; }
+    public string? StationKey      { get; set; }
 
     /// <summary>
     /// GTFS route_type for the dominant service at this stop.

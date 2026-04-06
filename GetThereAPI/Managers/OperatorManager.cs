@@ -1,8 +1,11 @@
 using GetThereAPI.Data;
+using GetThereAPI.Adapters;
+using GetThereAPI.Configuration;
 using GetThereAPI.Entities;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace GetThereAPI.Managers;
 
@@ -20,6 +23,9 @@ public class OperatorManager
     private readonly StaticDataManager _staticData;
     private readonly RealtimeManager _realtime;
     private readonly MobilityManager _mobility;
+    private readonly IStationScheduleAdapter _stationScheduleAdapter;
+    private readonly StationScheduleObservability _observability;
+    private readonly IOptions<StationScheduleOptions> _stationOptions;
     private readonly ILogger<OperatorManager> _logger;
 
     public OperatorManager(
@@ -27,12 +33,18 @@ public class OperatorManager
         StaticDataManager staticData,
         RealtimeManager realtime,
         MobilityManager mobility,
+        IStationScheduleAdapter stationScheduleAdapter,
+        StationScheduleObservability observability,
+        IOptions<StationScheduleOptions> stationOptions,
         ILogger<OperatorManager> logger)
     {
         _db = db;
         _staticData = staticData;
         _realtime = realtime;
         _mobility = mobility;
+        _stationScheduleAdapter = stationScheduleAdapter;
+        _observability = observability;
+        _stationOptions = stationOptions;
         _logger = logger;
     }
 
@@ -300,35 +312,203 @@ public class OperatorManager
     /// </summary>
     public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId)
     {
-        // Find which operator owns this stop
-        var operatorId = FindOperatorForStop(stopId);
-        if (operatorId is null)
+        return await GetStopScheduleAsync(stopId, null);
+    }
+
+    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId, int? countryId)
+    {
+        // Resolve tapped stop and station key
+        var owning = FindStopOwner(stopId);
+        if (owning is null)
         {
-            _logger.LogWarning("[Schedule] Stop {StopId} not found in any operator", stopId);
+            _logger.LogWarning("[Schedule] Stop not found in any operator");
             return null;
         }
 
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var groups = await _staticData.GetStopScheduleAsync(operatorId.Value, stopId, today);
+        if (countryId.HasValue && !IsOperatorInCountry(owning.Value.OperatorId, countryId.Value))
+        {
+            _logger.LogInformation("[Schedule] Stop blocked by country filter");
+            return null;
+        }
 
-        // Merge realtime delays into each departure
-        foreach (var group in groups)
+        var stationKey = _staticData.BuildStationKeyForStop(owning.Value.Stop);
+        var stationCoverage = _staticData.GetStationCoverage(stationKey);
+        if (stationCoverage.Count == 0)
+            stationCoverage = [(owning.Value.OperatorId, stopId)];
+
+        if (countryId.HasValue)
+        {
+            var allowedOperatorIds = _db.TransitOperators
+                .Where(o => o.CountryId == countryId.Value)
+                .Select(o => o.Id)
+                .ToHashSet();
+            stationCoverage = stationCoverage
+                .Where(x => allowedOperatorIds.Contains(x.OperatorId))
+                .ToList();
+        }
+
+        if (stationCoverage.Count == 0)
+            return null;
+
+        var stationCfg = ResolveStationConfig(stationKey);
+        var sourceMode = stationCfg?.SourceMode ?? "OperatorMerge";
+        _observability.Increment($"source_mode.{sourceMode}");
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var mergedRaw = new List<(int OperatorId, DepartureGroupDto Group, string SourceType)>();
+        var statuses = new List<ScheduleSourceStatusDto>();
+        var fallbackUsed = false;
+        var isPartial = false;
+
+        if (sourceMode is "StationApiPreferred" or "StationApiPlusFallback")
+        {
+            try
+            {
+                var (apiGroups, apiStatus, apiMessage) =
+                    await _stationScheduleAdapter.GetStationScheduleAsync(stationKey, today);
+
+                statuses.Add(new ScheduleSourceStatusDto
+                {
+                    SourceType = "StationApi",
+                    SourceName = stationKey,
+                    Status = apiStatus,
+                    Message = apiMessage
+                });
+
+                if (apiGroups.Count > 0)
+                {
+                    mergedRaw.AddRange(apiGroups.Select(g => (-1, g, "StationApi")));
+                }
+                else if (sourceMode == "StationApiPreferred")
+                {
+                    fallbackUsed = true;
+                    _observability.Increment("fallback.station_api_empty");
+                }
+            }
+            catch (Exception ex)
+            {
+                fallbackUsed = true;
+                isPartial = true;
+                _observability.Increment("fallback.station_api_error");
+                statuses.Add(new ScheduleSourceStatusDto
+                {
+                    SourceType = "StationApi",
+                    SourceName = stationKey,
+                    Status = "error",
+                    Message = ex.Message
+                });
+            }
+        }
+
+        bool shouldUseOperatorMerge = sourceMode == "OperatorMerge"
+            || sourceMode == "StationApiPlusFallback"
+            || (sourceMode == "StationApiPreferred" && (fallbackUsed || mergedRaw.Count == 0));
+
+        if (shouldUseOperatorMerge)
+        {
+            foreach (var (operatorId, memberStopId) in stationCoverage)
+            {
+                try
+                {
+                    var groups = await _staticData.GetStopScheduleAsync(operatorId, memberStopId, today);
+                    mergedRaw.AddRange(groups.Select(g => (operatorId, g, "Operator")));
+                    statuses.Add(new ScheduleSourceStatusDto
+                    {
+                        SourceType = "Operator",
+                        SourceName = $"operator:{operatorId}",
+                        Status = "ok"
+                    });
+                }
+                catch (Exception ex)
+                {
+                    isPartial = true;
+                    _logger.LogWarning(ex, "[Schedule] Failed source operator {OperatorId}", operatorId);
+                    statuses.Add(new ScheduleSourceStatusDto
+                    {
+                        SourceType = "Operator",
+                        SourceName = $"operator:{operatorId}",
+                        Status = "error",
+                        Message = ex.Message
+                    });
+                }
+            }
+        }
+
+        if (!statuses.Any(s => s.Status == "ok"))
+            _observability.Increment("coverage_gaps.no_successful_sources");
+
+        var groupsByKey = new Dictionary<(string RouteId, string ShortName, string Headsign), List<(int OperatorId, DepartureDto Dep)>>();
+        int dedupSuppressed = 0;
+
+        foreach (var (operatorId, group, sourceType) in mergedRaw)
+        {
+            var key = (group.RouteId, group.ShortName, group.Headsign);
+            if (!groupsByKey.TryGetValue(key, out var list))
+            {
+                list = [];
+                groupsByKey[key] = list;
+            }
+
+            foreach (var dep in group.Departures)
+            {
+                dep.SourceOperator = operatorId >= 0 ? operatorId.ToString() : "StationApi";
+                dep.SourceType = sourceType;
+                list.Add((operatorId, dep));
+            }
+        }
+
+        var mergedGroups = groupsByKey
+            .Select(kvp => new DepartureGroupDto
+            {
+                RouteId = kvp.Key.RouteId,
+                ShortName = kvp.Key.ShortName,
+                Headsign = kvp.Key.Headsign,
+                Departures = kvp.Value
+                    .OrderBy(x => TimeToMinutes(x.Dep.ScheduledTime))
+                    .GroupBy(x => BuildDepartureDedupKey(
+                        kvp.Key.RouteId,
+                        kvp.Key.Headsign,
+                        x.Dep))
+                    .Select(g =>
+                    {
+                        if (g.Count() > 1)
+                            dedupSuppressed += g.Count() - 1;
+                        // Prefer entries that already have realtime annotation over plain schedule rows.
+                        return g.OrderByDescending(x => x.Dep.IsRealtime).First();
+                    })
+                    .Select(x => x.Dep)
+                    .ToList()
+            })
+            .Where(g => g.Departures.Count > 0)
+            .OrderBy(g => TimeToMinutes(g.Departures.First().ScheduledTime))
+            .ToList();
+
+        // Merge realtime delays per source operator
+        foreach (var group in mergedGroups)
         {
             foreach (var dep in group.Departures)
             {
-                var updates = _realtime.GetTripUpdates(operatorId.Value, dep.TripId);
+                if (!int.TryParse(dep.SourceOperator, out var sourceOperatorId))
+                    continue;
+
+                // find best matching stop id from station coverage for this operator
+                var sourceStopId = stationCoverage
+                    .FirstOrDefault(x => x.OperatorId == sourceOperatorId).StopId;
+                if (string.IsNullOrWhiteSpace(sourceStopId))
+                    continue;
+
+                var updates = _realtime.GetTripUpdates(sourceOperatorId, dep.TripId);
                 if (updates is null) continue;
 
-                var stu = updates.FirstOrDefault(u => u.StopId == stopId);
+                var stu = updates.FirstOrDefault(u => u.StopId == sourceStopId);
                 if (stu is null) continue;
 
-                var vehicle = _realtime.GetVehicleByTrip(operatorId.Value, dep.TripId);
+                var vehicle = _realtime.GetVehicleByTrip(sourceOperatorId, dep.TripId);
                 dep.IsRealtime = vehicle is not null;
 
                 int delaySec = stu.DelaySeconds;
                 dep.DelayMinutes = (int)Math.Round(delaySec / 60.0);
 
-                // Calculate estimated time from scheduled + delay
                 var parts = dep.ScheduledTime.Split(':');
                 if (parts.Length >= 2
                     && int.TryParse(parts[0], out int h)
@@ -341,17 +521,44 @@ public class OperatorManager
             }
         }
 
-        // Get stop name from cached stops
-        var stop = _staticData.GetStops(operatorId.Value)
-            .FirstOrDefault(s => s.StopId == stopId);
+        if (dedupSuppressed > 0)
+            _observability.Increment($"duplicates.suppressed.{Math.Min(dedupSuppressed, 10)}plus");
+
+        if (fallbackUsed)
+            _observability.Increment("fallback.used");
 
         return new StopScheduleDto
         {
             StopId = stopId,
-            StopName = stop?.Name ?? stopId,
-            Groups = groups,
+            StopName = owning.Value.Stop.Name ?? stopId,
+            StationKey = stationKey,
+            SourceMode = sourceMode,
+            FallbackUsed = fallbackUsed,
+            IsPartial = isPartial,
+            SourceStatuses = statuses,
+            Groups = mergedGroups,
         };
     }
+
+    public async Task<StopScheduleDto?> GetStationScheduleAsync(string stationKey, int? countryId)
+    {
+        var coverage = _staticData.GetStationCoverage(stationKey);
+        if (countryId.HasValue)
+        {
+            var allowedOperatorIds = _db.TransitOperators
+                .Where(o => o.CountryId == countryId.Value)
+                .Select(o => o.Id)
+                .ToHashSet();
+            coverage = coverage.Where(c => allowedOperatorIds.Contains(c.OperatorId)).ToList();
+        }
+
+        var seed = coverage.FirstOrDefault();
+        if (seed == default) return null;
+        return await GetStopScheduleAsync(seed.StopId, countryId);
+    }
+
+    public Dictionary<string, int> GetStationScheduleMetrics()
+        => _observability.Snapshot();
 
     // ── Trip detail ───────────────────────────────────────────────────────
 
@@ -505,6 +712,23 @@ public class OperatorManager
         return null;
     }
 
+    private (int OperatorId, StopDto Stop)? FindStopOwner(string stopId)
+    {
+        var operatorIds = _db.TransitOperators
+            .Where(o => o.GtfsFeedUrl != null)
+            .Select(o => o.Id)
+            .ToList();
+
+        foreach (var id in operatorIds)
+        {
+            var stop = _staticData.GetStops(id).FirstOrDefault(s => s.StopId == stopId);
+            if (stop is not null)
+                return (id, stop);
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Finds which operator a trip belongs to by checking each operator's
     /// trip→route map.
@@ -533,4 +757,24 @@ public class OperatorManager
                && int.TryParse(p[1], out int m)
             ? h * 60 + m : 0;
     }
+
+    private bool IsOperatorInCountry(int operatorId, int countryId)
+        => _db.TransitOperators.Any(o => o.Id == operatorId && o.CountryId == countryId);
+
+    private static string BuildDepartureDedupKey(string routeId, string headsign, DepartureDto dep)
+    {
+        var route = routeId ?? dep.TripId ?? "";
+        var headsignValue = headsign ?? "";
+        var time = dep.EstimatedTime ?? dep.ScheduledTime;
+        var mins = TimeToMinutes(time);
+        var bucket = mins / 2; // 2-minute tolerance bucket
+        var platform = dep.Platform ?? "";
+        return $"{route}|{headsignValue}|{platform}|{bucket}";
+    }
+
+    private StationSourceStrategyConfig? ResolveStationConfig(string stationKey)
+        => _stationOptions.Value.Stations
+            .FirstOrDefault(s => string.Equals(s.StationKey, stationKey, StringComparison.Ordinal))
+           ?? _stationOptions.Value.Stations
+            .FirstOrDefault(s => string.Equals(s.StationKey, "default", StringComparison.Ordinal));
 }
