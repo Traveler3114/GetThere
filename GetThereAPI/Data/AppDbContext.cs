@@ -1,4 +1,5 @@
 ﻿using GetThereAPI.Entities;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -47,7 +48,8 @@ namespace GetThereAPI.Data
 
             modelBuilder.Entity<Country>().HasData(
                 new Country { Id = 1, Name = "Croatia" },
-                new Country { Id = 2, Name = "Slovenia" }
+                new Country { Id = 2, Name = "Slovenia" },
+                new Country { Id = 3, Name = "Austria" }
             );
 
             modelBuilder.Entity<City>().HasData(
@@ -106,6 +108,24 @@ namespace GetThereAPI.Data
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                     CountryId = 2,
                     CityId = 2
+                }
+                ,
+                new TransitOperator
+                {
+                    Id = 4,
+                    Name = "OBB",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://data.oebb.at/oebb-gtfs/full.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    RealtimeFeedFormat = "NONE",
+                    RealtimeAuthType = "NONE",
+                    RealtimeAuthConfig = null,
+                    RealtimeAdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 3,
+                    CityId = null
                 }
             );
 
