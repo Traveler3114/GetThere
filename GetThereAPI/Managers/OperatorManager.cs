@@ -2,6 +2,7 @@ using GetThereAPI.Data;
 using GetThereAPI.Adapters;
 using GetThereAPI.Configuration;
 using GetThereAPI.Entities;
+using GetThereAPI.Helpers;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.EntityFrameworkCore;
@@ -335,6 +336,15 @@ public class OperatorManager
         var stationCoverage = _staticData.GetStationCoverage(stationKey);
         if (stationCoverage.Count == 0)
             stationCoverage = [(owning.Value.OperatorId, stopId)];
+
+        var equivalentCoverage = FindEquivalentStationCoverage(owning.Value.Stop);
+        if (equivalentCoverage.Count > 0)
+        {
+            stationCoverage = stationCoverage
+                .Concat(equivalentCoverage)
+                .Distinct()
+                .ToList();
+        }
 
         if (countryId.HasValue)
         {
@@ -760,6 +770,32 @@ public class OperatorManager
 
     private bool IsOperatorInCountry(int operatorId, int countryId)
         => _db.TransitOperators.Any(o => o.Id == operatorId && o.CountryId == countryId);
+
+    private List<(int OperatorId, string StopId)> FindEquivalentStationCoverage(StopDto seedStop)
+    {
+        var operatorIds = _db.TransitOperators
+            .Where(o => o.GtfsFeedUrl != null)
+            .Select(o => o.Id)
+            .ToList();
+
+        var seedName = StationKeyHelper.NormalizeName(seedStop.Name);
+        const double coordinateTolerance = 0.01; // ~1.1km max delta at equator
+
+        var matches = new List<(int OperatorId, string StopId)>();
+        foreach (var operatorId in operatorIds)
+        {
+            var stop = _staticData.GetStops(operatorId)
+                .FirstOrDefault(s =>
+                    StationKeyHelper.NormalizeName(s.Name) == seedName
+                    && Math.Abs(s.Lat - seedStop.Lat) <= coordinateTolerance
+                    && Math.Abs(s.Lon - seedStop.Lon) <= coordinateTolerance);
+
+            if (stop is not null && !string.IsNullOrWhiteSpace(stop.StopId))
+                matches.Add((operatorId, stop.StopId));
+        }
+
+        return matches;
+    }
 
     private static string BuildDepartureDedupKey(string routeId, string headsign, DepartureDto dep)
     {
