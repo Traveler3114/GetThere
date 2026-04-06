@@ -337,7 +337,7 @@ public class OperatorManager
         if (stationCoverage.Count == 0)
             stationCoverage = [(owning.Value.OperatorId, stopId)];
 
-        var equivalentCoverage = FindEquivalentStationCoverage(owning.Value.Stop);
+        var equivalentCoverage = FindEquivalentStationCoverage(owning.Value.Stop, countryId);
         if (equivalentCoverage.Count > 0)
         {
             stationCoverage = stationCoverage
@@ -771,15 +771,17 @@ public class OperatorManager
     private bool IsOperatorInCountry(int operatorId, int countryId)
         => _db.TransitOperators.Any(o => o.Id == operatorId && o.CountryId == countryId);
 
-    private List<(int OperatorId, string StopId)> FindEquivalentStationCoverage(StopDto seedStop)
+    private List<(int OperatorId, string StopId)> FindEquivalentStationCoverage(StopDto seedStop, int? countryId)
     {
-        var operatorIds = _db.TransitOperators
+        var query = _db.TransitOperators
             .Where(o => o.GtfsFeedUrl != null)
-            .Select(o => o.Id)
-            .ToList();
+            .AsQueryable();
+        if (countryId.HasValue)
+            query = query.Where(o => o.CountryId == countryId.Value);
+        var operatorIds = query.Select(o => o.Id).ToList();
 
         var seedName = StationKeyHelper.NormalizeName(seedStop.Name);
-        const double coordinateTolerance = 0.01; // ~1.1km max delta at equator
+        const double distanceToleranceMeters = 1200;
 
         var matches = new List<(int OperatorId, string StopId)>();
         foreach (var operatorId in operatorIds)
@@ -787,14 +789,26 @@ public class OperatorManager
             var stop = _staticData.GetStops(operatorId)
                 .FirstOrDefault(s =>
                     StationKeyHelper.NormalizeName(s.Name) == seedName
-                    && Math.Abs(s.Lat - seedStop.Lat) <= coordinateTolerance
-                    && Math.Abs(s.Lon - seedStop.Lon) <= coordinateTolerance);
+                    && HaversineMeters(s.Lat, s.Lon, seedStop.Lat, seedStop.Lon) <= distanceToleranceMeters);
 
             if (stop is not null && !string.IsNullOrWhiteSpace(stop.StopId))
                 matches.Add((operatorId, stop.StopId));
         }
 
         return matches;
+    }
+
+    private static double HaversineMeters(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double earthRadiusMeters = 6_371_000;
+        static double ToRadians(double degrees) => degrees * Math.PI / 180.0;
+
+        var dLat = ToRadians(lat2 - lat1);
+        var dLon = ToRadians(lon2 - lon1);
+        var a = Math.Pow(Math.Sin(dLat / 2), 2)
+              + Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) * Math.Pow(Math.Sin(dLon / 2), 2);
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        return earthRadiusMeters * c;
     }
 
     private static string BuildDepartureDedupKey(string routeId, string headsign, DepartureDto dep)
