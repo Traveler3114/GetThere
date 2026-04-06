@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260402101525_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260406161029_NewRow")]
+    partial class NewRow
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,36 @@ namespace GetThereAPI.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("CityMobilityProvider", b =>
+                {
+                    b.Property<int>("CitiesId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MobilityProvidersId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CitiesId", "MobilityProvidersId");
+
+                    b.HasIndex("MobilityProvidersId");
+
+                    b.ToTable("MobilityProviderCity", (string)null);
+                });
+
+            modelBuilder.Entity("CountryMobilityProvider", b =>
+                {
+                    b.Property<int>("CountriesId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MobilityProvidersId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CountriesId", "MobilityProvidersId");
+
+                    b.HasIndex("MobilityProvidersId");
+
+                    b.ToTable("MobilityProviderCountry", (string)null);
+                });
 
             modelBuilder.Entity("GetThereAPI.Entities.AppUser", b =>
                 {
@@ -126,6 +156,12 @@ namespace GetThereAPI.Migrations
                             Id = 1,
                             CountryId = 1,
                             Name = "Zagreb"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CountryId = 2,
+                            Name = "Ljubljana"
                         });
                 });
 
@@ -150,6 +186,68 @@ namespace GetThereAPI.Migrations
                         {
                             Id = 1,
                             Name = "Croatia"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Slovenia"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Austria"
+                        });
+                });
+
+            modelBuilder.Entity("GetThereAPI.Entities.MobilityProvider", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdapterConfig")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ApiBaseUrl")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ApiKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FeedFormat")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MobilityProviders");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            FeedFormat = "NEXTBIKE_API",
+                            Name = "Bajs / Nextbike",
+                            Type = "BIKE_STATION"
                         });
                 });
 
@@ -391,6 +489,33 @@ namespace GetThereAPI.Migrations
                             StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CityId = 2,
+                            CountryId = 2,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                            Name = "LPP",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "NONE",
+                            StaticFeedFormat = "GTFS",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CountryId = 3,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://data.oebb.at/oebb-gtfs/full.zip",
+                            Name = "OBB",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "NONE",
+                            StaticFeedFormat = "GTFS",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
                         });
                 });
 
@@ -441,7 +566,7 @@ namespace GetThereAPI.Migrations
                         new
                         {
                             Id = 3,
-                            Color = "#6a1b9a",
+                            Color = "#FF6B00",
                             GtfsRouteType = 2,
                             IconFile = "train.png",
                             Name = "Train"
@@ -655,6 +780,36 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("TransportTypesId");
 
                     b.ToTable("TransitOperatorTransportType");
+                });
+
+            modelBuilder.Entity("CityMobilityProvider", b =>
+                {
+                    b.HasOne("GetThereAPI.Entities.City", null)
+                        .WithMany()
+                        .HasForeignKey("CitiesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GetThereAPI.Entities.MobilityProvider", null)
+                        .WithMany()
+                        .HasForeignKey("MobilityProvidersId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CountryMobilityProvider", b =>
+                {
+                    b.HasOne("GetThereAPI.Entities.Country", null)
+                        .WithMany()
+                        .HasForeignKey("CountriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GetThereAPI.Entities.MobilityProvider", null)
+                        .WithMany()
+                        .HasForeignKey("MobilityProvidersId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.City", b =>

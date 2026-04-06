@@ -25,4 +25,12 @@ public class WalletTransactionDto
 
     /// <summary>Linked ticket if this transaction was a ticket purchase.</summary>
     public int?                  TicketId    { get; set; }
+
+    /// <summary>
+    /// Amount formatted with the correct sign for display in the wallet history:
+    /// TopUp and Refund show as +€X.XX, TicketPurchase shows as -€X.XX.
+    /// </summary>
+    public string FormattedAmount => Type == WalletTransactionType.TicketPurchase
+        ? $"-€{Amount:F2}"
+        : $"+€{Amount:F2}";
 }

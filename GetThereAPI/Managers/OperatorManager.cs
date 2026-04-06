@@ -19,18 +19,146 @@ public class OperatorManager
     private readonly AppDbContext _db;
     private readonly StaticDataManager _staticData;
     private readonly RealtimeManager _realtime;
+    private readonly MobilityManager _mobility;
     private readonly ILogger<OperatorManager> _logger;
 
     public OperatorManager(
         AppDbContext db,
         StaticDataManager staticData,
         RealtimeManager realtime,
+        MobilityManager mobility,
         ILogger<OperatorManager> logger)
     {
         _db = db;
         _staticData = staticData;
         _realtime = realtime;
+        _mobility = mobility;
         _logger = logger;
+    }
+
+    // ── Hardcoded ticketable operator definitions ─────────────────────────
+
+    // MobilityProvider DB IDs for operators whose countries are determined
+    // dynamically from live feed data rather than static DB links.
+    private static readonly Dictionary<int, int> MobilityProviderIds = new()
+    {
+        [3] = 1,  // Bajs (ticketable Id=3) → MobilityProvider DB Id=1
+    };
+
+    // Maps ticketable list Id → TransitOperator DB Id (for logo lookups).
+    // Bajs (Id=3) is a MobilityProvider and has no TransitOperator row.
+    private static readonly Dictionary<int, int> TicketableToDbTransitId = new()
+    {
+        [1] = 1,   // ZET  → TransitOperator.Id = 1
+        [2] = 2,   // HZPP → TransitOperator.Id = 2
+        [4] = 3,   // LPP  → TransitOperator.Id = 3
+    };
+
+    private static readonly List<TicketableOperatorDto> TicketableList =
+    [
+        new TicketableOperatorDto
+        {
+            Id = 1, Name = "ZET", Type = "TRANSIT", Color = "#1264AB",
+            Description = "Zagreb's tram and bus network.",
+            City = "Zagreb", Country = "Croatia", IsMock = true,
+        },
+        new TicketableOperatorDto
+        {
+            Id = 2, Name = "HZPP", Type = "TRAIN", Color = "#6a1b9a",
+            Description = "Croatian national railway — trains across Croatia.",
+            City = "Zagreb", Country = "Croatia", IsMock = true,
+        },
+        new TicketableOperatorDto
+        {
+            Id = 3, Name = "Bajs", Type = "BIKE", Color = "#FF6B00",
+            Description = "Nextbike city bike sharing service.",
+            City = "", Country = "", IsMock = true,
+        },
+        new TicketableOperatorDto
+        {
+            Id = 4, Name = "LPP", Type = "TRANSIT", Color = "#E30613",
+            Description = "Ljubljana's city bus network.",
+            City = "Ljubljana", Country = "Slovenia", IsMock = true,
+        },
+    ];
+
+    /// <summary>
+    /// Returns operators available for ticket purchase, filtered by country.
+    /// An operator is ticketable if its TicketApiBaseUrl is non-empty OR
+    /// it is in the hardcoded mock list (ZET, HZPP, Bajs, LPP).
+    ///
+    /// Mobility providers (e.g. Bajs) are included dynamically: if the live
+    /// feed has stations in the requested country they are shown — no manual
+    /// DB country links are needed.
+    /// </summary>
+    public async Task<List<TicketableOperatorDto>> GetTicketableOperatorsAsync(int? countryId)
+    {
+        // Enrich hardcoded list with LogoUrl from the DB for transit operators
+        var dbOps = await _db.TransitOperators
+            .Where(o => TicketableToDbTransitId.Values.Contains(o.Id))
+            .Select(o => new { o.Id, o.LogoUrl })
+            .ToListAsync();
+
+        var logoMap = dbOps.ToDictionary(o => o.Id, o => o.LogoUrl);
+
+        string? countryName = null;
+        if (countryId.HasValue)
+        {
+            countryName = await _db.Countries
+                .Where(c => c.Id == countryId.Value)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+
+            if (countryName is null)
+                return [];
+        }
+
+        var result = new List<TicketableOperatorDto>();
+
+        foreach (var t in TicketableList)
+        {
+            // ── Mobility providers (e.g. Bajs): include dynamically ────────
+            if (MobilityProviderIds.TryGetValue(t.Id, out var mobilityDbId))
+            {
+                if (countryName is not null &&
+                    !_mobility.HasStationsInCountry(mobilityDbId, countryName))
+                    continue;
+
+                result.Add(new TicketableOperatorDto
+                {
+                    Id          = t.Id,
+                    Name        = t.Name,
+                    Type        = t.Type,
+                    Color       = t.Color,
+                    Description = t.Description,
+                    City        = t.City,
+                    Country     = countryName ?? t.Country,
+                    IsMock      = t.IsMock,
+                    LogoUrl     = t.LogoUrl,
+                });
+                continue;
+            }
+
+            // ── Transit operators: filter by static Country field ──────────
+            if (countryName is not null && t.Country != countryName)
+                continue;
+
+            TicketableToDbTransitId.TryGetValue(t.Id, out var dbId);
+            result.Add(new TicketableOperatorDto
+            {
+                Id          = t.Id,
+                Name        = t.Name,
+                Type        = t.Type,
+                Color       = t.Color,
+                Description = t.Description,
+                City        = t.City,
+                Country     = t.Country,
+                IsMock      = t.IsMock,
+                LogoUrl     = logoMap.TryGetValue(dbId, out var url) ? url : t.LogoUrl,
+            });
+        }
+
+        return result;
     }
 
     // ── Operators ─────────────────────────────────────────────────────────
@@ -52,14 +180,24 @@ public class OperatorManager
     }
 
     /// <summary>
-    /// Returns all operators from the database.
+    /// Returns operators from the database, optionally filtered by country.
     /// Auth fields are intentionally excluded — never sent to clients.
     /// </summary>
-    public async Task<List<OperatorDto>> GetAllOperatorsAsync()
+    /// <param name="countryId">
+    /// When provided only operators belonging to this country are returned.
+    /// When null all operators are returned (backwards compatible).
+    /// </param>
+    public async Task<List<OperatorDto>> GetAllOperatorsAsync(int? countryId = null)
     {
-        return await _db.TransitOperators
+        var query = _db.TransitOperators
             .Include(o => o.Country)
             .Include(o => o.City)
+            .AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(o => o.CountryId == countryId.Value);
+
+        return await query
             .OrderBy(o => o.Name)
             .Select(o => new OperatorDto
             {
@@ -75,15 +213,23 @@ public class OperatorManager
     // ── Stops ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns all stops for all loaded operators combined.
+    /// Returns all stops for all loaded operators, optionally filtered by country.
     /// The app calls this once on startup and caches the result locally.
     /// </summary>
-    public List<StopDto> GetAllStops()
+    /// <param name="countryId">
+    /// When provided only stops for operators in this country are returned.
+    /// When null stops for all operators are returned (backwards compatible).
+    /// </param>
+    public List<StopDto> GetAllStops(int? countryId = null)
     {
-        var loaded = _db.TransitOperators
+        var query = _db.TransitOperators
             .Where(o => o.GtfsFeedUrl != null)
-            .Select(o => o.Id)
-            .ToList();
+            .AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(o => o.CountryId == countryId.Value);
+
+        var loaded = query.Select(o => o.Id).ToList();
 
         return loaded
             .SelectMany(id => _staticData.GetStops(id))
@@ -97,15 +243,23 @@ public class OperatorManager
     // ── Routes ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns all routes for all loaded operators combined.
+    /// Returns all routes for all loaded operators, optionally filtered by country.
     /// Used by the map to draw route shapes and colour vehicle icons.
     /// </summary>
-    public List<RouteDto> GetAllRoutes()
+    /// <param name="countryId">
+    /// When provided only routes for operators in this country are returned.
+    /// When null routes for all operators are returned (backwards compatible).
+    /// </param>
+    public List<RouteDto> GetAllRoutes(int? countryId = null)
     {
-        var loaded = _db.TransitOperators
+        var query = _db.TransitOperators
             .Where(o => o.GtfsFeedUrl != null)
-            .Select(o => o.Id)
-            .ToList();
+            .AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(o => o.CountryId == countryId.Value);
+
+        var loaded = query.Select(o => o.Id).ToList();
 
         return loaded
             .SelectMany(id => _staticData.GetRoutes(id))
@@ -115,12 +269,28 @@ public class OperatorManager
     // ── Vehicles ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns all vehicles currently on the map across all operators.
+    /// Returns all vehicles currently on the map, optionally filtered by country.
     /// Data is served from RealtimeManager's in-memory cache —
     /// it was last updated at most 10 seconds ago.
     /// </summary>
-    public List<VehicleDto> GetAllVehicles()
-        => _realtime.GetAllVehicles();
+    /// <param name="countryId">
+    /// When provided only vehicles for operators in this country are returned.
+    /// When null vehicles for all operators are returned (backwards compatible).
+    /// </param>
+    public List<VehicleDto> GetAllVehicles(int? countryId = null)
+    {
+        if (!countryId.HasValue)
+            return _realtime.GetAllVehicles();
+
+        var operatorIds = _db.TransitOperators
+            .Where(o => o.CountryId == countryId.Value)
+            .Select(o => o.Id)
+            .ToList();
+
+        return operatorIds
+            .SelectMany(id => _realtime.GetVehicles(id))
+            .ToList();
+    }
 
     // ── Stop schedule ─────────────────────────────────────────────────────
 

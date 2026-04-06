@@ -13,6 +13,7 @@
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
         <helpers:TxTypeToIconConverter x:Key="TxTypeToIconConverter" />
+        <helpers:TxTypeToAmountColorConverter x:Key="TxTypeToAmountColorConverter" />
 
         <DataTemplate x:Key="HistoryTemplate">
             <Grid
@@ -56,9 +57,8 @@
                     <Label
                         FontAttributes="Bold"
                         FontSize="16"
-                        Text="{Binding Amount, StringFormat='+€{0:F2}'}"
-                        TextColor="{AppThemeBinding Light=Black,
-                                                    Dark=White}" />
+                        Text="{Binding FormattedAmount}"
+                        TextColor="{Binding Type, Converter={StaticResource TxTypeToAmountColorConverter}}" />
                     <Label
                         FontSize="20"
                         Text="›"

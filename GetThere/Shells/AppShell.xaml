@@ -26,11 +26,21 @@
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent
+            Title=""
+            Icon="icon_operators.svg"
+            ContentTemplate="{DataTemplate pages:ShopPage}"
+            Route="shop" />
+        <ShellContent
             x:Name="TicketsTab"
             Title=""
             Icon="tab_tram.png"
             ContentTemplate="{DataTemplate pages:TicketsPage}"
             Route="tickets" />
+        <ShellContent
+            Title=""
+            Icon="icon_profile.svg"
+            ContentTemplate="{DataTemplate pages:SettingsPage}"
+            Route="settings" />
     </TabBar>
 
 </Shell>

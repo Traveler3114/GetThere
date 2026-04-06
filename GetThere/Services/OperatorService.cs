@@ -50,15 +50,17 @@ public class OperatorService
     // ── Map data ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns all stops across all operators.
+    /// Returns all stops for operators in the given country, or all stops when countryId is null.
     /// Called once on app startup — result should be cached locally.
     /// </summary>
-    public async Task<List<StopDto>?> GetStopsAsync()
+    public async Task<List<StopDto>?> GetStopsAsync(int? countryId = null)
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<StopDto>>>(
-                "operator/stops");
+            var url = countryId.HasValue
+                ? $"operator/stops?countryId={countryId.Value}"
+                : "operator/stops";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<StopDto>>>(url);
             return result?.Data;
         }
         catch (Exception ex)
@@ -69,15 +71,17 @@ public class OperatorService
     }
 
     /// <summary>
-    /// Returns all routes with shapes for drawing on the map.
+    /// Returns all routes for the given country, or all routes when countryId is null.
     /// Called once on app startup — result should be cached locally.
     /// </summary>
-    public async Task<List<RouteDto>?> GetRoutesAsync()
+    public async Task<List<RouteDto>?> GetRoutesAsync(int? countryId = null)
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<RouteDto>>>(
-                "operator/routes");
+            var url = countryId.HasValue
+                ? $"operator/routes?countryId={countryId.Value}"
+                : "operator/routes";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<RouteDto>>>(url);
             return result?.Data;
         }
         catch (Exception ex)
@@ -88,15 +92,17 @@ public class OperatorService
     }
 
     /// <summary>
-    /// Returns all bike-share stations across all mobility providers.
+    /// Returns all bike-share stations for the given country, or all stations when countryId is null.
     /// Called once on app startup; stations change slowly.
     /// </summary>
-    public async Task<List<BikeStationDto>?> GetBikeStationsAsync()
+    public async Task<List<BikeStationDto>?> GetBikeStationsAsync(int? countryId = null)
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<BikeStationDto>>>(
-                "map/bike-stations");
+            var url = countryId.HasValue
+                ? $"map/bike-stations?countryId={countryId.Value}"
+                : "map/bike-stations";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<BikeStationDto>>>(url);
             return result?.Data;
         }
         catch (Exception ex)
@@ -107,15 +113,17 @@ public class OperatorService
     }
 
     /// <summary>
-    /// Returns all live vehicle positions across all operators.
+    /// Returns all live vehicle positions for the given country, or all vehicles when countryId is null.
     /// Called every 10 seconds to keep the map up to date.
     /// </summary>
-    public async Task<List<VehicleDto>?> GetVehiclesAsync()
+    public async Task<List<VehicleDto>?> GetVehiclesAsync(int? countryId = null)
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<VehicleDto>>>(
-                "operator/vehicles");
+            var url = countryId.HasValue
+                ? $"operator/vehicles?countryId={countryId.Value}"
+                : "operator/vehicles";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<VehicleDto>>>(url);
             return result?.Data;
         }
         catch (Exception ex)

@@ -1,8 +1,10 @@
 using System.Text.Json;
+using GetThereAPI.Data;
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Controllers;
 
@@ -22,11 +24,13 @@ public class MapController : ControllerBase
 {
     private readonly OperatorManager  _operators;
     private readonly MobilityManager  _mobility;
+    private readonly AppDbContext     _db;
 
-    public MapController(OperatorManager operators, MobilityManager mobility)
+    public MapController(OperatorManager operators, MobilityManager mobility, AppDbContext db)
     {
         _operators = operators;
         _mobility  = mobility;
+        _db        = db;
     }
 
     // GET /map/features
@@ -75,7 +79,23 @@ public class MapController : ControllerBase
     }
 
     // GET /map/bike-stations
+    // GET /map/bike-stations?countryId=1
     [HttpGet("bike-stations")]
-    public ActionResult<OperationResult<List<BikeStationDto>>> GetBikeStations()
-        => Ok(OperationResult<List<BikeStationDto>>.Ok(_mobility.GetAllStations()));
+    public async Task<ActionResult<OperationResult<List<BikeStationDto>>>> GetBikeStations(
+        [FromQuery] int? countryId = null)
+    {
+        string? countryName = null;
+        if (countryId.HasValue)
+        {
+            countryName = await _db.Countries
+                .Where(c => c.Id == countryId.Value)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+
+            if (countryName is null)
+                return Ok(OperationResult<List<BikeStationDto>>.Ok([]));
+        }
+
+        return Ok(OperationResult<List<BikeStationDto>>.Ok(_mobility.GetAllStations(countryName)));
+    }
 }

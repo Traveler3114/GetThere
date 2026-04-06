@@ -9,13 +9,14 @@ namespace GetThereAPI.Controllers;
 /// <summary>
 /// All transit-related endpoints.
 ///
-/// GET /operator                    → list of all operators
-/// GET /operator/stops              → all stops across all operators
-/// GET /operator/routes             → all routes across all operators
-/// GET /operator/vehicles           → all live vehicles across all operators
-/// GET /operator/stops/{id}/schedule → departures for a stop (with realtime)
-/// GET /operator/trips/{id}         → full stop sequence for a trip (with realtime)
-/// GET /operator/transport-types    → transport types with available icons
+/// GET /operator                         → list of all operators (optional ?countryId=)
+/// GET /operator/ticketable              → operators available for ticket purchase (optional ?countryId=)
+/// GET /operator/stops                   → all stops across all operators (optional ?countryId=)
+/// GET /operator/routes                  → all routes across all operators (optional ?countryId=)
+/// GET /operator/vehicles                → all live vehicles across all operators (optional ?countryId=)
+/// GET /operator/stops/{id}/schedule     → departures for a stop (with realtime)
+/// GET /operator/trips/{id}              → full stop sequence for a trip (with realtime)
+/// GET /operator/transport-types         → transport types with available icons
 /// </summary>
 [ApiController]
 [Route("[controller]")]
@@ -30,35 +31,60 @@ public class OperatorController : ControllerBase
         _env = env;
     }
 
+    /// <summary>Returns all operators, optionally filtered by country.</summary>
     // GET /operator
+    // GET /operator?countryId=1
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<OperatorDto>>>> GetAll()
+    public async Task<ActionResult<OperationResult<List<OperatorDto>>>> GetAll(
+        [FromQuery] int? countryId = null)
     {
-        var operators = await _manager.GetAllOperatorsAsync();
+        var operators = await _manager.GetAllOperatorsAsync(countryId);
         return Ok(OperationResult<List<OperatorDto>>.Ok(operators));
     }
 
-    // GET /operator/stops
-    [HttpGet("stops")]
-    public ActionResult<OperationResult<List<StopDto>>> GetStops()
+    /// <summary>
+    /// Returns operators available for ticket purchase, optionally filtered by country.
+    /// </summary>
+    // GET /operator/ticketable
+    // GET /operator/ticketable?countryId=1
+    [HttpGet("ticketable")]
+    public async Task<ActionResult<OperationResult<List<TicketableOperatorDto>>>> GetTicketable(
+        [FromQuery] int? countryId = null)
     {
-        var stops = _manager.GetAllStops();
+        var operators = await _manager.GetTicketableOperatorsAsync(countryId);
+        return Ok(OperationResult<List<TicketableOperatorDto>>.Ok(operators));
+    }
+
+    /// <summary>Returns all stops, optionally filtered by country.</summary>
+    // GET /operator/stops
+    // GET /operator/stops?countryId=1
+    [HttpGet("stops")]
+    public ActionResult<OperationResult<List<StopDto>>> GetStops(
+        [FromQuery] int? countryId = null)
+    {
+        var stops = _manager.GetAllStops(countryId);
         return Ok(OperationResult<List<StopDto>>.Ok(stops));
     }
 
+    /// <summary>Returns all routes, optionally filtered by country.</summary>
     // GET /operator/routes
+    // GET /operator/routes?countryId=1
     [HttpGet("routes")]
-    public ActionResult<OperationResult<List<RouteDto>>> GetRoutes()
+    public ActionResult<OperationResult<List<RouteDto>>> GetRoutes(
+        [FromQuery] int? countryId = null)
     {
-        var routes = _manager.GetAllRoutes();
+        var routes = _manager.GetAllRoutes(countryId);
         return Ok(OperationResult<List<RouteDto>>.Ok(routes));
     }
 
+    /// <summary>Returns all live vehicles, optionally filtered by country.</summary>
     // GET /operator/vehicles
+    // GET /operator/vehicles?countryId=1
     [HttpGet("vehicles")]
-    public ActionResult<OperationResult<List<VehicleDto>>> GetVehicles()
+    public ActionResult<OperationResult<List<VehicleDto>>> GetVehicles(
+        [FromQuery] int? countryId = null)
     {
-        var vehicles = _manager.GetAllVehicles();
+        var vehicles = _manager.GetAllVehicles(countryId);
         return Ok(OperationResult<List<VehicleDto>>.Ok(vehicles));
     }
 

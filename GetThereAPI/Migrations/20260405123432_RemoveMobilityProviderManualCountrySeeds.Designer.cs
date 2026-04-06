@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260403192500_RemoveNextbikeCityUidFilter")]
-    partial class RemoveNextbikeCityUidFilter
+    [Migration("20260405123432_RemoveMobilityProviderManualCountrySeeds")]
+    partial class RemoveMobilityProviderManualCountrySeeds
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -38,13 +38,6 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("MobilityProvidersId");
 
                     b.ToTable("MobilityProviderCity", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            CitiesId = 1,
-                            MobilityProvidersId = 1
-                        });
                 });
 
             modelBuilder.Entity("CountryMobilityProvider", b =>
@@ -60,13 +53,6 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("MobilityProvidersId");
 
                     b.ToTable("MobilityProviderCountry", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            CountriesId = 1,
-                            MobilityProvidersId = 1
-                        });
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.AppUser", b =>
@@ -170,6 +156,12 @@ namespace GetThereAPI.Migrations
                             Id = 1,
                             CountryId = 1,
                             Name = "Zagreb"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CountryId = 2,
+                            Name = "Ljubljana"
                         });
                 });
 
@@ -194,6 +186,11 @@ namespace GetThereAPI.Migrations
                         {
                             Id = 1,
                             Name = "Croatia"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Slovenia"
                         });
                 });
 
@@ -244,7 +241,7 @@ namespace GetThereAPI.Migrations
                             ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             FeedFormat = "NEXTBIKE_API",
-                            Name = "Bajs / Nextbike Zagreb",
+                            Name = "Bajs / Nextbike",
                             Type = "BIKE_STATION"
                         });
                 });
@@ -482,6 +479,20 @@ namespace GetThereAPI.Migrations
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
                             Name = "HZPP",
+                            RealtimeAuthType = "NONE",
+                            RealtimeFeedFormat = "NONE",
+                            StaticFeedFormat = "GTFS",
+                            TicketApiBaseUrl = "",
+                            TicketApiKey = ""
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CityId = 2,
+                            CountryId = 2,
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                            Name = "LPP",
                             RealtimeAuthType = "NONE",
                             RealtimeFeedFormat = "NONE",
                             StaticFeedFormat = "GTFS",

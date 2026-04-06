@@ -1,4 +1,5 @@
 ﻿using GetThereAPI.Entities;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -46,11 +47,14 @@ namespace GetThereAPI.Data
 
 
             modelBuilder.Entity<Country>().HasData(
-                new Country { Id = 1, Name = "Croatia" }
+                new Country { Id = 1, Name = "Croatia" },
+                new Country { Id = 2, Name = "Slovenia" },
+                new Country { Id = 3, Name = "Austria" }
             );
 
             modelBuilder.Entity<City>().HasData(
-                new City { Id = 1, Name = "Zagreb", CountryId = 1 }
+                new City { Id = 1, Name = "Zagreb", CountryId = 1 },
+                new City { Id = 2, Name = "Ljubljana", CountryId = 2 }
             );
 
             modelBuilder.Entity<TransitOperator>().HasData(
@@ -87,14 +91,48 @@ namespace GetThereAPI.Data
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                     CountryId = 1,
                     CityId = null
+                },
+                new TransitOperator
+                {
+                    Id = 3,
+                    Name = "LPP",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    RealtimeFeedFormat = "NONE",
+                    RealtimeAuthType = "NONE",
+                    RealtimeAuthConfig = null,
+                    RealtimeAdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 2,
+                    CityId = 2
+                }
+                ,
+                new TransitOperator
+                {
+                    Id = 4,
+                    Name = "OBB",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://data.oebb.at/oebb-gtfs/full.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    RealtimeFeedFormat = "NONE",
+                    RealtimeAuthType = "NONE",
+                    RealtimeAuthConfig = null,
+                    RealtimeAdapterConfig = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 3,
+                    CityId = null
                 }
             );
 
             modelBuilder.Entity<TransportType>().HasData(
                 new TransportType { Id = 1, GtfsRouteType = 0, Name = "Tram", IconFile = "tram.png", Color = "#1264AB" },
                 new TransportType { Id = 2, GtfsRouteType = 3, Name = "Bus", IconFile = "bus.png", Color = "#126400" },
-                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#FF6B00"},
-                new TransportType { Id = 4, GtfsRouteType = 715, Name = "City Bike", IconFile = "bike.png", Color = "#6a1b9a"  }
+                new TransportType { Id = 3, GtfsRouteType = 2, Name = "Train", IconFile = "train.png", Color = "#FF6B00"}
             );
 
             modelBuilder.Entity<PaymentProvider>().HasData(
@@ -124,36 +162,32 @@ namespace GetThereAPI.Data
                 new MobilityProvider
                 {
                     Id = 1,
-                    Name = "Bajs / Nextbike Zagreb",
+                    Name = "Bajs / Nextbike",
                     LogoUrl = null,
                     Type = MobilityType.BIKE_STATION,
                     FeedFormat = MobilityFeedFormat.NEXTBIKE_API,
                     ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
                     ApiKey = null,
-                    // No cityUid filter — fetch all Nextbike stations worldwide
+                    // No cityUid filter — fetch all Nextbike stations worldwide.
+                    // Countries are detected dynamically from the feed; no manual DB links needed.
                     AdapterConfig = null,
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc)
                 }
             );
 
-            // Bajs Zagreb ↔ Croatia (countryId=1) and Zagreb (cityId=1)
+            // MobilityProvider ↔ Country and MobilityProvider ↔ City relationships are defined
+            // here so EF Core generates the join tables, but no seed rows are inserted.
+            // Country coverage for mobility providers is determined dynamically at runtime
+            // from the live feed data (see MobilityManager.HasStationsInCountry).
             modelBuilder.Entity<MobilityProvider>()
                 .HasMany(mp => mp.Countries)
                 .WithMany(c => c.MobilityProviders)
-                .UsingEntity(j =>
-                {
-                    j.ToTable("MobilityProviderCountry");
-                    j.HasData(new { MobilityProvidersId = 1, CountriesId = 1 });
-                });
+                .UsingEntity(j => j.ToTable("MobilityProviderCountry"));
 
             modelBuilder.Entity<MobilityProvider>()
                 .HasMany(mp => mp.Cities)
                 .WithMany(c => c.MobilityProviders)
-                .UsingEntity(j =>
-                {
-                    j.ToTable("MobilityProviderCity");
-                    j.HasData(new { MobilityProvidersId = 1, CitiesId = 1 });
-                });
+                .UsingEntity(j => j.ToTable("MobilityProviderCity"));
         }
     }
 }

@@ -30,16 +30,5 @@ namespace GetThereAPI.Controllers
             var result = await _ticketManager.GetTicketsAsync(userId);
             return Ok(result);
         }
-
-        [HttpPost("purchase")]
-        public async Task<ActionResult<OperationResult<TicketDto>>> Purchase(TicketDto request)
-        {
-            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-            if (userId == null)
-                return Unauthorized(OperationResult<TicketDto>.Fail("User ID claim missing or not authenticated."));
-
-            var result = await _ticketManager.PurchaseTicketAsync(userId, request);
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
     }
 }
