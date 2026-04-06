@@ -36,6 +36,7 @@ public class GtfsStaticParser : IStaticDataParser
         int iLat               = Col(cols, "stop_lat");
         int iLon               = Col(cols, "stop_lon");
         int iLocType           = Col(cols, "location_type");
+        int iParentStation     = Col(cols, "parent_station");
         if (iId < 0 || iName < 0 || iLat < 0 || iLon < 0) return result;
 
         string? line;
@@ -58,6 +59,14 @@ public class GtfsStaticParser : IStaticDataParser
                 Name      = Cell(v, iName),
                 Lat       = lat,
                 Lon       = lon,
+                ParentStationId = iParentStation >= 0 && iParentStation < v.Count
+                    ? Cell(v, iParentStation)
+                    : null,
+                StationKey = BuildStationKey(
+                    iParentStation >= 0 && iParentStation < v.Count ? Cell(v, iParentStation) : "",
+                    Cell(v, iName),
+                    lat,
+                    lon),
                 RouteType = stopTypes.TryGetValue(stopId, out var rt) ? rt : 3,
             });
         }
@@ -665,5 +674,25 @@ public class GtfsStaticParser : IStaticDataParser
                && int.TryParse(p[0], out int h)
                && int.TryParse(p[1], out int m)
             ? h * 60 + m : 0;
+    }
+
+    private static string BuildStationKey(string parentStationId, string name, double lat, double lon)
+    {
+        if (!string.IsNullOrWhiteSpace(parentStationId))
+            return $"parent:{parentStationId.Trim()}";
+
+        var normalizedName = NormalizeName(name);
+        return $"geo:{normalizedName}:{Math.Round(lat, 4):F4}:{Math.Round(lon, 4):F4}";
+    }
+
+    private static string NormalizeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "unknown";
+        var chars = name.Trim().ToLowerInvariant()
+            .Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c))
+            .ToArray();
+        var collapsed = string.Join(' ', new string(chars)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(collapsed) ? "unknown" : collapsed;
     }
 }

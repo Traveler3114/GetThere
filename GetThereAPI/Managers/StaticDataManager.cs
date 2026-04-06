@@ -37,6 +37,7 @@ public class StaticDataManager
 
     // Trip stop cache — stop_times.txt only scanned once per trip
     private readonly ConcurrentDictionary<string, List<TripStopDto>> _tripStopCache = new();
+    private readonly ConcurrentDictionary<string, List<(int OperatorId, string StopId)>> _stationCoverage = new();
 
     public StaticDataManager(
         IHttpClientFactory         httpFactory,
@@ -67,6 +68,21 @@ public class StaticDataManager
            && m.TryGetValue(routeId, out var n) ? n : routeId;
 
     public bool IsLoaded(int operatorId) => _stops.ContainsKey(operatorId);
+
+    public string BuildStationKeyForStop(StopDto stop)
+    {
+        if (!string.IsNullOrWhiteSpace(stop.StationKey))
+            return stop.StationKey!;
+
+        if (!string.IsNullOrWhiteSpace(stop.ParentStationId))
+            return $"parent:{stop.ParentStationId!.Trim()}";
+
+        var normalizedName = NormalizeName(stop.Name);
+        return $"geo:{normalizedName}:{Math.Round(stop.Lat, 4):F4}:{Math.Round(stop.Lon, 4):F4}";
+    }
+
+    public List<(int OperatorId, string StopId)> GetStationCoverage(string stationKey)
+        => _stationCoverage.TryGetValue(stationKey, out var v) ? v : [];
 
     // ── Load ──────────────────────────────────────────────────────────────
 
@@ -115,6 +131,7 @@ public class StaticDataManager
 
             // Clear trip cache since we have fresh data
             _tripStopCache.Clear();
+            RebuildStationCoverage();
 
             _logger.LogInformation(
                 "[Static:{Name}] Loaded {S} stops, {R} routes, {T} trips",
@@ -139,6 +156,7 @@ public class StaticDataManager
         _routeTypes.TryRemove(operatorId, out _);
         _zipBytes.TryRemove(operatorId, out _);
         _parsers.TryRemove(operatorId, out _);
+        RebuildStationCoverage();
     }
 
     // ── On-demand schedule parsing ────────────────────────────────────────
@@ -170,5 +188,42 @@ public class StaticDataManager
         var result = await parser.ParseTripStopsAsync(bytes, tripId);
         _tripStopCache.TryAdd(tripId, result);
         return result;
+    }
+
+    private void RebuildStationCoverage()
+    {
+        _stationCoverage.Clear();
+
+        foreach (var kvp in _stops)
+        {
+            var operatorId = kvp.Key;
+            foreach (var stop in kvp.Value)
+            {
+                if (string.IsNullOrWhiteSpace(stop.StopId)) continue;
+                var stationKey = BuildStationKeyForStop(stop);
+                if (string.IsNullOrWhiteSpace(stationKey)) continue;
+
+                _stationCoverage.AddOrUpdate(
+                    stationKey,
+                    _ => [(operatorId, stop.StopId)],
+                    (_, existing) =>
+                    {
+                        if (!existing.Any(x => x.OperatorId == operatorId && x.StopId == stop.StopId))
+                            existing.Add((operatorId, stop.StopId));
+                        return existing;
+                    });
+            }
+        }
+    }
+
+    private static string NormalizeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "unknown";
+        var chars = name.Trim().ToLowerInvariant()
+            .Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c))
+            .ToArray();
+        var collapsed = string.Join(' ', new string(chars)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(collapsed) ? "unknown" : collapsed;
     }
 }

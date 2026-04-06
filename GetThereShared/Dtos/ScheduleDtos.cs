@@ -9,6 +9,10 @@ public class StopScheduleDto
     public string                  StopId   { get; set; } = "";
     public string                  StopName { get; set; } = "";
     public List<DepartureGroupDto> Groups   { get; set; } = [];
+    public string?                 StationKey { get; set; }
+    public string                  SourceMode { get; set; } = "OperatorMerge";
+    public bool                    FallbackUsed { get; set; }
+    public List<ScheduleSourceStatusDto> SourceStatuses { get; set; } = [];
 }
 
 /// <summary>
@@ -35,6 +39,16 @@ public class DepartureDto
 
     /// <summary>True = vehicle has a live GPS fix.</summary>
     public bool    IsRealtime    { get; set; }
+    public string? SourceOperator { get; set; }
+    public string? SourceType     { get; set; }
+}
+
+public class ScheduleSourceStatusDto
+{
+    public string SourceType { get; set; } = "";
+    public string SourceName { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string? Message { get; set; }
 }
 
 /// <summary>

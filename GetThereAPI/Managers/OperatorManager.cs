@@ -300,35 +300,138 @@ public class OperatorManager
     /// </summary>
     public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId)
     {
-        // Find which operator owns this stop
-        var operatorId = FindOperatorForStop(stopId);
-        if (operatorId is null)
+        return await GetStopScheduleAsync(stopId, null);
+    }
+
+    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId, int? countryId)
+    {
+        // Resolve tapped stop and station key
+        var owning = FindStopOwner(stopId);
+        if (owning is null)
         {
             _logger.LogWarning("[Schedule] Stop {StopId} not found in any operator", stopId);
             return null;
         }
 
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var groups = await _staticData.GetStopScheduleAsync(operatorId.Value, stopId, today);
+        if (countryId.HasValue && !IsOperatorInCountry(owning.Value.OperatorId, countryId.Value))
+        {
+            _logger.LogInformation("[Schedule] Stop {StopId} blocked by country filter {CountryId}", stopId, countryId.Value);
+            return null;
+        }
 
-        // Merge realtime delays into each departure
-        foreach (var group in groups)
+        var stationKey = _staticData.BuildStationKeyForStop(owning.Value.Stop);
+        var stationCoverage = _staticData.GetStationCoverage(stationKey);
+        if (stationCoverage.Count == 0)
+            stationCoverage = [(owning.Value.OperatorId, stopId)];
+
+        if (countryId.HasValue)
+        {
+            var allowedOperatorIds = _db.TransitOperators
+                .Where(o => o.CountryId == countryId.Value)
+                .Select(o => o.Id)
+                .ToHashSet();
+            stationCoverage = stationCoverage
+                .Where(x => allowedOperatorIds.Contains(x.OperatorId))
+                .ToList();
+        }
+
+        if (stationCoverage.Count == 0)
+            return null;
+
+        // Hybrid strategy scaffold:
+        // no station API adapters yet => OperatorMerge only, but with explicit source metadata.
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var mergedRaw = new List<(int OperatorId, DepartureGroupDto Group)>();
+        var statuses = new List<ScheduleSourceStatusDto>();
+
+        foreach (var (operatorId, memberStopId) in stationCoverage)
+        {
+            try
+            {
+                var groups = await _staticData.GetStopScheduleAsync(operatorId, memberStopId, today);
+                mergedRaw.AddRange(groups.Select(g => (operatorId, g)));
+                statuses.Add(new ScheduleSourceStatusDto
+                {
+                    SourceType = "Operator",
+                    SourceName = $"operator:{operatorId}",
+                    Status = "ok"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Schedule] Failed source operator {OperatorId} stop {StopId}", operatorId, memberStopId);
+                statuses.Add(new ScheduleSourceStatusDto
+                {
+                    SourceType = "Operator",
+                    SourceName = $"operator:{operatorId}",
+                    Status = "error",
+                    Message = ex.Message
+                });
+            }
+        }
+
+        var groupsByKey = new Dictionary<(string RouteId, string ShortName, string Headsign), List<(int OperatorId, DepartureDto Dep)>>();
+
+        foreach (var (operatorId, group) in mergedRaw)
+        {
+            var key = (group.RouteId, group.ShortName, group.Headsign);
+            if (!groupsByKey.TryGetValue(key, out var list))
+            {
+                list = [];
+                groupsByKey[key] = list;
+            }
+
+            foreach (var dep in group.Departures)
+            {
+                dep.SourceOperator = operatorId.ToString();
+                dep.SourceType = "Operator";
+                list.Add((operatorId, dep));
+            }
+        }
+
+        var mergedGroups = groupsByKey
+            .Select(kvp => new DepartureGroupDto
+            {
+                RouteId = kvp.Key.RouteId,
+                ShortName = kvp.Key.ShortName,
+                Headsign = kvp.Key.Headsign,
+                Departures = kvp.Value
+                    .OrderBy(x => TimeToMinutes(x.Dep.ScheduledTime))
+                    .GroupBy(x => BuildDepartureDedupKey(x.Dep))
+                    .Select(g => g.OrderByDescending(x => x.Dep.IsRealtime).First())
+                    .Select(x => x.Dep)
+                    .ToList()
+            })
+            .Where(g => g.Departures.Count > 0)
+            .OrderBy(g => TimeToMinutes(g.Departures.First().ScheduledTime))
+            .ToList();
+
+        // Merge realtime delays per source operator
+        foreach (var group in mergedGroups)
         {
             foreach (var dep in group.Departures)
             {
-                var updates = _realtime.GetTripUpdates(operatorId.Value, dep.TripId);
+                if (!int.TryParse(dep.SourceOperator, out var sourceOperatorId))
+                    continue;
+
+                // find best matching stop id from station coverage for this operator
+                var sourceStopId = stationCoverage
+                    .FirstOrDefault(x => x.OperatorId == sourceOperatorId).StopId;
+                if (string.IsNullOrWhiteSpace(sourceStopId))
+                    continue;
+
+                var updates = _realtime.GetTripUpdates(sourceOperatorId, dep.TripId);
                 if (updates is null) continue;
 
-                var stu = updates.FirstOrDefault(u => u.StopId == stopId);
+                var stu = updates.FirstOrDefault(u => u.StopId == sourceStopId);
                 if (stu is null) continue;
 
-                var vehicle = _realtime.GetVehicleByTrip(operatorId.Value, dep.TripId);
+                var vehicle = _realtime.GetVehicleByTrip(sourceOperatorId, dep.TripId);
                 dep.IsRealtime = vehicle is not null;
 
                 int delaySec = stu.DelaySeconds;
                 dep.DelayMinutes = (int)Math.Round(delaySec / 60.0);
 
-                // Calculate estimated time from scheduled + delay
                 var parts = dep.ScheduledTime.Split(':');
                 if (parts.Length >= 2
                     && int.TryParse(parts[0], out int h)
@@ -341,15 +444,15 @@ public class OperatorManager
             }
         }
 
-        // Get stop name from cached stops
-        var stop = _staticData.GetStops(operatorId.Value)
-            .FirstOrDefault(s => s.StopId == stopId);
-
         return new StopScheduleDto
         {
             StopId = stopId,
-            StopName = stop?.Name ?? stopId,
-            Groups = groups,
+            StopName = owning.Value.Stop.Name ?? stopId,
+            StationKey = stationKey,
+            SourceMode = "OperatorMerge",
+            FallbackUsed = false,
+            SourceStatuses = statuses,
+            Groups = mergedGroups,
         };
     }
 
@@ -505,6 +608,23 @@ public class OperatorManager
         return null;
     }
 
+    private (int OperatorId, StopDto Stop)? FindStopOwner(string stopId)
+    {
+        var operatorIds = _db.TransitOperators
+            .Where(o => o.GtfsFeedUrl != null)
+            .Select(o => o.Id)
+            .ToList();
+
+        foreach (var id in operatorIds)
+        {
+            var stop = _staticData.GetStops(id).FirstOrDefault(s => s.StopId == stopId);
+            if (stop is not null)
+                return (id, stop);
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Finds which operator a trip belongs to by checking each operator's
     /// trip→route map.
@@ -532,5 +652,15 @@ public class OperatorManager
                && int.TryParse(p[0], out int h)
                && int.TryParse(p[1], out int m)
             ? h * 60 + m : 0;
+    }
+
+    private bool IsOperatorInCountry(int operatorId, int countryId)
+        => _db.TransitOperators.Any(o => o.Id == operatorId && o.CountryId == countryId);
+
+    private static string BuildDepartureDedupKey(DepartureDto dep)
+    {
+        var route = dep.TripId ?? "";
+        var time = dep.EstimatedTime ?? dep.ScheduledTime;
+        return $"{route}|{time}";
     }
 }

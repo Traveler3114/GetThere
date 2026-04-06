@@ -89,11 +89,13 @@ public class OperatorController : ControllerBase
     }
 
     // GET /operator/stops/{stopId}/schedule
+    // GET /operator/stops/{stopId}/schedule?countryId=1
     [HttpGet("stops/{stopId}/schedule")]
     public async Task<ActionResult<OperationResult<StopScheduleDto>>> GetStopSchedule(
-        string stopId)
+        string stopId,
+        [FromQuery] int? countryId = null)
     {
-        var schedule = await _manager.GetStopScheduleAsync(stopId);
+        var schedule = await _manager.GetStopScheduleAsync(stopId, countryId);
         if (schedule is null)
             return NotFound(OperationResult<StopScheduleDto>.Fail(
                 $"Stop '{stopId}' not found"));

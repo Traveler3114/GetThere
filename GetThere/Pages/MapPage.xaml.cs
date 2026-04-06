@@ -387,7 +387,8 @@ public partial class MapPage : ContentPage
 
     private async Task HandleStopTappedAsync(string stopId)
     {
-        var schedule = await _operatorService.GetStopScheduleAsync(stopId);
+        int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
+        var schedule = await _operatorService.GetStopScheduleAsync(stopId, countryId);
 
         await MainThread.InvokeOnMainThreadAsync(async () =>
             await CallJsAsync("renderStopSchedule",
