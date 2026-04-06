@@ -12,6 +12,7 @@ public class StopScheduleDto
     public string?                 StationKey { get; set; }
     public string                  SourceMode { get; set; } = "OperatorMerge";
     public bool                    FallbackUsed { get; set; }
+    public bool                    IsPartial { get; set; }
     public List<ScheduleSourceStatusDto> SourceStatuses { get; set; } = [];
 }
 
@@ -32,6 +33,7 @@ public class DepartureDto
 {
     public string  TripId        { get; set; } = "";
     public string  ScheduledTime { get; set; } = "";   // "HH:MM"
+    public string? Platform      { get; set; }
 
     /// <summary>Null if no realtime data for this departure.</summary>
     public string? EstimatedTime { get; set; }

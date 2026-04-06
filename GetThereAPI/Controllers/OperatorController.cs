@@ -103,6 +103,27 @@ public class OperatorController : ControllerBase
         return Ok(OperationResult<StopScheduleDto>.Ok(schedule));
     }
 
+    // GET /operator/stations/{stationKey}/schedule
+    // GET /operator/stations/{stationKey}/schedule?countryId=1
+    [HttpGet("stations/{stationKey}/schedule")]
+    public async Task<ActionResult<OperationResult<StopScheduleDto>>> GetStationSchedule(
+        string stationKey,
+        [FromQuery] int? countryId = null)
+    {
+        var schedule = await _manager.GetStationScheduleAsync(stationKey, countryId);
+        if (schedule is null)
+            return NotFound(OperationResult<StopScheduleDto>.Fail("Station not found"));
+        return Ok(OperationResult<StopScheduleDto>.Ok(schedule));
+    }
+
+    // GET /operator/stations/metrics
+    [HttpGet("stations/metrics")]
+    public ActionResult<OperationResult<Dictionary<string, int>>> GetStationScheduleMetrics()
+    {
+        var metrics = _manager.GetStationScheduleMetrics();
+        return Ok(OperationResult<Dictionary<string, int>>.Ok(metrics));
+    }
+
     // GET /operator/trips/{tripId}
     [HttpGet("trips/{tripId}")]
     public async Task<ActionResult<OperationResult<TripDetailDto>>> GetTripDetail(

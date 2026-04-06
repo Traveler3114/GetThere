@@ -1,8 +1,11 @@
 using GetThereAPI.Data;
+using GetThereAPI.Adapters;
+using GetThereAPI.Configuration;
 using GetThereAPI.Entities;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace GetThereAPI.Managers;
 
@@ -20,6 +23,9 @@ public class OperatorManager
     private readonly StaticDataManager _staticData;
     private readonly RealtimeManager _realtime;
     private readonly MobilityManager _mobility;
+    private readonly IStationScheduleAdapter _stationScheduleAdapter;
+    private readonly StationScheduleObservability _observability;
+    private readonly IOptions<StationScheduleOptions> _stationOptions;
     private readonly ILogger<OperatorManager> _logger;
 
     public OperatorManager(
@@ -27,12 +33,18 @@ public class OperatorManager
         StaticDataManager staticData,
         RealtimeManager realtime,
         MobilityManager mobility,
+        IStationScheduleAdapter stationScheduleAdapter,
+        StationScheduleObservability observability,
+        IOptions<StationScheduleOptions> stationOptions,
         ILogger<OperatorManager> logger)
     {
         _db = db;
         _staticData = staticData;
         _realtime = realtime;
         _mobility = mobility;
+        _stationScheduleAdapter = stationScheduleAdapter;
+        _observability = observability;
+        _stationOptions = stationOptions;
         _logger = logger;
     }
 
@@ -338,41 +350,97 @@ public class OperatorManager
         if (stationCoverage.Count == 0)
             return null;
 
-        // Hybrid strategy scaffold:
-        // no station API adapters yet => OperatorMerge only, but with explicit source metadata.
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var mergedRaw = new List<(int OperatorId, DepartureGroupDto Group)>();
-        var statuses = new List<ScheduleSourceStatusDto>();
+        var stationCfg = ResolveStationConfig(stationKey);
+        var sourceMode = stationCfg?.SourceMode ?? "OperatorMerge";
+        _observability.Increment($"source_mode.{sourceMode}");
 
-        foreach (var (operatorId, memberStopId) in stationCoverage)
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var mergedRaw = new List<(int OperatorId, DepartureGroupDto Group, string SourceType)>();
+        var statuses = new List<ScheduleSourceStatusDto>();
+        var fallbackUsed = false;
+        var isPartial = false;
+
+        if (sourceMode is "StationApiPreferred" or "StationApiPlusFallback")
         {
             try
             {
-                var groups = await _staticData.GetStopScheduleAsync(operatorId, memberStopId, today);
-                mergedRaw.AddRange(groups.Select(g => (operatorId, g)));
+                var (apiGroups, apiStatus, apiMessage) =
+                    await _stationScheduleAdapter.GetStationScheduleAsync(stationKey, today);
+
                 statuses.Add(new ScheduleSourceStatusDto
                 {
-                    SourceType = "Operator",
-                    SourceName = $"operator:{operatorId}",
-                    Status = "ok"
+                    SourceType = "StationApi",
+                    SourceName = stationKey,
+                    Status = apiStatus,
+                    Message = apiMessage
                 });
+
+                if (apiGroups.Count > 0)
+                {
+                    mergedRaw.AddRange(apiGroups.Select(g => (-1, g, "StationApi")));
+                }
+                else if (sourceMode == "StationApiPreferred")
+                {
+                    fallbackUsed = true;
+                    _observability.Increment("fallback.station_api_empty");
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[Schedule] Failed source operator {OperatorId} stop {StopId}", operatorId, memberStopId);
+                fallbackUsed = true;
+                isPartial = true;
+                _observability.Increment("fallback.station_api_error");
                 statuses.Add(new ScheduleSourceStatusDto
                 {
-                    SourceType = "Operator",
-                    SourceName = $"operator:{operatorId}",
+                    SourceType = "StationApi",
+                    SourceName = stationKey,
                     Status = "error",
                     Message = ex.Message
                 });
             }
         }
 
-        var groupsByKey = new Dictionary<(string RouteId, string ShortName, string Headsign), List<(int OperatorId, DepartureDto Dep)>>();
+        bool shouldUseOperatorMerge = sourceMode == "OperatorMerge"
+            || sourceMode == "StationApiPlusFallback"
+            || (sourceMode == "StationApiPreferred" && (fallbackUsed || mergedRaw.Count == 0));
 
-        foreach (var (operatorId, group) in mergedRaw)
+        if (shouldUseOperatorMerge)
+        {
+            foreach (var (operatorId, memberStopId) in stationCoverage)
+            {
+                try
+                {
+                    var groups = await _staticData.GetStopScheduleAsync(operatorId, memberStopId, today);
+                    mergedRaw.AddRange(groups.Select(g => (operatorId, g, "Operator")));
+                    statuses.Add(new ScheduleSourceStatusDto
+                    {
+                        SourceType = "Operator",
+                        SourceName = $"operator:{operatorId}",
+                        Status = "ok"
+                    });
+                }
+                catch (Exception ex)
+                {
+                    isPartial = true;
+                    _logger.LogWarning(ex, "[Schedule] Failed source operator {OperatorId}", operatorId);
+                    statuses.Add(new ScheduleSourceStatusDto
+                    {
+                        SourceType = "Operator",
+                        SourceName = $"operator:{operatorId}",
+                        Status = "error",
+                        Message = ex.Message
+                    });
+                }
+            }
+        }
+
+        if (!statuses.Any(s => s.Status == "ok"))
+            _observability.Increment("coverage_gaps.no_successful_sources");
+
+        var groupsByKey = new Dictionary<(string RouteId, string ShortName, string Headsign), List<(int OperatorId, DepartureDto Dep)>>();
+        int dedupSuppressed = 0;
+
+        foreach (var (operatorId, group, sourceType) in mergedRaw)
         {
             var key = (group.RouteId, group.ShortName, group.Headsign);
             if (!groupsByKey.TryGetValue(key, out var list))
@@ -383,8 +451,8 @@ public class OperatorManager
 
             foreach (var dep in group.Departures)
             {
-                dep.SourceOperator = operatorId.ToString();
-                dep.SourceType = "Operator";
+                dep.SourceOperator = operatorId >= 0 ? operatorId.ToString() : "StationApi";
+                dep.SourceType = sourceType;
                 list.Add((operatorId, dep));
             }
         }
@@ -401,8 +469,13 @@ public class OperatorManager
                         kvp.Key.RouteId,
                         kvp.Key.Headsign,
                         x.Dep))
-                    // Prefer entries that already have realtime annotation over plain schedule rows.
-                    .Select(g => g.OrderByDescending(x => x.Dep.IsRealtime).First())
+                    .Select(g =>
+                    {
+                        if (g.Count() > 1)
+                            dedupSuppressed += g.Count() - 1;
+                        // Prefer entries that already have realtime annotation over plain schedule rows.
+                        return g.OrderByDescending(x => x.Dep.IsRealtime).First();
+                    })
                     .Select(x => x.Dep)
                     .ToList()
             })
@@ -448,17 +521,44 @@ public class OperatorManager
             }
         }
 
+        if (dedupSuppressed > 0)
+            _observability.Increment($"duplicates.suppressed.{Math.Min(dedupSuppressed, 10)}plus");
+
+        if (fallbackUsed)
+            _observability.Increment("fallback.used");
+
         return new StopScheduleDto
         {
             StopId = stopId,
             StopName = owning.Value.Stop.Name ?? stopId,
             StationKey = stationKey,
-            SourceMode = "OperatorMerge",
-            FallbackUsed = false,
+            SourceMode = sourceMode,
+            FallbackUsed = fallbackUsed,
+            IsPartial = isPartial,
             SourceStatuses = statuses,
             Groups = mergedGroups,
         };
     }
+
+    public async Task<StopScheduleDto?> GetStationScheduleAsync(string stationKey, int? countryId)
+    {
+        var coverage = _staticData.GetStationCoverage(stationKey);
+        if (countryId.HasValue)
+        {
+            var allowedOperatorIds = _db.TransitOperators
+                .Where(o => o.CountryId == countryId.Value)
+                .Select(o => o.Id)
+                .ToHashSet();
+            coverage = coverage.Where(c => allowedOperatorIds.Contains(c.OperatorId)).ToList();
+        }
+
+        var seed = coverage.FirstOrDefault();
+        if (seed == default) return null;
+        return await GetStopScheduleAsync(seed.StopId, countryId);
+    }
+
+    public Dictionary<string, int> GetStationScheduleMetrics()
+        => _observability.Snapshot();
 
     // ── Trip detail ───────────────────────────────────────────────────────
 
@@ -666,6 +766,15 @@ public class OperatorManager
         var route = routeId ?? dep.TripId ?? "";
         var headsignValue = headsign ?? "";
         var time = dep.EstimatedTime ?? dep.ScheduledTime;
-        return $"{route}|{headsignValue}|{time}";
+        var mins = TimeToMinutes(time);
+        var bucket = mins / 2; // 2-minute tolerance bucket
+        var platform = dep.Platform ?? "";
+        return $"{route}|{headsignValue}|{platform}|{bucket}";
     }
+
+    private StationSourceStrategyConfig? ResolveStationConfig(string stationKey)
+        => _stationOptions.Value.Stations
+            .FirstOrDefault(s => string.Equals(s.StationKey, stationKey, StringComparison.Ordinal))
+           ?? _stationOptions.Value.Stations
+            .FirstOrDefault(s => string.Equals(s.StationKey, "default", StringComparison.Ordinal));
 }

@@ -179,6 +179,23 @@ public class OperatorService
         }
     }
 
+    public async Task<StopScheduleDto?> GetStationScheduleAsync(string stationKey, int? countryId = null)
+    {
+        try
+        {
+            var url = countryId.HasValue
+                ? $"operator/stations/{Uri.EscapeDataString(stationKey)}/schedule?countryId={countryId.Value}"
+                : $"operator/stations/{Uri.EscapeDataString(stationKey)}/schedule";
+            var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(url);
+            return result?.Data;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[OperatorService] GetStationSchedule({stationKey}) failed: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Returns the full stop sequence for a trip with realtime delays.
     /// Called when a user taps a vehicle on the map.

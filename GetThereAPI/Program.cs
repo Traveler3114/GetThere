@@ -1,4 +1,6 @@
 using GetThereAPI.Data;
+using GetThereAPI.Adapters;
+using GetThereAPI.Configuration;
 using GetThereAPI.Entities;
 using GetThereAPI.Managers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -13,6 +15,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.Configure<StationScheduleOptions>(
+    builder.Configuration.GetSection(StationScheduleOptions.SectionName));
 
 // ── Database ──────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -37,6 +41,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<StaticDataManager>();
 builder.Services.AddSingleton<RealtimeManager>();
 builder.Services.AddSingleton<MobilityManager>();
+builder.Services.AddSingleton<StationScheduleObservability>();
+builder.Services.AddSingleton<IStationScheduleAdapter, NoopStationScheduleAdapter>();
 
 // Starts background polling loops when the server starts
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RealtimeManager>());
