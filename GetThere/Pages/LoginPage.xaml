@@ -1,120 +1,155 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:components="clr-namespace:GetThere.Components"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             x:Class="GetThere.Pages.LoginPage"
-             Title="Log in"
-             BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
+<ContentPage
+    x:Class="GetThere.Pages.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    Title="Log in"
+    BackgroundColor="{AppThemeBinding Light=White,
+                                      Dark=#121212}">
 
     <Grid RowDefinitions="*">
-        <!-- Animated background (behind everything) -->
+        <!--  Animated background (behind everything)  -->
         <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
 
-        <!-- Main content -->
+        <!--  Main content  -->
         <ScrollView Grid.Row="0">
-            <VerticalStackLayout x:Name="ContentLayout" Padding="24" Spacing="16">
+            <VerticalStackLayout
+                x:Name="ContentLayout"
+                Padding="24"
+                Spacing="16">
                 <VerticalStackLayout.GestureRecognizers>
                     <PanGestureRecognizer PanUpdated="OnPanUpdate" />
                 </VerticalStackLayout.GestureRecognizers>
 
-            <!-- ── HEADER ── -->
-            <VerticalStackLayout Spacing="6" Margin="0,48,0,24">
-                <Label Text="Welcome back"
-                       FontSize="28" FontAttributes="Bold"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       HorizontalOptions="Center" />
-                <Label Text="Log in to your account"
-                       FontSize="14" TextColor="Gray"
-                       HorizontalOptions="Center" />
-            </VerticalStackLayout>
+                <!--  ── HEADER ──  -->
+                <VerticalStackLayout Margin="0,48,0,24" Spacing="6">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="28"
+                        HorizontalOptions="Center"
+                        Text="Welcome back"
+                        TextColor="{AppThemeBinding Light=Black,
+                                                    Dark=White}" />
+                    <Label
+                        FontSize="14"
+                        HorizontalOptions="Center"
+                        Text="Log in to your account"
+                        TextColor="Gray" />
+                </VerticalStackLayout>
 
-            <!-- ── EMAIL ── -->
-            <Entry x:Name="EmailEntry"
-                   Placeholder="Email address"
-                   Keyboard="Email"
-                   BackgroundColor="Transparent"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                   PlaceholderColor="Gray" />
+                <!--  ── EMAIL ──  -->
+                <Entry
+                    x:Name="EmailEntry"
+                    BackgroundColor="Transparent"
+                    Keyboard="Email"
+                    Placeholder="Email address"
+                    PlaceholderColor="Gray"
+                    TextColor="{AppThemeBinding Light=Black,
+                                                Dark=White}" />
 
-            <!-- ── PASSWORD with eye toggle ── -->
-            <Grid>
-                <Entry x:Name="PasswordEntry"
-                       Placeholder="Password"
-                       IsPassword="True"
-                       BackgroundColor="Transparent"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray"
-                       Margin="0,0,0,0"
-                       HorizontalOptions="Fill" />
-                <!-- Eye label overlaid on the right side of the entry -->
-                <Label x:Name="TogglePasswordBtn"
-                       Text="Show"
-                       FontSize="13"
-                       TextColor="Gray"
-                       FontAttributes="Bold"
-                       VerticalOptions="Center"
-                       HorizontalOptions="End"
-                       Padding="10,0"
-                       Margin="0,0,5,0">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
-            </Grid>
+                <!--  ── PASSWORD with eye toggle ──  -->
+                <Grid>
+                    <Entry
+                        x:Name="PasswordEntry"
+                        Margin="0,0,0,0"
+                        BackgroundColor="Transparent"
+                        HorizontalOptions="Fill"
+                        IsPassword="True"
+                        Placeholder="Password"
+                        PlaceholderColor="Gray"
+                        TextColor="{AppThemeBinding Light=Black,
+                                                    Dark=White}" />
+                    <!--  Eye label overlaid on the right side of the entry  -->
+                    <Label
+                        x:Name="TogglePasswordBtn"
+                        Margin="0,0,5,0"
+                        Padding="10,0"
+                        FontAttributes="Bold"
+                        FontSize="13"
+                        HorizontalOptions="End"
+                        Text="Show"
+                        TextColor="Gray"
+                        VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </Grid>
 
-            <!-- ── ERROR ── -->
-            <Label x:Name="ErrorLabel"
-                   TextColor="Red" FontSize="13"
-                   IsVisible="False"
-                   HorizontalOptions="Center" />
+                <!--  ── ERROR ──  -->
+                <Label
+                    x:Name="ErrorLabel"
+                    FontSize="13"
+                    HorizontalOptions="Center"
+                    IsVisible="False"
+                    TextColor="Red" />
 
-            <!-- ── LOGIN BUTTON ── -->
-            <Button x:Name="LoginButton"
-                    Text="Log in"
+                <!--  ── LOGIN BUTTON ──  -->
+                <Button
+                    x:Name="LoginButton"
+                    Margin="0,8,0,0"
                     Clicked="LoginButton_Clicked"
-                    CornerRadius="12" FontAttributes="Bold"
-                    HeightRequest="52" Margin="0,8,0,0" />
+                    CornerRadius="12"
+                    FontAttributes="Bold"
+                    HeightRequest="52"
+                    Text="Log in" />
 
-            <!-- ── BUSY ── -->
-            <ActivityIndicator x:Name="BusyIndicator"
-                               IsRunning="False" IsVisible="False"
-                               Color="#800080"
-                               HorizontalOptions="Center" />
+                <!--  ── BUSY ──  -->
+                <ActivityIndicator
+                    x:Name="BusyIndicator"
+                    HorizontalOptions="Center"
+                    IsRunning="False"
+                    IsVisible="False"
+                    Color="#800080" />
 
-            <!-- ── SOCIAL LOGIN (with Glow & Circular Buttons) ── -->
-            <Label Text="OR LOG IN WITH"
-                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
-                   HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />
-            <!-- ── GUEST BUTTON ── -->
-            <Button x:Name="GuestButton"
-                    Text="Continue as Guest"
+                <!--  ── SOCIAL LOGIN (with Glow & Circular Buttons) ──  -->
+                <Label
+                    Margin="0,32,0,12"
+                    CharacterSpacing="1"
+                    FontAttributes="Bold"
+                    FontSize="11"
+                    HorizontalOptions="Center"
+                    Text="OR LOG IN WITH"
+                    TextColor="Gray" />
+                <!--  ── GUEST BUTTON ──  -->
+                <Button
+                    x:Name="GuestButton"
+                    Margin="0,8,0,0"
+                    BackgroundColor="{AppThemeBinding Light=#EBEBEC,
+                                                      Dark=#2C2C2E}"
                     Clicked="GuestButton_Clicked"
-                    BackgroundColor="{AppThemeBinding Light=#EBEBEC, Dark=#2C2C2E}"
-                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                    CornerRadius="12" FontAttributes="Bold"
-                    HeightRequest="52" Margin="0,8,0,0" />
+                    CornerRadius="12"
+                    FontAttributes="Bold"
+                    HeightRequest="52"
+                    Text="Continue as Guest"
+                    TextColor="{AppThemeBinding Light=Black,
+                                                Dark=White}" />
 
             </VerticalStackLayout>
         </ScrollView>
 
-        <HorizontalStackLayout Grid.Row="0"
-                               HorizontalOptions="Center"
-                               VerticalOptions="End"
-                               Spacing="40"
-                               Padding="0,0,0,20">
-            <Label Text="Login"
-                   FontSize="16"
-                   TextColor="#FF00FF"
-                   FontAttributes="Bold">
+        <HorizontalStackLayout
+            Grid.Row="0"
+            Padding="0,0,0,20"
+            HorizontalOptions="Center"
+            Spacing="40"
+            VerticalOptions="End">
+            <Label
+                FontAttributes="Bold"
+                FontSize="16"
+                Text="Login"
+                TextColor="#FF00FF">
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="LoginButton_Clicked" />
                 </Label.GestureRecognizers>
             </Label>
-            <Label Text="Register"
-                   FontSize="16"
-                   TextColor="Gray"
-                   FontAttributes="Bold">
+            <Label
+                FontAttributes="Bold"
+                FontSize="16"
+                Text="Register"
+                TextColor="Gray">
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
                 </Label.GestureRecognizers>

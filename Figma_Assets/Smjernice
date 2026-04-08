@@ -1,0 +1,101 @@
+DIZAJN
+
+
+Potrebno je predati prezentaciju rješenja preko koje ćete predstaviti i objasniti svoj dizajn (.pdf ili
+.mp4), prototip (.fig) i link na Figma prototip.
+• prezentacija treba sadržavati
+o definirani vizualni identitet brenda (logo, tipografija, boje)
+o kompletan dizajn aplikacije, što uključuje zaslone, komponente, različita stanja
+UI elemenata, dimenzije elemenata i definirane razmake između njih, definiranu
+tipografiju i za koje se elemente koristi, navedene sve boje te za što se koriste,
+upute za pozicioniranje
+Kriteriji ocjenjivanja
+
+1. User Interface i vizualni identitet – Ocjenjuje se dizajn vizualnog identiteta brenda,
+odnosno razrađenost i primjerenost dizajna temi aplikacije. Vizualni identitet mora imati
+definiran logo, tipografiju i boje. Kod UI dizajna ocjenjuje se izgled i dosljednost svega što
+korisnik vidi na sučelju i s čime stupa u interakciju, što uključuje UI elemente, njihova
+različita stanja, animacije te raspored elemenata na zaslonu. UI se fokusira na estetiku i
+cjelokupni izgled korisničkog sučelja.
+2. User Experience – Ocjenjuje se cjelokupno korisničko iskustvo tijekom interakcije s
+vašim rješenjem. To uključuje intuitivnost rješenja, lakoću korištenja, brzinu učitavanja
+stranica, funkcionalnost, upotrebljivost, kako se korisnik osjeća tijekom korištenja i
+slično. Također se ocjenjuje i način na koji ste istražili i optimizirali korisničko iskustvo,
+odnosno jeste li provodili određena istraživanja, kreirali persone, mape empatije,
+korisnička putovanja i slično. UX dizajn se fokusira na optimiziranje korisničkog puta i
+osiguravanje da korisnici lako postižu svoje ciljeve.
+UI i UX su važni aspekti dizajna Vašeg rješenja. Fokus UI dizajna je na estetiku sučelja, dok se UX
+fokusira na korisničko iskustvo kao cjelinu, uključujući estetiku, funkcionalnost, upotrebljivost i
+zadovoljstvo korisnika.
+
+
+PROGRAMSKI KOD
+
+
+Potrebno je napraviti javni repository na Github-u te poslati link do istog. Također, uzmite u obzir
+način korištenja Git-a te sistematizirano pisanje commit poruka kako bi profesori vidjeli vašu
+organiziranost
+Kriteriji ocjenjivanja
+1. Kvaliteta programskog koda – Obuhvaća jasno odvajanje slojeva i logike (npr. controller
+/service/repository), čitljivost i dosljednost koda (nazivi, konvencije, formatiranje),
+održivost i skalabilnost (izbjegavanje hardkodiranih vrijednosti, pravilna konfiguracija),
+upravljanje vanjskim parametrima (URL-ovi, API ključevi), obradu grešaka i logiranje te
+osnovnu optimizaciju performansi. Poželjno je priložiti osnovnu dokumentaciju projekta
+(npr. README s opisom, uputama za pokretanje i strukturom projekta). Deploy aplikacije
+nije obavezan za polufinale, ali može donijeti dodatne bodove.
+2. Kontrola izvornog koda – Obuhvaća obavezno korištenje sustava za verzioniranje poput
+Git kroz repozitorij na platformi GitHub (jasni commitovi, organizacija grana), primjenu
+osnovnih CI/CD praksi (ako postoje), sigurnost osjetljivih podataka (npr. environment
+varijable), mogućnost jednostavnog pokretanja projekta te postojanje i kvalitetu
+automatiziranih testova.
+
+POSLOVNI PLAN
+
+Potrebno je predati PDF datoteku od maksimalno 10 stranica u kojoj detaljno i jasno
+objašnjavate poslovni plan svog rješenja. Također se preporuča izrada prezentacije kojom ćete
+svoj poslovni plan predstaviti ocjenjivačima. Gdje možete, koristite grafikone i tablice kako bi što
+jasnije i preglednije prikazali podatke i dokaze Vaših tvrdnji.
+Kriteriji ocjenjivanja
+Problem – Opišite problem kojim se Vaše rješenje bavi, prvo na generalnoj razini, a zatim
+ga objasnite iz perspektive Vašeg korisnika. Predstavite određenu priču o specifičnom
+korisniku te prezentirajte taj problem na osobnoj razini. S pouzdanjem i suosjećanjem
+pokažite koliko dobro razumijete stanje tržišta te potkrijepite svoje izjave mjerljivim
+podacima.
+Rješenje – Objasnite kako Vaše rješenje rješava probleme koje ste naveli u prethodnom
+koraku. Koristite vizualne prikaze, ilustracije, slike, prototipove, skice i slično.
+Prilika – Objasnite trendove u okruženju industrije, veličinu i rast tržišnog segmenta,
+koristite konkretne mjerljive podatke i grafove. Opišite industriju te kako će se Vaša
+tvrtka/rješenje pronaći u njoj. Potencijalnim ulagačima dajte uvid u trendove i tržišne
+uvjete koji će vam omogućiti ulazak na tržište te osigurati konkurentnu poziciju.
+Propozicija vrijednosti – Demonstrirajte koliko razumijete svoje klijente/kupce, njihove
+potrebe, probleme te što možete učiniti kako bi im pomogli. Identificirajte istaknute
+značajke Vašeg proizvoda i navedite najveće benefite za Vašeg kupca.
+Poslovni model – Odgovorite na jako važno pitanje: Je li Vaš projekt profitabilan?
+Objasnite kako planirate ostvarivati prihode tijekom više godina poslovanja Vaše tvrtke.
+Navedite, prema prioritetima, izvore prihoda od kojih očekujete najviše dobiti (u eurima).
+Konkurencija – Navedite konkurentske tvrtke/usluge/proizvode i objasnite u kojim
+područjima ste drugačiji od konkurenata te u kojim područjima ste bolji od njih. Ako je
+više konkurenata, sažmite sve u tablicu i vizualno istaknite prednosti Vašeg rješenja u
+odnosu na konkurente te pri prezentiranju najviše naglasite njih.
+Istraživanje tržišnog segmenta – Opišite kako ste odredili svoj tržišni segment
+(identifikacija, profiliranje, izbor ciljnog segmenta te elaboracija marketinškog miksa tj.
+definiranje proizvoda, cijene, načina promocije i distribucije). Predstavite i navedite koje
+ste metode koristili tijekom istraživanja (anketiranje, promatranje, intervju, 3rd party
+izvještaj i slično).
+Ciljana skupina – Pokažite koliko dobro poznajete svoje kupce i tržište koje
+predstavljaju. Opišite gdje žive, što vole raditi i koliko su voljni potrošiti. Opišite koji
+problem imaju i kako ga Vi možete riješiti. Dajte konkretan primjer, odnosno izmislite
+personu koja predstavlja Vašeg kupca i ispričajte priču. Izračunajte i opišite TAM (Total
+Addressable Market), odnosno koliko je potencijalnih kupaca na tržištu koji bi htjeli kupiti
+Vaš proizvod ili uslugu.
+Financijski plan – U tablici popišite sve prihode i rashode Vašeg poslovanja. Napravite
+projekciju prihoda i rashoda po kvartalima za narednih 5 godina poslovanja Vaše tvrtke.
+Od prihoda oduzmite rashode i izračunajte zadržanu dobit. Grafikonom ili tablicom
+prikažite odnos prihoda i rashoda, objasnite zašto su prihodi puno veći od rashoda ili
+obrnuto.
+Tim – Istaknite najvažnije karakteristike/poduzetničke referencije članova Vašeg tima koji
+pridonose izgradnji uspješnosti i vjerodostojnosti Vaše tvrtke. Istaknite vještine, iskustvo i
+priznanja članova relevantne za Vaš uspjeh.
+Vizija i misija – Opišite konkretnu viziju i misiju vaše tvrtke. Vizija se odnosi na idealnu
+sliku budućnosti koju želite za svoju tvrtku i predstavlja ono čemu tvrtka teži. Misija se
+odnosi se na vrijednosti tvrtke i definira njenu svrhu.
