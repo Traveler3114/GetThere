@@ -1,4 +1,3 @@
-#pragma warning disable CA1416
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;
@@ -248,26 +247,33 @@ public partial class MapPage : ContentPage
         {
             int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
 
-            await Task.WhenAll(
-                _operatorService.GetStopsAsync(countryId).ContinueWith(async t =>
-                {
-                    if (t.Result is { } stops)
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderStops", stops));
-                }),
-                _operatorService.GetRoutesAsync(countryId).ContinueWith(async t =>
-                {
-                    if (t.Result is { } routes)
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderRoutes", routes));
-                }),
-                _operatorService.GetBikeStationsAsync(countryId).ContinueWith(async t =>
-                {
-                    if (t.Result is { } stations)
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderBikeStations", stations));
-                })
-            );
+            var stopsTask = _operatorService.GetStopsAsync(countryId);
+            var routesTask = _operatorService.GetRoutesAsync(countryId);
+            var stationsTask = _operatorService.GetBikeStationsAsync(countryId);
+
+            await Task.WhenAll(stopsTask, routesTask, stationsTask);
+
+            var stops = await stopsTask;
+            if (stops is not null)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderStops", stops));
+            }
+
+            var routes = await routesTask;
+            if (routes is not null)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderRoutes", routes));
+            }
+
+            var stations = await stationsTask;
+            if (stations is not null)
+            {
+                Trace.WriteLine($"[MapPage] Bike stations loaded: {stations.Count}");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderBikeStations", stations));
+            }
         }
         catch (Exception ex)
         {
@@ -422,3 +428,7 @@ public partial class MapPage : ContentPage
         }
     }
 }
+
+
+
+

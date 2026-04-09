@@ -1,6 +1,4 @@
 DIZAJN
-
-
 Potrebno je predati prezentaciju rješenja preko koje ćete predstaviti i objasniti svoj dizajn (.pdf ili
 .mp4), prototip (.fig) i link na Figma prototip.
 • prezentacija treba sadržavati
@@ -10,7 +8,6 @@ UI elemenata, dimenzije elemenata i definirane razmake između njih, definiranu
 tipografiju i za koje se elemente koristi, navedene sve boje te za što se koriste,
 upute za pozicioniranje
 Kriteriji ocjenjivanja
-
 1. User Interface i vizualni identitet – Ocjenjuje se dizajn vizualnog identiteta brenda,
 odnosno razrađenost i primjerenost dizajna temi aplikacije. Vizualni identitet mora imati
 definiran logo, tipografiju i boje. Kod UI dizajna ocjenjuje se izgled i dosljednost svega što
@@ -27,11 +24,7 @@ osiguravanje da korisnici lako postižu svoje ciljeve.
 UI i UX su važni aspekti dizajna Vašeg rješenja. Fokus UI dizajna je na estetiku sučelja, dok se UX
 fokusira na korisničko iskustvo kao cjelinu, uključujući estetiku, funkcionalnost, upotrebljivost i
 zadovoljstvo korisnika.
-
-
 PROGRAMSKI KOD
-
-
 Potrebno je napraviti javni repository na Github-u te poslati link do istog. Također, uzmite u obzir
 način korištenja Git-a te sistematizirano pisanje commit poruka kako bi profesori vidjeli vašu
 organiziranost
@@ -48,9 +41,7 @@ Git kroz repozitorij na platformi GitHub (jasni commitovi, organizacija grana), 
 osnovnih CI/CD praksi (ako postoje), sigurnost osjetljivih podataka (npr. environment
 varijable), mogućnost jednostavnog pokretanja projekta te postojanje i kvalitetu
 automatiziranih testova.
-
 POSLOVNI PLAN
-
 Potrebno je predati PDF datoteku od maksimalno 10 stranica u kojoj detaljno i jasno
 objašnjavate poslovni plan svog rješenja. Također se preporuča izrada prezentacije kojom ćete
 svoj poslovni plan predstaviti ocjenjivačima. Gdje možete, koristite grafikone i tablice kako bi što

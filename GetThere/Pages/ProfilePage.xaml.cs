@@ -18,12 +18,46 @@ public partial class ProfilePage : ContentPage
         _walletService = walletService;
         _paymentService = paymentService;
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         await LoadProfileAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        if (Width <= 0)
+            return;
+
+        var isMobile = Width < PageUtility.MobileBreakpoint;
+
+        if (isMobile)
+        {
+            var mobileWidth = Math.Min(Math.Max(Width * 0.84, 300), 420);
+            MainCard.WidthRequest = mobileWidth;
+            MainCard.HeightRequest = 180;
+            MainCard.HorizontalOptions = LayoutOptions.Center;
+
+            HistoryContainer.WidthRequest = mobileWidth;
+            HistoryContainer.HorizontalOptions = LayoutOptions.Center;
+
+            TopUpButton.Margin = new Thickness(0, -34, 0, 0);
+            return;
+        }
+
+        PageUtility.ApplyTicketsStyleResponsive(Width, MainCard);
+        PageUtility.ApplyTicketsStyleResponsive(Width, HistoryContainer);
+        MainCard.HeightRequest = 210;
+        TopUpButton.Margin = new Thickness(0, -48, 0, 0);
     }
 
     private async Task LoadProfileAsync()

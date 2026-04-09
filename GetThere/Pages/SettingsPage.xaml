@@ -5,35 +5,35 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
     Title="Settings"
-    BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#120D14}">
+    BackgroundColor="#F8F9FA"
+    Shell.NavBarIsVisible="False">
 
     <Grid RowDefinitions="Auto,*">
-
         <components:AnimatedBackground Grid.RowSpan="2" />
 
         <!--  Header  -->
         <Label
             Grid.Row="0"
-            Margin="16,18,16,0"
+            Margin="16,28,16,0"
             FontAttributes="Bold"
-            FontSize="28"
+            FontSize="32"
             HorizontalTextAlignment="Center"
             Text="Settings"
-            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+            TextColor="Black" />
 
         <ScrollView Grid.Row="1" Padding="16,16,16,100">
-            <VerticalStackLayout Spacing="16">
+            <VerticalStackLayout x:Name="SettingsContent" Spacing="16" HorizontalOptions="Center">
 
                 <!--  Country card  -->
                 <Border
                     Padding="20"
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                    BackgroundColor="White"
                     StrokeThickness="0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="20" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.05" Radius="10" Offset="0,2" />
+                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
                     </Border.Shadow>
                     <VerticalStackLayout Spacing="12">
 
@@ -41,7 +41,7 @@
                             FontAttributes="Bold"
                             FontSize="18"
                             Text="Country"
-                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            TextColor="White" />
 
                         <Label
                             FontSize="14"
@@ -60,7 +60,8 @@
                             Title="Select a country…"
                             FontSize="16"
                             SelectedIndexChanged="OnCountrySelected"
-                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            TextColor="Black"
+                            BackgroundColor="#FFFFFF" />
 
                         <Label
                             x:Name="CurrentCountryLabel"
@@ -74,20 +75,20 @@
                 <!--  About card  -->
                 <Border
                     Padding="20"
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                    BackgroundColor="White"
                     StrokeThickness="0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="20" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.05" Radius="10" Offset="0,2" />
+                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
                     </Border.Shadow>
                     <VerticalStackLayout Spacing="8">
                         <Label
                             FontAttributes="Bold"
                             FontSize="18"
                             Text="About"
-                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            TextColor="Black" />
                         <Label
                             FontSize="14"
                             Text="GetThere — public transport &amp; mobility app."
@@ -104,7 +105,7 @@
                     Text="Log out"
                     Clicked="OnLogoutClicked"
                     HorizontalOptions="Center"
-                    Margin="0,24,0,0"
+                    Margin="0,28,0,0"
                     Padding="20,10"
                     FontAttributes="Bold"
                     FontSize="14"
@@ -113,7 +114,7 @@
                     CornerRadius="18"
                     WidthRequest="110">
                     <Button.Shadow>
-                        <Shadow Brush="Black" Opacity="0.12" Radius="10" Offset="0,4" />
+                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
                     </Button.Shadow>
                 </Button>
 

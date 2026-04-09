@@ -81,8 +81,17 @@ public class NextbikeParser : IMobilityParser
     {
         var base_ = provider.ApiBaseUrl.TrimEnd('/');
 
+        // Legacy fallback: existing local databases may still have Bajs / Nextbike
+        // seeded without AdapterConfig. In that case default to Zagreb so bike
+        // stations are visible on the map around the primary city area.
         if (string.IsNullOrWhiteSpace(provider.AdapterConfig))
+        {
+            if (provider.Name.Contains("Bajs", StringComparison.OrdinalIgnoreCase) ||
+                provider.Name.Contains("Nextbike", StringComparison.OrdinalIgnoreCase))
+                return $"{base_}?city=1172"; // Grad Zagreb
+
             return base_;
+        }
 
         int? cityUid = null;
         try

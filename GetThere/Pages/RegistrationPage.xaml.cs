@@ -14,6 +14,12 @@ public partial class RegistrationPage : ContentPage
     {
         InitializeComponent();
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, RegistrationCard);
     }
 
     private async void RegisterButton_Clicked(object? sender, EventArgs e)

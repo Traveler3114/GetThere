@@ -5,44 +5,45 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
     Title="Shop"
-    BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#120D14}">
+    BackgroundColor="#F8F9FA"
+    Shell.NavBarIsVisible="False">
 
     <Grid RowDefinitions="Auto,Auto,*">
-
         <components:AnimatedBackground Grid.RowSpan="3" />
 
         <!--  Header  -->
         <Grid Grid.Row="0" Padding="16,18,16,0">
             <Label
                 FontAttributes="Bold"
-                FontSize="28"
+                FontSize="32"
                 HorizontalTextAlignment="Center"
                 Text="Shop"
-                TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                TextColor="Black" />
         </Grid>
 
         <!--  Country badge  -->
-        <Border
-            x:Name="CountryBadge"
-            Grid.Row="1"
-            Margin="16,10,16,0"
-            Padding="12,6"
-            BackgroundColor="{AppThemeBinding Light=#EBEBF0, Dark=#2C2C2E}"
-            HorizontalOptions="Start"
-            StrokeThickness="0">
-            <Border.StrokeShape>
-                <RoundRectangle CornerRadius="10" />
-            </Border.StrokeShape>
-            <Label
-                x:Name="CountryBadgeLabel"
-                FontSize="13"
-                Text="All countries"
-                TextColor="{AppThemeBinding Light=#555, Dark=#AAA}" />
-        </Border>
+        <Grid Grid.Row="1" HorizontalOptions="Center">
+            <Border
+                x:Name="CountryBadge"
+                Margin="16,10,16,0"
+                Padding="12,6"
+                BackgroundColor="#EBEBF0"
+                HorizontalOptions="Start"
+                StrokeThickness="0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="10" />
+                </Border.StrokeShape>
+                <Label
+                    x:Name="CountryBadgeLabel"
+                    FontSize="13"
+                    Text="All countries"
+                    TextColor="#555" />
+            </Border>
+        </Grid>
 
         <!--  Operators list  -->
         <ScrollView Grid.Row="2" Padding="16,8,16,100">
-            <VerticalStackLayout>
+            <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center">
 
                 <ActivityIndicator
                     x:Name="BusyIndicator"

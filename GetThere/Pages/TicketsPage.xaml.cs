@@ -21,13 +21,45 @@ public partial class TicketsPage : ContentPage
         InitializeComponent();
         _ticketService = ticketService;
         _mockStore = mockStore;
+        SizeChanged += OnPageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         ShowMockTickets();
         await LoadTicketsAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        if (Width <= 0)
+            return;
+
+        var isMobile = Width < 700;
+
+        if (isMobile)
+        {
+            TicketsSurface.WidthRequest = -1;
+            TicketsSurface.HorizontalOptions = LayoutOptions.Fill;
+            TicketsContent.Padding = new Thickness(20, 16, 20, 100);
+            HeaderRow.Margin = new Thickness(20, 52, 20, 16);
+            FilterBadge.Padding = new Thickness(14, 8);
+            TopHandle.IsVisible = true;
+            return;
+        }
+
+        PageUtility.ApplyTicketsStyleResponsive(Width, TicketsSurface);
+        TicketsContent.Padding = new Thickness(24, 30, 24, 100);
+        HeaderRow.Margin = new Thickness(24, 60, 24, 20);
+        FilterBadge.Padding = new Thickness(15, 8);
+        TopHandle.IsVisible = true;
     }
 
     private void ShowMockTickets()

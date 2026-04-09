@@ -41,11 +41,10 @@ public partial class AnimatedBackground : ContentView
         
         if (!_initialized)
         {
-            var random = new Random();
-            _blueVx = (float)(random.NextDouble() * 80 + 40);
-            _blueVy = (float)(random.NextDouble() * 80 + 40);
-            _purpleVx = (float)-(random.NextDouble() * 80 + 40); // Start moving LEFT
-            _purpleVy = (float)-(random.NextDouble() * 80 + 40); // Start moving UP
+            _blueVx = 40f;
+            _blueVy = 40f;
+            _purpleVx = -40f; // Start moving LEFT
+            _purpleVy = -40f; // Start moving UP
         }
 
         Loaded += (s, e) => StartAnimation();
@@ -127,8 +126,8 @@ public partial class AnimatedBackground : ContentView
         var blueAlpha = isDarkTheme ? 0.25f : 0.45f;
         var purpleAlpha = isDarkTheme ? 0.25f : 0.45f;
 
-        var blueRadius = isDarkTheme ? 250f : 400f;
-        var purpleRadius = isDarkTheme ? 180f : 280f;
+        var blueRadius = 750f;
+        var purpleRadius = 750f;
 
         // Combine autonomous position with external XOffset/YOffset (pan)
         // We use XOffset/10 to make the pan subtler

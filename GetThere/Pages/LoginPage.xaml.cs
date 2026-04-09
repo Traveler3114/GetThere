@@ -13,6 +13,12 @@ public partial class LoginPage : ContentPage
     {
         InitializeComponent();
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, LoginCard);
     }
 
     private void TogglePassword_Clicked(object? sender, TappedEventArgs e)

@@ -4,73 +4,98 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
-    BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#120D14}">
+    BackgroundColor="#F8F9FA"
+    Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="Auto,*">
-
+    <Grid RowDefinitions="250,*">
         <components:AnimatedBackground Grid.RowSpan="2" />
+        <Border Grid.Row="0" StrokeThickness="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                    <GradientStop Offset="0" Color="#4E85F2" />
+                    <GradientStop Offset="1" Color="#512BD4" />
+                </LinearGradientBrush>
+            </Border.Background>
 
-        <!--  Header  -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Padding="16,18,16,0" ColumnSpacing="12">
-            <Button
-                Grid.Column="0"
-                BackgroundColor="Transparent"
-                Clicked="OnBackClicked"
-                FontSize="20"
-                HeightRequest="40"
-                Text="‹"
-                TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                WidthRequest="40" />
-            <Label
-                x:Name="PageTitleLabel"
-                Grid.Column="1"
-                FontAttributes="Bold"
-                FontSize="24"
-                Text="Buy Tickets"
-                TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                VerticalOptions="Center" />
-        </Grid>
+            <Grid Padding="24,48,24,32" RowDefinitions="Auto,*,Auto">
+                <ImageButton
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    BackgroundColor="Transparent"
+                    Clicked="OnBackClicked"
+                    Source="arrow_back_white.png"
+                    HeightRequest="32"
+                    Padding="0"
+                    WidthRequest="32">
+                    <ImageButton.Shadow>
+                        <Shadow Brush="Black" Opacity="0.35" Offset="0,4" Radius="6" />
+                    </ImageButton.Shadow>
+                </ImageButton>
 
-        <ScrollView Grid.Row="1" Padding="16,12,16,100">
-            <VerticalStackLayout Spacing="16">
-
-                <!--  Mock disclaimer banner  -->
-                <Border
-                    Padding="14,10"
-                    BackgroundColor="#FFF3CD"
-                    StrokeThickness="0">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="12" />
-                    </Border.StrokeShape>
+                <VerticalStackLayout Grid.Row="1" Spacing="4" VerticalOptions="Center">
                     <Label
+                        x:Name="PageTitleLabel"
                         FontAttributes="Bold"
-                        FontSize="13"
+                        FontSize="32"
                         HorizontalTextAlignment="Center"
-                        Text="⚠️  MOCK TICKETS — NOT VALID FOR TRAVEL  ⚠️"
-                        TextColor="#856404" />
-                </Border>
-
-                <ActivityIndicator
-                    x:Name="BusyIndicator"
-                    HeightRequest="40"
-                    IsRunning="False"
-                    IsVisible="False"
-                    Color="#1264AB" />
-
-                <!--  Ticket option cards injected here  -->
-                <VerticalStackLayout x:Name="OptionsContainer" Spacing="12" />
-
-                <VerticalStackLayout x:Name="EmptyState" IsVisible="False">
+                        Text="Buy Tickets"
+                        TextColor="White" />
                     <Label
-                        Margin="0,30"
-                        FontSize="15"
-                        HorizontalOptions="Center"
-                        Text="No ticket options available."
-                        TextColor="Gray" />
+                        x:Name="PageSubtitleLabel"
+                        FontSize="14"
+                        HorizontalTextAlignment="Center"
+                        Text="Choose a ticket for this operator"
+                        TextColor="#E5E7EB" />
                 </VerticalStackLayout>
+            </Grid>
+        </Border>
 
-            </VerticalStackLayout>
-        </ScrollView>
+        <Grid Grid.Row="1" Margin="0,-28,0,0" HorizontalOptions="Center">
+        <Border x:Name="PurchaseSurface" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Fill">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="30,30,0,0" />
+            </Border.StrokeShape>
+            <Border.Shadow>
+                <Shadow Brush="Black" Opacity="0.12" Offset="0,4" Radius="8" />
+            </Border.Shadow>
 
+            <ScrollView Padding="0,0,0,100">
+                <VerticalStackLayout Padding="24,14,24,24" Spacing="14">
+                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E0E0E0" HorizontalOptions="Center" />
+
+                    <Border x:Name="MockBanner" Padding="14,10" BackgroundColor="#FFF3CD" StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="12" />
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.08" Offset="2,2" Radius="4" />
+                        </Border.Shadow>
+                        <Label FontAttributes="Bold"
+                               FontSize="13"
+                               HorizontalTextAlignment="Center"
+                               Text="⚠ MOCK TICKETS — NOT VALID FOR TRAVEL ⚠"
+                               TextColor="#9A6B00" />
+                    </Border>
+
+                    <ActivityIndicator
+                        x:Name="BusyIndicator"
+                        HeightRequest="40"
+                        IsRunning="False"
+                        IsVisible="False"
+                        Color="#009688" />
+
+                    <VerticalStackLayout x:Name="OptionsContainer" Spacing="18" />
+
+                    <VerticalStackLayout x:Name="EmptyState" IsVisible="False" Margin="0,24,0,0">
+                        <Label
+                            FontSize="15"
+                            HorizontalOptions="Center"
+                            Text="No ticket options available."
+                            TextColor="Gray" />
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+        </Border>
+        </Grid>
     </Grid>
 </ContentPage>

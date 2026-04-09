@@ -1,4 +1,5 @@
 #nullable enable
+using GetThere.Helpers;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -14,7 +15,13 @@ public partial class MockTicketConfirmationPage : ContentPage
     public MockTicketConfirmationPage(MockTicketResultDto ticket)
     {
         InitializeComponent();
+        SizeChanged += OnPageSizeChanged;
         BindTicket(ticket);
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, ConfirmationContent);
     }
 
     private void BindTicket(MockTicketResultDto ticket)

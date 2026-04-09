@@ -86,10 +86,10 @@
 
         <Grid RowDefinitions="Auto, *">
             <!-- ── HEADER ── -->
-            <Grid Grid.Row="0" Margin="24,60,24,20" ColumnDefinitions="*,Auto">
+            <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,60,24,20" ColumnDefinitions="*,Auto">
                 <Label Text="My Tickets" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
                 
-                <Border Grid.Column="1" Padding="15,8" BackgroundColor="#D1FAE5" StrokeThickness="0">
+                <Border x:Name="FilterBadge" Grid.Column="1" Padding="15,8" BackgroundColor="#D1FAE5" StrokeThickness="0">
                     <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
                     <Border.Shadow><Shadow Brush="Black" Opacity="0.1" Offset="0,4" Radius="8" /></Border.Shadow>
                     <Label x:Name="FilterBtnLabel" Text="Active ▴" TextColor="#065F46" FontAttributes="Bold" FontSize="14">
@@ -101,10 +101,12 @@
             </Grid>
 
             <!-- ── TICKETS CONTENT (WHITE CARD OVERLAY) ── -->
-            <Border Grid.Row="1" Margin="0,10,0,0" BackgroundColor="#E5E7EB" StrokeThickness="0">
+            <Grid Grid.Row="1" Margin="0,10,0,0" HorizontalOptions="Center">
+            <Border x:Name="TicketsSurface" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Fill">
                 <Border.StrokeShape><RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
                 <ScrollView>
-                    <VerticalStackLayout Padding="24,30,24,100" Spacing="20">
+                    <VerticalStackLayout x:Name="TicketsContent" Padding="24,20,24,100" Spacing="20">
+                        <BoxView x:Name="TopHandle" WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#D8D8D8" HorizontalOptions="Center" />
                         
                         <VerticalStackLayout x:Name="MockTicketsSection" IsVisible="False" Spacing="20">
                             <Label Text="Session Tickets (Mock)" FontAttributes="Bold" FontSize="14" TextColor="#4B5563" />
@@ -130,11 +132,12 @@
                     </VerticalStackLayout>
                 </ScrollView>
             </Border>
+            </Grid>
         </Grid>
 
         <!-- ── PREMIUM POPUP DROPDOWN (ANCHORED RIGHT) ── -->
         <Grid x:Name="FilterBottomSheet" Grid.RowSpan="2" IsVisible="False" Opacity="0">
-            <BoxView BackgroundColor="Transparent">
+            <BoxView BackgroundColor="#66000000">
                 <BoxView.GestureRecognizers><TapGestureRecognizer Tapped="OnHideFilterBottomSheet" /></BoxView.GestureRecognizers>
             </BoxView>
             

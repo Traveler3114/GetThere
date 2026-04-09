@@ -1,4 +1,5 @@
 #nullable enable
+using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;
@@ -23,12 +24,24 @@ public partial class SettingsPage : ContentPage
         _countryService = countryService;
         _prefs = prefs;
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         await LoadCountriesAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, SettingsContent);
     }
 
     private async Task LoadCountriesAsync()

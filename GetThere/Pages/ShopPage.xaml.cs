@@ -1,4 +1,5 @@
 #nullable enable
+using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;
@@ -21,13 +22,25 @@ public partial class ShopPage : ContentPage
         _shopService = shopService;
         _prefs = prefs;
         _mockStore = mockStore;
+        SizeChanged += OnPageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         UpdateCountryBadge();
         await LoadOperatorsAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, ShopContent);
     }
 
     private void UpdateCountryBadge()
@@ -126,7 +139,7 @@ public partial class ShopPage : ContentPage
             Text = op.Name,
             FontSize = 16,
             FontAttributes = FontAttributes.Bold,
-            TextColor = AppInfo.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black,
+            TextColor = Colors.Black,
         };
         Grid.SetColumn(nameLabel, 1);
         Grid.SetRow(nameLabel, 0);
@@ -152,12 +165,10 @@ public partial class ShopPage : ContentPage
         {
             Margin = new Thickness(0, 6),
             Padding = new Thickness(16),
-            BackgroundColor = AppInfo.RequestedTheme == AppTheme.Dark
-                ? Color.FromArgb("#1C1C1E")
-                : Colors.White,
+            BackgroundColor = Colors.White,
             StrokeThickness = 0,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
-            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.06f, Radius = 8, Offset = new Point(0, 2) },
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.16f, Radius = 8, Offset = new Point(4, 4) },
         };
         card.Content = grid;
         card.BindingContext = op;

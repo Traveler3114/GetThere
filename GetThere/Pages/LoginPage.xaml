@@ -40,8 +40,9 @@
             </VerticalStackLayout>
         </Border>
 
-        <ScrollView Margin="24,350,24,10" VerticalOptions="Fill">
-            <Border Margin="1" Padding="30,15,30,30" BackgroundColor="White" StrokeThickness="0" VerticalOptions="Start">
+        <Grid Margin="0,350,0,10" HorizontalOptions="Center">
+        <ScrollView VerticalOptions="Fill">
+            <Border x:Name="LoginCard" Margin="1" Padding="30,15,30,30" BackgroundColor="White" StrokeThickness="0" VerticalOptions="Start">
                 <Border.Shadow>
                     <Shadow Brush="Black" Opacity="0.15" Offset="0,10" Radius="15" />
                 </Border.Shadow>
@@ -99,5 +100,6 @@
                 </VerticalStackLayout>
             </Border>
         </ScrollView>
+        </Grid>
     </Grid>
 </ContentPage>
