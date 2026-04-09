@@ -1,161 +1,103 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage
-    x:Class="GetThere.Pages.LoginPage"
-    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:components="clr-namespace:GetThere.Components"
-    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-    Title="Log in"
-    BackgroundColor="{AppThemeBinding Light=White,
-                                      Dark=#121212}">
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:components="clr-namespace:GetThere.Components"
+             x:Class="GetThere.Pages.LoginPage"
+             Title="Sign In"
+             BackgroundColor="#F8F9FA"
+             Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="*">
-        <!--  Animated background (behind everything)  -->
-        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
+    <Grid>
+        <components:AnimatedBackground />
+        
+        <!--  ── HERO AREA (Fixed 420px height) ──  -->
+        <Border VerticalOptions="Start" HeightRequest="420" StrokeThickness="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                    <GradientStop Offset="0" Color="#4E85F2" />
+                    <GradientStop Offset="1" Color="#512BD4" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.Shadow>
+                <Shadow Brush="Black" Opacity="0.3" Offset="0,5" Radius="10" />
+            </Border.Shadow>
 
-        <!--  Main content  -->
-        <ScrollView Grid.Row="0">
-            <VerticalStackLayout
-                x:Name="ContentLayout"
-                Padding="24"
-                Spacing="16">
-                <VerticalStackLayout.GestureRecognizers>
-                    <PanGestureRecognizer PanUpdated="OnPanUpdate" />
-                </VerticalStackLayout.GestureRecognizers>
-
-                <!--  ── HEADER ──  -->
-                <VerticalStackLayout Margin="0,48,0,24" Spacing="6">
-                    <Label
-                        FontAttributes="Bold"
-                        FontSize="28"
-                        HorizontalOptions="Center"
-                        Text="Welcome back"
-                        TextColor="{AppThemeBinding Light=Black,
-                                                    Dark=White}" />
-                    <Label
-                        FontSize="14"
-                        HorizontalOptions="Center"
-                        Text="Log in to your account"
-                        TextColor="Gray" />
-                </VerticalStackLayout>
-
-                <!--  ── EMAIL ──  -->
-                <Entry
-                    x:Name="EmailEntry"
-                    BackgroundColor="Transparent"
-                    Keyboard="Email"
-                    Placeholder="Email address"
-                    PlaceholderColor="Gray"
-                    TextColor="{AppThemeBinding Light=Black,
-                                                Dark=White}" />
-
-                <!--  ── PASSWORD with eye toggle ──  -->
-                <Grid>
-                    <Entry
-                        x:Name="PasswordEntry"
-                        Margin="0,0,0,0"
-                        BackgroundColor="Transparent"
-                        HorizontalOptions="Fill"
-                        IsPassword="True"
-                        Placeholder="Password"
-                        PlaceholderColor="Gray"
-                        TextColor="{AppThemeBinding Light=Black,
-                                                    Dark=White}" />
-                    <!--  Eye label overlaid on the right side of the entry  -->
-                    <Label
-                        x:Name="TogglePasswordBtn"
-                        Margin="0,0,5,0"
-                        Padding="10,0"
-                        FontAttributes="Bold"
-                        FontSize="13"
-                        HorizontalOptions="End"
-                        Text="Show"
-                        TextColor="Gray"
-                        VerticalOptions="Center">
-                        <Label.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
-                        </Label.GestureRecognizers>
-                    </Label>
-                </Grid>
-
-                <!--  ── ERROR ──  -->
-                <Label
-                    x:Name="ErrorLabel"
-                    FontSize="13"
-                    HorizontalOptions="Center"
-                    IsVisible="False"
-                    TextColor="Red" />
-
-                <!--  ── LOGIN BUTTON ──  -->
-                <Button
-                    x:Name="LoginButton"
-                    Margin="0,8,0,0"
-                    Clicked="LoginButton_Clicked"
-                    CornerRadius="12"
-                    FontAttributes="Bold"
-                    HeightRequest="52"
-                    Text="Log in" />
-
-                <!--  ── BUSY ──  -->
-                <ActivityIndicator
-                    x:Name="BusyIndicator"
-                    HorizontalOptions="Center"
-                    IsRunning="False"
-                    IsVisible="False"
-                    Color="#800080" />
-
-                <!--  ── SOCIAL LOGIN (with Glow & Circular Buttons) ──  -->
-                <Label
-                    Margin="0,32,0,12"
-                    CharacterSpacing="1"
-                    FontAttributes="Bold"
-                    FontSize="11"
-                    HorizontalOptions="Center"
-                    Text="OR LOG IN WITH"
-                    TextColor="Gray" />
-                <!--  ── GUEST BUTTON ──  -->
-                <Button
-                    x:Name="GuestButton"
-                    Margin="0,8,0,0"
-                    BackgroundColor="{AppThemeBinding Light=#EBEBEC,
-                                                      Dark=#2C2C2E}"
-                    Clicked="GuestButton_Clicked"
-                    CornerRadius="12"
-                    FontAttributes="Bold"
-                    HeightRequest="52"
-                    Text="Continue as Guest"
-                    TextColor="{AppThemeBinding Light=Black,
-                                                Dark=White}" />
-
+            <VerticalStackLayout Spacing="35" VerticalOptions="Start" Margin="0,85,0,0">
+                <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                    <Border WidthRequest="24" HeightRequest="24" BackgroundColor="#009688" StrokeThickness="0">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                    </Border>
+                    <Label Text="GetThere" FontSize="26" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+                
+                <Border WidthRequest="160" HeightRequest="160" BackgroundColor="#2C167A" HorizontalOptions="Center" StrokeThickness="0">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="80" /></Border.StrokeShape>
+                    <Border.Shadow>
+                        <Shadow Brush="Black" Opacity="0.3" Offset="3,3" Radius="10" />
+                    </Border.Shadow>
+                </Border>
             </VerticalStackLayout>
+        </Border>
+
+        <ScrollView Margin="24,350,24,10" VerticalOptions="Fill">
+            <Border Margin="1" Padding="30,15,30,30" BackgroundColor="White" StrokeThickness="0" VerticalOptions="Start">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Opacity="0.15" Offset="0,10" Radius="15" />
+                </Border.Shadow>
+                <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+
+                <VerticalStackLayout Spacing="16">
+                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E0E0E0" HorizontalOptions="Center" Margin="0,0,0,15" />
+
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Email" FontAttributes="Bold" FontSize="14" TextColor="Black" />
+                        <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="50">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                            <Entry x:Name="EmailEntry" Placeholder="Email" PlaceholderColor="#A0A0A0" TextColor="Black" Keyboard="Email" HeightRequest="50" VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Password" FontAttributes="Bold" FontSize="14" TextColor="Black" />
+                        <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="50">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                            <Grid ColumnDefinitions="*, auto">
+                                <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" HeightRequest="50" VerticalOptions="Center" />
+                                <Label x:Name="TogglePasswordBtn" Grid.Column="1" Text="Show" TextColor="#A0A0A0" VerticalOptions="Center">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Grid>
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <Label x:Name="ErrorLabel" TextColor="Red" FontSize="12" HorizontalOptions="Center" IsVisible="False" />
+
+                    <Button x:Name="LoginButton" Text="Sign In" Clicked="LoginButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold" Margin="0,20,0,0">
+                        <Button.Shadow>
+                            <Shadow Brush="Black" Opacity="0.25" Offset="4,4" Radius="4" />
+                        </Button.Shadow>
+                    </Button>
+
+                    <Label Text="Create Account" TextColor="#009688" FontAttributes="Bold" HorizontalOptions="Center" Margin="0,5">
+                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="RegisterButton_Clicked" /></Label.GestureRecognizers>
+                    </Label>
+
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="20" Margin="0,15,0,0">
+                        <Border WidthRequest="40" HeightRequest="40" Stroke="#EBEBEC" BackgroundColor="White">
+                             <Border.StrokeShape><RoundRectangle CornerRadius="20"/></Border.StrokeShape>
+                             <Label Text="G" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" TextColor="Black" />
+                        </Border>
+                        <Border WidthRequest="40" HeightRequest="40" Stroke="#EBEBEC" BackgroundColor="White">
+                             <Border.StrokeShape><RoundRectangle CornerRadius="20"/></Border.StrokeShape>
+                             <Label Text="Ap" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" TextColor="Black" />
+                        </Border>
+                    </HorizontalStackLayout>
+                    <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="#512BD4" />
+                </VerticalStackLayout>
+            </Border>
         </ScrollView>
-
-        <HorizontalStackLayout
-            Grid.Row="0"
-            Padding="0,0,0,20"
-            HorizontalOptions="Center"
-            Spacing="40"
-            VerticalOptions="End">
-            <Label
-                FontAttributes="Bold"
-                FontSize="16"
-                Text="Login"
-                TextColor="#FF00FF">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="LoginButton_Clicked" />
-                </Label.GestureRecognizers>
-            </Label>
-            <Label
-                FontAttributes="Bold"
-                FontSize="16"
-                Text="Register"
-                TextColor="Gray">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
-                </Label.GestureRecognizers>
-            </Label>
-        </HorizontalStackLayout>
-
     </Grid>
-
 </ContentPage>

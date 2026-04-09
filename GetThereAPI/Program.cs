@@ -96,19 +96,32 @@ var app = builder.Build();
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── Load GTFS data for all operators on startup ───────────────────────────
-// Must run after app.Build() so the DI container is ready,
-// but before app.Run() so data is in memory before first request arrives.
-using (var scope = app.Services.CreateScope())
+// ── Non-blocking background initialization ───────────────────────────────
+// We fire and forget these tasks so the server starts listening INSTANTLY.
+// Data will populate in the background over the first few seconds.
+_ = Task.Run(async () =>
 {
-    var manager = scope.ServiceProvider.GetRequiredService<OperatorManager>();
-    await manager.InitialiseAsync();
-}
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("[Startup] Background initialization started...");
 
-// ── Pre-fetch bike stations on startup ────────────────────────────────────
-// MobilityManager is a singleton BackgroundService; calling InitialiseAsync()
-// here ensures stations are cached before the first HTTP request arrives,
-// matching the pattern used for OperatorManager above.
-await app.Services.GetRequiredService<MobilityManager>().InitialiseAsync();
+    try
+    {
+        // 1. Load GTFS data for all operators
+        var operatorManager = scope.ServiceProvider.GetRequiredService<OperatorManager>();
+        await operatorManager.InitialiseAsync();
+
+        // 2. Pre-fetch bike stations
+        var mobilityManager = scope.ServiceProvider.GetRequiredService<MobilityManager>();
+        await mobilityManager.InitialiseAsync();
+
+        logger.LogInformation("[Startup] Background initialization completed successfully.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[Startup] Background initialization failed.");
+    }
+});
 
 // ── Middleware pipeline ───────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())

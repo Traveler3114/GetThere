@@ -1,75 +1,86 @@
 #nullable enable
+#pragma warning disable CA1416
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using System;
 
 namespace GetThere.Behaviors
 {
-    /// <summary>
-    /// Behavior that applies a two‑colour moving gradient to a Button's background.
-    /// The colours are taken from the application resources ("Primary" and "PrimaryDark").
-    /// The gradient stops are shifted on a timer, giving the impression of motion.
-    /// </summary>
-    public class AnimatedGradientBehavior : Behavior<Button>
+    public class AnimatedGradientBehavior : Behavior<VisualElement>
     {
-        private LinearGradientBrush? _brush;
-        private double _progress;
-        private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(30);
+        public string CircleId { get; set; } = "DefaultCircle";
+        public double Speed { get; set; } = 2.5; 
+        public double StartXPercent { get; set; } = 0.5; 
+        public double StartYPercent { get; set; } = 0.5; 
+        public double MinYPercent { get; set; } = 0.0; 
+        public double MaxYPercent { get; set; } = 1.0; 
+        public double InitialAngle { get; set; } = 0;
+
+        private CircleState? _state;
+        private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(16);
         private bool _started;
 
-        protected override void OnAttachedTo(Button bindable)
+        protected override void OnAttachedTo(VisualElement bindable)
         {
             base.OnAttachedTo(bindable);
+            
+            _state = BackgroundAnimationService.GetState(CircleId);
 
-            // create brush once per button instance
-            if (Application.Current?.Resources == null) return;
-
-            var primary = (Color)Application.Current.Resources["Primary"];
-            var primaryDark = (Color)Application.Current.Resources["PrimaryDark"];
-
-            _brush = new LinearGradientBrush
+            // If this is the first time the circle is used (ever), set initial velocity
+            if (_state.VX == 0 && _state.VY == 0)
             {
-                StartPoint = new Point(0, 0),
-                EndPoint = new Point(1, 0),
-                GradientStops =
-                {
-                    new GradientStop { Color = primary, Offset = 0 },
-                    new GradientStop { Color = primaryDark, Offset = 1 }
-                }
-            };
+                _state.VX = Math.Cos(InitialAngle) * Speed;
+                _state.VY = Math.Sin(InitialAngle) * Speed;
+            }
 
-            bindable.Background = _brush;
-
-            // start timer once
             if (!_started)
             {
                 _started = true;
-                // Device.StartTimer is obsolete; use the dispatcher on a bindable object instead
-                Dispatcher.StartTimer(_interval, OnTimerTick);
+                bindable.Dispatcher.StartTimer(_interval, () => OnTimerTick(bindable));
             }
         }
 
-        private bool OnTimerTick()
+        private bool OnTimerTick(VisualElement bindable)
         {
-            if (_brush == null)
-                return false;
+            if (bindable == null || _state == null || bindable.Parent is not VisualElement parent) return false;
+            if (parent.Width <= 0 || parent.Height <= 0) return true;
 
-            // shift offsets
-            _progress += 0.01;
-            if (_progress >= 1)
-                _progress -= 1;
+            // Initialize position once across any page if not yet initialized
+            if (!_state.Initialized)
+            {
+                _state.PosX = (StartXPercent - 0.5) * parent.Width;
+                _state.PosY = (StartYPercent - 0.5) * parent.Height;
+                _state.Initialized = true;
+            }
 
-            // change positions of the gradient stops
-            _brush.GradientStops[0].Offset = (float)_progress;
-            _brush.GradientStops[1].Offset = (float)((_progress + 0.6) % 1); // keep them apart
+            // Move
+            _state.PosX += _state.VX;
+            _state.PosY += _state.VY;
 
-            return true; // repeat
+            double halfParentW = parent.Width / 2;
+
+            // Horizontal Bounce
+            if (_state.PosX > halfParentW) { _state.PosX = halfParentW; _state.VX *= -1; }
+            else if (_state.PosX < -halfParentW) { _state.PosX = -halfParentW; _state.VX *= -1; }
+
+            // Vertical Bounce (Restricted)
+            double limitTop = (MinYPercent - 0.5) * parent.Height;
+            double limitBottom = (MaxYPercent - 0.5) * parent.Height;
+
+            if (_state.PosY > limitBottom) { _state.PosY = limitBottom; _state.VY *= -1; }
+            else if (_state.PosY < limitTop) { _state.PosY = limitTop; _state.VY *= -1; }
+
+            // Update UI
+            bindable.TranslationX = _state.PosX;
+            bindable.TranslationY = _state.PosY;
+
+            return _started;
         }
 
-        protected override void OnDetachingFrom(Button bindable)
+        protected override void OnDetachingFrom(VisualElement bindable)
         {
             base.OnDetachingFrom(bindable);
-            // nothing to clean up, timer will stop when app suspends
+            _started = false;
         }
     }
 }

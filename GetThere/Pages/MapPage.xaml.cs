@@ -1,3 +1,4 @@
+#pragma warning disable CA1416
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;

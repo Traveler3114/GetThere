@@ -14,13 +14,15 @@ public partial class SettingsPage : ContentPage
 {
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
+    private readonly AuthService _authService;
     private List<CountryDto> _countries = [];
 
-    public SettingsPage(CountryService countryService, CountryPreferenceService prefs)
+    public SettingsPage(CountryService countryService, CountryPreferenceService prefs, AuthService authService)
     {
         InitializeComponent();
         _countryService = countryService;
         _prefs = prefs;
+        _authService = authService;
     }
 
     protected override async void OnAppearing()
@@ -68,5 +70,14 @@ public partial class SettingsPage : ContentPage
         _prefs.SetSelectedCountry(country.Id, country.Name);
         CurrentCountryLabel.Text = $"Saved: {country.Name} ✓";
         CurrentCountryLabel.IsVisible = true;
+    }
+
+    private async void OnLogoutClicked(object? sender, EventArgs e)
+    {
+        var confirmed = await DisplayAlertAsync("Log out", "Do you want to log out?", "Log out", "Cancel");
+        if (!confirmed) return;
+
+        _authService.Logout();
+        App.GoToLogin();
     }
 }

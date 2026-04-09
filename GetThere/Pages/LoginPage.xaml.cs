@@ -1,7 +1,6 @@
 #nullable enable
 using GetThere.Helpers;
 using GetThere.Services;
-using GetThere.Components;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -74,15 +73,5 @@ public partial class LoginPage : ContentPage
     {
         _authService.Logout();
         App.GoToApp();
-    }
-
-    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
-    {
-        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
-        if (animatedBg != null)
-        {
-            animatedBg.XOffset = (float)e.TotalX;
-            animatedBg.YOffset = (float)e.TotalY;
-        }
     }
 }

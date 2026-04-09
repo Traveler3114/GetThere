@@ -99,6 +99,24 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <Button
+                    x:Name="LogoutButton"
+                    Text="Log out"
+                    Clicked="OnLogoutClicked"
+                    HorizontalOptions="Center"
+                    Margin="0,24,0,0"
+                    Padding="20,10"
+                    FontAttributes="Bold"
+                    FontSize="14"
+                    TextColor="White"
+                    BackgroundColor="#0EA5A4"
+                    CornerRadius="18"
+                    WidthRequest="110">
+                    <Button.Shadow>
+                        <Shadow Brush="Black" Opacity="0.12" Radius="10" Offset="0,4" />
+                    </Button.Shadow>
+                </Button>
+
             </VerticalStackLayout>
         </ScrollView>
 
