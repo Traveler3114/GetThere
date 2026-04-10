@@ -127,6 +127,40 @@ async function _onMapLoad() {
             });
     });
 
+    // Stop icons — generated as colored circles when the icon file is unavailable.
+    // Fires when _loadStopIcons() hasn't loaded (or failed to load) the image.
+    map.on('styleimagemissing', e => {
+        const id = e.id;
+        if (!id.startsWith('stop-')) return;
+
+        // Pick the color from STOP_ICON_MAP if available, otherwise use the default.
+        const entry = Object.values(STOP_ICON_MAP).find(cfg => cfg.id === id);
+        const fillHex = (entry?.color || _defaultColor || '#126400').replace('#', '');
+        const fillR = parseInt(fillHex.slice(0, 2), 16) || 18;
+        const fillG = parseInt(fillHex.slice(2, 4), 16) || 100;
+        const fillB = parseInt(fillHex.slice(4, 6), 16) || 0;
+
+        const size = 32;
+        const center = size / 2;
+        const outerR = center - 1;
+        const innerR = center - 4;
+        const px = new Uint8Array(size * size * 4);
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const dist = Math.sqrt((x - center) ** 2 + (y - center) ** 2);
+                const i = (y * size + x) * 4;
+                if (dist <= innerR) {
+                    px[i] = fillR; px[i + 1] = fillG; px[i + 2] = fillB; px[i + 3] = 255;
+                } else if (dist <= outerR) {
+                    px[i] = 255; px[i + 1] = 255; px[i + 2] = 255; px[i + 3] = 230;
+                }
+            }
+        }
+
+        if (!map.hasImage(id))
+            map.addImage(id, { width: size, height: size, data: px });
+    });
+
     // bg layer: directional arrow, rotates with vehicle bearing
     map.addLayer({
         id: 'vehicles-bg', type: 'symbol', source: 'vehicles',
