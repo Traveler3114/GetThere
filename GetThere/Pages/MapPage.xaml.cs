@@ -130,7 +130,14 @@ public partial class MapPage : ContentPage
             var styleJson = await reader.ReadToEndAsync();
 
             var styleUrl = await _operatorService.GetMapStyleUrlAsync();
-            var styleUrlJson = JsonSerializer.Serialize(styleUrl ?? string.Empty);
+            var safeStyleUrl = string.Empty;
+            if (Uri.TryCreate(styleUrl, UriKind.Absolute, out var parsed)
+                && parsed.Scheme is "https" or "http")
+            {
+                safeStyleUrl = parsed.ToString();
+            }
+
+            var styleUrlJson = JsonSerializer.Serialize(safeStyleUrl);
             html = html.Replace("</head>",
                 $"<script>window._MAP_STYLE = {styleJson};window._MAP_STYLE_URL={styleUrlJson};</script></head>",
                 StringComparison.OrdinalIgnoreCase);

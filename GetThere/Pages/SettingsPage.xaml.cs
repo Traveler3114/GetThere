@@ -12,6 +12,9 @@ namespace GetThere.Pages;
 /// </summary>
 public partial class SettingsPage : ContentPage
 {
+    private const int AllCountriesId = -1;
+    private const int NoCountryFilterId = -2;
+
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
     private List<CountryDto> _countries = [];
@@ -37,15 +40,15 @@ public partial class SettingsPage : ContentPage
             var fetched = await _countryService.GetCountriesAsync() ?? [];
             _countries =
             [
-                new CountryDto { Id = -1, Name = "All countries (worldwide)" },
-                new CountryDto { Id = -2, Name = "None (no country filter)" },
+                new CountryDto { Id = AllCountriesId, Name = "All countries (worldwide)" },
+                new CountryDto { Id = NoCountryFilterId, Name = "None (no country filter)" },
                 .. fetched
             ];
             CountryPicker.ItemsSource = _countries.Select(c => c.Name).ToList();
 
             // Pre-select current preference if any
             var currentId = _prefs.GetSelectedCountryId();
-            if (currentId == -1)
+            if (currentId == AllCountriesId)
             {
                 CountryPicker.SelectedIndex = 0;
                 CurrentCountryLabel.Text = "Current: Worldwide";

@@ -134,7 +134,7 @@ public class TransitlandManager
     public string GetTilesStyleUrl()
     {
         var styleUrl = (_configuration["Transitland:TilesStyleUrl"] ?? DefaultTilesStyleUrl).Trim();
-        var apiKey = _configuration["Transitland:ApiKey"];
+        var apiKey = _configuration["Transitland:ApiKey"]?.Trim();
         var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
         var allowWithoutApiKey = bool.TryParse(_configuration["Transitland:AllowTilesWithoutApiKey"], out var value) && value;
 

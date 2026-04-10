@@ -19,8 +19,8 @@ No more juggling dozens of apps: Think of how streaming was once unified—now, 
 ## Transitland Configuration
 
 - Set your Transitland API key in:
-  - `/home/runner/work/GetThere/GetThere/GetThereAPI/appsettings.Development.json` (local development), or
-  - `/home/runner/work/GetThere/GetThere/GetThereAPI/appsettings.json` (shared/default config).
+  - `GetThereAPI/appsettings.Development.json` (local development), or
+  - `GetThereAPI/appsettings.json` (shared/default config).
 - Config key: `Transitland:ApiKey`
 - Map tiles style URL key: `Transitland:TilesStyleUrl`
 - If `Transitland:ApiKey` is empty and `Transitland:AllowTilesWithoutApiKey` is `false`, the app falls back to bundled local map style instead of Transitland tiles.
