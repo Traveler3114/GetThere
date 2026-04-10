@@ -3,8 +3,6 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
-const _TL_TILES_BASE = (window._TL_TILES_BASE || 'https://transit.land/api/v2/tiles').replace(/\/+$/, '');
-const _TL_API_KEY = (window._TL_API_KEY || '').trim();
 
 // ═══════════════════════════════════════════════════════════════════
 // BOOT — init map using the injected style (window._MAP_STYLE)
@@ -18,16 +16,8 @@ window.map = new maplibregl.Map({
     style: window._MAP_STYLE,
     center: [15.9775, 45.8129],
     zoom: 13,
-    minZoom: 10,
-    maxPitch: 60,
-    transformRequest: (url) => {
-        if (!_TL_API_KEY || typeof url !== 'string') return { url };
-        if (!url.startsWith(_TL_TILES_BASE)) return { url };
-        return {
-            url,
-            headers: { apikey: _TL_API_KEY }
-        };
-    }
+    minZoom: 3,
+    maxPitch: 60
 });
 
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -44,7 +34,6 @@ map.on('style.load', async function () {
 // MAP LOAD — set up all sources and layers
 // ═══════════════════════════════════════════════════════════════════
 async function _onMapLoad() {
-    console.log('[DEBUG] _onMapLoad start');
     _addTransitlandTileLayers();
 
     // ── Stop source + layers ───────────────────────────────────────
@@ -58,18 +47,19 @@ async function _onMapLoad() {
     // MapLibre re-renders the stops layer automatically.
     _loadStopIcons();
 
-    // Single stops layer, no clustering, visible at all zoom levels ≥ 14
+    // Single stops layer, no clustering, visible at zoom ≥ 13
     map.addLayer({
         id: 'stops',
         type: 'symbol',
         source: 'gtfs-stops',
-        minzoom: 14,
+        minzoom: 13,
         layout: {
             'icon-image': _buildIconExpression(),
             'icon-size': 0.375,
             'icon-anchor': 'bottom',
             'icon-allow-overlap': true,
             'icon-ignore-placement': true,
+            'icon-optional': true,
             'text-field': ['step', ['zoom'], '', 17, ['get', 'name']],
             'text-size': 11,
             'text-offset': [0, 0.2],
@@ -84,8 +74,26 @@ async function _onMapLoad() {
             'text-halo-width': 1,
         }
     });
+
+    // Circle fallback — always visible even when PNG icons fail to load.
+    // Sits behind the symbol layer; gives stops a visible presence at any zoom ≥ 13.
+    map.addLayer({
+        id: 'stops-fallback',
+        type: 'circle',
+        source: 'gtfs-stops',
+        minzoom: 13,
+        paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 3, 16, 6],
+            'circle-color': _buildColorExpression(),
+            'circle-stroke-color': '#fff',
+            'circle-stroke-width': 1.5,
+            'circle-opacity': 0.85,
+        }
+    }, 'stops'); // inserted below the symbol layer
     map.on('mouseenter', 'stops', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'stops', () => map.getCanvas().style.cursor = '');
+    map.on('mouseenter', 'stops-fallback', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'stops-fallback', () => map.getCanvas().style.cursor = '');
 
     // ── Vehicle source + layers ────────────────────────────────────
     map.addSource('vehicles', {
@@ -126,40 +134,6 @@ async function _onMapLoad() {
                 height: suffix === 'bg' ? 64 : 42,
                 data
             });
-    });
-
-    // Stop icons — generated as colored circles when the icon file is unavailable.
-    // Fires when _loadStopIcons() hasn't loaded (or failed to load) the image.
-    map.on('styleimagemissing', e => {
-        const id = e.id;
-        if (!id.startsWith('stop-')) return;
-
-        // Pick the color from STOP_ICON_MAP if available, otherwise use the default.
-        const entry = Object.values(STOP_ICON_MAP).find(cfg => cfg.id === id);
-        const fillHex = (entry?.color || _defaultColor || '#126400').replace('#', '');
-        const fillR = parseInt(fillHex.slice(0, 2), 16) || 18;
-        const fillG = parseInt(fillHex.slice(2, 4), 16) || 100;
-        const fillB = parseInt(fillHex.slice(4, 6), 16) || 0;
-
-        const size = 32;
-        const center = size / 2;
-        const outerR = center - 1;
-        const innerR = center - 4;
-        const px = new Uint8Array(size * size * 4);
-        for (let y = 0; y < size; y++) {
-            for (let x = 0; x < size; x++) {
-                const dist = Math.sqrt((x - center) ** 2 + (y - center) ** 2);
-                const i = (y * size + x) * 4;
-                if (dist <= innerR) {
-                    px[i] = fillR; px[i + 1] = fillG; px[i + 2] = fillB; px[i + 3] = 255;
-                } else if (dist <= outerR) {
-                    px[i] = 255; px[i + 1] = 255; px[i + 2] = 255; px[i + 3] = 230;
-                }
-            }
-        }
-
-        if (!map.hasImage(id))
-            map.addImage(id, { width: size, height: size, data: px });
     });
 
     // bg layer: directional arrow, rotates with vehicle bearing
@@ -263,6 +237,7 @@ async function _onMapLoad() {
     map.on('mouseleave', 'bike-stations', () => map.getCanvas().style.cursor = '');
 
     // Stops sit below vehicle bg layer
+    map.moveLayer('stops-fallback', 'vehicles-bg');
     map.moveLayer('stops', 'vehicles-bg');
 
     // ── Active route line ─────────────────────────────────────────
@@ -282,28 +257,23 @@ async function _onMapLoad() {
     });
 
     // ── Click events ───────────────────────────────────────────────
-    // Stop click (GeoJSON layer, zoom 14+) → fetch schedule
+    // Stop click → request schedule from C#
     map.on('click', 'stops', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
         const p = e.features[0].properties;
         _openStopSheet(p.stopId, p.name,
-            typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3,
-            p.supportsSchedule !== false);
+            typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
     });
 
-    // Transitland vector-tile stop click (zoom 12–13, below GeoJSON layer)
-    map.on('click', 'transitland-stops-vt', e => {
+    // Fallback circle click — fires when icon hasn't loaded yet
+    map.on('click', 'stops-fallback', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
         const p = e.features[0].properties;
-        const stopId   = p.onestop_id || p.stop_id;
-        if (!stopId) return;
-        const stopName = p.stop_name || p.name || stopId;
-        _openStopSheet(stopId, stopName, 3, true);
+        _openStopSheet(p.stopId, p.name,
+            typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
     });
-    map.on('mouseenter', 'transitland-stops-vt', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'transitland-stops-vt', () => map.getCanvas().style.cursor = '');
 
     // Vehicle click → request trip detail from C#
     ['vehicles-fg', 'vehicles-bg'].forEach(lyr => {
@@ -335,69 +305,7 @@ async function _onMapLoad() {
     });
 
     // Signal C# that the map is ready for data
-    console.log('[DEBUG] _onMapLoad complete — _mapReady = true');
     window._mapReady = true;
-}
-
-function _addTransitlandTileLayers() {
-    if (!_TL_API_KEY || !_TL_TILES_BASE) return;
-
-    try {
-        if (!map.getSource('transitland-routes-vt')) {
-            map.addSource('transitland-routes-vt', {
-                type: 'vector',
-                tiles: [`${_TL_TILES_BASE}/routes/{z}/{x}/{y}.mvt`],
-                minzoom: 0,
-                maxzoom: 14
-            });
-        }
-
-        if (!map.getLayer('transitland-routes-vt')) {
-            map.addLayer({
-                id: 'transitland-routes-vt',
-                type: 'line',
-                source: 'transitland-routes-vt',
-                'source-layer': 'routes',
-                layout: {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                paint: {
-                    'line-color': '#2a6f97',
-                    'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 14, 3],
-                    'line-opacity': 0.6
-                }
-            });
-        }
-
-        if (!map.getSource('transitland-stops-vt')) {
-            map.addSource('transitland-stops-vt', {
-                type: 'vector',
-                tiles: [`${_TL_TILES_BASE}/stops/{z}/{x}/{y}.mvt`],
-                minzoom: 0,
-                maxzoom: 14
-            });
-        }
-
-        if (!map.getLayer('transitland-stops-vt')) {
-            map.addLayer({
-                id: 'transitland-stops-vt',
-                type: 'circle',
-                source: 'transitland-stops-vt',
-                'source-layer': 'stops',
-                minzoom: 12,
-                paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 16, 4],
-                    'circle-color': '#f77f00',
-                    'circle-opacity': 0.55,
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': 0.5
-                }
-            });
-        }
-    } catch (e) {
-        console.warn('[TransitlandTiles] Overlay init failed:', e);
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -407,55 +315,22 @@ function _addTransitlandTileLayers() {
 // ── renderStops ────────────────────────────────────────────────────
 // Called once on startup with all stops from the API.
 function renderStops(stops) {
-    console.log('[DEBUG] renderStops called with', (stops || []).length, 'stops');
-    const features = (stops || []).map(s => {
-        // Legacy operator stops are schedulable and may omit this field.
-        // Transitland stops set supportsSchedule=false in the API.
-        const supportsSchedule = s.supportsSchedule === false ? false : true;
-        return {
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-            properties: {
-                stopId: s.stopId,
-                name: s.name,
-                routeType: s.routeType ?? 3,
-                supportsSchedule,
-                stopCategory: _stopCategory(s.routeType ?? 3),
-            }
-        };
-    });
+    console.log('[renderStops] received', (stops || []).length, 'stops');
+    const features = (stops || []).map(s => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+        properties: {
+            stopId: s.stopId,
+            name: s.name,
+            routeType: s.routeType ?? 3,
+            stopCategory: _stopCategory(s.routeType ?? 3),
+        }
+    }));
 
     const src = map.getSource('gtfs-stops');
-    console.log('[DEBUG] gtfs-stops source exists:', !!src, '| features to set:', features.length);
-    if (features.length > 0) console.log('[DEBUG] First feature coords:', JSON.stringify(features[0].geometry.coordinates));
-
-    src?.setData({
-        type: 'FeatureCollection', features
-    });
-
-    const layer = map.getLayer('stops');
-    console.log('[DEBUG] stops layer exists:', !!layer, '| map zoom:', map.getZoom().toFixed(1), '| layer minzoom: 14');
-}
-
-function renderMapFeatures(features) {
-    console.log('[DEBUG] renderMapFeatures called with', (features || []).length, 'features');
-    const stops = [];
-    const vehicles = [];
-    const bikeStations = [];
-
-    (features || []).forEach(f => {
-        if (!f || !f.type) return;
-        if (f.type === 'Stop') stops.push(f.data || {});
-        else if (f.type === 'Vehicle') vehicles.push(f.data || {});
-        else if (f.type === 'BikeStation') bikeStations.push(f.data || {});
-    });
-
-    console.log('[DEBUG] renderMapFeatures: stops=' + stops.length + ' vehicles=' + vehicles.length);
-    if (stops.length > 0) console.log('[DEBUG] First stop data:', JSON.stringify(stops[0]));
-
-    renderStops(stops);
-    renderVehicles(vehicles);
-    renderBikeStations(bikeStations);
+    if (!src) { console.error('[renderStops] gtfs-stops source not found'); return; }
+    src.setData({ type: 'FeatureCollection', features });
+    console.log('[renderStops] source updated with', features.length, 'features');
 }
 
 // ── renderRoutes ───────────────────────────────────────────────────
@@ -501,12 +376,12 @@ function renderBikeStations(stations) {
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
         properties: {
-            stationId:     s.stationId,
-            name:          s.name,
+            stationId: s.stationId,
+            name: s.name,
             availableBikes: s.availableBikes,
-            capacity:      s.capacity,
-            providerId:    s.providerId,
-            providerName:  s.providerName,
+            capacity: s.capacity,
+            providerId: s.providerId,
+            providerName: s.providerName,
         }
     }));
 
@@ -524,20 +399,7 @@ function renderStopSchedule(data) {
     _sheetBody.innerHTML = '';
 
     const groups = data.groups || [];
-    if (!groups.length) {
-        _sheetEmpty.textContent = 'No upcoming departures.';
-        _sheetEmpty.style.display = 'block';
-        return;
-    }
-
-    // Check if any departure has realtime data
-    const hasRealtime = groups.some(g => (g.departures || []).some(d => d.isRealtime));
-    if (!hasRealtime) {
-        const badge = document.createElement('div');
-        badge.style.cssText = 'padding:6px 16px 2px;font-size:11px;color:#aaa;';
-        badge.textContent = '📅 Scheduled only — no realtime data available';
-        _sheetBody.appendChild(badge);
-    }
+    if (!groups.length) { _sheetEmpty.style.display = 'block'; return; }
 
     groups.forEach((g, gi) => {
         const route = _routeMap[g.routeId] || {};
@@ -555,10 +417,10 @@ function renderStopSchedule(data) {
             const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
             if (hasEta) {
                 const delay = d.delayMinutes ?? 0;
-                const badge = delay > 5
+                const badge = delay > 1
                     ? `<span class="delay-badge late">+${delay}'</span>`
-                    : delay > 1
-                        ? `<span class="delay-badge early">+${delay}'</span>`
+                    : delay < -1
+                        ? `<span class="delay-badge early">${delay}'</span>`
                         : `<span class="delay-badge ontime">✓</span>`;
                 const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
                 return `<span class="${cls}" ${onClick}>
@@ -684,7 +546,6 @@ function updateMapLocation(lng, lat) {
 let _routeMap = {};
 let _userMarker = null;
 let _currentStop = null;
-let _scheduleRefreshTimer = null;
 
 // Panel element refs
 const _sheet = document.getElementById('stop-sheet');
@@ -708,13 +569,12 @@ const _bikeSheetBody = document.getElementById('bike-sheet-body');
 // PANELS
 // ═══════════════════════════════════════════════════════════════════
 
-function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
+function _openStopSheet(stopId, stopName, routeType) {
     _tripPanel.classList.remove('open');
-    _clearScheduleRefresh();
     _currentStop = stopId;
 
     _sheetName.textContent = stopName;
-    const isTram  = routeType === 0 || routeType === 11;
+    const isTram = routeType === 0 || routeType === 11;
     const isTrain = routeType === 2;
     _sheetSid.textContent = (isTrain ? '🚂 ' : isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
 
@@ -725,40 +585,20 @@ function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
 
     _sheetLoad.style.display = 'flex';
     _sheetEmpty.style.display = 'none';
-    _sheetEmpty.textContent = 'No upcoming departures.';
     _sheetBody.innerHTML = '';
     _sheet.classList.add('open');
 
-    if (!supportsSchedule) {
-        _sheetLoad.style.display = 'none';
-        _sheetEmpty.textContent = 'Schedule is not available for this stop.';
-        _sheetEmpty.style.display = 'block';
-        return;
-    }
-
-    // Tell C# to fetch the schedule (also starts the 30 s server-side refresh)
+    // Tell C# to fetch the schedule
     window._pendingMsg = 'stopSchedule:' + stopId;
 }
 
 function _closeStopSheet() {
-    _clearScheduleRefresh();
-    _currentStop = null;
     _sheet.classList.remove('open');
-    window._pendingMsg = 'stopClosed';
-}
-
-// ── Schedule auto-refresh helpers ──────────────────────────────────────
-
-function _clearScheduleRefresh() {
-    if (_scheduleRefreshTimer !== null) {
-        clearInterval(_scheduleRefreshTimer);
-        _scheduleRefreshTimer = null;
-    }
+    _currentStop = null;
 }
 
 function _openTripPanel(tripId) {
     _sheet.classList.remove('open');
-    _clearScheduleRefresh();
     _currentStop = null;
 
     _tripPill.className = 'route-pill bus';
@@ -781,13 +621,12 @@ function _closeTripPanel() {
 function _openBikeSheet(p) {
     _sheet.classList.remove('open');
     _tripPanel.classList.remove('open');
-    _clearScheduleRefresh();
     _currentStop = null;
 
     _bikeSheetName.textContent = p.name || p.stationId;
 
-    const avail   = p.availableBikes ?? 0;
-    const cap     = p.capacity ?? 0;
+    const avail = p.availableBikes ?? 0;
+    const cap = p.capacity ?? 0;
     const fillPct = cap > 0 ? Math.min(100, Math.round((avail / cap) * 100)) : 0;
 
     _bikeSheetBody.innerHTML = `

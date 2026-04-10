@@ -11,11 +11,11 @@ namespace GetThereAPI.Controllers;
 ///
 /// GET /operator                         → list of all operators (optional ?countryId=)
 /// GET /operator/ticketable              → operators available for ticket purchase (optional ?countryId=)
-/// GET /operator/stops                   → all stops across all operators (optional ?countryId=)
-/// GET /operator/routes                  → all routes across all operators (optional ?countryId=)
-/// GET /operator/vehicles                → all live vehicles across all operators (optional ?countryId=)
-/// GET /operator/stops/{id}/schedule     → departures for a stop (with realtime)
-/// GET /operator/trips/{id}              → full stop sequence for a trip (with realtime)
+/// GET /operator/stops                   → all stops from Transitland (optional ?countryId=)
+/// GET /operator/routes                  → all routes from local GTFS cache (optional ?countryId=)
+/// GET /operator/vehicles                → all live vehicles (optional ?countryId=)
+/// GET /operator/stops/{id}/schedule     → departures from Transitland (with realtime)
+/// GET /operator/trips/{id}              → full stop sequence for a trip
 /// GET /operator/transport-types         → transport types with available icons
 /// </summary>
 [ApiController]
@@ -55,7 +55,10 @@ public class OperatorController : ControllerBase
         return Ok(OperationResult<List<TicketableOperatorDto>>.Ok(operators));
     }
 
-    /// <summary>Returns all stops, optionally filtered by country.</summary>
+    /// <summary>
+    /// Returns all stops from Transitland, optionally filtered by country.
+    /// This is now async because it fetches live from the Transitland REST API.
+    /// </summary>
     // GET /operator/stops
     // GET /operator/stops?countryId=1
     [HttpGet("stops")]
@@ -67,7 +70,7 @@ public class OperatorController : ControllerBase
         return Ok(OperationResult<List<StopDto>>.Ok(stops));
     }
 
-    /// <summary>Returns all routes, optionally filtered by country.</summary>
+    /// <summary>Returns all routes from local GTFS cache, optionally filtered by country.</summary>
     // GET /operator/routes
     // GET /operator/routes?countryId=1
     [HttpGet("routes")]
@@ -89,12 +92,13 @@ public class OperatorController : ControllerBase
         return Ok(OperationResult<List<VehicleDto>>.Ok(vehicles));
     }
 
+    /// <summary>
+    /// Returns departures for a stop from Transitland, with realtime delays merged in.
+    /// </summary>
     // GET /operator/stops/{stopId}/schedule
-    // GET /operator/stops/{stopId}/schedule?countryId=1
     [HttpGet("stops/{stopId}/schedule")]
     public async Task<ActionResult<OperationResult<StopScheduleDto>>> GetStopSchedule(
         string stopId,
-        [FromQuery] int? countryId = null,
         CancellationToken cancellationToken = default)
     {
         var schedule = await _manager.GetStopScheduleAsync(stopId, cancellationToken);
