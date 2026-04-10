@@ -281,7 +281,7 @@ async function _onMapLoad() {
     });
 
     // ── Click events ───────────────────────────────────────────────
-    // Stop click → request schedule from C#
+    // Stop click (GeoJSON layer, zoom 14+) → fetch schedule
     map.on('click', 'stops', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
@@ -290,6 +290,19 @@ async function _onMapLoad() {
             typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3,
             p.supportsSchedule !== false);
     });
+
+    // Transitland vector-tile stop click (zoom 12–13, below GeoJSON layer)
+    map.on('click', 'transitland-stops-vt', e => {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        const p = e.features[0].properties;
+        const stopId   = p.onestop_id || p.stop_id;
+        if (!stopId) return;
+        const stopName = p.stop_name || p.name || stopId;
+        _openStopSheet(stopId, stopName, 3, true);
+    });
+    map.on('mouseenter', 'transitland-stops-vt', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'transitland-stops-vt', () => map.getCanvas().style.cursor = '');
 
     // Vehicle click → request trip detail from C#
     ['vehicles-fg', 'vehicles-bg'].forEach(lyr => {
@@ -497,7 +510,20 @@ function renderStopSchedule(data) {
     _sheetBody.innerHTML = '';
 
     const groups = data.groups || [];
-    if (!groups.length) { _sheetEmpty.style.display = 'block'; return; }
+    if (!groups.length) {
+        _sheetEmpty.textContent = 'No upcoming departures.';
+        _sheetEmpty.style.display = 'block';
+        return;
+    }
+
+    // Check if any departure has realtime data
+    const hasRealtime = groups.some(g => (g.departures || []).some(d => d.isRealtime));
+    if (!hasRealtime) {
+        const badge = document.createElement('div');
+        badge.style.cssText = 'padding:6px 16px 2px;font-size:11px;color:#aaa;';
+        badge.textContent = '📅 Scheduled only — no realtime data available';
+        _sheetBody.appendChild(badge);
+    }
 
     groups.forEach((g, gi) => {
         const route = _routeMap[g.routeId] || {};
@@ -515,10 +541,10 @@ function renderStopSchedule(data) {
             const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
             if (hasEta) {
                 const delay = d.delayMinutes ?? 0;
-                const badge = delay > 1
+                const badge = delay > 5
                     ? `<span class="delay-badge late">+${delay}'</span>`
-                    : delay < -1
-                        ? `<span class="delay-badge early">${delay}'</span>`
+                    : delay > 1
+                        ? `<span class="delay-badge early">+${delay}'</span>`
                         : `<span class="delay-badge ontime">✓</span>`;
                 const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
                 return `<span class="${cls}" ${onClick}>
@@ -644,6 +670,7 @@ function updateMapLocation(lng, lat) {
 let _routeMap = {};
 let _userMarker = null;
 let _currentStop = null;
+let _scheduleRefreshTimer = null;
 
 // Panel element refs
 const _sheet = document.getElementById('stop-sheet');
@@ -669,6 +696,7 @@ const _bikeSheetBody = document.getElementById('bike-sheet-body');
 
 function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
     _tripPanel.classList.remove('open');
+    _clearScheduleRefresh();
     _currentStop = stopId;
 
     _sheetName.textContent = stopName;
@@ -683,7 +711,7 @@ function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
 
     _sheetLoad.style.display = 'flex';
     _sheetEmpty.style.display = 'none';
-    _sheetEmpty.textContent = 'No departures today.';
+    _sheetEmpty.textContent = 'No upcoming departures.';
     _sheetBody.innerHTML = '';
     _sheet.classList.add('open');
 
@@ -694,17 +722,29 @@ function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
         return;
     }
 
-    // Tell C# to fetch the schedule
+    // Tell C# to fetch the schedule (also starts the 30 s server-side refresh)
     window._pendingMsg = 'stopSchedule:' + stopId;
 }
 
 function _closeStopSheet() {
-    _sheet.classList.remove('open');
+    _clearScheduleRefresh();
     _currentStop = null;
+    _sheet.classList.remove('open');
+    window._pendingMsg = 'stopClosed';
+}
+
+// ── Schedule auto-refresh helpers ──────────────────────────────────────
+
+function _clearScheduleRefresh() {
+    if (_scheduleRefreshTimer !== null) {
+        clearInterval(_scheduleRefreshTimer);
+        _scheduleRefreshTimer = null;
+    }
 }
 
 function _openTripPanel(tripId) {
     _sheet.classList.remove('open');
+    _clearScheduleRefresh();
     _currentStop = null;
 
     _tripPill.className = 'route-pill bus';
@@ -727,6 +767,7 @@ function _closeTripPanel() {
 function _openBikeSheet(p) {
     _sheet.classList.remove('open');
     _tripPanel.classList.remove('open');
+    _clearScheduleRefresh();
     _currentStop = null;
 
     _bikeSheetName.textContent = p.name || p.stationId;

@@ -192,12 +192,14 @@ public class OperatorService
     /// Returns today's departures for a stop with realtime delays merged in.
     /// Called when a user taps a stop on the map.
     /// </summary>
-    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId)
+    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId, int? countryId = null)
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(
-                $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule");
+            var url = countryId.HasValue
+                ? $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule?countryId={countryId.Value}"
+                : $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule";
+            var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(url);
             return result?.Data;
         }
         catch (Exception ex)
