@@ -13,7 +13,7 @@ const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
 
 window.map = new maplibregl.Map({
     container: 'map',
-    style: window._MAP_STYLE,
+    style: window._MAP_STYLE_URL || window._MAP_STYLE,
     center: [15.9775, 45.8129],
     zoom: 13,
     minZoom: 10,
@@ -242,7 +242,8 @@ async function _onMapLoad() {
         e.preventDefault();
         const p = e.features[0].properties;
         _openStopSheet(p.stopId, p.name,
-            typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
+            typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3,
+            p.supportsSchedule !== false);
     });
 
     // Vehicle click → request trip detail from C#
@@ -285,20 +286,43 @@ async function _onMapLoad() {
 // ── renderStops ────────────────────────────────────────────────────
 // Called once on startup with all stops from the API.
 function renderStops(stops) {
-    const features = (stops || []).map(s => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-        properties: {
-            stopId: s.stopId,
-            name: s.name,
-            routeType: s.routeType ?? 3,
-            stopCategory: _stopCategory(s.routeType ?? 3),
-        }
-    }));
+    const features = (stops || []).map(s => {
+        // Legacy operator stops are schedulable and may omit this field.
+        // Transitland stops set supportsSchedule=false in the API.
+        const supportsSchedule = s.supportsSchedule === false ? false : true;
+        return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+            properties: {
+                stopId: s.stopId,
+                name: s.name,
+                routeType: s.routeType ?? 3,
+                supportsSchedule,
+                stopCategory: _stopCategory(s.routeType ?? 3),
+            }
+        };
+    });
 
     map.getSource('gtfs-stops')?.setData({
         type: 'FeatureCollection', features
     });
+}
+
+function renderMapFeatures(features) {
+    const stops = [];
+    const vehicles = [];
+    const bikeStations = [];
+
+    (features || []).forEach(f => {
+        if (!f || !f.type) return;
+        if (f.type === 'Stop') stops.push(f.data || {});
+        else if (f.type === 'Vehicle') vehicles.push(f.data || {});
+        else if (f.type === 'BikeStation') bikeStations.push(f.data || {});
+    });
+
+    renderStops(stops);
+    renderVehicles(vehicles);
+    renderBikeStations(bikeStations);
 }
 
 // ── renderRoutes ───────────────────────────────────────────────────
@@ -537,7 +561,7 @@ const _bikeSheetBody = document.getElementById('bike-sheet-body');
 // PANELS
 // ═══════════════════════════════════════════════════════════════════
 
-function _openStopSheet(stopId, stopName, routeType) {
+function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
     _tripPanel.classList.remove('open');
     _currentStop = stopId;
 
@@ -553,8 +577,16 @@ function _openStopSheet(stopId, stopName, routeType) {
 
     _sheetLoad.style.display = 'flex';
     _sheetEmpty.style.display = 'none';
+    _sheetEmpty.textContent = 'No departures today.';
     _sheetBody.innerHTML = '';
     _sheet.classList.add('open');
+
+    if (!supportsSchedule) {
+        _sheetLoad.style.display = 'none';
+        _sheetEmpty.textContent = 'Schedule is not available for this stop.';
+        _sheetEmpty.style.display = 'block';
+        return;
+    }
 
     // Tell C# to fetch the schedule
     window._pendingMsg = 'stopSchedule:' + stopId;
