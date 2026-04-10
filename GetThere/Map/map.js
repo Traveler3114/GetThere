@@ -18,7 +18,7 @@ window.map = new maplibregl.Map({
     style: window._MAP_STYLE,
     center: [15.9775, 45.8129],
     zoom: 13,
-    minZoom: 10,
+    minZoom: 3,
     maxPitch: 60,
     transformRequest: (url) => {
         if (!_TL_API_KEY || typeof url !== 'string') return { url };
