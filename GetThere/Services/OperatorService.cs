@@ -66,16 +66,16 @@ public class OperatorService
         }
     }
 
-    public async Task<string?> GetMapStyleUrlAsync()
+    public async Task<MapTilesConfigDto?> GetMapTilesConfigAsync()
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<MapStyleConfigDto>>("map/style-url");
-            return result?.Data?.StyleUrl;
+            var result = await _http.GetFromJsonAsync<OperationResult<MapTilesConfigDto>>("map/tiles-config");
+            return result?.Data;
         }
         catch (Exception ex)
         {
-            Trace.WriteLine($"[OperatorService] GetMapStyleUrl failed: {ex.Message}");
+            Trace.WriteLine($"[OperatorService] GetMapTilesConfig failed: {ex.Message}");
             return null;
         }
     }

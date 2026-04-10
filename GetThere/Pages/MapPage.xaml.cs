@@ -129,17 +129,18 @@ public partial class MapPage : ContentPage
             using var reader = new StreamReader(stream);
             var styleJson = await reader.ReadToEndAsync();
 
-            var styleUrl = await _operatorService.GetMapStyleUrlAsync();
-            var safeStyleUrl = string.Empty;
-            if (Uri.TryCreate(styleUrl, UriKind.Absolute, out var parsed)
+            var tilesConfig = await _operatorService.GetMapTilesConfigAsync();
+            var safeTilesBase = string.Empty;
+            if (Uri.TryCreate(tilesConfig?.TilesBaseUrl, UriKind.Absolute, out var parsed)
                 && parsed.Scheme is "https" or "http")
             {
-                safeStyleUrl = parsed.ToString();
+                safeTilesBase = parsed.ToString().TrimEnd('/');
             }
 
-            var styleUrlJson = JsonSerializer.Serialize(safeStyleUrl);
+            var tilesBaseJson = JsonSerializer.Serialize(safeTilesBase);
+            var apiKeyJson = JsonSerializer.Serialize(tilesConfig?.ApiKey?.Trim() ?? string.Empty);
             html = html.Replace("</head>",
-                $"<script>window._MAP_STYLE = {styleJson};window._MAP_STYLE_URL={styleUrlJson};</script></head>",
+                $"<script>window._MAP_STYLE = {styleJson};window._TL_TILES_BASE={tilesBaseJson};window._TL_API_KEY={apiKeyJson};</script></head>",
                 StringComparison.OrdinalIgnoreCase);
 
             Trace.WriteLine("[MapPage] Map style injected.");

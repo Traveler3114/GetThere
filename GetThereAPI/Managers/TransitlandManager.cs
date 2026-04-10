@@ -10,7 +10,7 @@ public class TransitlandManager
     private readonly ILogger<TransitlandManager> _logger;
 
     private const string DefaultRestApiBaseUrl = "https://transit.land/api/v2/rest";
-    private const string DefaultTilesStyleUrl = "https://tiles.transit.land/styles/transit/style.json";
+    private const string DefaultTilesBaseUrl = "https://transit.land/api/v2/tiles";
     private const string DefaultStopsPath = "stops";
     private const string DefaultApiKeyQueryName = "apikey";
     private const string DefaultApiKeyHeaderName = "apikey";
@@ -46,7 +46,7 @@ public class TransitlandManager
     {
         var baseUrl = (_configuration["Transitland:RestApiBaseUrl"] ?? DefaultRestApiBaseUrl).TrimEnd('/');
         var stopsPath = (_configuration["Transitland:StopsPath"] ?? DefaultStopsPath).Trim('/');
-        var apiKey = _configuration["Transitland:ApiKey"]?.Trim();
+        var apiKey = ResolveApiKey();
         var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
         var apiKeyHeader = _configuration["Transitland:ApiKeyHeaderParam"]
                            ?? _configuration["Transitland:ApiKeyHeaderName"]
@@ -54,7 +54,8 @@ public class TransitlandManager
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            _logger.LogInformation("Transitland API key is not configured; skipping stops request");
+            _logger.LogInformation(
+                "Transitland API key is not configured; skipping stops request. Set Transitland:ApiKey (or TRANSITLAND__APIKEY).");
             return [];
         }
 
@@ -142,18 +143,44 @@ public class TransitlandManager
         }
     }
 
-    public string GetTilesStyleUrl()
+    public string GetTilesBaseUrl()
     {
-        var styleUrl = (_configuration["Transitland:TilesStyleUrl"] ?? DefaultTilesStyleUrl).Trim();
-        var apiKey = _configuration["Transitland:ApiKey"]?.Trim();
-        var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
-        var allowWithoutApiKey = bool.TryParse(_configuration["Transitland:AllowTilesWithoutApiKey"], out var value) && value;
+        return (_configuration["Transitland:TilesBaseUrl"] ?? DefaultTilesBaseUrl).Trim().TrimEnd('/');
+    }
 
-        if (string.IsNullOrWhiteSpace(apiKey))
-            return allowWithoutApiKey ? styleUrl : string.Empty;
+    public string GetApiKey() => ResolveApiKey() ?? string.Empty;
 
-        var separator = styleUrl.Contains('?') ? "&" : "?";
-        return $"{styleUrl}{separator}{Uri.EscapeDataString(apiKeyParam)}={Uri.EscapeDataString(apiKey)}";
+    private string? ResolveApiKey()
+    {
+        const string key = "Transitland:ApiKey";
+        if (_configuration is not IConfigurationRoot root)
+            return _configuration[key]?.Trim();
+
+        var emptyHigherPriorityProviders = new List<string>();
+        var providers = root.Providers as IList<IConfigurationProvider> ?? root.Providers.ToList();
+        for (var i = providers.Count - 1; i >= 0; i--)
+        {
+            var provider = providers[i];
+            if (!provider.TryGet(key, out var value))
+                continue;
+
+            var trimmed = value?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                if (emptyHigherPriorityProviders.Count > 0)
+                {
+                    _logger.LogWarning(
+                        "Transitland API key is empty in higher-priority config source(s): {Sources}. Falling back to lower-priority configured value.",
+                        string.Join(", ", emptyHigherPriorityProviders));
+                }
+
+                return trimmed;
+            }
+
+            emptyHigherPriorityProviders.Add(provider.ToString() ?? provider.GetType().Name);
+        }
+
+        return null;
     }
 
     private static bool TryGetStopsArray(JsonElement root, out JsonElement stopsArray)

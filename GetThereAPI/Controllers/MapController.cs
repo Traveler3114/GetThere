@@ -58,12 +58,13 @@ public class MapController : ControllerBase
     public ActionResult<OperationResult<List<BikeStationDto>>> GetBikeStations()
         => Ok(OperationResult<List<BikeStationDto>>.Ok([]));
 
-    [HttpGet("style-url")]
-    public ActionResult<OperationResult<MapStyleConfigDto>> GetStyleUrl()
+    [HttpGet("tiles-config")]
+    public ActionResult<OperationResult<MapTilesConfigDto>> GetTilesConfig()
     {
-        return Ok(OperationResult<MapStyleConfigDto>.Ok(new MapStyleConfigDto
+        return Ok(OperationResult<MapTilesConfigDto>.Ok(new MapTilesConfigDto
         {
-            StyleUrl = _transitland.GetTilesStyleUrl()
+            TilesBaseUrl = _transitland.GetTilesBaseUrl(),
+            ApiKey = _transitland.GetApiKey()
         }));
     }
 

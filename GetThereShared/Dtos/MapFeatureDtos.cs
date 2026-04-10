@@ -28,7 +28,8 @@ public class MapFeatureDto
     public JsonElement Data { get; set; }
 }
 
-public class MapStyleConfigDto
+public class MapTilesConfigDto
 {
-    public string StyleUrl { get; set; } = string.Empty;
+    public string TilesBaseUrl { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
 }
