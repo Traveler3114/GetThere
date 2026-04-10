@@ -23,8 +23,8 @@ No more juggling dozens of apps: Think of how streaming was once unified—now, 
   - `GetThereAPI/appsettings.json` (shared/default config).
 - Do not set `Transitland:ApiKey` to an empty string in higher-priority config sources (e.g. `appsettings.Development.json`, environment variable `TRANSITLAND__APIKEY`, or user-secrets), because an empty value can override a valid lower-priority key.
 - Config key: `Transitland:ApiKey`
-- Map tiles style URL key: `Transitland:TilesStyleUrl`
-- If `Transitland:ApiKey` is empty and `Transitland:AllowTilesWithoutApiKey` is `false`, the app falls back to bundled local map style instead of Transitland tiles.
+- Transitland vector tiles base URL key: `Transitland:TilesBaseUrl` (default: `https://transit.land/api/v2/tiles`)
+- The app always uses bundled local `mapstyle.json` for base map style and overlays Transitland vector tile layers using API key header auth.
 
 ### 1. Ticketing System
 

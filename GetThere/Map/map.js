@@ -3,6 +3,8 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
+const _TL_TILES_BASE = (window._TL_TILES_BASE || 'https://transit.land/api/v2/tiles').replace(/\/+$/, '');
+const _TL_API_KEY = (window._TL_API_KEY || '').trim();
 
 // ═══════════════════════════════════════════════════════════════════
 // BOOT — init map using the injected style (window._MAP_STYLE)
@@ -13,11 +15,19 @@ const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
 
 window.map = new maplibregl.Map({
     container: 'map',
-    style: window._MAP_STYLE_URL || window._MAP_STYLE,
+    style: window._MAP_STYLE,
     center: [15.9775, 45.8129],
     zoom: 13,
     minZoom: 10,
-    maxPitch: 60
+    maxPitch: 60,
+    transformRequest: (url) => {
+        if (!_TL_API_KEY || typeof url !== 'string') return { url };
+        if (!url.startsWith(_TL_TILES_BASE)) return { url };
+        return {
+            url,
+            headers: { apikey: _TL_API_KEY }
+        };
+    }
 });
 
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -34,6 +44,7 @@ map.on('style.load', async function () {
 // MAP LOAD — set up all sources and layers
 // ═══════════════════════════════════════════════════════════════════
 async function _onMapLoad() {
+    _addTransitlandTileLayers();
 
     // ── Stop source + layers ───────────────────────────────────────
     map.addSource('gtfs-stops', {
@@ -277,6 +288,67 @@ async function _onMapLoad() {
 
     // Signal C# that the map is ready for data
     window._mapReady = true;
+}
+
+function _addTransitlandTileLayers() {
+    if (!_TL_API_KEY || !_TL_TILES_BASE) return;
+
+    try {
+        if (!map.getSource('transitland-routes-vt')) {
+            map.addSource('transitland-routes-vt', {
+                type: 'vector',
+                tiles: [`${_TL_TILES_BASE}/routes/{z}/{x}/{y}.mvt`],
+                minzoom: 0,
+                maxzoom: 14
+            });
+        }
+
+        if (!map.getLayer('transitland-routes-vt')) {
+            map.addLayer({
+                id: 'transitland-routes-vt',
+                type: 'line',
+                source: 'transitland-routes-vt',
+                'source-layer': 'routes',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#2a6f97',
+                    'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 14, 3],
+                    'line-opacity': 0.6
+                }
+            });
+        }
+
+        if (!map.getSource('transitland-stops-vt')) {
+            map.addSource('transitland-stops-vt', {
+                type: 'vector',
+                tiles: [`${_TL_TILES_BASE}/stops/{z}/{x}/{y}.mvt`],
+                minzoom: 0,
+                maxzoom: 14
+            });
+        }
+
+        if (!map.getLayer('transitland-stops-vt')) {
+            map.addLayer({
+                id: 'transitland-stops-vt',
+                type: 'circle',
+                source: 'transitland-stops-vt',
+                'source-layer': 'stops',
+                minzoom: 12,
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 16, 4],
+                    'circle-color': '#f77f00',
+                    'circle-opacity': 0.55,
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': 0.5
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('[TransitlandTiles] Overlay init failed:', e);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════

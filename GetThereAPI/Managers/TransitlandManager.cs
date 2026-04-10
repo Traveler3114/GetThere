@@ -10,7 +10,7 @@ public class TransitlandManager
     private readonly ILogger<TransitlandManager> _logger;
 
     private const string DefaultRestApiBaseUrl = "https://transit.land/api/v2/rest";
-    private const string DefaultTilesStyleUrl = "https://tiles.transit.land/styles/transit/style.json";
+    private const string DefaultTilesBaseUrl = "https://transit.land/api/v2/tiles";
     private const string DefaultStopsPath = "stops";
     private const string DefaultApiKeyQueryName = "apikey";
     private const string DefaultApiKeyHeaderName = "apikey";
@@ -143,19 +143,12 @@ public class TransitlandManager
         }
     }
 
-    public string GetTilesStyleUrl()
+    public string GetTilesBaseUrl()
     {
-        var styleUrl = (_configuration["Transitland:TilesStyleUrl"] ?? DefaultTilesStyleUrl).Trim();
-        var apiKey = ResolveApiKey();
-        var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
-        var allowWithoutApiKey = bool.TryParse(_configuration["Transitland:AllowTilesWithoutApiKey"], out var value) && value;
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-            return allowWithoutApiKey ? styleUrl : string.Empty;
-
-        var separator = styleUrl.Contains('?') ? "&" : "?";
-        return $"{styleUrl}{separator}{Uri.EscapeDataString(apiKeyParam)}={Uri.EscapeDataString(apiKey)}";
+        return (_configuration["Transitland:TilesBaseUrl"] ?? DefaultTilesBaseUrl).Trim().TrimEnd('/');
     }
+
+    public string GetApiKey() => ResolveApiKey() ?? string.Empty;
 
     private string? ResolveApiKey()
     {
