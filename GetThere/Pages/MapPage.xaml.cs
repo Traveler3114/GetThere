@@ -13,6 +13,8 @@ public partial class MapPage : ContentPage
 
     private System.Timers.Timer? _vehicleTimer;
     private System.Timers.Timer? _jsMessageTimer;
+    private System.Timers.Timer? _scheduleRefreshTimer;
+    private string? _selectedStopId;
 
     private readonly TaskCompletionSource _navigatedTcs = new();
 
@@ -221,6 +223,7 @@ public partial class MapPage : ContentPage
         base.OnDisappearing();
         StopVehiclePolling();
         StopJsMessagePolling();
+        StopScheduleRefresh();
     }
 
     // ── Map ready handshake ───────────────────────────────────────────────
@@ -360,6 +363,30 @@ public partial class MapPage : ContentPage
         _jsMessageTimer = null;
     }
 
+    // ── Schedule auto-refresh (30 s) ──────────────────────────────────────
+
+    private void StartScheduleRefresh(string stopId)
+    {
+        StopScheduleRefresh();
+        _scheduleRefreshTimer = new System.Timers.Timer(30_000);
+        _scheduleRefreshTimer.Elapsed += async (_, _) =>
+        {
+            if (_selectedStopId == stopId)
+                await HandleStopTappedAsync(stopId);
+            else
+                StopScheduleRefresh();
+        };
+        _scheduleRefreshTimer.AutoReset = true;
+        _scheduleRefreshTimer.Start();
+    }
+
+    private void StopScheduleRefresh()
+    {
+        _scheduleRefreshTimer?.Stop();
+        _scheduleRefreshTimer?.Dispose();
+        _scheduleRefreshTimer = null;
+    }
+
     private async Task PollJsMessagesAsync()
     {
         try
@@ -377,7 +404,16 @@ public partial class MapPage : ContentPage
             if (string.IsNullOrEmpty(msg)) return;
 
             if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
-                await HandleStopTappedAsync(msg["stopSchedule:".Length..]);
+            {
+                var stopId = msg["stopSchedule:".Length..];
+                StartScheduleRefresh(stopId);
+                await HandleStopTappedAsync(stopId);
+            }
+            else if (msg.StartsWith("stopClosed", StringComparison.Ordinal))
+            {
+                _selectedStopId = null;
+                StopScheduleRefresh();
+            }
             else if (msg.StartsWith("tripDetail:", StringComparison.Ordinal))
                 await HandleVehicleTappedAsync(msg["tripDetail:".Length..]);
         }
@@ -391,7 +427,9 @@ public partial class MapPage : ContentPage
 
     private async Task HandleStopTappedAsync(string stopId)
     {
-        var schedule = await _operatorService.GetStopScheduleAsync(stopId);
+        _selectedStopId = stopId;
+        int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
+        var schedule = await _operatorService.GetStopScheduleAsync(stopId, countryId);
 
         await MainThread.InvokeOnMainThreadAsync(async () =>
             await CallJsAsync("renderStopSchedule",

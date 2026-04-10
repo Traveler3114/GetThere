@@ -112,14 +112,46 @@ public class OperatorManager
 
     public List<VehicleDto> GetAllVehicles(int? countryId = null) => [];
 
-    public Task<StopScheduleDto?> GetStopScheduleAsync(string stopId)
+    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<StopScheduleDto?>(new StopScheduleDto
+        // Fetch stop name and departures in parallel
+        var detailsTask    = _transitland.GetStopDetailsAsync(stopId, cancellationToken);
+        var departuresTask = _transitland.GetStopDeparturesAsync(stopId, limit: 10, cancellationToken);
+
+        await Task.WhenAll(detailsTask, departuresTask);
+
+        var details    = detailsTask.Result;
+        var stopTimes  = departuresTask.Result;
+
+        // Group by route + headsign to match the StopScheduleDto shape
+        var groups = stopTimes
+            .GroupBy(st => (st.RouteId, st.Headsign))
+            .Select(g =>
+            {
+                var first = g.First();
+                return new DepartureGroupDto
+                {
+                    RouteId   = g.Key.RouteId,
+                    ShortName = first.RouteShortName,
+                    Headsign  = g.Key.Headsign,
+                    Departures = g.Select(st => new DepartureDto
+                    {
+                        TripId        = st.TripId,
+                        ScheduledTime = st.ScheduledTime,
+                        EstimatedTime = st.EstimatedTime,
+                        DelayMinutes  = st.DelayMinutes,
+                        IsRealtime    = st.IsRealtime,
+                    }).ToList(),
+                };
+            })
+            .ToList();
+
+        return new StopScheduleDto
         {
-            StopId = stopId,
-            StopName = stopId,
-            Groups = []
-        });
+            StopId   = stopId,
+            StopName = details?.Name ?? stopId,
+            Groups   = groups,
+        };
     }
 
     public Task<TripDetailDto?> GetTripDetailAsync(string tripId)
