@@ -13,6 +13,7 @@ public class TransitlandManager
     private const string DefaultTilesStyleUrl = "https://tiles.transit.land/styles/transit/style.json";
     private const string DefaultStopsPath = "stops";
     private const string DefaultApiKeyQueryName = "apikey";
+    private const string DefaultApiKeyHeaderName = "apikey";
     private const int DefaultLimit = 5000;
 
     private static readonly Dictionary<string, string> CountryIsoByName = new(StringComparer.OrdinalIgnoreCase)
@@ -45,8 +46,15 @@ public class TransitlandManager
     {
         var baseUrl = (_configuration["Transitland:RestApiBaseUrl"] ?? DefaultRestApiBaseUrl).TrimEnd('/');
         var stopsPath = (_configuration["Transitland:StopsPath"] ?? DefaultStopsPath).Trim('/');
-        var apiKey = _configuration["Transitland:ApiKey"];
+        var apiKey = _configuration["Transitland:ApiKey"]?.Trim();
         var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
+        var apiKeyHeader = _configuration["Transitland:ApiKeyHeaderName"] ?? DefaultApiKeyHeaderName;
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _logger.LogInformation("Transitland API key is not configured; skipping stops request");
+            return [];
+        }
 
         var limit = DefaultLimit;
         if (int.TryParse(_configuration["Transitland:StopsLimit"], out var configuredLimit) && configuredLimit > 0)
@@ -66,15 +74,16 @@ public class TransitlandManager
         else if (!string.IsNullOrWhiteSpace(countryName))
             query.Add($"country_name={Uri.EscapeDataString(countryName)}");
 
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            query.Add($"{Uri.EscapeDataString(apiKeyParam)}={Uri.EscapeDataString(apiKey)}");
+        query.Add($"{Uri.EscapeDataString(apiKeyParam)}={Uri.EscapeDataString(apiKey)}");
 
         var url = $"{baseUrl}/{stopsPath}?{string.Join("&", query)}";
 
         try
         {
             using var client = _httpFactory.CreateClient();
-            using var response = await client.GetAsync(url, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.TryAddWithoutValidation(apiKeyHeader, apiKey);
+            using var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Transitland stops request failed with status {StatusCode}", (int)response.StatusCode);
