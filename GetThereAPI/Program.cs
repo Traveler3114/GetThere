@@ -37,7 +37,8 @@ var managerTypes = Assembly.GetExecutingAssembly()
     .GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers"
                 && t.IsClass
-                && !t.IsAbstract);
+                && !t.IsAbstract
+                && !t.IsNested);
 
 foreach (var managerType in managerTypes)
 {
