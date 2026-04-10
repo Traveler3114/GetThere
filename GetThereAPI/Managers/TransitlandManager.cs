@@ -164,8 +164,10 @@ public class TransitlandManager
             return _configuration[key]?.Trim();
 
         var emptyHigherPriorityProviders = new List<string>();
-        foreach (var provider in root.Providers.Reverse())
+        var providers = root.Providers as IList<IConfigurationProvider> ?? root.Providers.ToList();
+        for (var i = providers.Count - 1; i >= 0; i--)
         {
+            var provider = providers[i];
             if (!provider.TryGet(key, out var value))
                 continue;
 
