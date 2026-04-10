@@ -312,6 +312,28 @@ async function _onMapLoad() {
 // PUBLIC FUNCTIONS — called by C# via CallJsAsync
 // ═══════════════════════════════════════════════════════════════════
 
+// ── renderMapFeatures ──────────────────────────────────────────────
+// Called once on startup with unified map features from the API.
+function renderMapFeatures(features) {
+    const stops = (features || [])
+        .filter(f => (f?.type || '').toLowerCase() === 'stop')
+        .map(f => {
+            const d = f?.data || {};
+            const lat = typeof d.lat === 'number' ? d.lat : f?.lat;
+            const lon = typeof d.lon === 'number' ? d.lon : f?.lon;
+            return {
+                stopId: d.stopId || d.onestopId || '',
+                name: d.name || 'Stop',
+                lat,
+                lon,
+                routeType: typeof d.routeType === 'number' ? d.routeType : 3,
+            };
+        })
+        .filter(s => !!s.stopId && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+
+    renderStops(stops);
+}
+
 // ── renderStops ────────────────────────────────────────────────────
 // Called once on startup with all stops from the API.
 function renderStops(stops) {
