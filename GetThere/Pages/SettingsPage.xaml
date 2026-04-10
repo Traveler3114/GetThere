@@ -45,7 +45,7 @@
 
                         <Label
                             FontSize="14"
-                            Text="Select your country to see relevant operators and services."
+                            Text="Select your country or choose All/None to show worldwide data."
                             TextColor="Gray" />
 
                         <ActivityIndicator

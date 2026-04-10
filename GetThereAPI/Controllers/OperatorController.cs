@@ -59,10 +59,11 @@ public class OperatorController : ControllerBase
     // GET /operator/stops
     // GET /operator/stops?countryId=1
     [HttpGet("stops")]
-    public ActionResult<OperationResult<List<StopDto>>> GetStops(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<StopDto>>>> GetStops(
+        [FromQuery] int? countryId = null,
+        CancellationToken cancellationToken = default)
     {
-        var stops = _manager.GetAllStops(countryId);
+        var stops = await _manager.GetAllStopsAsync(countryId, cancellationToken);
         return Ok(OperationResult<List<StopDto>>.Ok(stops));
     }
 

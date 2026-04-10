@@ -66,6 +66,20 @@ public class OperatorService
         }
     }
 
+    public async Task<string?> GetMapStyleUrlAsync()
+    {
+        try
+        {
+            var result = await _http.GetFromJsonAsync<OperationResult<MapStyleConfigDto>>("map/style-url");
+            return result?.Data?.StyleUrl;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[OperatorService] GetMapStyleUrl failed: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Returns all stops for operators in the given country, or all stops when countryId is null.
     /// Called once on app startup — result should be cached locally.

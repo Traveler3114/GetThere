@@ -27,3 +27,8 @@ public class MapFeatureDto
     /// </summary>
     public JsonElement Data { get; set; }
 }
+
+public class MapStyleConfigDto
+{
+    public string StyleUrl { get; set; } = string.Empty;
+}
