@@ -48,7 +48,9 @@ public class TransitlandManager
         var stopsPath = (_configuration["Transitland:StopsPath"] ?? DefaultStopsPath).Trim('/');
         var apiKey = _configuration["Transitland:ApiKey"]?.Trim();
         var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
-        var apiKeyHeader = _configuration["Transitland:ApiKeyHeaderName"] ?? DefaultApiKeyHeaderName;
+        var apiKeyHeader = _configuration["Transitland:ApiKeyHeaderParam"]
+                           ?? _configuration["Transitland:ApiKeyHeaderName"]
+                           ?? DefaultApiKeyHeaderName;
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
