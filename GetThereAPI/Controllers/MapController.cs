@@ -19,13 +19,16 @@ public class MapController : ControllerBase
 
     private readonly TransitlandManager _transitland;
     private readonly AppDbContext _db;
+    private readonly ILogger<MapController> _logger;
 
     public MapController(
         TransitlandManager transitland,
-        AppDbContext db)
+        AppDbContext db,
+        ILogger<MapController> logger)
     {
         _transitland = transitland;
         _db = db;
+        _logger = logger;
     }
 
     [HttpGet("features")]
@@ -36,10 +39,18 @@ public class MapController : ControllerBase
         var features = new List<MapFeatureDto>();
         var countryName = await ResolveCountryNameAsync(countryId, cancellationToken);
 
+        _logger.LogInformation("[DEBUG] GetFeatures called: countryId={CountryId} resolvedName={CountryName}",
+            countryId, countryName ?? "(null)");
+
         if (countryId.HasValue && countryName is null)
+        {
+            _logger.LogWarning("[DEBUG] countryId={CountryId} not found in DB — returning empty", countryId);
             return Ok(OperationResult<List<MapFeatureDto>>.Ok([]));
+        }
 
         var stops = await _transitland.GetStopsAsync(countryName, cancellationToken);
+        _logger.LogInformation("[DEBUG] GetStopsAsync returned {Count} stops", stops.Count);
+
         foreach (var stop in stops)
         {
             features.Add(new MapFeatureDto
@@ -51,6 +62,7 @@ public class MapController : ControllerBase
             });
         }
 
+        _logger.LogInformation("[DEBUG] Returning {Count} total features", features.Count);
         return Ok(OperationResult<List<MapFeatureDto>>.Ok(features));
     }
 

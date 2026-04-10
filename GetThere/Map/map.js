@@ -44,6 +44,7 @@ map.on('style.load', async function () {
 // MAP LOAD — set up all sources and layers
 // ═══════════════════════════════════════════════════════════════════
 async function _onMapLoad() {
+    console.log('[DEBUG] _onMapLoad start');
     _addTransitlandTileLayers();
 
     // ── Stop source + layers ───────────────────────────────────────
@@ -334,6 +335,7 @@ async function _onMapLoad() {
     });
 
     // Signal C# that the map is ready for data
+    console.log('[DEBUG] _onMapLoad complete — _mapReady = true');
     window._mapReady = true;
 }
 
@@ -405,6 +407,7 @@ function _addTransitlandTileLayers() {
 // ── renderStops ────────────────────────────────────────────────────
 // Called once on startup with all stops from the API.
 function renderStops(stops) {
+    console.log('[DEBUG] renderStops called with', (stops || []).length, 'stops');
     const features = (stops || []).map(s => {
         // Legacy operator stops are schedulable and may omit this field.
         // Transitland stops set supportsSchedule=false in the API.
@@ -422,12 +425,20 @@ function renderStops(stops) {
         };
     });
 
-    map.getSource('gtfs-stops')?.setData({
+    const src = map.getSource('gtfs-stops');
+    console.log('[DEBUG] gtfs-stops source exists:', !!src, '| features to set:', features.length);
+    if (features.length > 0) console.log('[DEBUG] First feature coords:', JSON.stringify(features[0].geometry.coordinates));
+
+    src?.setData({
         type: 'FeatureCollection', features
     });
+
+    const layer = map.getLayer('stops');
+    console.log('[DEBUG] stops layer exists:', !!layer, '| map zoom:', map.getZoom().toFixed(1), '| layer minzoom: 14');
 }
 
 function renderMapFeatures(features) {
+    console.log('[DEBUG] renderMapFeatures called with', (features || []).length, 'features');
     const stops = [];
     const vehicles = [];
     const bikeStations = [];
@@ -438,6 +449,9 @@ function renderMapFeatures(features) {
         else if (f.type === 'Vehicle') vehicles.push(f.data || {});
         else if (f.type === 'BikeStation') bikeStations.push(f.data || {});
     });
+
+    console.log('[DEBUG] renderMapFeatures: stops=' + stops.length + ' vehicles=' + vehicles.length);
+    if (stops.length > 0) console.log('[DEBUG] First stop data:', JSON.stringify(stops[0]));
 
     renderStops(stops);
     renderVehicles(vehicles);
