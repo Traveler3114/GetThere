@@ -1,4 +1,5 @@
 using GetThereShared.Dtos;
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace GetThereAPI.Managers;
