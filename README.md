@@ -21,6 +21,7 @@ No more juggling dozens of apps: Think of how streaming was once unified—now, 
 - Set your Transitland API key in:
   - `GetThereAPI/appsettings.Development.json` (local development), or
   - `GetThereAPI/appsettings.json` (shared/default config).
+- Do not set `Transitland:ApiKey` to an empty string in higher-priority config sources (e.g. `appsettings.Development.json`, environment variable `TRANSITLAND__APIKEY`, or user-secrets), because an empty value can override a valid lower-priority key.
 - Config key: `Transitland:ApiKey`
 - Map tiles style URL key: `Transitland:TilesStyleUrl`
 - If `Transitland:ApiKey` is empty and `Transitland:AllowTilesWithoutApiKey` is `false`, the app falls back to bundled local map style instead of Transitland tiles.
