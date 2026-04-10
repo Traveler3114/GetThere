@@ -49,6 +49,23 @@ public class OperatorService
 
     // ── Map data ──────────────────────────────────────────────────────────
 
+    public async Task<List<MapFeatureDto>?> GetMapFeaturesAsync(int? countryId = null)
+    {
+        try
+        {
+            var url = countryId.HasValue
+                ? $"map/features?countryId={countryId.Value}"
+                : "map/features";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapFeatureDto>>>(url);
+            return result?.Data;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[OperatorService] GetMapFeatures failed: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Returns all stops for operators in the given country, or all stops when countryId is null.
     /// Called once on app startup — result should be cached locally.

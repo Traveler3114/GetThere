@@ -129,8 +129,9 @@ public partial class MapPage : ContentPage
             using var reader = new StreamReader(stream);
             var styleJson = await reader.ReadToEndAsync();
 
+            var transitlandStyleUrl = "https://tiles.transit.land/styles/transit/style.json";
             html = html.Replace("</head>",
-                $"<script>window._MAP_STYLE = {styleJson};</script></head>",
+                $"<script>window._MAP_STYLE = {styleJson};window._MAP_STYLE_URL='{transitlandStyleUrl}';</script></head>",
                 StringComparison.OrdinalIgnoreCase);
 
             Trace.WriteLine("[MapPage] Map style injected.");
@@ -248,23 +249,17 @@ public partial class MapPage : ContentPage
             int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
 
             await Task.WhenAll(
-                _operatorService.GetStopsAsync(countryId).ContinueWith(async t =>
+                _operatorService.GetMapFeaturesAsync(countryId).ContinueWith(async t =>
                 {
-                    if (t.Result is { } stops)
+                    if (t.Result is { } features)
                         await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderStops", stops));
+                            await CallJsAsync("renderMapFeatures", features));
                 }),
                 _operatorService.GetRoutesAsync(countryId).ContinueWith(async t =>
                 {
                     if (t.Result is { } routes)
                         await MainThread.InvokeOnMainThreadAsync(async () =>
                             await CallJsAsync("renderRoutes", routes));
-                }),
-                _operatorService.GetBikeStationsAsync(countryId).ContinueWith(async t =>
-                {
-                    if (t.Result is { } stations)
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderBikeStations", stations));
                 })
             );
         }
