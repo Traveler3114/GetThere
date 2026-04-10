@@ -101,49 +101,75 @@ public class TransitlandManager
         var countryIso = countryName is not null && CountryIsoByName.TryGetValue(countryName, out var iso) ? iso : null;
 
         var q = new List<string> { $"limit={limit}" };
+        // Transitland v2 uses adm0_iso / adm0_name, NOT country / country_name
         if (!string.IsNullOrWhiteSpace(countryIso))
-            q.Add($"country={Uri.EscapeDataString(countryIso)}");
+            q.Add($"adm0_iso={Uri.EscapeDataString(countryIso)}");
         else if (!string.IsNullOrWhiteSpace(countryName))
-            q.Add($"country_name={Uri.EscapeDataString(countryName)}");
+            q.Add($"adm0_name={Uri.EscapeDataString(countryName)}");
         q.Add($"{Uri.EscapeDataString(qParam)}={Uri.EscapeDataString(apiKey)}");
 
         var url = $"{baseUrl}/{path}?{string.Join("&", q)}";
 
+        _logger.LogInformation("[DEBUG] Fetching stops URL: {Url}", url);
+
         try
         {
             using var response = await SendAsync(url, hParam, apiKey, cancellationToken);
+            _logger.LogInformation("[DEBUG] Transitland stops response status: {StatusCode}", (int)response.StatusCode);
+
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Transitland stops request failed ({StatusCode})", (int)response.StatusCode);
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("[DEBUG] Transitland stops request failed ({StatusCode}). Body: {Body}",
+                    (int)response.StatusCode, errorBody[..Math.Min(500, errorBody.Length)]);
                 return [];
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var rawBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogInformation("[DEBUG] Transitland raw response length: {Len} chars. Preview: {Preview}",
+                rawBody.Length, rawBody[..Math.Min(300, rawBody.Length)]);
+
+            using var json = JsonDocument.Parse(rawBody);
 
             if (!TryGetArray(json.RootElement, out var arr))
             {
-                _logger.LogWarning("Transitland stops response has no recognisable array payload");
+                _logger.LogWarning("[DEBUG] Transitland stops response has no recognisable array payload. Root keys: {Keys}",
+                    string.Join(", ", json.RootElement.EnumerateObject().Select(p => p.Name)));
                 return [];
             }
 
+            _logger.LogInformation("[DEBUG] Transitland returned {Count} raw stops in array", arr.GetArrayLength());
+
             var result = new List<StopDto>();
+            var skippedNoCoords = 0;
+            var skippedNoId = 0;
+            var skippedCountryMismatch = 0;
+
             foreach (var stop in arr.EnumerateArray())
             {
                 if (!TryParseCoordinates(stop, out var lat, out var lon))
+                {
+                    skippedNoCoords++;
                     continue;
+                }
 
                 var stopId = GetString(stop, "onestop_id")
                              ?? GetString(stop, "stop_id")
                              ?? GetString(stop, "id");
                 if (string.IsNullOrWhiteSpace(stopId))
+                {
+                    skippedNoId++;
                     continue;
+                }
 
                 var stopCountryName = ExtractCountryName(stop);
                 var stopCountryIso  = ExtractCountryIso(stop);
 
                 if (!IsCountryMatch(countryName, countryIso, stopCountryName, stopCountryIso))
+                {
+                    skippedCountryMismatch++;
                     continue;
+                }
 
                 result.Add(new StopDto
                 {
@@ -152,15 +178,24 @@ public class TransitlandManager
                     Lat             = lat,
                     Lon             = lon,
                     RouteType       = ExtractRouteType(stop),
-                    SupportsSchedule = true,  // Transitland API provides departures
+                    SupportsSchedule = true,
                 });
             }
+
+            _logger.LogInformation(
+                "[DEBUG] Stops parsed: {Count} kept, {NoCoords} skipped(no coords), " +
+                "{NoId} skipped(no id), {Mismatch} skipped(country mismatch)",
+                result.Count, skippedNoCoords, skippedNoId, skippedCountryMismatch);
+
+            if (result.Count > 0)
+                _logger.LogInformation("[DEBUG] First stop: id={Id} name={Name} lat={Lat} lon={Lon}",
+                    result[0].StopId, result[0].Name, result[0].Lat, result[0].Lon);
 
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Transitland bulk stops request failed");
+            _logger.LogError(ex, "[DEBUG] Transitland bulk stops request failed");
             return [];
         }
     }
@@ -489,7 +524,8 @@ public class TransitlandManager
 
     private static string? ExtractCountryName(JsonElement stop)
     {
-        var v = GetString(stop, "country_name") ?? GetString(stop, "country");
+        // Transitland v2 uses adm0_name; keep older fallbacks for other data sources
+        var v = GetString(stop, "adm0_name") ?? GetString(stop, "country_name") ?? GetString(stop, "country");
         if (!string.IsNullOrWhiteSpace(v)) return v;
         if (stop.TryGetProperty("country", out var co) && co.ValueKind == JsonValueKind.Object)
             return GetString(co, "name");
@@ -498,7 +534,8 @@ public class TransitlandManager
 
     private static string? ExtractCountryIso(JsonElement stop)
     {
-        var v = GetString(stop, "country_code") ?? GetString(stop, "country_iso");
+        // Transitland v2 uses adm0_iso; keep older fallbacks for other data sources
+        var v = GetString(stop, "adm0_iso") ?? GetString(stop, "country_code") ?? GetString(stop, "country_iso");
         if (!string.IsNullOrWhiteSpace(v)) return v;
         if (stop.TryGetProperty("country", out var co) && co.ValueKind == JsonValueKind.Object)
             return GetString(co, "iso_code") ?? GetString(co, "id");
