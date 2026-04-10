@@ -10,6 +10,7 @@ public class TransitlandManager
     private readonly ILogger<TransitlandManager> _logger;
 
     private const string DefaultRestApiBaseUrl = "https://transit.land/api/v2/rest";
+    private const string DefaultTilesStyleUrl = "https://tiles.transit.land/styles/transit/style.json";
     private const string DefaultStopsPath = "stops";
     private const string DefaultApiKeyQueryName = "apikey";
     private const int DefaultLimit = 5000;
@@ -128,6 +129,20 @@ public class TransitlandManager
             _logger.LogError(ex, "Transitland stops request failed");
             return [];
         }
+    }
+
+    public string GetTilesStyleUrl()
+    {
+        var styleUrl = (_configuration["Transitland:TilesStyleUrl"] ?? DefaultTilesStyleUrl).Trim();
+        var apiKey = _configuration["Transitland:ApiKey"]?.Trim();
+        var apiKeyParam = _configuration["Transitland:ApiKeyQueryParam"] ?? DefaultApiKeyQueryName;
+        var allowWithoutApiKey = bool.TryParse(_configuration["Transitland:AllowTilesWithoutApiKey"], out var value) && value;
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return allowWithoutApiKey ? styleUrl : string.Empty;
+
+        var separator = styleUrl.Contains('?') ? "&" : "?";
+        return $"{styleUrl}{separator}{Uri.EscapeDataString(apiKeyParam)}={Uri.EscapeDataString(apiKey)}";
     }
 
     private static bool TryGetStopsArray(JsonElement root, out JsonElement stopsArray)

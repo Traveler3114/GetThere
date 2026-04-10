@@ -129,9 +129,17 @@ public partial class MapPage : ContentPage
             using var reader = new StreamReader(stream);
             var styleJson = await reader.ReadToEndAsync();
 
-            var transitlandStyleUrl = "https://tiles.transit.land/styles/transit/style.json";
+            var styleUrl = await _operatorService.GetMapStyleUrlAsync();
+            var safeStyleUrl = string.Empty;
+            if (Uri.TryCreate(styleUrl, UriKind.Absolute, out var parsed)
+                && parsed.Scheme is "https" or "http")
+            {
+                safeStyleUrl = parsed.ToString();
+            }
+
+            var styleUrlJson = JsonSerializer.Serialize(safeStyleUrl);
             html = html.Replace("</head>",
-                $"<script>window._MAP_STYLE = {styleJson};window._MAP_STYLE_URL='{transitlandStyleUrl}';</script></head>",
+                $"<script>window._MAP_STYLE = {styleJson};window._MAP_STYLE_URL={styleUrlJson};</script></head>",
                 StringComparison.OrdinalIgnoreCase);
 
             Trace.WriteLine("[MapPage] Map style injected.");

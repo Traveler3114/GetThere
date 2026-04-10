@@ -12,6 +12,9 @@ namespace GetThere.Pages;
 /// </summary>
 public partial class SettingsPage : ContentPage
 {
+    private const int AllCountriesId = -1;
+    private const int NoCountryFilterId = -2;
+
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
     private List<CountryDto> _countries = [];
@@ -34,16 +37,27 @@ public partial class SettingsPage : ContentPage
         CountryLoader.IsVisible = CountryLoader.IsRunning = true;
         try
         {
-            _countries = await _countryService.GetCountriesAsync() ?? [];
+            var fetched = await _countryService.GetCountriesAsync() ?? [];
+            _countries =
+            [
+                new CountryDto { Id = AllCountriesId, Name = "All countries (worldwide)" },
+                new CountryDto { Id = NoCountryFilterId, Name = "None (no country filter)" },
+                .. fetched
+            ];
             CountryPicker.ItemsSource = _countries.Select(c => c.Name).ToList();
 
             // Pre-select current preference if any
             var currentId = _prefs.GetSelectedCountryId();
-            if (currentId != -1)
+            if (currentId == AllCountriesId)
+            {
+                CountryPicker.SelectedIndex = 0;
+                CurrentCountryLabel.Text = "Current: Worldwide";
+                CurrentCountryLabel.IsVisible = true;
+            }
+            else
             {
                 var idx = _countries.FindIndex(c => c.Id == currentId);
-                if (idx >= 0)
-                    CountryPicker.SelectedIndex = idx;
+                CountryPicker.SelectedIndex = idx >= 0 ? idx : 0;
 
                 CurrentCountryLabel.Text = $"Current: {_prefs.GetSelectedCountryName()}";
                 CurrentCountryLabel.IsVisible = true;
@@ -65,6 +79,14 @@ public partial class SettingsPage : ContentPage
         if (idx < 0 || idx >= _countries.Count) return;
 
         var country = _countries[idx];
+        if (country.Id <= 0)
+        {
+            _prefs.Clear();
+            CurrentCountryLabel.Text = "Saved: Worldwide ✓";
+            CurrentCountryLabel.IsVisible = true;
+            return;
+        }
+
         _prefs.SetSelectedCountry(country.Id, country.Name);
         CurrentCountryLabel.Text = $"Saved: {country.Name} ✓";
         CurrentCountryLabel.IsVisible = true;
