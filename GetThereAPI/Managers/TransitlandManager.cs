@@ -97,8 +97,12 @@ public class TransitlandManager
 
                 var stopId = GetString(stop, "onestop_id")
                              ?? GetString(stop, "stop_id")
-                             ?? GetString(stop, "id")
-                             ?? Guid.NewGuid().ToString("N");
+                             ?? GetString(stop, "id");
+                if (string.IsNullOrWhiteSpace(stopId))
+                {
+                    _logger.LogWarning("Transitland stop skipped because no stable identifier was provided");
+                    continue;
+                }
 
                 var parsedCountryName = ExtractCountryName(stop);
                 var parsedCountryIso = ExtractCountryIso(stop);
@@ -193,6 +197,8 @@ public class TransitlandManager
             }
         }
 
+        // GTFS route_type fallback: 3 = bus.
+        // Used when Transitland payload does not expose any route type hints.
         return 3;
     }
 

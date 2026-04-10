@@ -243,7 +243,7 @@ async function _onMapLoad() {
         const p = e.features[0].properties;
         _openStopSheet(p.stopId, p.name,
             typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3,
-            p.supportsSchedule !== false && p.supportsSchedule !== 'false');
+            p.supportsSchedule !== false);
     });
 
     // Vehicle click → request trip detail from C#
@@ -286,17 +286,22 @@ async function _onMapLoad() {
 // ── renderStops ────────────────────────────────────────────────────
 // Called once on startup with all stops from the API.
 function renderStops(stops) {
-    const features = (stops || []).map(s => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-        properties: {
-            stopId: s.stopId,
-            name: s.name,
-            routeType: s.routeType ?? 3,
-            supportsSchedule: s.supportsSchedule ?? true,
-            stopCategory: _stopCategory(s.routeType ?? 3),
-        }
-    }));
+    const features = (stops || []).map(s => {
+        // Legacy operator stops are schedulable and may omit this field.
+        // Transitland stops set supportsSchedule=false in the API.
+        const supportsSchedule = s.supportsSchedule === false ? false : true;
+        return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+            properties: {
+                stopId: s.stopId,
+                name: s.name,
+                routeType: s.routeType ?? 3,
+                supportsSchedule,
+                stopCategory: _stopCategory(s.routeType ?? 3),
+            }
+        };
+    });
 
     map.getSource('gtfs-stops')?.setData({
         type: 'FeatureCollection', features
