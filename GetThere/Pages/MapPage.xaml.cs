@@ -260,20 +260,18 @@ public partial class MapPage : ContentPage
         {
             int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
 
-            await Task.WhenAll(
-                _operatorService.GetMapFeaturesAsync(countryId).ContinueWith(async t =>
-                {
-                    if (t.Result is { } features)
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderMapFeatures", features));
-                }),
-                _operatorService.GetRoutesAsync(countryId).ContinueWith(async t =>
-                {
-                    if (t.Result is { } routes)
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                            await CallJsAsync("renderRoutes", routes));
-                })
-            );
+            var featuresTask = _operatorService.GetMapFeaturesAsync(countryId);
+            var routesTask = _operatorService.GetRoutesAsync(countryId);
+
+            await Task.WhenAll(featuresTask, routesTask);
+
+            if (featuresTask.Result is { } features)
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderMapFeatures", features));
+
+            if (routesTask.Result is { } routes)
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderRoutes", routes));
         }
         catch (Exception ex)
         {

@@ -66,6 +66,23 @@ public class TransitlandManager
         ["Spain"]       = "ES",
     };
 
+
+    private static readonly Dictionary<string, string> CountryBbox = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["HR"] = "13.5,42.3,19.4,46.6",   // Croatia
+        ["SI"] = "13.4,45.4,16.6,46.9",   // Slovenia
+        ["AT"] = "9.5,46.4,17.2,49.0",    // Austria
+        ["DE"] = "5.9,47.3,15.0,55.1",    // Germany
+        ["FR"] = "-5.1,41.3,9.6,51.1",    // France
+        ["IT"] = "6.6,36.6,18.5,47.1",    // Italy
+        ["PL"] = "14.1,49.0,24.2,54.8",   // Poland
+        ["CZ"] = "12.1,48.6,18.9,51.1",   // Czechia
+        ["HU"] = "16.1,45.7,22.9,48.6",   // Hungary
+        ["CH"] = "5.9,45.8,10.5,47.8",    // Switzerland
+        ["SK"] = "16.8,47.7,22.6,49.6",   // Slovakia
+        ["ES"] = "-9.3,35.9,4.3,43.8",    // Spain
+    };
+
     // ── Public accessors ──────────────────────────────────────────────────
 
     public string GetTilesBaseUrl()
@@ -101,11 +118,13 @@ public class TransitlandManager
         var countryIso = countryName is not null && CountryIsoByName.TryGetValue(countryName, out var iso) ? iso : null;
 
         var q = new List<string> { $"limit={limit}" };
-        // Transitland v2 uses adm0_iso / adm0_name, NOT country / country_name
-        if (!string.IsNullOrWhiteSpace(countryIso))
-            q.Add($"adm0_iso={Uri.EscapeDataString(countryIso)}");
-        else if (!string.IsNullOrWhiteSpace(countryName))
-            q.Add($"adm0_name={Uri.EscapeDataString(countryName)}");
+
+        if (!string.IsNullOrWhiteSpace(countryIso) && CountryBbox.TryGetValue(countryIso, out var bbox))
+        {
+            q.Add($"bbox={Uri.EscapeDataString(bbox)}");
+        }
+        // Remove the adm0_iso / adm0_name params entirely — they don't work
+
         q.Add($"{Uri.EscapeDataString(qParam)}={Uri.EscapeDataString(apiKey)}");
 
         var url = $"{baseUrl}/{path}?{string.Join("&", q)}";
@@ -545,7 +564,11 @@ public class TransitlandManager
     private static bool IsCountryMatch(
         string? reqName, string? reqIso, string? stopName, string? stopIso)
     {
+        // No filter requested — accept everything
         if (string.IsNullOrWhiteSpace(reqName) && string.IsNullOrWhiteSpace(reqIso)) return true;
+
+        // Filter requested but stop has no country info — with bbox filtering
+        // the stop is already geographically correct, so accept it
         if (string.IsNullOrWhiteSpace(stopName) && string.IsNullOrWhiteSpace(stopIso)) return true;
 
         if (!string.IsNullOrWhiteSpace(reqIso) && !string.IsNullOrWhiteSpace(stopIso)

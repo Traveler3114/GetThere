@@ -2,7 +2,7 @@
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════
 
-const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
+const STOPS_MIN_ZOOM = 3;   // stop icons visible at this zoom and above
 const _TL_TILES_BASE = (window._TL_TILES_BASE || 'https://transit.land/api/v2/tiles').replace(/\/+$/, '');
 const _TL_API_KEY = (window._TL_API_KEY || '').trim();
 
@@ -336,7 +336,103 @@ async function _onMapLoad() {
 
     // Signal C# that the map is ready for data
     console.log('[DEBUG] _onMapLoad complete — _mapReady = true');
+    // ── Extract stops from vector tiles and render with custom icons ──
+    let _lastStopIds = new Set();
+
+    map.on('sourcedata', (e) => {
+        if (e.sourceId !== 'transitland-stops-vt') return;
+        if (!map.isSourceLoaded('transitland-stops-vt')) return;
+
+        const features = map.querySourceFeatures('transitland-stops-vt', {
+            sourceLayer: 'stops'
+        });
+
+        if (!features.length) return;
+
+        // Deduplicate by onestop_id
+        const seen = new Set();
+        const stops = [];
+
+        for (const f of features) {
+            const stopId = f.properties.onestop_id || f.properties.stop_id;
+            if (!stopId || seen.has(stopId)) continue;
+            seen.add(stopId);
+
+            // Try to infer route type from operator or stop name
+            // Vector tile stops have operator_onestop_id which encodes mode
+            // o-u2wm-zet style — fall back to route_type from served routes
+            const routeType = _inferRouteType(f.properties);
+
+            stops.push({
+                stopId,
+                name: f.properties.stop_name || f.properties.name || stopId,
+                lat: f.geometry.coordinates[1],
+                lon: f.geometry.coordinates[0],
+                routeType,
+                supportsSchedule: true,
+            });
+        }
+
+        // Only update if stops actually changed
+        const newIds = stops.map(s => s.stopId).join(',');
+        if (newIds === [..._lastStopIds].join(',')) return;
+        _lastStopIds = new Set(stops.map(s => s.stopId));
+
+        console.log('[DEBUG] sourcedata: rendering', stops.length, 'stops with custom icons');
+        renderStops(stops);
+    });
+
+    // Re-render stops when map moves (new tiles loaded)
+    map.on('moveend', () => {
+        if (!map.isSourceLoaded('transitland-stops-vt')) return;
+
+        const features = map.querySourceFeatures('transitland-stops-vt', {
+            sourceLayer: 'stops'
+        });
+
+        if (!features.length) return;
+
+        const seen = new Set();
+        const stops = [];
+
+        for (const f of features) {
+            const stopId = f.properties.onestop_id || f.properties.stop_id;
+            if (!stopId || seen.has(stopId)) continue;
+            seen.add(stopId);
+
+            stops.push({
+                stopId,
+                name: f.properties.stop_name || f.properties.name || stopId,
+                lat: f.geometry.coordinates[1],
+                lon: f.geometry.coordinates[0],
+                routeType: _inferRouteType(f.properties),
+                supportsSchedule: true,
+            });
+        }
+
+        renderStops(stops);
+    });
     window._mapReady = true;
+}
+
+function _inferRouteType(props) {
+    // Vector tile stops don't have route_type directly
+    // But operator_onestop_id encodes the mode in some cases
+    // Fall back to checking stop name keywords
+    const op = (props.operator_onestop_id || '').toLowerCase();
+    const name = (props.stop_name || props.name || '').toLowerCase();
+
+    // Check known tram operators
+    if (op.includes('zet') || op.includes('tram') ||
+        name.includes('tram') || name.includes('tramvaj')) return 0;
+
+    // Check known train operators  
+    if (op.includes('hzpp') || op.includes('rail') || op.includes('train') ||
+        op.includes('obb') || op.includes('oebb') ||
+        name.includes('kolodvor') || name.includes('hbf') || name.includes('bahnhof')) return 2;
+
+    // Default to bus
+    return 3;
 }
 
 function _addTransitlandTileLayers() {
@@ -346,7 +442,7 @@ function _addTransitlandTileLayers() {
         if (!map.getSource('transitland-routes-vt')) {
             map.addSource('transitland-routes-vt', {
                 type: 'vector',
-                tiles: [`${_TL_TILES_BASE}/routes/{z}/{x}/{y}.mvt`],
+                tiles: [`${_TL_TILES_BASE}/routes/tiles/{z}/{x}/{y}.pbf`],
                 minzoom: 0,
                 maxzoom: 14
             });
@@ -373,28 +469,27 @@ function _addTransitlandTileLayers() {
         if (!map.getSource('transitland-stops-vt')) {
             map.addSource('transitland-stops-vt', {
                 type: 'vector',
-                tiles: [`${_TL_TILES_BASE}/stops/{z}/{x}/{y}.mvt`],
+                tiles: [`${_TL_TILES_BASE}/stops/tiles/{z}/{x}/{y}.pbf`],
                 minzoom: 0,
                 maxzoom: 14
             });
         }
 
+        // Invisible layer — just needed so the source loads tiles
         if (!map.getLayer('transitland-stops-vt')) {
             map.addLayer({
                 id: 'transitland-stops-vt',
                 type: 'circle',
                 source: 'transitland-stops-vt',
                 'source-layer': 'stops',
-                minzoom: 12,
+                minzoom: 11,
                 paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 16, 4],
-                    'circle-color': '#f77f00',
-                    'circle-opacity': 0.55,
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': 0.5
+                    'circle-radius': 0,
+                    'circle-opacity': 0,
                 }
             });
         }
+
     } catch (e) {
         console.warn('[TransitlandTiles] Overlay init failed:', e);
     }
@@ -456,6 +551,7 @@ function renderMapFeatures(features) {
     renderStops(stops);
     renderVehicles(vehicles);
     renderBikeStations(bikeStations);
+    console.log('[DEBUG] first feature:', JSON.stringify((features || [])[0]));
 }
 
 // ── renderRoutes ───────────────────────────────────────────────────
@@ -594,6 +690,7 @@ function renderStopSchedule(data) {
         const next = _sheetBody.querySelector('.time-chip.next');
         if (next) next.scrollIntoView({ block: 'nearest' });
     });
+    console.log('[DEBUG] gtfs-stops source:', map.getSource('gtfs-stops'));
 }
 
 // ── renderTripDetail ───────────────────────────────────────────────
