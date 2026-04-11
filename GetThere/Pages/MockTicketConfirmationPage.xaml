@@ -16,9 +16,10 @@
                 Grid.Column="0"
                 BackgroundColor="Transparent"
                 Clicked="OnDoneClicked"
-                Source="icon_close.svg"
-                HeightRequest="24"
-                WidthRequest="24" />
+                Source="close.svg"
+                HeightRequest="32"
+                WidthRequest="32"
+                VerticalOptions="Center" />
             <Label
                 Grid.Column="1"
                 FontAttributes="Bold"

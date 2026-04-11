@@ -23,7 +23,7 @@
                     VerticalOptions="Start"
                     BackgroundColor="Transparent"
                     Clicked="OnBackClicked"
-                    Source="arrow_back_white.png"
+                    Source="arrow_left.svg"
                     HeightRequest="32"
                     Padding="0"
                     WidthRequest="32">
