@@ -219,6 +219,65 @@ public class TransitlandManager
         }
     }
 
+    public async Task<List<StopDto>> GetStopsByBboxAsync(
+    string bbox,
+    CancellationToken cancellationToken = default)
+    {
+        var apiKey = ResolveApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return [];
+
+        var baseUrl = Config("Transitland:RestApiBaseUrl", DefaultRestApiBaseUrl).TrimEnd('/');
+        var path = Config("Transitland:StopsPath", DefaultStopsPath).Trim('/');
+        var qParam = Config("Transitland:ApiKeyQueryParam", DefaultApiKeyQueryName);
+        var hParam = Config("Transitland:ApiKeyHeaderParam",
+                        Config("Transitland:ApiKeyHeaderName", DefaultApiKeyHeaderName));
+
+        var url = $"{baseUrl}/{path}?bbox={Uri.EscapeDataString(bbox)}&limit=500" +
+                  $"&{Uri.EscapeDataString(qParam)}={Uri.EscapeDataString(apiKey)}";
+
+        _logger.LogInformation("[DEBUG] Viewport stops: {Url}", url);
+
+        try
+        {
+            using var response = await SendAsync(url, hParam, apiKey, cancellationToken);
+            if (!response.IsSuccessStatusCode) return [];
+
+            var rawBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var json = JsonDocument.Parse(rawBody);
+            if (!TryGetArray(json.RootElement, out var arr)) return [];
+
+            var result = new List<StopDto>();
+            foreach (var stop in arr.EnumerateArray())
+            {
+                if (!TryParseCoordinates(stop, out var lat, out var lon)) continue;
+
+                var stopId = GetString(stop, "onestop_id") ?? GetString(stop, "stop_id");
+                if (string.IsNullOrWhiteSpace(stopId)) continue;
+
+                // Skip non-physical stops (stations, entrances etc.)
+                if (TryGetInt(stop, "location_type", out var locType) && locType != 0) continue;
+
+                result.Add(new StopDto
+                {
+                    StopId = stopId,
+                    Name = GetString(stop, "stop_name") ?? stopId,
+                    Lat = lat,
+                    Lon = lon,
+                    RouteType = ExtractRouteType(stop),
+                    SupportsSchedule = true,
+                });
+            }
+            _logger.LogInformation("[DEBUG] Viewport stops: {Count} returned", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Viewport stops request failed");
+            return [];
+        }
+    }
+
     // ═════════════════════════════════════════════════════════════════════
     // GetStopDetailsAsync — single stop name + served routes
     // Cached for 5 minutes.
@@ -236,16 +295,21 @@ public class TransitlandManager
             return null;
 
         var baseUrl = Config("Transitland:RestApiBaseUrl", DefaultRestApiBaseUrl).TrimEnd('/');
-        var qParam  = Config("Transitland:ApiKeyQueryParam", DefaultApiKeyQueryName);
-        var hParam  = Config("Transitland:ApiKeyHeaderParam",
+        var qParam = Config("Transitland:ApiKeyQueryParam", DefaultApiKeyQueryName);
+        var hParam = Config("Transitland:ApiKeyHeaderParam",
                         Config("Transitland:ApiKeyHeaderName", DefaultApiKeyHeaderName));
 
         var url = $"{baseUrl}/stops/{Uri.EscapeDataString(stopId)}" +
                   $"?{Uri.EscapeDataString(qParam)}={Uri.EscapeDataString(apiKey)}";
 
+        CancellationTokenSource? cts = null;
+
         try
         {
-            using var response = await SendAsync(url, hParam, apiKey, cancellationToken);
+            cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+            using var response = await SendAsync(url, hParam, apiKey, cts.Token);
+
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Transitland stop details request failed ({StatusCode}) for {StopId}",
@@ -253,31 +317,43 @@ public class TransitlandManager
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token);
 
             var stop = GetFirstStop(json.RootElement);
             if (stop is null) return null;
 
-            var name = GetString(stop.Value, "stop_name") ?? GetString(stop.Value, "name") ?? stopId;
+            var name = GetString(stop.Value, "stop_name")
+                       ?? GetString(stop.Value, "name")
+                       ?? stopId;
 
             var routes = new List<(string Id, string ShortName, int RouteType)>();
+
             if (stop.Value.TryGetProperty("routes_serving_stop", out var rss) && rss.ValueKind == JsonValueKind.Array)
             {
-                foreach (var rss_item in rss.EnumerateArray())
+                foreach (var rssItem in rss.EnumerateArray())
                 {
-                    var route = rss_item.TryGetProperty("route", out var r) ? r : rss_item;
-                    var rId   = GetString(route, "route_id") ?? GetString(route, "id") ?? "";
+                    var route = rssItem.TryGetProperty("route", out var r) ? r : rssItem;
+
+                    var rId = GetString(route, "route_id") ?? GetString(route, "id") ?? "";
                     var rName = GetString(route, "route_short_name") ?? "";
                     TryGetInt(route, "route_type", out var rType);
+
                     if (!string.IsNullOrEmpty(rId))
                         routes.Add((rId, rName, rType));
                 }
             }
 
             var result = new StopDetailsResult(name, routes);
+
             s_detailsCache[stopId] = (DateTime.UtcNow + DetailsCacheTtl, result);
+
             return result;
+        }
+        catch (OperationCanceledException) when (cts?.IsCancellationRequested == true)
+        {
+            _logger.LogWarning("Stop details request timed out for {StopId}", stopId);
+            return null;
         }
         catch (Exception ex)
         {

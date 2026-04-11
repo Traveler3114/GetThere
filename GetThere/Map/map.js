@@ -2,15 +2,60 @@
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════
 
-const STOPS_MIN_ZOOM = 3;   // stop icons visible at this zoom and above
 const _TL_TILES_BASE = (window._TL_TILES_BASE || 'https://transit.land/api/v2/tiles').replace(/\/+$/, '');
 const _TL_API_KEY = (window._TL_API_KEY || '').trim();
 
 // ═══════════════════════════════════════════════════════════════════
-// BOOT — init map using the injected style (window._MAP_STYLE)
-// Style is injected by C# as a <script> block before this file loads.
-// We set _mapReady on 'style.load' (fires when base style tiles are
-// ready) rather than 'load' (which can stall waiting for all tiles).
+// VIEWPORT STOP FETCHING
+// Fetches stops from our REST API for the current map viewport.
+// REST API returns correct route_type per stop → correct icons.
+// ═══════════════════════════════════════════════════════════════════
+
+const STOP_FETCH_MIN_ZOOM = 11;
+let _stopFetchTimer = null;
+let _lastFetchedBbox = null;
+
+function _scheduleStopFetch() {
+    if (_stopFetchTimer) clearTimeout(_stopFetchTimer);
+    _stopFetchTimer = setTimeout(_fetchViewportStops, 400);
+}
+
+async function _fetchViewportStops() {
+    const zoom = map.getZoom();
+    if (zoom < STOP_FETCH_MIN_ZOOM) {
+        map.getSource('gtfs-stops')?.setData({ type: 'FeatureCollection', features: [] });
+        _lastFetchedBbox = null;
+        return;
+    }
+
+    const bounds = map.getBounds();
+    const bbox = [
+        bounds.getWest().toFixed(6),
+        bounds.getSouth().toFixed(6),
+        bounds.getEast().toFixed(6),
+        bounds.getNorth().toFixed(6),
+    ].join(',');
+
+    if (bbox === _lastFetchedBbox) return;
+    _lastFetchedBbox = bbox;
+
+    const apiBase = (window._API_BASE || '').replace(/\/+$/, '');
+    if (!apiBase) return;
+
+    try {
+        const resp = await fetch(`${apiBase}/map/stops?bbox=${encodeURIComponent(bbox)}`);
+        if (!resp.ok) return;
+        const json = await resp.json();
+        const stops = json?.data || [];
+        console.log(`[ViewportStops] ${stops.length} stops at zoom=${zoom.toFixed(1)}`);
+        renderStops(stops);
+    } catch (e) {
+        console.warn('[ViewportStops] fetch failed:', e);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BOOT
 // ═══════════════════════════════════════════════════════════════════
 
 window.map = new maplibregl.Map({
@@ -23,10 +68,7 @@ window.map = new maplibregl.Map({
     transformRequest: (url) => {
         if (!_TL_API_KEY || typeof url !== 'string') return { url };
         if (!url.startsWith(_TL_TILES_BASE)) return { url };
-        return {
-            url,
-            headers: { apikey: _TL_API_KEY }
-        };
+        return { url, headers: { apikey: _TL_API_KEY } };
     }
 });
 
@@ -41,24 +83,23 @@ map.on('style.load', async function () {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// MAP LOAD — set up all sources and layers
+// MAP LOAD
 // ═══════════════════════════════════════════════════════════════════
+
 async function _onMapLoad() {
     console.log('[DEBUG] _onMapLoad start');
-    _addTransitlandTileLayers();
 
-    // ── Stop source + layers ───────────────────────────────────────
+    // Route tile overlay only — no stop vector tiles needed anymore
+    _addTransitlandRouteTileLayer();
+
+    // ── Stop source + layer ────────────────────────────────────────
     map.addSource('gtfs-stops', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
     });
 
-    // Load stop icons. Called without await so _mapReady is never
-    // blocked by a network call. Icons register themselves and then
-    // MapLibre re-renders the stops layer automatically.
     _loadStopIcons();
 
-    // Single stops layer, no clustering, visible at all zoom levels ≥ 14
     map.addLayer({
         id: 'stops',
         type: 'symbol',
@@ -93,27 +134,22 @@ async function _onMapLoad() {
         data: { type: 'FeatureCollection', features: [] }
     });
 
-    // Vehicle icons — exact zetRt approach.
-    // Key format: "{routeShortName}-{routeType}-{realTime}-bg" or "-fg"
-    // bg = directional arrow (64x64), fg = coloured circle + route number (42x42)
     map.on('styleimagemissing', async e => {
         const id = e.id;
         if (!id.endsWith('-bg') && !id.endsWith('-fg')) return;
 
         const suffix = id.endsWith('-bg') ? 'bg' : 'fg';
-        const base = id.slice(0, -(suffix.length + 1)); // strip "-bg"/"-fg"
+        const base = id.slice(0, -(suffix.length + 1));
         const parts = base.split('-');
-        // parts = [routeShortName, routeType, realTime]
-        // routeShortName can contain digits only so split is safe
         const realTime = parts[parts.length - 1] === 'true';
         const routeType = parseInt(parts[parts.length - 2], 10);
         const routeShortName = parts.slice(0, parts.length - 2).join('-');
 
         let color;
         if (routeType === 0) {
-            color = realTime ? '#1264AB' : '#535353'; // tram blue / grey
+            color = realTime ? '#1264AB' : '#535353';
         } else {
-            color = realTime ? '#126400' : '#727272'; // bus green / grey
+            color = realTime ? '#126400' : '#727272';
         }
 
         const data = suffix === 'bg'
@@ -128,13 +164,11 @@ async function _onMapLoad() {
             });
     });
 
-    // Stop icons — generated as colored circles when the icon file is unavailable.
-    // Fires when _loadStopIcons() hasn't loaded (or failed to load) the image.
+    // Fallback circle for missing stop icons
     map.on('styleimagemissing', e => {
         const id = e.id;
         if (!id.startsWith('stop-')) return;
 
-        // Pick the color from STOP_ICON_MAP if available, otherwise use the default.
         const entry = Object.values(STOP_ICON_MAP).find(cfg => cfg.id === id);
         const fillHex = (entry?.color || _defaultColor || '#126400').replace('#', '');
         const fillR = parseInt(fillHex.slice(0, 2), 16) || 18;
@@ -157,12 +191,10 @@ async function _onMapLoad() {
                 }
             }
         }
-
         if (!map.hasImage(id))
             map.addImage(id, { width: size, height: size, data: px });
     });
 
-    // bg layer: directional arrow, rotates with vehicle bearing
     map.addLayer({
         id: 'vehicles-bg', type: 'symbol', source: 'vehicles',
         layout: {
@@ -182,7 +214,6 @@ async function _onMapLoad() {
         }
     });
 
-    // fg layer: coloured circle with route number, no rotation
     map.addLayer({
         id: 'vehicles-fg', type: 'symbol', source: 'vehicles',
         layout: {
@@ -200,7 +231,6 @@ async function _onMapLoad() {
         }
     });
 
-    // Vehicle detail labels at zoom 15+ (VR + vehicle number, same as zetRt)
     map.addLayer({
         id: 'vehicle-details', type: 'symbol', source: 'vehicles',
         minzoom: 15,
@@ -225,7 +255,7 @@ async function _onMapLoad() {
         }
     });
 
-    // ── Bike station source + layer ────────────────────────────────────
+    // ── Bike station source + layer ────────────────────────────────
     map.addSource('bike-stations', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
@@ -254,35 +284,16 @@ async function _onMapLoad() {
             'text-allow-overlap': true,
             'text-ignore-placement': true,
         },
-        paint: {
-            'text-color': '#fff',
-        }
+        paint: { 'text-color': '#fff' }
     });
 
     map.on('mouseenter', 'bike-stations', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'bike-stations', () => map.getCanvas().style.cursor = '');
 
-    // Stops sit below vehicle bg layer
+    // Stops sit below vehicles
     map.moveLayer('stops', 'vehicles-bg');
 
-    // ── Active route line ─────────────────────────────────────────
-    map.addSource('active-route', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-    });
-    map.addLayer({
-        id: 'active-route-outline', type: 'line', source: 'active-route',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#000', 'line-width': 9, 'line-opacity': 0.08 }
-    });
-    map.addLayer({
-        id: 'active-route', type: 'line', source: 'active-route',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#1565c0', 'line-width': 5, 'line-opacity': 0.92 }
-    });
-
     // ── Click events ───────────────────────────────────────────────
-    // Stop click (GeoJSON layer, zoom 14+) → fetch schedule
     map.on('click', 'stops', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
@@ -292,20 +303,6 @@ async function _onMapLoad() {
             p.supportsSchedule !== false);
     });
 
-    // Transitland vector-tile stop click (zoom 12–13, below GeoJSON layer)
-    map.on('click', 'transitland-stops-vt', e => {
-        if (e.defaultPrevented) return;
-        e.preventDefault();
-        const p = e.features[0].properties;
-        const stopId   = p.onestop_id || p.stop_id;
-        if (!stopId) return;
-        const stopName = p.stop_name || p.name || stopId;
-        _openStopSheet(stopId, stopName, 3, true);
-    });
-    map.on('mouseenter', 'transitland-stops-vt', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'transitland-stops-vt', () => map.getCanvas().style.cursor = '');
-
-    // Vehicle click → request trip detail from C#
     ['vehicles-fg', 'vehicles-bg'].forEach(lyr => {
         map.on('click', lyr, e => {
             if (e.defaultPrevented) return;
@@ -317,136 +314,29 @@ async function _onMapLoad() {
         map.on('mouseleave', lyr, () => map.getCanvas().style.cursor = '');
     });
 
-    // Bike station click → show station info
     map.on('click', 'bike-stations', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
-        const p = e.features[0].properties;
-        _openBikeSheet(p);
+        _openBikeSheet(e.features[0].properties);
     });
 
-    // Empty tap → close panels
     map.on('click', e => {
         if (e.defaultPrevented) return;
-        _clearRoute();
         _closeStopSheet();
         _closeTripPanel();
         _closeBikeSheet();
     });
 
-    // Signal C# that the map is ready for data
+    // ── Viewport stop fetching ─────────────────────────────────────
+    map.on('moveend', _scheduleStopFetch);
+    _scheduleStopFetch();
+
     console.log('[DEBUG] _onMapLoad complete — _mapReady = true');
-    // ── Extract stops from vector tiles and render with custom icons ──
-    let _lastStopIds = new Set();
-
-    map.on('sourcedata', (e) => {
-        if (e.sourceId !== 'transitland-stops-vt') return;
-        if (!map.isSourceLoaded('transitland-stops-vt')) return;
-
-        const features = map.querySourceFeatures('transitland-stops-vt', {
-            sourceLayer: 'stops'
-        });
-
-        if (!features.length) return;
-
-        // In the sourcedata handler, after getting features:
-        if (features.length > 0) {
-            console.log('[DEBUG] Stop feature props:', JSON.stringify(features[0].properties));
-        }
-
-        // Deduplicate by onestop_id
-        const seen = new Set();
-        const stops = [];
-
-        for (const f of features) {
-            const stopId = f.properties.onestop_id || f.properties.stop_id;
-            if (!stopId || seen.has(stopId)) continue;
-            seen.add(stopId);
-
-
-            const locType = parseInt(f.properties.location_type || '0', 10);
-            if (locType > 0) continue;
-
-            //const locType = parseInt(f.properties.location_type || '0', 10);
-            //if (locType !== 0) continue;
-            // Try to infer route type from operator or stop name
-            // Vector tile stops have operator_onestop_id which encodes mode
-            // o-u2wm-zet style — fall back to route_type from served routes
-            const routeType = _inferRouteType(f.properties);
-
-            stops.push({
-                stopId,
-                name: f.properties.stop_name || f.properties.name || stopId,
-                lat: f.geometry.coordinates[1],
-                lon: f.geometry.coordinates[0],
-                routeType,
-                supportsSchedule: true,
-            });
-        }
-
-        // Only update if stops actually changed
-        const newIds = stops.map(s => s.stopId).join(',');
-        if (newIds === [..._lastStopIds].join(',')) return;
-        _lastStopIds = new Set(stops.map(s => s.stopId));
-
-        console.log('[DEBUG] sourcedata: rendering', stops.length, 'stops with custom icons');
-        renderStops(stops);
-    });
-
-    // Re-render stops when map moves (new tiles loaded)
-    map.on('moveend', () => {
-        if (!map.isSourceLoaded('transitland-stops-vt')) return;
-
-        const features = map.querySourceFeatures('transitland-stops-vt', {
-            sourceLayer: 'stops'
-        });
-
-        if (!features.length) return;
-
-        const seen = new Set();
-        const stops = [];
-
-        for (const f of features) {
-            const stopId = f.properties.onestop_id || f.properties.stop_id;
-            if (!stopId || seen.has(stopId)) continue;
-            seen.add(stopId);
-
-            stops.push({
-                stopId,
-                name: f.properties.stop_name || f.properties.name || stopId,
-                lat: f.geometry.coordinates[1],
-                lon: f.geometry.coordinates[0],
-                routeType: _inferRouteType(f.properties),
-                supportsSchedule: true,
-            });
-        }
-
-        renderStops(stops);
-    });
     window._mapReady = true;
 }
 
-function _inferRouteType(props) {
-    // Vector tile stops don't have route_type directly
-    // But operator_onestop_id encodes the mode in some cases
-    // Fall back to checking stop name keywords
-    const op = (props.operator_onestop_id || '').toLowerCase();
-    const name = (props.stop_name || props.name || '').toLowerCase();
-
-    // Check known tram operators
-    if (op.includes('zet') || op.includes('tram') ||
-        name.includes('tram') || name.includes('tramvaj')) return 0;
-
-    // Check known train operators  
-    if (op.includes('hzpp') || op.includes('rail') || op.includes('train') ||
-        op.includes('obb') || op.includes('oebb') ||
-        name.includes('kolodvor') || name.includes('hbf') || name.includes('bahnhof')) return 2;
-
-    // Default to bus
-    return 3;
-}
-
-function _addTransitlandTileLayers() {
+// Route tile overlay only — stops come from REST API now
+function _addTransitlandRouteTileLayer() {
     if (!_TL_API_KEY || !_TL_TILES_BASE) return;
 
     try {
@@ -458,17 +348,13 @@ function _addTransitlandTileLayers() {
                 maxzoom: 14
             });
         }
-
         if (!map.getLayer('transitland-routes-vt')) {
             map.addLayer({
                 id: 'transitland-routes-vt',
                 type: 'line',
                 source: 'transitland-routes-vt',
                 'source-layer': 'routes',
-                layout: {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
                 paint: {
                     'line-color': '#2a6f97',
                     'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 14, 3],
@@ -476,33 +362,8 @@ function _addTransitlandTileLayers() {
                 }
             });
         }
-
-        if (!map.getSource('transitland-stops-vt')) {
-            map.addSource('transitland-stops-vt', {
-                type: 'vector',
-                tiles: [`${_TL_TILES_BASE}/stops/tiles/{z}/{x}/{y}.pbf`],
-                minzoom: 0,
-                maxzoom: 14
-            });
-        }
-
-        // Invisible layer — just needed so the source loads tiles
-        if (!map.getLayer('transitland-stops-vt')) {
-            map.addLayer({
-                id: 'transitland-stops-vt',
-                type: 'circle',
-                source: 'transitland-stops-vt',
-                'source-layer': 'stops',
-                minzoom: 11,
-                paint: {
-                    'circle-radius': 0,
-                    'circle-opacity': 0,
-                }
-            });
-        }
-
     } catch (e) {
-        console.warn('[TransitlandTiles] Overlay init failed:', e);
+        console.warn('[TransitlandTiles] Route layer init failed:', e);
     }
 }
 
@@ -510,120 +371,58 @@ function _addTransitlandTileLayers() {
 // PUBLIC FUNCTIONS — called by C# via CallJsAsync
 // ═══════════════════════════════════════════════════════════════════
 
-// ── renderStops ────────────────────────────────────────────────────
-// Called once on startup with all stops from the API.
 function renderStops(stops) {
-    console.log('[DEBUG] renderStops called with', (stops || []).length, 'stops');
-    const features = (stops || []).map(s => {
-        // Legacy operator stops are schedulable and may omit this field.
-        // Transitland stops set supportsSchedule=false in the API.
-        const supportsSchedule = s.supportsSchedule === false ? false : true;
-        return {
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-            properties: {
-                stopId: s.stopId,
-                name: s.name,
-                routeType: s.routeType ?? 3,
-                supportsSchedule,
-                stopCategory: _stopCategory(s.routeType ?? 3),
-            }
-        };
-    });
+    const features = (stops || []).map(s => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+        properties: {
+            stopId: s.stopId,
+            name: s.name,
+            routeType: s.routeType ?? 3,
+            supportsSchedule: s.supportsSchedule !== false,
+        }
+    }));
 
-    const src = map.getSource('gtfs-stops');
-    console.log('[DEBUG] gtfs-stops source exists:', !!src, '| features to set:', features.length);
-    if (features.length > 0) console.log('[DEBUG] First feature coords:', JSON.stringify(features[0].geometry.coordinates));
-
-    src?.setData({
-        type: 'FeatureCollection', features
-    });
-
-    const layer = map.getLayer('stops');
-    console.log('[DEBUG] stops layer exists:', !!layer, '| map zoom:', map.getZoom().toFixed(1), '| layer minzoom: 14');
+    map.getSource('gtfs-stops')?.setData({ type: 'FeatureCollection', features });
 }
 
-function renderMapFeatures(features) {
-    console.log('[DEBUG] renderMapFeatures called with', (features || []).length, 'features');
-    const stops = [];
-    const vehicles = [];
-    const bikeStations = [];
-
-    (features || []).forEach(f => {
-        if (!f || !f.type) return;
-        if (f.type === 'Stop') stops.push(f.data || {});
-        else if (f.type === 'Vehicle') vehicles.push(f.data || {});
-        else if (f.type === 'BikeStation') bikeStations.push(f.data || {});
-    });
-
-    console.log('[DEBUG] renderMapFeatures: stops=' + stops.length + ' vehicles=' + vehicles.length);
-    if (stops.length > 0) console.log('[DEBUG] First stop data:', JSON.stringify(stops[0]));
-
-    renderStops(stops);
-    renderVehicles(vehicles);
-    renderBikeStations(bikeStations);
-    console.log('[DEBUG] first feature:', JSON.stringify((features || [])[0]));
-}
-
-// ── renderRoutes ───────────────────────────────────────────────────
-// Stores route metadata (name, type, color, shape) for later use.
-function renderRoutes(routes) {
-    _routeMap = {};
-    (routes || []).forEach(r => {
-        _routeMap[r.routeId] = r;
-    });
-}
-
-// ── renderVehicles ─────────────────────────────────────────────────
-// Called every 10 seconds with live vehicle positions.
 function renderVehicles(vehicles) {
-    const features = (vehicles || []).map((v, i) => {
-        const route = _routeMap[v.routeId] || {};
-        return {
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
-            properties: {
-                idx: i,
-                vehicleId: v.vehicleId || '',
-                tripId: v.tripId || '',
-                routeId: v.routeId || '',
-                routeShortName: v.routeShortName || route.shortName || '?',
-                routeType: v.routeType ?? route.routeType ?? 3,
-                isRealtime: v.isRealtime ?? false,
-                bearing: v.bearing ?? 0,
-                blockId: v.blockId || '',
-            }
-        };
-    });
+    const features = (vehicles || []).map((v, i) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
+        properties: {
+            idx: i,
+            vehicleId: v.vehicleId || '',
+            tripId: v.tripId || '',
+            routeId: v.routeId || '',
+            routeShortName: v.routeShortName || '?',
+            routeType: v.routeType ?? 3,
+            isRealtime: v.isRealtime ?? false,
+            bearing: v.bearing ?? 0,
+            blockId: v.blockId || '',
+        }
+    }));
 
-    map.getSource('vehicles')?.setData({
-        type: 'FeatureCollection', features
-    });
+    map.getSource('vehicles')?.setData({ type: 'FeatureCollection', features });
 }
 
-// ── renderBikeStations ─────────────────────────────────────────
-// Called once on startup with all bike stations from the API.
 function renderBikeStations(stations) {
     const features = (stations || []).map(s => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
         properties: {
-            stationId:     s.stationId,
-            name:          s.name,
+            stationId: s.stationId,
+            name: s.name,
             availableBikes: s.availableBikes,
-            capacity:      s.capacity,
-            providerId:    s.providerId,
-            providerName:  s.providerName,
+            capacity: s.capacity,
+            providerId: s.providerId,
+            providerName: s.providerName,
         }
     }));
 
-    map.getSource('bike-stations')?.setData({
-        type: 'FeatureCollection', features
-    });
+    map.getSource('bike-stations')?.setData({ type: 'FeatureCollection', features });
 }
 
-// ── renderStopSchedule ─────────────────────────────────────────────
-// Called by C# after user taps a stop.
 function renderStopSchedule(data) {
     if (typeof data === 'string') data = JSON.parse(data);
 
@@ -637,7 +436,6 @@ function renderStopSchedule(data) {
         return;
     }
 
-    // Check if any departure has realtime data
     const hasRealtime = groups.some(g => (g.departures || []).some(d => d.isRealtime));
     if (!hasRealtime) {
         const badge = document.createElement('div');
@@ -647,17 +445,14 @@ function renderStopSchedule(data) {
     }
 
     groups.forEach((g, gi) => {
-        const route = _routeMap[g.routeId] || {};
-        const rType = route.routeType ?? 3;
-        const pc = _pillClass(rType);
+        const pc = _pillClass(g.routeType ?? 3);
         const deps = g.departures || [];
 
         const timesHtml = deps.map((d, i) => {
             let cls = 'time-chip' + (i === 0 ? ' next' : '');
             const canClick = d.isRealtime || !!d.estimatedTime;
             if (canClick) cls += ' click';
-            const onClick = canClick
-                ? `onclick="_openTripPanel('${d.tripId}')"` : '';
+            const onClick = canClick ? `onclick="_openTripPanel('${d.tripId}')"` : '';
 
             const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
             if (hasEta) {
@@ -681,19 +476,18 @@ function renderStopSchedule(data) {
         }).join('');
 
         const tracked = deps.filter(d => d.isRealtime).length;
-        const rtBadge = tracked > 0
-            ? `&nbsp;<span class="tracked-count">📡&nbsp;${tracked}</span>` : '';
+        const rtBadge = tracked > 0 ? `&nbsp;<span class="tracked-count">📡&nbsp;${tracked}</span>` : '';
 
         const div = document.createElement('div');
         div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
         div.innerHTML = `
-                    <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-                        <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
-                        <span class="route-headsign">${_esc(g.headsign)}</span>
-                        <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
-                        <span class="route-chevron">▾</span>
-                    </div>
-                    <div class="route-times">${timesHtml}</div>`;
+            <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
+                <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
+                <span class="route-headsign">${_esc(g.headsign)}</span>
+                <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
+                <span class="route-chevron">▾</span>
+            </div>
+            <div class="route-times">${timesHtml}</div>`;
         _sheetBody.appendChild(div);
     });
 
@@ -701,11 +495,8 @@ function renderStopSchedule(data) {
         const next = _sheetBody.querySelector('.time-chip.next');
         if (next) next.scrollIntoView({ block: 'nearest' });
     });
-    console.log('[DEBUG] gtfs-stops source:', map.getSource('gtfs-stops'));
 }
 
-// ── renderTripDetail ───────────────────────────────────────────────
-// Called by C# after user taps a vehicle.
 function renderTripDetail(data) {
     if (typeof data === 'string') data = JSON.parse(data);
 
@@ -716,8 +507,7 @@ function renderTripDetail(data) {
     _tripPill.textContent = data.shortName || data.routeId || '?';
     _tripHead.textContent = data.headsign || '';
 
-    const status = data.isRealtime
-        ? '📡 Live'
+    const status = data.isRealtime ? '📡 Live'
         : (data.stops || []).some(s => s.estimatedTime) ? '⏱ Predicted' : '📅 Scheduled';
     _tripSubtitle.textContent = status;
     _tripSubtitle.style.cssText = 'padding:2px 16px 10px;font-size:12px;color:#888;flex-shrink:0';
@@ -734,37 +524,24 @@ function renderTripDetail(data) {
         if (isCurrent) cls += ' current';
 
         const hasEta = s.estimatedTime && s.estimatedTime !== s.scheduledTime;
-        let times = '';
-        if (hasEta) {
-            const d = s.delayMinutes ?? 0;
-            const ec = d > 1 ? 'late' : d < -1 ? 'early' : 'ontime';
-            times = `<div class="trip-stop-times">
-                        <span class="ts-sched">${s.scheduledTime}</span>
-                        <span class="ts-eta ${ec}">${s.estimatedTime}</span>
-                    </div>`;
-        } else {
-            times = `<div class="trip-stop-times">
-                        <span class="ts-only">${s.scheduledTime}</span>
-                    </div>`;
-        }
+        const times = hasEta
+            ? `<div class="trip-stop-times">
+                <span class="ts-sched">${s.scheduledTime}</span>
+                <span class="ts-eta ${(s.delayMinutes ?? 0) > 1 ? 'late' : (s.delayMinutes ?? 0) < -1 ? 'early' : 'ontime'}">${s.estimatedTime}</span>
+               </div>`
+            : `<div class="trip-stop-times"><span class="ts-only">${s.scheduledTime}</span></div>`;
 
         const row = document.createElement('div');
         row.className = cls;
         row.innerHTML = `
-                    <div class="trip-stop-dot"></div>
-                    <div class="trip-stop-info">
-                        <div class="trip-stop-name">${_esc(s.stopName)}</div>
-                    </div>
-                    ${times}`;
+            <div class="trip-stop-dot"></div>
+            <div class="trip-stop-info"><div class="trip-stop-name">${_esc(s.stopName)}</div></div>
+            ${times}`;
         _tripBody.appendChild(row);
     });
 
-    // Fly to vehicle if tracked
     if (data.isRealtime && data.vehicleLat && data.vehicleLon)
         map.flyTo({ center: [data.vehicleLon, data.vehicleLat], zoom: 15, duration: 600 });
-
-    // Draw full route shape
-    if (data.routeId) _showRoute(data.routeId);
 
     requestAnimationFrame(() => {
         const cur = _tripBody.querySelector('.trip-stop.current');
@@ -772,8 +549,6 @@ function renderTripDetail(data) {
     });
 }
 
-// ── updateMapLocation ──────────────────────────────────────────────
-// Called by C# when GPS location is available.
 function updateMapLocation(lng, lat) {
     if (!_userMarker) {
         _userMarker = new maplibregl.Marker({ color: '#4285F4' })
@@ -789,12 +564,10 @@ function updateMapLocation(lng, lat) {
 // STATE
 // ═══════════════════════════════════════════════════════════════════
 
-let _routeMap = {};
 let _userMarker = null;
 let _currentStop = null;
 let _scheduleRefreshTimer = null;
 
-// Panel element refs
 const _sheet = document.getElementById('stop-sheet');
 const _sheetName = document.getElementById('sheet-stop-name');
 const _sheetSid = document.getElementById('sheet-stop-id');
@@ -822,7 +595,7 @@ function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
     _currentStop = stopId;
 
     _sheetName.textContent = stopName;
-    const isTram  = routeType === 0 || routeType === 11;
+    const isTram = routeType === 0 || routeType === 11;
     const isTrain = routeType === 2;
     _sheetSid.textContent = (isTrain ? '🚂 ' : isTram ? '🚋 ' : '🚌 ') + '#' + stopId;
 
@@ -844,7 +617,6 @@ function _openStopSheet(stopId, stopName, routeType, supportsSchedule = true) {
         return;
     }
 
-    // Tell C# to fetch the schedule (also starts the 30 s server-side refresh)
     window._pendingMsg = 'stopSchedule:' + stopId;
 }
 
@@ -854,8 +626,6 @@ function _closeStopSheet() {
     _sheet.classList.remove('open');
     window._pendingMsg = 'stopClosed';
 }
-
-// ── Schedule auto-refresh helpers ──────────────────────────────────────
 
 function _clearScheduleRefresh() {
     if (_scheduleRefreshTimer !== null) {
@@ -877,13 +647,11 @@ function _openTripPanel(tripId) {
     _tripBody.innerHTML = '';
     _tripPanel.classList.add('open');
 
-    // Tell C# to fetch the trip detail
     window._pendingMsg = 'tripDetail:' + tripId;
 }
 
 function _closeTripPanel() {
     _tripPanel.classList.remove('open');
-    _clearRoute();
 }
 
 function _openBikeSheet(p) {
@@ -894,8 +662,8 @@ function _openBikeSheet(p) {
 
     _bikeSheetName.textContent = p.name || p.stationId;
 
-    const avail   = p.availableBikes ?? 0;
-    const cap     = p.capacity ?? 0;
+    const avail = p.availableBikes ?? 0;
+    const cap = p.capacity ?? 0;
     const fillPct = cap > 0 ? Math.min(100, Math.round((avail / cap) * 100)) : 0;
 
     _bikeSheetBody.innerHTML = `
@@ -906,19 +674,16 @@ function _openBikeSheet(p) {
                 <div class="bike-stat-value">${avail}${cap > 0 ? ' / ' + cap : ''}</div>
             </div>
         </div>
-        ${cap > 0 ? `
-        <div class="bike-availability-bar">
+        ${cap > 0 ? `<div class="bike-availability-bar">
             <div class="bike-availability-fill" style="width:${fillPct}%"></div>
         </div>` : ''}
-        ${p.providerName ? `
-        <div class="bike-stat-row">
+        ${p.providerName ? `<div class="bike-stat-row">
             <span class="bike-stat-icon">🏢</span>
             <div>
                 <div class="bike-stat-label">Provider</div>
                 <div class="bike-provider-name">${_esc(p.providerName)}</div>
             </div>
-        </div>` : ''}
-    `;
+        </div>` : ''}`;
 
     _bikeSheet.classList.add('open');
 }
@@ -928,44 +693,7 @@ function _closeBikeSheet() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ROUTE LINE
-// ═══════════════════════════════════════════════════════════════════
-
-// Draw the full route shape for the given routeId in the route's colour.
-function _showRoute(routeId) {
-    const route = _routeMap[routeId];
-    const shape = route?.shape;
-    const color = route?.color ? '#' + route.color : '#1565c0';
-
-    map.getSource('active-route')?.setData(
-        shape && shape.length >= 2
-            ? { type: 'Feature', geometry: { type: 'LineString', coordinates: shape } }
-            : { type: 'FeatureCollection', features: [] }
-    );
-
-    if (map.getLayer('active-route'))
-        map.setPaintProperty('active-route', 'line-color', color);
-}
-
-function _clearRoute() {
-    map.getSource('active-route')?.setData(
-        { type: 'FeatureCollection', features: [] }
-    );
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // STOP ICON LOADER
-//
-// Icons are served by the API from GET /operator/images/{filename}.
-// To add a new stop type: drop a PNG in GetThereAPI/wwwroot/images/
-// then add one entry to STOP_ICON_MAP — no other changes needed.
-//
-// GTFS routeType numbers:
-//   0  = tram / light-rail   → tram.png
-//   3  = bus                 → bus.png
-//   11 = trolleybus          → tram.png  (reuses tram icon)
-//   2  = rail/train          → add rail.png + uncomment below
-//   4  = ferry               → add ferry.png + uncomment below
 // ═══════════════════════════════════════════════════════════════════
 
 const STOP_ICON_MAP = Object.fromEntries(
@@ -975,7 +703,6 @@ const STOP_ICON_MAP = Object.fromEntries(
     ])
 );
 
-// Default fallback: prefer bus (routeType 3), otherwise first available type
 const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { id: 'stop-bus', color: '#126400' };
 const _defaultIconId = _defaultEntry.id;
 const _defaultColor = _defaultEntry.color;
@@ -984,9 +711,8 @@ function _buildIconExpression() {
     const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.id !== _defaultIconId);
     if (!nonDefault.length) return _defaultIconId;
     const expr = ['case'];
-    for (const [type, cfg] of nonDefault) {
+    for (const [type, cfg] of nonDefault)
         expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.id);
-    }
     expr.push(_defaultIconId);
     return expr;
 }
@@ -995,9 +721,8 @@ function _buildColorExpression() {
     const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.color !== _defaultColor);
     if (!nonDefault.length) return _defaultColor;
     const expr = ['case'];
-    for (const [type, cfg] of nonDefault) {
+    for (const [type, cfg] of nonDefault)
         expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.color);
-    }
     expr.push(_defaultColor);
     return expr;
 }
@@ -1008,11 +733,8 @@ function _loadStopIcons() {
     );
     return Promise.all(unique.map(({ id, file }) =>
         new Promise(resolve => {
-            // C# pre-fetches icons and injects them as base64 into window._ICON_DATA
-            // to avoid CORS issues. Fall back to direct URL if not present.
             const dataUri = window._ICON_DATA && window._ICON_DATA[file];
             const url = dataUri || (window._API_BASE || '') + '/images/' + file;
-            console.log('[StopIcons] Loading:', file, dataUri ? '(base64)' : '(url)');
             const img = new Image();
             img.onload = () => {
                 try {
@@ -1021,19 +743,13 @@ function _loadStopIcons() {
                     canvas.height = img.height;
                     canvas.getContext('2d').drawImage(img, 0, 0);
                     const imageData = canvas.getContext('2d').getImageData(0, 0, img.width, img.height);
-                    if (!map.hasImage(id)) {
-                        map.addImage(id, imageData);
-                        console.log('[StopIcons] Added:', id, img.width, img.height);
-                    }
+                    if (!map.hasImage(id)) map.addImage(id, imageData);
                 } catch (e) {
                     console.error('[StopIcons] addImage failed:', id, e);
                 }
                 resolve();
             };
-            img.onerror = (e) => {
-                console.error('[StopIcons] FAILED to load:', file, e);
-                resolve();
-            };
+            img.onerror = () => resolve();
             if (!dataUri) img.crossOrigin = 'anonymous';
             img.src = url;
         })
@@ -1041,7 +757,7 @@ function _loadStopIcons() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// VEHICLE ICON GENERATORS — exact zetRt code
+// VEHICLE ICON GENERATORS
 // ═══════════════════════════════════════════════════════════════════
 
 function _genVehicleBg(color) {
@@ -1085,10 +801,8 @@ async function _genVehicleFg(bg, fg, text) {
     ctx.fillStyle = fg;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = text.length > 3
-        ? 'bold 18px Noto Sans, sans-serif'
-        : text.length > 2
-            ? 'bold 20px Noto Sans, sans-serif'
+    ctx.font = text.length > 3 ? 'bold 18px Noto Sans, sans-serif'
+        : text.length > 2 ? 'bold 20px Noto Sans, sans-serif'
             : 'bold 24px Noto Sans, sans-serif';
     ctx.fillText(text, center, center);
 
@@ -1099,14 +813,6 @@ async function _genVehicleFg(bg, fg, text) {
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════
 
-function _stopCategory(t) {
-    if (t === 0 || t === 11) return 'tram';
-    if (t === 1) return 'metro';
-    if (t === 2) return 'rail';
-    if (t === 4) return 'ferry';
-    return 'bus';
-}
-
 function _pillClass(t) {
     if (t === 0 || t === 11) return 'tram';
     if (t === 1) return 'metro';
@@ -1115,7 +821,6 @@ function _pillClass(t) {
     return 'bus';
 }
 
-// darkenColor — exact zetRt implementation
 function darkenColor(hex, factor = 0.8) {
     const r = Math.floor(parseInt(hex.slice(1, 3), 16) * factor);
     const g = Math.floor(parseInt(hex.slice(3, 5), 16) * factor);
@@ -1141,13 +846,11 @@ document.getElementById('bike-sheet-close').addEventListener('click', e => {
     e.stopPropagation(); _closeBikeSheet();
 });
 
-// Prevent map clicks from firing when touching panels
 [_sheet, _tripPanel, _bikeSheet].forEach(p => {
     p.addEventListener('pointerdown', e => e.stopPropagation());
     p.addEventListener('click', e => e.stopPropagation());
 });
 
-// Swipe down to close
 function _addSwipeClose(panel, closeFn) {
     let startY = 0, dragging = false;
     panel.addEventListener('pointerdown', e => { startY = e.clientY; dragging = true; });

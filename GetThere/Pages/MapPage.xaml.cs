@@ -212,7 +212,6 @@ public partial class MapPage : ContentPage
         base.OnAppearing();
         await _navigatedTcs.Task;
         await WaitForMapReadyAsync();
-        await LoadStaticDataAsync();
         await GetLocationAsync();
         StartVehiclePolling();
         StartJsMessagePolling();
