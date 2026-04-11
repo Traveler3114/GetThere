@@ -11,25 +11,24 @@
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
         <DataTemplate x:Key="TicketRowTemplate">
-            <Border Padding="16" BackgroundColor="#F8F8F8" Stroke="#E5E7EB" StrokeThickness="1">
+            <Border Padding="16" BackgroundColor="White" Stroke="#E5E7EB" StrokeThickness="1">
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="18" />
                 </Border.StrokeShape>
                 <Border.Shadow>
-                    <Shadow Brush="Black" Offset="0,4" Radius="10" Opacity="0.12" />
+                    <Shadow Brush="Black" Offset="0,4" Radius="10" Opacity="0.08" />
                 </Border.Shadow>
 
                 <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
                     <Border WidthRequest="48"
                             HeightRequest="48"
-                            BackgroundColor="#ECECEC"
+                            BackgroundColor="#FFFBEB"
                             StrokeThickness="0">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="24" />
                         </Border.StrokeShape>
-                        <Image Source="ticket_icon.png"
-                               WidthRequest="24"
-                               HeightRequest="24"
+                        <Label Text="🎫"
+                               FontSize="22"
                                HorizontalOptions="Center"
                                VerticalOptions="Center" />
                     </Border>
@@ -53,16 +52,10 @@
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="16" />
                         </Border.StrokeShape>
-                        <HorizontalStackLayout Spacing="4">
-                            <Label Text="{Binding Status}"
-                                   TextColor="White"
-                                   FontSize="13"
-                                   FontAttributes="Bold" />
-                            <Label Text="›"
-                                   TextColor="White"
-                                   FontSize="14"
-                                   FontAttributes="Bold" />
-                        </HorizontalStackLayout>
+                        <Label Text="{Binding Status}"
+                               TextColor="White"
+                               FontSize="13"
+                               FontAttributes="Bold" />
                     </Border>
                 </Grid>
             </Border>
@@ -74,7 +67,7 @@
 
         <!-- ── BACKGROUND (BLUE TOP) ── -->
         <Grid RowDefinitions="300, *">
-            <BoxView Grid.Row="0" BackgroundColor="#4158D0">
+            <BoxView Grid.Row="0" BackgroundColor="#4F46E5">
                 <BoxView.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                         <GradientStop Color="#4F46E5" Offset="0" />
@@ -86,13 +79,13 @@
 
         <Grid RowDefinitions="Auto, *">
             <!-- ── HEADER ── -->
-            <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,60,24,20" ColumnDefinitions="*,Auto">
+            <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,60,24,20" ColumnDefinitions="*,Auto" MaximumWidthRequest="600" HorizontalOptions="Center" WidthRequest="1000">
                 <Label Text="My Tickets" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
                 
                 <Border x:Name="FilterBadge" Grid.Column="1" Padding="15,8" BackgroundColor="#D1FAE5" StrokeThickness="0">
                     <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
                     <Border.Shadow><Shadow Brush="Black" Opacity="0.1" Offset="0,4" Radius="8" /></Border.Shadow>
-                    <Label x:Name="FilterBtnLabel" Text="Active ▴" TextColor="#065F46" FontAttributes="Bold" FontSize="14">
+                    <Label x:Name="FilterBtnLabel" Text="Active ▾" TextColor="#065F46" FontAttributes="Bold" FontSize="14">
                         <Label.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnShowFilterOptions" />
                         </Label.GestureRecognizers>

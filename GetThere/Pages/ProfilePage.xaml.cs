@@ -35,29 +35,9 @@ public partial class ProfilePage : ContentPage
 
     private void UpdateResponsiveLayout()
     {
-        if (Width <= 0)
-            return;
-
         var isMobile = Width < PageUtility.MobileBreakpoint;
-
-        if (isMobile)
-        {
-            var mobileWidth = Math.Min(Math.Max(Width * 0.84, 300), 420);
-            MainCard.WidthRequest = mobileWidth;
-            MainCard.HeightRequest = 180;
-            MainCard.HorizontalOptions = LayoutOptions.Center;
-
-            HistoryContainer.WidthRequest = mobileWidth;
-            HistoryContainer.HorizontalOptions = LayoutOptions.Center;
-
-            TopUpButton.Margin = new Thickness(0, -34, 0, 0);
-            return;
-        }
-
-        PageUtility.ApplyTicketsStyleResponsive(Width, MainCard);
-        PageUtility.ApplyTicketsStyleResponsive(Width, HistoryContainer);
-        MainCard.HeightRequest = 210;
-        TopUpButton.Margin = new Thickness(0, -48, 0, 0);
+        MainCard.HeightRequest = isMobile ? 180 : 210;
+        TopUpButton.Margin = isMobile ? new Thickness(0, -34, 0, 0) : new Thickness(0, -48, 0, 0);
     }
 
     private async Task LoadProfileAsync()
@@ -107,7 +87,7 @@ public partial class ProfilePage : ContentPage
             if (result.Success && result.Data != null)
             {
                 var list = result.Data.OrderByDescending(t => t.Timestamp).ToList();
-                MainCollection.ItemsSource = list;
+                BindableLayout.SetItemsSource(HistoryRows, list);
                 NoItemsLabel.IsVisible = !list.Any();
             }
         }

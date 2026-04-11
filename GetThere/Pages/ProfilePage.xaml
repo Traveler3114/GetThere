@@ -21,8 +21,7 @@
                 ColumnSpacing="12">
                 <Border
                     Grid.Column="0"
-                    BackgroundColor="{AppThemeBinding Light=#ECECEC,
-                                                      Dark=#2C2C2E}"
+                    BackgroundColor="#FFFBEB"
                     HeightRequest="48"
                     StrokeThickness="0"
                     WidthRequest="48">
@@ -69,32 +68,25 @@
                 ColumnSpacing="12">
                 <Border
                     Grid.Column="0"
-                    BackgroundColor="{AppThemeBinding Light=#ECECEC,
-                                                      Dark=#2C2C2E}"
+                    BackgroundColor="#FFFBEB"
                     HeightRequest="48"
                     StrokeThickness="0"
                     WidthRequest="48">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="24" />
                     </Border.StrokeShape>
-                    <Image
-                        HeightRequest="24"
+                    <Label
+                        FontSize="22"
                         HorizontalOptions="Center"
-                        Source="tab_tram.png"
-                        VerticalOptions="Center"
-                        WidthRequest="24">
-                        <Image.Behaviors>
-                            <toolkit:IconTintColorBehavior TintColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}" />
-                        </Image.Behaviors>
-                    </Image>
+                        Text="🎫"
+                        VerticalOptions="Center" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
                     <Label
                         FontAttributes="Bold"
                         FontSize="15"
                         Text="{Binding Name}"
-                        TextColor="{AppThemeBinding Light=Black,
-                                                    Dark=White}" />
+                        TextColor="Black" />
                     <Label
                         FontSize="12"
                         Text="{Binding Status}"
@@ -114,10 +106,10 @@
         <components:AnimatedBackground Grid.RowSpan="2" />
         <Grid Grid.Row="0" RowDefinitions="Auto,*">
             <ScrollView Grid.Row="0">
-                <VerticalStackLayout Padding="0,0,0,100" Spacing="14">
+                <VerticalStackLayout Padding="0,0,0,100" Spacing="14" MaximumWidthRequest="600" HorizontalOptions="Center">
 
                     <!--  ── MAIN PASS CARD (Apple Style) ──  -->
-                    <Grid Margin="16,20,16,10" HorizontalOptions="Center">
+                    <Grid Margin="16,20,16,10">
                     <Border
                         x:Name="MainCard"
                         HeightRequest="210"
@@ -207,7 +199,7 @@
                         </Button.Shadow>
                     </Button>
 
-                    <VerticalStackLayout Margin="0,4,0,0" Spacing="6" HorizontalOptions="Center">
+                    <VerticalStackLayout Margin="0,4,0,0" Spacing="6">
                         <Label
                             FontAttributes="Bold"
                             FontSize="18"
@@ -223,7 +215,7 @@
                     </VerticalStackLayout>
 
                     <!--  ── LIST SECTION ──  -->
-                    <Grid Margin="16,2,16,0" HorizontalOptions="Center">
+                    <Grid Margin="16,2,16,0">
                     <Border
                         x:Name="HistoryContainer"
                         Padding="15"
@@ -250,10 +242,9 @@
                                 Color="#4CAF50" />
 
                             <!--  List Content  -->
-                            <CollectionView
-                                x:Name="MainCollection"
-                                ItemTemplate="{StaticResource HistoryTemplate}"
-                                SelectionMode="None" />
+                            <VerticalStackLayout 
+                                x:Name="HistoryRows"
+                                BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" />
 
                             <Label
                                 x:Name="NoItemsLabel"

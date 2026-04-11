@@ -39,26 +39,10 @@ public partial class TicketsPage : ContentPage
 
     private void UpdateResponsiveLayout()
     {
-        if (Width <= 0)
-            return;
-
+        // Relying on XAML constraints
         var isMobile = Width < 700;
-
-        if (isMobile)
-        {
-            TicketsSurface.WidthRequest = -1;
-            TicketsSurface.HorizontalOptions = LayoutOptions.Fill;
-            TicketsContent.Padding = new Thickness(20, 16, 20, 100);
-            HeaderRow.Margin = new Thickness(20, 52, 20, 16);
-            FilterBadge.Padding = new Thickness(14, 8);
-            TopHandle.IsVisible = true;
-            return;
-        }
-
-        PageUtility.ApplyTicketsStyleResponsive(Width, TicketsSurface);
-        TicketsContent.Padding = new Thickness(24, 30, 24, 100);
-        HeaderRow.Margin = new Thickness(24, 60, 24, 20);
-        FilterBadge.Padding = new Thickness(15, 8);
+        TicketsContent.Padding = isMobile ? new Thickness(20, 16, 20, 100) : new Thickness(24, 30, 24, 100);
+        HeaderRow.Margin = isMobile ? new Thickness(20, 52, 20, 16) : new Thickness(24, 60, 24, 20);
         TopHandle.IsVisible = true;
     }
 
@@ -90,7 +74,7 @@ public partial class TicketsPage : ContentPage
                 WidthRequest = 48,
                 HeightRequest = 48,
                 StrokeThickness = 0,
-                BackgroundColor = Color.FromArgb("#FFF3CD"),
+                BackgroundColor = Color.FromArgb("#FFFBEB"),
                 StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(24) },
                 Content = new Label
                 {

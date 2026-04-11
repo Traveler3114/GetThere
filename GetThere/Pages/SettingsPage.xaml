@@ -41,7 +41,7 @@
                             FontAttributes="Bold"
                             FontSize="18"
                             Text="Country"
-                            TextColor="White" />
+                            TextColor="Black" />
 
                         <Label
                             FontSize="14"
@@ -58,6 +58,7 @@
                         <Picker
                             x:Name="CountryPicker"
                             Title="Select a country…"
+                            TitleColor="Black"
                             FontSize="16"
                             SelectedIndexChanged="OnCountrySelected"
                             TextColor="Black"
