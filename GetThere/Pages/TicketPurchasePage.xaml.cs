@@ -1,4 +1,5 @@
 #nullable enable
+using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;
@@ -20,13 +21,21 @@ public partial class TicketPurchasePage : ContentPage
         InitializeComponent();
         _shopService = shopService;
         _store = store;
+        SizeChanged += OnPageSizeChanged;
     }
 
     /// <summary>Sets the operator context before the page appears.</summary>
     public TicketPurchasePage Prepare(TicketableOperatorDto op)
     {
         _operator = op;
-        PageTitleLabel.Text = op.Name;
+        PageTitleLabel.Text = $"{op.Name} Shop";
+        PageSubtitleLabel.Text = op.Name switch
+        {
+            "ZET" => "Buy tickets for Zagreb transit",
+            "HZPP" => "Buy tickets for Croatian Railways",
+            "Bajs" => "Buy tickets for city bikes",
+            _ => op.Description,
+        };
         Title = op.Name;
         return this;
     }
@@ -34,8 +43,19 @@ public partial class TicketPurchasePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         if (_operator is not null)
             await LoadOptionsAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, PurchaseSurface);
     }
 
     private async Task LoadOptionsAsync()
@@ -69,41 +89,56 @@ public partial class TicketPurchasePage : ContentPage
 
     private View BuildOptionCard(MockTicketOptionDto option)
     {
-        var accentColor = Color.FromArgb(_operator?.Color ?? "#1264AB");
+        var accentColor = Color.FromArgb("#009688");
+        var detailColor = _operator?.Name switch
+        {
+            "ZET" => Color.FromArgb("#13A89E"),
+            "HZPP" => Color.FromArgb("#0F9ED5"),
+            "Bajs" => Color.FromArgb("#17B26A"),
+            _ => accentColor,
+        };
 
         // Quantity stepper
         var qtyLabel = new Label
         {
             Text = "1",
-            FontSize = 20,
+            FontSize = 16,
             FontAttributes = FontAttributes.Bold,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center,
-            TextColor = AppInfo.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black,
-            MinimumWidthRequest = 32,
+            TextColor = Colors.Black,
+            MinimumWidthRequest = 22,
         };
 
         var minusBtn = new Button
         {
             Text = "−",
-            FontSize = 20,
-            WidthRequest = 36,
-            HeightRequest = 36,
+            FontSize = 18,
+            FontAttributes = FontAttributes.Bold,
+            WidthRequest = 34,
+            HeightRequest = 34,
             Padding = Thickness.Zero,
-            BackgroundColor = Color.FromArgb("#E0E0E0"),
-            TextColor = Colors.Black,
-            CornerRadius = 18,
+            BackgroundColor = Colors.White,
+            TextColor = Color.FromArgb("#A0A0A0"),
+            BorderColor = Color.FromArgb("#EBEBEC"),
+            BorderWidth = 1,
+            CornerRadius = 17,
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.08f, Radius = 4, Offset = new Point(1, 1) },
         };
         var plusBtn = new Button
         {
             Text = "+",
-            FontSize = 20,
-            WidthRequest = 36,
-            HeightRequest = 36,
+            FontSize = 18,
+            FontAttributes = FontAttributes.Bold,
+            WidthRequest = 34,
+            HeightRequest = 34,
             Padding = Thickness.Zero,
-            BackgroundColor = accentColor,
-            TextColor = Colors.White,
-            CornerRadius = 18,
+            BackgroundColor = Colors.White,
+            TextColor = Color.FromArgb("#A0A0A0"),
+            BorderColor = Color.FromArgb("#EBEBEC"),
+            BorderWidth = 1,
+            CornerRadius = 17,
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.08f, Radius = 4, Offset = new Point(1, 1) },
         };
 
         int quantity = 1;
@@ -115,23 +150,22 @@ public partial class TicketPurchasePage : ContentPage
             Text = $"Buy  •  €{option.Price:F2}",
             BackgroundColor = accentColor,
             TextColor = Colors.White,
-            CornerRadius = 12,
+            CornerRadius = 22,
             FontAttributes = FontAttributes.Bold,
             FontSize = 15,
-            HeightRequest = 48,
+            HeightRequest = 44,
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.14f, Radius = 6, Offset = new Point(2, 2) },
         };
         buyBtn.Clicked += async (_, _) => await OnBuyClicked(option, quantity, buyBtn);
 
         var card = new Border
         {
             Padding = new Thickness(16),
-            BackgroundColor = AppInfo.RequestedTheme == AppTheme.Dark
-                ? Color.FromArgb("#1C1C1E")
-                : Colors.White,
-            StrokeThickness = 2,
-            Stroke = new SolidColorBrush(Color.FromArgb((_operator?.Color ?? "#1264AB") + "33")),
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
-            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.05f, Radius = 8, Offset = new Point(0, 2) },
+            BackgroundColor = Colors.White,
+            StrokeThickness = 1,
+            Stroke = new SolidColorBrush(Color.FromArgb("#EBEBEC")),
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(18) },
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.16f, Radius = 8, Offset = new Point(4, 4) },
         };
 
         card.Content = new VerticalStackLayout
@@ -142,15 +176,15 @@ public partial class TicketPurchasePage : ContentPage
                 new Label
                 {
                     Text = option.Name,
-                    FontSize = 17,
+                    FontSize = 15,
                     FontAttributes = FontAttributes.Bold,
-                    TextColor = AppInfo.RequestedTheme == AppTheme.Dark ? Colors.White : Colors.Black,
+                    TextColor = Colors.Black,
                 },
                 new Label
                 {
                     Text = option.Description,
                     FontSize = 13,
-                    TextColor = Colors.Gray,
+                    TextColor = Color.FromArgb("#A0A0A0"),
                 },
                 new HorizontalStackLayout
                 {
@@ -159,29 +193,28 @@ public partial class TicketPurchasePage : ContentPage
                     {
                         new Border
                         {
-                            Padding = new Thickness(8, 4),
-                            BackgroundColor = Color.FromArgb((_operator?.Color ?? "#1264AB") + "22"),
+                            Padding = new Thickness(0),
+                            BackgroundColor = Colors.Transparent,
                             StrokeThickness = 0,
-                            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(8) },
                             Content = new Label
                             {
-                                Text = $"⏱ {option.Validity}",
+                                Text = $"⏰ {option.Validity}",
                                 FontSize = 12,
-                                TextColor = accentColor,
+                                FontAttributes = FontAttributes.Bold,
+                                TextColor = detailColor,
                             },
                         },
                         new Border
                         {
-                            Padding = new Thickness(8, 4),
-                            BackgroundColor = Color.FromArgb((_operator?.Color ?? "#1264AB") + "22"),
+                            Padding = new Thickness(0),
+                            BackgroundColor = Colors.Transparent,
                             StrokeThickness = 0,
-                            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(8) },
                             Content = new Label
                             {
                                 Text = $"€{option.Price:F2}",
-                                FontSize = 12,
+                                FontSize = 14,
                                 FontAttributes = FontAttributes.Bold,
-                                TextColor = accentColor,
+                                TextColor = Colors.Black,
                             },
                         },
                     },

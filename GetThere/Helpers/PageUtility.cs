@@ -9,6 +9,10 @@ namespace GetThere.Helpers;
 // ═══════════════════════════════════════════════════════════
 public static class PageUtility
 {
+    public const double DefaultResponsiveRatio = 0.60;
+    public const double DefaultResponsiveMinWidth = 340;
+    public const double MobileBreakpoint = 700;
+
     // ── Error label ────────────────────────────────────────
     public static void ShowError(Label label, string message)
     {
@@ -44,6 +48,33 @@ public static class PageUtility
 
     public static string FormatDateTime(DateTime dt) =>
         dt.ToString("dd MMM yyyy, HH:mm");
+
+    public static void ApplyResponsiveWidth(double pageWidth, View element, double ratio = DefaultResponsiveRatio, double minWidth = DefaultResponsiveMinWidth)
+    {
+        if (pageWidth <= 0 || element is null)
+            return;
+
+        element.WidthRequest = Math.Max(minWidth, pageWidth * ratio);
+    }
+
+    public static bool ApplyTicketsStyleResponsive(double pageWidth, View element, double ratio = DefaultResponsiveRatio, double minWidth = DefaultResponsiveMinWidth)
+    {
+        if (pageWidth <= 0 || element is null)
+            return false;
+
+        var isMobile = pageWidth < MobileBreakpoint;
+
+        if (isMobile)
+        {
+            element.WidthRequest = -1;
+            element.HorizontalOptions = LayoutOptions.Fill;
+            return true;
+        }
+
+        element.WidthRequest = Math.Max(minWidth, pageWidth * ratio);
+        element.HorizontalOptions = LayoutOptions.Center;
+        return false;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════

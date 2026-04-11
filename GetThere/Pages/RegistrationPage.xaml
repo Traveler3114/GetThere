@@ -1,164 +1,91 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:components="clr-namespace:GetThere.Components"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.RegistrationPage"
-             Title="Create account"
-             BackgroundColor="{AppThemeBinding Light=White, Dark=#121212}">
+             Title="Create Account"
+             BackgroundColor="#F8F9FA"
+             Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="*">
-        <!-- Animated background (behind everything) -->
-        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
+    <Grid>
+        <components:AnimatedBackground />
 
-        <!-- Main content -->
-        <ScrollView Grid.Row="0">
-            <VerticalStackLayout x:Name="ContentLayout" Padding="24" Spacing="12">
-                <VerticalStackLayout.GestureRecognizers>
-                    <PanGestureRecognizer PanUpdated="OnPanUpdate" />
-                </VerticalStackLayout.GestureRecognizers>
+        <!--  ── HERO AREA ──  -->
+        <Border VerticalOptions="Start" HeightRequest="300" StrokeThickness="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                    <GradientStop Offset="0" Color="#4E85F2" />
+                    <GradientStop Offset="1" Color="#512BD4" />
+                </LinearGradientBrush>
+            </Border.Background>
 
-            <!-- ── HEADER ── -->
-            <VerticalStackLayout Spacing="6" Margin="0,48,0,24">
-                <Label Text="Create your account"
-                       FontSize="28" FontAttributes="Bold"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       HorizontalOptions="Center" />
-                <Label Text="It only takes a minute"
-                       FontSize="14" TextColor="Gray"
-                       HorizontalOptions="Center" />
-            </VerticalStackLayout>
-
-            <!-- ── PERSONAL DETAILS ── -->
-            <Label Text="PERSONAL DETAILS"
-                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
-                   Margin="4,0,0,0" CharacterSpacing="1" />
-
-            <Entry x:Name="FullNameEntry"
-                   Placeholder="Full name"
-                   Keyboard="Text"
-                   BackgroundColor="Transparent"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                   PlaceholderColor="Gray" />
-
-            <Entry x:Name="EmailEntry"
-                   Placeholder="Email address"
-                   Keyboard="Email"
-                   BackgroundColor="Transparent"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                   PlaceholderColor="Gray" />
-
-            <Entry x:Name="PhoneEntry"
-                   Placeholder="Phone (optional)"
-                   Keyboard="Telephone"
-                   BackgroundColor="Transparent"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                   PlaceholderColor="Gray" />
-
-            <!-- ── PASSWORD ── -->
-            <Label Text="PASSWORD"
-                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
-                   Margin="4,12,0,0" CharacterSpacing="1" />
-
-            <!-- Password with eye toggle -->
-            <Grid>
-                <Entry x:Name="PasswordEntry"
-                       Placeholder="Password (min. 8 characters)"
-                       IsPassword="True"
-                       BackgroundColor="Transparent"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray"
-                       HorizontalOptions="Fill" />
-                <Label x:Name="TogglePasswordBtn"
-                       Text="Show"
-                       FontSize="13"
-                       TextColor="Gray"
-                       FontAttributes="Bold"
-                       VerticalOptions="Center"
-                       HorizontalOptions="End"
-                       Padding="10,0"
-                       Margin="0,0,5,0">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
+            <Grid RowDefinitions="Auto, *">
+                <ImageButton Source="arrow_back_white.png" HeightRequest="30" WidthRequest="30" HorizontalOptions="Start" Margin="25,60,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />
+                <VerticalStackLayout Grid.Row="1" Spacing="5" VerticalOptions="Center" Margin="0,0,0,30">
+                    <Label Text="Join GetThere" FontSize="32" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" />
+                    <Label Text="Create an account to start your journey" FontSize="14" TextColor="White" Opacity="0.8" HorizontalOptions="Center" />
+                </VerticalStackLayout>
             </Grid>
+        </Border>
 
-            <!-- Confirm password with eye toggle -->
-            <Grid>
-                <Entry x:Name="ConfirmPasswordEntry"
-                       Placeholder="Confirm password"
-                       IsPassword="True"
-                       BackgroundColor="Transparent"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                       PlaceholderColor="Gray"
-                       HorizontalOptions="Fill" />
-                <Label x:Name="ToggleConfirmPasswordBtn"
-                       Text="Show"
-                       FontSize="13"
-                       TextColor="Gray"
-                       FontAttributes="Bold"
-                       VerticalOptions="Center"
-                       HorizontalOptions="End"
-                       Padding="10,0"
-                       Margin="0,0,5,0">
-                    <Label.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="ToggleConfirmPassword_Clicked" />
-                    </Label.GestureRecognizers>
-                </Label>
-            </Grid>
+        <Grid Margin="0,250,0,10" HorizontalOptions="Center">
+        <ScrollView VerticalOptions="Fill">
+            <Border x:Name="RegistrationCard" Margin="1" Padding="30,15,30,30" BackgroundColor="White" StrokeThickness="0" VerticalOptions="Start">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Opacity="0.15" Offset="0,10" Radius="15" />
+                </Border.Shadow>
+                <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
 
-            <!-- ── ERROR ── -->
-            <Label x:Name="ErrorLabel"
-                   TextColor="Red" FontSize="13"
-                   IsVisible="False"
-                   HorizontalOptions="Center" Margin="0,4,0,0" />
+                <VerticalStackLayout Spacing="15">
+                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E0E0E0" HorizontalOptions="Center" Margin="0,0,0,10" />
+                    
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Full Name" FontAttributes="Bold" FontSize="14" TextColor="Black" />
+                        <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="45">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                            <Entry x:Name="FullNameEntry" Placeholder="Full Name" PlaceholderColor="#A0A0A0" TextColor="Black" />
+                        </Border>
+                    </VerticalStackLayout>
 
-            <!-- ── REGISTER BUTTON ── -->
-            <Button x:Name="RegisterButton"
-                    Text="Create account"
-                    Clicked="RegisterButton_Clicked"
-                    CornerRadius="12" FontAttributes="Bold"
-                    HeightRequest="52" Margin="0,8,0,0" />
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Email" FontAttributes="Bold" FontSize="14" TextColor="Black" />
+                        <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="45">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                            <Entry x:Name="EmailEntry" Placeholder="Email" PlaceholderColor="#A0A0A0" TextColor="Black" Keyboard="Email" />
+                        </Border>
+                    </VerticalStackLayout>
 
-            <!-- ── BUSY ── -->
-            <ActivityIndicator x:Name="BusyIndicator"
-                            IsRunning="False" 
-                            IsVisible="False"
-                            Color="#800080"
-                            HorizontalOptions="Center" />
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Password" FontAttributes="Bold" FontSize="14" TextColor="Black" />
+                        <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="45">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                            <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" />
+                        </Border>
+                    </VerticalStackLayout>
 
-            <!-- ── SOCIAL REGISTRATION (with Glow & Circular Buttons) ── -->
-            <Label Text="OR SIGN UP WITH"
-                   FontSize="11" TextColor="Gray" FontAttributes="Bold"
-                   HorizontalOptions="Center" Margin="0,32,0,12" CharacterSpacing="1" />
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Confirm Password" FontAttributes="Bold" FontSize="14" TextColor="Black" />
+                        <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="45">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                            <Entry x:Name="ConfirmPasswordEntry" Placeholder="Confirm Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" />
+                        </Border>
+                    </VerticalStackLayout>
 
-            </VerticalStackLayout>
+                    <Label x:Name="ErrorLabel" TextColor="Red" FontSize="12" HorizontalOptions="Center" IsVisible="False" />
+
+                    <Button x:Name="RegisterButton" Text="Create Account" Clicked="RegisterButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold" Margin="0,15,0,0" />
+
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="5" Margin="0,10">
+                        <Label Text="Already have an account?" TextColor="#A0A0A0" />
+                        <Label Text="Sign In" TextColor="#009688" FontAttributes="Bold">
+                            <Label.GestureRecognizers><TapGestureRecognizer Tapped="LoginButton_Tapped" /></Label.GestureRecognizers>
+                        </Label>
+                    </HorizontalStackLayout>
+                    <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="#512BD4" />
+                </VerticalStackLayout>
+            </Border>
         </ScrollView>
-
-        <HorizontalStackLayout Grid.Row="0"
-                               HorizontalOptions="Center"
-                               VerticalOptions="End"
-                               Spacing="40"
-                               Padding="0,0,0,20">
-            <Label Text="Login"
-                   FontSize="16"
-                   TextColor="Gray"
-                   FontAttributes="Bold">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="LoginButton_Clicked" />
-                </Label.GestureRecognizers>
-            </Label>
-            <Label Text="Register"
-                   FontSize="16"
-                   TextColor="#FF00FF"
-                   FontAttributes="Bold">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
-                </Label.GestureRecognizers>
-            </Label>
-        </HorizontalStackLayout>
-
+        </Grid>
     </Grid>
-
 </ContentPage>

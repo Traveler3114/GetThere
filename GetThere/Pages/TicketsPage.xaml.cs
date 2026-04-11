@@ -1,6 +1,8 @@
 using GetThereShared.Dtos;
 using GetThereShared.Enums;
 using GetThere.Services;
+#pragma warning disable CA1416
+using System.Diagnostics;
 using GetThere.Helpers;
 using GetThere.State;
 using Microsoft.Maui.Controls;
@@ -19,13 +21,29 @@ public partial class TicketsPage : ContentPage
         InitializeComponent();
         _ticketService = ticketService;
         _mockStore = mockStore;
+        SizeChanged += OnPageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         ShowMockTickets();
         await LoadTicketsAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        // Relying on XAML constraints
+        var isMobile = Width < 700;
+        TicketsContent.Padding = isMobile ? new Thickness(20, 16, 20, 100) : new Thickness(24, 30, 24, 100);
+        HeaderRow.Margin = isMobile ? new Thickness(20, 52, 20, 16) : new Thickness(24, 60, 24, 20);
+        TopHandle.IsVisible = true;
     }
 
     private void ShowMockTickets()
@@ -56,7 +74,7 @@ public partial class TicketsPage : ContentPage
                 WidthRequest = 48,
                 HeightRequest = 48,
                 StrokeThickness = 0,
-                BackgroundColor = Color.FromArgb("#FFF3CD"),
+                BackgroundColor = Color.FromArgb("#FFFBEB"),
                 StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(24) },
                 Content = new Label
                 {
@@ -137,6 +155,52 @@ public partial class TicketsPage : ContentPage
         }
     }
 
+    private async void OnFilterOptionClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            string? chosen = null;
+
+            // Search for CommandParameter in the sender's recognizers
+            if (sender is View view && view.GestureRecognizers.OfType<TapGestureRecognizer>().FirstOrDefault() is { } tap)
+            {
+                chosen = tap.CommandParameter as string;
+            }
+
+            if (!string.IsNullOrEmpty(chosen) && Enum.TryParse<TicketStatus>(chosen, out var status))
+            {
+                _activeFilter = status;
+                ApplyFilter();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[TicketsPage] Filter error: {ex.Message}");
+        }
+        finally
+        {
+            OnHideFilterBottomSheet(sender, e);
+        }
+    }
+
+    private async void OnShowFilterOptions(object? sender, EventArgs e)
+    {
+        FilterBottomSheet.IsVisible = true;
+        await Task.WhenAll(
+            FilterBottomSheet.FadeToAsync(1, 150),
+            FilterContent.TranslateToAsync(0, 0, 200, Easing.CubicOut)
+        );
+    }
+
+    private async void OnHideFilterBottomSheet(object? sender, EventArgs e)
+    {
+        await Task.WhenAll(
+            FilterBottomSheet.FadeToAsync(0, 150),
+            FilterContent.TranslateToAsync(0, -20, 200, Easing.CubicIn)
+        );
+        FilterBottomSheet.IsVisible = false;
+    }
+
     private void ApplyFilter()
     {
         var filtered = _allTickets
@@ -144,43 +208,62 @@ public partial class TicketsPage : ContentPage
             .OrderByDescending(t => t.ValidUntil)
             .ToList();
 
+        // Optimized: Only set items source, template is usually already there
         BindableLayout.SetItemsSource(TicketsRows, filtered);
-        BindableLayout.SetItemTemplate(TicketsRows, (DataTemplate)Resources["TicketRowTemplate"]);
-        TicketsRows.IsVisible = filtered.Any();
-        TicketsEmptyState.IsVisible = !filtered.Any();
+        
+        TicketsRows.IsVisible = filtered.Count > 0;
+        TicketsEmptyState.IsVisible = filtered.Count == 0;
         TicketsEmptyLabel.Text = $"No {_activeFilter.ToString().ToLower()} tickets";
-        FilterBtn.Text = $"{_activeFilter} ▾";
+        CurrentFilterSectionLabel.Text = $"{_activeFilter} Tickets";
+        FilterBtnLabel.Text = $"{_activeFilter} ▾";
+
+        // Update Popup UI
+        UpdatePopupUI();
     }
 
-    private async void OnShowFilterOptions(object? sender, EventArgs e)
+    private void UpdatePopupUI()
     {
-        FilterBottomSheet.IsVisible = true;
-        await Task.WhenAll(
-            FilterBottomSheet.FadeToAsync(1, 200),
-            FilterContent.TranslateToAsync(0, 0, 300, Easing.CubicOut)
-        );
-    }
+        // Reset all to default
+        ActiveOptionRow.BackgroundColor = Colors.Transparent;
+        ActiveText.TextColor = Color.FromArgb("#374151");
+        ActiveText.FontAttributes = FontAttributes.None;
+        ActiveCheckmark.IsVisible = false;
 
-    private async void OnHideFilterBottomSheet(object? sender, EventArgs e)
-    {
-        await Task.WhenAll(
-            FilterBottomSheet.FadeToAsync(0, 200),
-            FilterContent.TranslateToAsync(0, 600, 300, Easing.CubicIn)
-        );
-        FilterBottomSheet.IsVisible = false;
-    }
+        ExpiredOptionRow.BackgroundColor = Colors.Transparent;
+        ExpiredText.TextColor = Color.FromArgb("#374151");
+        ExpiredText.FontAttributes = FontAttributes.None;
+        ExpiredCheckmark.IsVisible = false;
 
-    private async void OnFilterOptionClicked(object? sender, EventArgs e)
-    {
-        if (sender is Button button && button.CommandParameter is string chosen)
+        UsedOptionRow.BackgroundColor = Colors.Transparent;
+        UsedText.TextColor = Color.FromArgb("#374151");
+        UsedText.FontAttributes = FontAttributes.None;
+        UsedCheckmark.IsVisible = false;
+
+        // Highlight selected
+        var highlightColor = Color.FromArgb("#E6FFFA");
+        var activeGreen = Color.FromArgb("#059669");
+
+        switch (_activeFilter)
         {
-            if (Enum.TryParse<TicketStatus>(chosen, out var status))
-            {
-                _activeFilter = status;
-                ApplyFilter();
-            }
+            case TicketStatus.Active:
+                ActiveOptionRow.BackgroundColor = highlightColor;
+                ActiveText.TextColor = activeGreen;
+                ActiveText.FontAttributes = FontAttributes.Bold;
+                ActiveCheckmark.IsVisible = true;
+                break;
+            case TicketStatus.Expired:
+                ExpiredOptionRow.BackgroundColor = highlightColor;
+                ExpiredText.TextColor = activeGreen;
+                ExpiredText.FontAttributes = FontAttributes.Bold;
+                ExpiredCheckmark.IsVisible = true;
+                break;
+            case TicketStatus.Used:
+                UsedOptionRow.BackgroundColor = highlightColor;
+                UsedText.TextColor = activeGreen;
+                UsedText.FontAttributes = FontAttributes.Bold;
+                UsedCheckmark.IsVisible = true;
+                break;
         }
-        OnHideFilterBottomSheet(sender, e);
     }
 
     /// <summary>Parses an ISO 8601 datetime string and formats it as local time.</summary>

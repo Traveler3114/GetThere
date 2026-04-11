@@ -7,8 +7,7 @@
         xmlns:helpers="clr-namespace:GetThere.Helpers"
         xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
         Title="Profile"
-    BackgroundColor="{AppThemeBinding Light=#F2F2F7,
-                                      Dark=#000000}">
+    BackgroundColor="#F8F9FA">
 
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
@@ -22,8 +21,7 @@
                 ColumnSpacing="12">
                 <Border
                     Grid.Column="0"
-                    BackgroundColor="{AppThemeBinding Light=#ECECEC,
-                                                      Dark=#2C2C2E}"
+                    BackgroundColor="#FFFBEB"
                     HeightRequest="48"
                     StrokeThickness="0"
                     WidthRequest="48">
@@ -43,27 +41,22 @@
                         LineBreakMode="TailTruncation"
                         MaxLines="1"
                         Text="{Binding Description}"
-                        TextColor="{AppThemeBinding Light=Black,
-                                                    Dark=White}" />
+                        TextColor="Black" />
                     <Label
                         FontSize="12"
-                        Text="{Binding Timestamp, StringFormat='{0:dddd}'}"
-                        TextColor="Gray" />
+                        Text="{Binding Timestamp, StringFormat='{0:dd MMM HH:mm}'}"
+                        TextColor="#4B5563" />
                 </VerticalStackLayout>
                 <HorizontalStackLayout
                     Grid.Column="2"
-                    Spacing="2"
+                    Spacing="0"
+                    HorizontalOptions="End"
                     VerticalOptions="Center">
                     <Label
                         FontAttributes="Bold"
                         FontSize="16"
                         Text="{Binding FormattedAmount}"
                         TextColor="{Binding Type, Converter={StaticResource TxTypeToAmountColorConverter}}" />
-                    <Label
-                        FontSize="20"
-                        Text="›"
-                        TextColor="#C7C7CC"
-                        VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Grid>
         </DataTemplate>
@@ -75,32 +68,25 @@
                 ColumnSpacing="12">
                 <Border
                     Grid.Column="0"
-                    BackgroundColor="{AppThemeBinding Light=#ECECEC,
-                                                      Dark=#2C2C2E}"
+                    BackgroundColor="#FFFBEB"
                     HeightRequest="48"
                     StrokeThickness="0"
                     WidthRequest="48">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="24" />
                     </Border.StrokeShape>
-                    <Image
-                        HeightRequest="24"
+                    <Label
+                        FontSize="22"
                         HorizontalOptions="Center"
-                        Source="tab_tram.png"
-                        VerticalOptions="Center"
-                        WidthRequest="24">
-                        <Image.Behaviors>
-                            <toolkit:IconTintColorBehavior TintColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}" />
-                        </Image.Behaviors>
-                    </Image>
+                        Text="🎫"
+                        VerticalOptions="Center" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
                     <Label
                         FontAttributes="Bold"
                         FontSize="15"
                         Text="{Binding Name}"
-                        TextColor="{AppThemeBinding Light=Black,
-                                                    Dark=White}" />
+                        TextColor="Black" />
                     <Label
                         FontSize="12"
                         Text="{Binding Status}"
@@ -116,21 +102,21 @@
         </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="*,Auto">
-        <!--  ── DECORATIVE BACKGROUND CIRCLES ──  -->
-        <components:AnimatedBackground x:Name="AnimatedBg" Grid.Row="0" />
-
+    <Grid x:Name="RootLayout" RowDefinitions="*,Auto">
+        <components:AnimatedBackground Grid.RowSpan="2" />
         <Grid Grid.Row="0" RowDefinitions="Auto,*">
             <ScrollView Grid.Row="0">
-                <VerticalStackLayout Padding="0,0,0,100" Spacing="14">
+                <VerticalStackLayout Padding="0,0,0,100" Spacing="14" MaximumWidthRequest="600" HorizontalOptions="Center">
 
                     <!--  ── MAIN PASS CARD (Apple Style) ──  -->
+                    <Grid Margin="16,20,16,10">
                     <Border
-                        Margin="16,5,16,10"
+                        x:Name="MainCard"
                         HeightRequest="210"
+                        HorizontalOptions="Fill"
                         StrokeThickness="0">
                         <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="16" />
+                            <RoundRectangle CornerRadius="24" />
                         </Border.StrokeShape>
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -143,19 +129,22 @@
                         <Border.Shadow>
                             <Shadow
                                 Brush="Black"
-                                Opacity="0.1"
-                                Radius="15"
-                                Offset="0,6" />
+                                Opacity="0.16"
+                                Radius="8"
+                                Offset="4,4" />
                         </Border.Shadow>
 
                         <Grid Padding="20">
-                            <Label
-                                FontAttributes="Bold"
-                                FontSize="28"
-                                HorizontalOptions="Start"
-                                Text="Gt"
-                                TextColor="#40000000"
-                                VerticalOptions="Start" />
+                            <Border WidthRequest="60"
+                                    HeightRequest="60"
+                                    HorizontalOptions="Start"
+                                    VerticalOptions="Start"
+                                    BackgroundColor="#35208F"
+                                    StrokeThickness="0">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="30" />
+                                </Border.StrokeShape>
+                            </Border>
 
                             <!--  CENTER BALANCE SECTION (NO PLUS BUTTON HERE)  -->
                             <VerticalStackLayout
@@ -168,7 +157,7 @@
                                     FontSize="44"
                                     HorizontalTextAlignment="Center"
                                     Text="€0.00"
-                                    TextColor="#D0000000" />
+                                    TextColor="#2E2055" />
                             </VerticalStackLayout>
 
                             <VerticalStackLayout Spacing="2" VerticalOptions="End">
@@ -177,24 +166,19 @@
                                     FontAttributes="Bold"
                                     FontSize="18"
                                     Text="User Name"
-                                    TextColor="#50000000" />
+                                    TextColor="#7A7A7A" />
                             </VerticalStackLayout>
-
-                            <Image
-                                HorizontalOptions="End"
-                                Opacity="0.1"
-                                Source="tab_tram.png"
-                                VerticalOptions="Start"
-                                WidthRequest="40" />
                         </Grid>
                     </Border>
+                    </Grid>
 
                     <!--  ── PLUS BUTTON BELOW CARD ──  -->
                     <Button
+                        x:Name="TopUpButton"
                         Margin="0,-48,0,0"
                         Padding="0"
                         Background="{x:Null}"
-                        BackgroundColor="#EBEBEC"
+                        BackgroundColor="White"
                         Clicked="OnTopUpClicked"
                         CornerRadius="28"
                         FontAttributes="Bold"
@@ -209,33 +193,34 @@
                         <Button.Shadow>
                             <Shadow
                                 Brush="Black"
-                                Opacity="0.1"
-                                Radius="10"
-                                Offset="0,4" />
+                                Opacity="0.16"
+                                Radius="8"
+                                Offset="4,4" />
                         </Button.Shadow>
                     </Button>
 
-                    <VerticalStackLayout Margin="0,4,0,0" Spacing="6" HorizontalOptions="Center">
+                    <VerticalStackLayout Margin="0,4,0,0" Spacing="6">
                         <Label
                             FontAttributes="Bold"
                             FontSize="18"
                             HorizontalOptions="Center"
                             Text="History"
-                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            TextColor="Black" />
                         <BoxView
                             WidthRequest="70"
                             HeightRequest="3"
                             CornerRadius="2"
                             HorizontalOptions="Center"
-                            BackgroundColor="{AppThemeBinding Light=#D1D1D6, Dark=#3A3A3C}" />
+                            BackgroundColor="#D1D1D6" />
                     </VerticalStackLayout>
 
                     <!--  ── LIST SECTION ──  -->
+                    <Grid Margin="16,2,16,0">
                     <Border
-                        Margin="16,2,16,0"
+                        x:Name="HistoryContainer"
                         Padding="15"
-                        BackgroundColor="{AppThemeBinding Light=#FFFFFF,
-                                                          Dark=#1C1C1E}"
+                        HorizontalOptions="Fill"
+                        BackgroundColor="White"
                         StrokeThickness="0">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="20" />
@@ -243,9 +228,9 @@
                         <Border.Shadow>
                             <Shadow
                                 Brush="Black"
-                                Opacity="0.05"
-                                Radius="10"
-                                Offset="0,2" />
+                                Opacity="0.16"
+                                Radius="8"
+                                Offset="4,4" />
                         </Border.Shadow>
                         <VerticalStackLayout Spacing="10">
                             <!--  Loaders  -->
@@ -257,10 +242,9 @@
                                 Color="#4CAF50" />
 
                             <!--  List Content  -->
-                            <CollectionView
-                                x:Name="MainCollection"
-                                ItemTemplate="{StaticResource HistoryTemplate}"
-                                SelectionMode="None" />
+                            <VerticalStackLayout 
+                                x:Name="HistoryRows"
+                                BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" />
 
                             <Label
                                 x:Name="NoItemsLabel"
@@ -271,6 +255,7 @@
                                 TextColor="Gray" />
                         </VerticalStackLayout>
                     </Border>
+                    </Grid>
 
                 </VerticalStackLayout>
             </ScrollView>

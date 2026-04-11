@@ -1,7 +1,7 @@
 #nullable enable
+#pragma warning disable CA1416
 using GetThere.Helpers;
 using GetThere.Services;
-using GetThere.Components;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -14,18 +14,12 @@ public partial class RegistrationPage : ContentPage
     {
         InitializeComponent();
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
     }
 
-    private void TogglePassword_Clicked(object? sender, TappedEventArgs e)
+    private void OnPageSizeChanged(object? sender, EventArgs e)
     {
-        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
-        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
-    }
-
-    private void ToggleConfirmPassword_Clicked(object? sender, TappedEventArgs e)
-    {
-        ConfirmPasswordEntry.IsPassword = !ConfirmPasswordEntry.IsPassword;
-        ToggleConfirmPasswordBtn.Text = ConfirmPasswordEntry.IsPassword ? "Show" : "Hide";
+        PageUtility.ApplyTicketsStyleResponsive(Width, RegistrationCard);
     }
 
     private async void RegisterButton_Clicked(object? sender, EventArgs e)
@@ -91,16 +85,13 @@ public partial class RegistrationPage : ContentPage
         }
     }
 
-    private async void LoginButton_Clicked(object? sender, TappedEventArgs e)
-        => await Shell.Current.GoToAsync("..");
-
-    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
+    private async void LoginButton_Clicked(object? sender, EventArgs e)
     {
-        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
-        if (animatedBg != null)
-        {
-            animatedBg.XOffset = (float)e.TotalX;
-            animatedBg.YOffset = (float)e.TotalY;
-        }
+        await Shell.Current.GoToAsync("///login");
+    }
+
+    private async void LoginButton_Tapped(object? sender, TappedEventArgs e)
+    {
+        await Shell.Current.GoToAsync("///login");
     }
 }

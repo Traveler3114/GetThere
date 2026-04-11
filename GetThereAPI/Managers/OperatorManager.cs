@@ -120,10 +120,6 @@ public class OperatorManager
             // ── Mobility providers (e.g. Bajs): include dynamically ────────
             if (MobilityProviderIds.TryGetValue(t.Id, out var mobilityDbId))
             {
-                if (countryName is not null &&
-                    !_mobility.HasStationsInCountry(mobilityDbId, countryName))
-                    continue;
-
                 result.Add(new TicketableOperatorDto
                 {
                     Id          = t.Id,

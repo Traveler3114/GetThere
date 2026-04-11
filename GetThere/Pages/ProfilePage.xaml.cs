@@ -18,12 +18,26 @@ public partial class ProfilePage : ContentPage
         _walletService = walletService;
         _paymentService = paymentService;
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        UpdateResponsiveLayout();
         await LoadProfileAsync();
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        var isMobile = Width < PageUtility.MobileBreakpoint;
+        MainCard.HeightRequest = isMobile ? 180 : 210;
+        TopUpButton.Margin = isMobile ? new Thickness(0, -34, 0, 0) : new Thickness(0, -48, 0, 0);
     }
 
     private async Task LoadProfileAsync()
@@ -73,7 +87,7 @@ public partial class ProfilePage : ContentPage
             if (result.Success && result.Data != null)
             {
                 var list = result.Data.OrderByDescending(t => t.Timestamp).ToList();
-                MainCollection.ItemsSource = list;
+                BindableLayout.SetItemsSource(HistoryRows, list);
                 NoItemsLabel.IsVisible = !list.Any();
             }
         }

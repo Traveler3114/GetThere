@@ -16,29 +16,29 @@
     <TabBar>
         <ShellContent
             x:Name="ProfileTab"
-            Title=""
-            Icon="tab_train.png"
+            Title="Profile"
+            Icon="profile_com.svg"
             ContentTemplate="{DataTemplate pages:ProfilePage}"
             Route="profile" />
         <ShellContent
-            Title=""
-            Icon="tab_bus.png"
+            Title="Map"
+            Icon="map_com.svg"
             ContentTemplate="{DataTemplate pages:MapPage}"
             Route="map" />
         <ShellContent
-            Title=""
-            Icon="icon_operators.svg"
+            Title="Shop"
+            Icon="shop_bag_com.svg"
             ContentTemplate="{DataTemplate pages:ShopPage}"
             Route="shop" />
         <ShellContent
             x:Name="TicketsTab"
-            Title=""
-            Icon="tab_tram.png"
+            Title="Tickets"
+            Icon="ticket_com.svg"
             ContentTemplate="{DataTemplate pages:TicketsPage}"
             Route="tickets" />
         <ShellContent
-            Title=""
-            Icon="icon_profile.svg"
+            Title="Settings"
+            Icon="settings_com.svg"
             ContentTemplate="{DataTemplate pages:SettingsPage}"
             Route="settings" />
     </TabBar>

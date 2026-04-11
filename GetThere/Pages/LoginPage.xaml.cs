@@ -1,7 +1,6 @@
 #nullable enable
 using GetThere.Helpers;
 using GetThere.Services;
-using GetThere.Components;
 using GetThereShared.Dtos;
 
 namespace GetThere.Pages;
@@ -14,6 +13,12 @@ public partial class LoginPage : ContentPage
     {
         InitializeComponent();
         _authService = authService;
+        SizeChanged += OnPageSizeChanged;
+    }
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        PageUtility.ApplyTicketsStyleResponsive(Width, LoginCard);
     }
 
     private void TogglePassword_Clicked(object? sender, TappedEventArgs e)
@@ -74,15 +79,5 @@ public partial class LoginPage : ContentPage
     {
         _authService.Logout();
         App.GoToApp();
-    }
-
-    private void OnPanUpdate(object? sender, PanUpdatedEventArgs e)
-    {
-        var animatedBg = this.FindByName<AnimatedBackground>("AnimatedBg");
-        if (animatedBg != null)
-        {
-            animatedBg.XOffset = (float)e.TotalX;
-            animatedBg.YOffset = (float)e.TotalY;
-        }
     }
 }

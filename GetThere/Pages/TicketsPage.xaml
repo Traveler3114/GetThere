@@ -1,208 +1,183 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:components="clr-namespace:GetThere.Components"
              xmlns:helpers="clr-namespace:GetThere.Helpers"
+             xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.TicketsPage"
              Title="My Tickets"
-              BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#120D14}">
+             BackgroundColor="#EDF1F7"
+             Shell.NavBarIsVisible="False">
 
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
         <DataTemplate x:Key="TicketRowTemplate">
-            <Grid Padding="0,10" ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
-                <Border Grid.Column="0"
-                        WidthRequest="48"
-                        HeightRequest="48"
-                        StrokeThickness="0"
-                    BackgroundColor="{AppThemeBinding Light=#ECECEC, Dark=#3A2A42}">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="24" />
-                    </Border.StrokeShape>
-                    <Image Source="ticket_icon.png"
-                           WidthRequest="24"
-                           HeightRequest="24"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center" />
-                </Border>
+            <Border Padding="16" BackgroundColor="White" Stroke="#E5E7EB" StrokeThickness="1">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="18" />
+                </Border.StrokeShape>
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,4" Radius="10" Opacity="0.08" />
+                </Border.Shadow>
 
-                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                    <Label Text="{Binding TicketType}"
-                           FontSize="15"
-                           FontAttributes="Bold"
-                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                    <Label Text="{Binding PurchasedAt, StringFormat='{0:dddd}'}"
-                           FontSize="12"
-                           TextColor="Gray" />
-                </VerticalStackLayout>
+                <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
+                    <Border WidthRequest="48"
+                            HeightRequest="48"
+                            BackgroundColor="#FFFBEB"
+                            StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="24" />
+                        </Border.StrokeShape>
+                        <Label Text="🎫"
+                               FontSize="22"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
 
-                <Border Grid.Column="2"
-                        VerticalOptions="Center"
-                        Padding="12,8"
-                        StrokeThickness="0"
-                        BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="12" />
-                    </Border.StrokeShape>
-                    <HorizontalStackLayout Spacing="2">
+                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                        <Label Text="{Binding TicketType}"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="#1F2937"
+                               LineBreakMode="TailTruncation" />
+                        <Label Text="{Binding PurchasedAt, StringFormat='{0:dddd}'}"
+                               FontSize="12"
+                               TextColor="#9CA3AF" />
+                    </VerticalStackLayout>
+
+                    <Border Grid.Column="2"
+                            VerticalOptions="Center"
+                            Padding="14,8"
+                            BackgroundColor="#55B948"
+                            StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16" />
+                        </Border.StrokeShape>
                         <Label Text="{Binding Status}"
                                TextColor="White"
-                               FontSize="12"
+                               FontSize="13"
                                FontAttributes="Bold" />
-                        <Label Text="›"
-                               FontSize="16"
-                               TextColor="White"
-                               VerticalOptions="Center" />
-                    </HorizontalStackLayout>
-                </Border>
-            </Grid>
+                    </Border>
+                </Grid>
+            </Border>
         </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,Auto,*">
-        <!-- ── DECORATIVE BACKGROUND CIRCLES ── -->
-        <components:AnimatedBackground x:Name="AnimatedBg" />
+    <Grid>
+        <components:AnimatedBackground />
 
-        <!-- ── HEADER ── -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,*" Padding="16,18,16,0">
-            <Label Grid.ColumnSpan="3"
-                   Text="My Tickets"
-                   FontSize="28"
-                   FontAttributes="Bold"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-            <Button x:Name="FilterBtn"
-                    Grid.Column="2"
-                    Style="{x:Null}"
-                    Background="{x:Null}"
-                    Text="Active ▾"
-                    Clicked="OnShowFilterOptions"
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#261A2B}"
-                    TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                    CornerRadius="16"
-                    HeightRequest="36"
-                    Padding="20,0"
-                    FontSize="14"
-                    FontAttributes="Bold"
-                    HorizontalOptions="End">
-                <Button.Shadow>
-                    <Shadow Brush="Transparent" Offset="0,2" Radius="5" Opacity="1" />
-                </Button.Shadow>
-            </Button>
-        </Grid>
-
-        <VerticalStackLayout Grid.Row="1" Margin="0,4,0,0" Spacing="6" HorizontalOptions="Center">
-            <BoxView WidthRequest="70"
-                     HeightRequest="3"
-                     CornerRadius="2"
-                     HorizontalOptions="Center"
-                     BackgroundColor="{AppThemeBinding Light=#D1D1D6, Dark=#3A3A3C}" />
-        </VerticalStackLayout>
-
-        <Grid Grid.Row="2" Padding="16,8,16,100" BackgroundColor="Transparent" VerticalOptions="Start">
-            <ScrollView>
-                <VerticalStackLayout Spacing="14">
-
-                    <!--  ── MOCK TICKETS SECTION ──  -->
-                    <VerticalStackLayout x:Name="MockTicketsSection" IsVisible="False" Spacing="8">
-                        <Label
-                            FontAttributes="Bold"
-                            FontSize="14"
-                            Text="Session Tickets (Mock)"
-                            TextColor="Gray" />
-                        <!--  Mock disclaimer  -->
-                        <Border
-                            Padding="10,6"
-                            BackgroundColor="#FFF3CD"
-                            StrokeThickness="0">
-                            <Border.StrokeShape>
-                                <RoundRectangle CornerRadius="8" />
-                            </Border.StrokeShape>
-                            <Label
-                                FontSize="11"
-                                HorizontalTextAlignment="Center"
-                                Text="⚠️  MOCK TICKETS — NOT VALID FOR TRAVEL"
-                                TextColor="#856404" />
-                        </Border>
-                        <Border
-                            Padding="15"
-                            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
-                            StrokeThickness="0"
-                            VerticalOptions="Start">
-                            <Border.StrokeShape>
-                                <RoundRectangle CornerRadius="20" />
-                            </Border.StrokeShape>
-                            <VerticalStackLayout x:Name="MockTicketsRows" Spacing="0" VerticalOptions="Start" />
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <!--  ── REAL TICKETS SECTION ──  -->
-                    <Border x:Name="TicketsContainer"
-                            Padding="15"
-                            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
-                            StrokeThickness="0"
-                            VerticalOptions="Start">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="20" />
-                        </Border.StrokeShape>
-
-                        <VerticalStackLayout Spacing="10" VerticalOptions="Start">
-                            <ActivityIndicator x:Name="BusyIndicator"
-                                               HeightRequest="40"
-                                               IsRunning="False"
-                                               IsVisible="False"
-                                               Color="#4CAF50" />
-
-                            <VerticalStackLayout x:Name="TicketsRows"
-                                                 Spacing="0"
-                                                 VerticalOptions="Start" />
-
-                            <VerticalStackLayout x:Name="TicketsEmptyState"
-                                                 IsVisible="False"
-                                                 HorizontalOptions="Center"
-                                                 VerticalOptions="Center"
-                                                 Padding="0,12"
-                                                 Spacing="10">
-                                <Label x:Name="TicketsEmptyLabel"
-                                       Text="No tickets found"
-                                       FontSize="18"
-                                       TextColor="Gray"
-                                       HorizontalOptions="Center" />
-                                <Label Text="Try changing your filter"
-                                       FontSize="14"
-                                       TextColor="Gray"
-                                       Opacity="1"
-                                       HorizontalOptions="Center" />
-                            </VerticalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-
-                </VerticalStackLayout>
-            </ScrollView>
-        </Grid>
-
-        <!-- ── CUSTOM FILTER BOTTOM SHEET ── -->
-        <Grid x:Name="FilterBottomSheet" Grid.RowSpan="3" IsVisible="False" Opacity="0" ZIndex="1000" VerticalOptions="Fill" HorizontalOptions="Fill">
-            <BoxView BackgroundColor="Black" Opacity="0.5">
-                <BoxView.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnHideFilterBottomSheet" />
-                </BoxView.GestureRecognizers>
+        <!-- ── BACKGROUND (BLUE TOP) ── -->
+        <Grid RowDefinitions="300, *">
+            <BoxView Grid.Row="0" BackgroundColor="#4F46E5">
+                <BoxView.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#4F46E5" Offset="0" />
+                        <GradientStop Color="#6366F1" Offset="1" />
+                    </LinearGradientBrush>
+                </BoxView.Background>
             </BoxView>
-            <Grid VerticalOptions="End" InputTransparent="False">
-                <Border x:Name="FilterContent" Margin="10,0,10,20" Padding="0" StrokeThickness="0" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}" 
-                        TranslationY="600" HeightRequest="320" WidthRequest="360" HorizontalOptions="Center">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
-                    <Border.Shadow><Shadow Brush="Black" Offset="0,10" Radius="30" Opacity="0.4" /></Border.Shadow>
-                    <VerticalStackLayout Padding="24" Spacing="12">
-                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="Gray" Opacity="0.3" HorizontalOptions="Center" Margin="0,0,0,15" />
-                        <Label Text="Filter Tickets" HorizontalOptions="Center" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Button Text="Active" Clicked="OnFilterOptionClicked" CommandParameter="Active" BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" TextColor="{AppThemeBinding Light=Black, Dark=White}" CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
-                        <Button Text="Expired" Clicked="OnFilterOptionClicked" CommandParameter="Expired" BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" TextColor="{AppThemeBinding Light=Black, Dark=White}" CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
-                        <Button Text="Used" Clicked="OnFilterOptionClicked" CommandParameter="Used" BackgroundColor="{AppThemeBinding Light=#F2F2F7, Dark=#2C2C2E}" TextColor="{AppThemeBinding Light=Black, Dark=White}" CornerRadius="12" HeightRequest="50" FontSize="16" FontAttributes="Bold" />
-                    </VerticalStackLayout>
+        </Grid>
+
+        <Grid RowDefinitions="Auto, *">
+            <!-- ── HEADER ── -->
+            <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,60,24,20" ColumnDefinitions="*,Auto" MaximumWidthRequest="600" HorizontalOptions="Center" WidthRequest="1000">
+                <Label Text="My Tickets" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
+                
+                <Border x:Name="FilterBadge" Grid.Column="1" Padding="15,8" BackgroundColor="#D1FAE5" StrokeThickness="0">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
+                    <Border.Shadow><Shadow Brush="Black" Opacity="0.1" Offset="0,4" Radius="8" /></Border.Shadow>
+                    <Label x:Name="FilterBtnLabel" Text="Active ▾" TextColor="#065F46" FontAttributes="Bold" FontSize="14">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnShowFilterOptions" />
+                        </Label.GestureRecognizers>
+                    </Label>
                 </Border>
+            </Grid>
+
+            <!-- ── TICKETS CONTENT (WHITE CARD OVERLAY) ── -->
+            <Grid Grid.Row="1" Margin="0,10,0,0" HorizontalOptions="Center">
+            <Border x:Name="TicketsSurface" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Fill">
+                <Border.StrokeShape><RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
+                <ScrollView>
+                    <VerticalStackLayout x:Name="TicketsContent" Padding="24,20,24,100" Spacing="20">
+                        <BoxView x:Name="TopHandle" WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#D8D8D8" HorizontalOptions="Center" />
+                        
+                        <VerticalStackLayout x:Name="MockTicketsSection" IsVisible="False" Spacing="20">
+                            <Label Text="Session Tickets (Mock)" FontAttributes="Bold" FontSize="14" TextColor="#4B5563" />
+                            
+                            <Border Padding="15,10" BackgroundColor="#FEF3C7" StrokeThickness="0">
+                                <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
+                                <Label Text="⚠️ MOCK TICKETS — NOT VALID FOR TRAVEL" TextColor="#92400E" FontSize="11" HorizontalOptions="Center" FontAttributes="Bold" />
+                            </Border>
+
+                            <VerticalStackLayout x:Name="MockTicketsRows" Spacing="0" />
+                        </VerticalStackLayout>
+                        
+                        <Label x:Name="CurrentFilterSectionLabel" Text="Active Tickets" FontAttributes="Bold" FontSize="14" TextColor="#4B5563" Margin="0,10,0,0" />
+                        
+                        <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="#6366F1" HorizontalOptions="Center" />
+
+                        <VerticalStackLayout x:Name="TicketsRows" Spacing="14" BindableLayout.ItemTemplate="{StaticResource TicketRowTemplate}" />
+
+                        <VerticalStackLayout x:Name="TicketsEmptyState" IsVisible="False" Spacing="10" Margin="0,50">
+                            <Label x:Name="TicketsEmptyLabel" Text="No items found" FontSize="18" TextColor="#4B5563" HorizontalOptions="Center" FontAttributes="Bold" />
+                        </VerticalStackLayout>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Border>
             </Grid>
         </Grid>
 
+        <!-- ── PREMIUM POPUP DROPDOWN (ANCHORED RIGHT) ── -->
+        <Grid x:Name="FilterBottomSheet" Grid.RowSpan="2" IsVisible="False" Opacity="0">
+            <BoxView BackgroundColor="#66000000">
+                <BoxView.GestureRecognizers><TapGestureRecognizer Tapped="OnHideFilterBottomSheet" /></BoxView.GestureRecognizers>
+            </BoxView>
+            
+            <Border x:Name="FilterContent" VerticalOptions="Start" HorizontalOptions="End" 
+                    Margin="0,110,24,0" Padding="1" StrokeThickness="0" BackgroundColor="White" 
+                    WidthRequest="200" TranslationY="-20">
+                <Border.StrokeShape><RoundRectangle CornerRadius="24" /></Border.StrokeShape>
+                <Border.Shadow><Shadow Brush="Black" Offset="0,10" Radius="25" Opacity="0.15" /></Border.Shadow>
+                
+                <VerticalStackLayout Padding="8" Spacing="4">
+                    <!-- Option: Active -->
+                    <Border x:Name="ActiveOptionRow" Padding="12,10" StrokeThickness="0" BackgroundColor="Transparent">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <HorizontalStackLayout Spacing="10">
+                                <Label x:Name="ActiveText" Text="Active" FontSize="16" TextColor="#374151" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Label x:Name="ActiveCheckmark" Grid.Column="1" Text="✓" TextColor="#059669" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False" />
+                        </Grid>
+                        <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFilterOptionClicked" CommandParameter="Active" /></Border.GestureRecognizers>
+                    </Border>
+                    
+                    <BoxView HeightRequest="1" BackgroundColor="#F3F4F6" Margin="12,2" />
+                    
+                    <!-- Option: Expired -->
+                    <Border x:Name="ExpiredOptionRow" Padding="12,10" StrokeThickness="0" BackgroundColor="Transparent">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <Label x:Name="ExpiredText" Text="Expired" FontSize="16" TextColor="#374151" VerticalOptions="Center" />
+                            <Label x:Name="ExpiredCheckmark" Grid.Column="1" Text="✓" TextColor="#059669" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False" />
+                        </Grid>
+                        <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFilterOptionClicked" CommandParameter="Expired" /></Border.GestureRecognizers>
+                    </Border>
+                    
+                    <BoxView HeightRequest="1" BackgroundColor="#F3F4F6" Margin="12,2" />
+
+                    <!-- Option: Used -->
+                    <Border x:Name="UsedOptionRow" Padding="12,10" StrokeThickness="0" BackgroundColor="Transparent">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <Label x:Name="UsedText" Text="Used" FontSize="16" TextColor="#374151" VerticalOptions="Center" />
+                            <Label x:Name="UsedCheckmark" Grid.Column="1" Text="✓" TextColor="#059669" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False" />
+                        </Grid>
+                        <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFilterOptionClicked" CommandParameter="Used" /></Border.GestureRecognizers>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
     </Grid>
 </ContentPage>
