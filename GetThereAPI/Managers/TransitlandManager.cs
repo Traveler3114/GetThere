@@ -271,6 +271,14 @@ public class TransitlandManager
             _logger.LogInformation("[DEBUG] Viewport stops: {Count} returned", result.Count);
             return result;
         }
+        catch (OperationCanceledException ex)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                _logger.LogDebug(ex, "Viewport stops request canceled by client");
+            else
+                _logger.LogWarning(ex, "Viewport stops request canceled or timed out");
+            return [];
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Viewport stops request failed");
@@ -609,7 +617,12 @@ public class TransitlandManager
         {
             if (!stop.TryGetProperty(key, out var routes) || routes.ValueKind != JsonValueKind.Array) continue;
             foreach (var route in routes.EnumerateArray())
+            {
                 if (TryGetInt(route, "route_type", out var rt)) return rt;
+                if (route.TryGetProperty("route", out var nestedRoute)
+                    && TryGetInt(nestedRoute, "route_type", out var nestedRt))
+                    return nestedRt;
+            }
         }
 
         return 3; // default: bus
