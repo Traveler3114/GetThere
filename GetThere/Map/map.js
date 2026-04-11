@@ -383,6 +383,7 @@ function renderStops(stops) {
     }));
 
     map.getSource('gtfs-stops')?.setData({ type: 'FeatureCollection', features });
+    console.log('[DEBUG] first stop routeType:', features[0]?.properties?.routeType, typeof features[0]?.properties?.routeType);
 }
 
 function renderVehicles(vehicles) {
@@ -706,12 +707,22 @@ const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { i
 const _defaultIconId = _defaultEntry.id;
 const _defaultColor = _defaultEntry.color;
 
+console.log('[DEBUG] STOP_ICON_MAP:', JSON.stringify(STOP_ICON_MAP));
+console.log('[DEBUG] defaultIconId:', _defaultIconId);
+
 function _buildIconExpression() {
     const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.id !== _defaultIconId);
     if (!nonDefault.length) return _defaultIconId;
     const expr = ['case'];
-    for (const [type, cfg] of nonDefault)
-        expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.id);
+    for (const [type, cfg] of nonDefault) {
+        expr.push(
+            ['any',
+                ['==', ['get', 'routeType'], parseInt(type)],
+                ['==', ['get', 'routeType'], type.toString()]
+            ],
+            cfg.id
+        );
+    }
     expr.push(_defaultIconId);
     return expr;
 }
@@ -720,12 +731,18 @@ function _buildColorExpression() {
     const nonDefault = Object.entries(STOP_ICON_MAP).filter(([, cfg]) => cfg.color !== _defaultColor);
     if (!nonDefault.length) return _defaultColor;
     const expr = ['case'];
-    for (const [type, cfg] of nonDefault)
-        expr.push(['==', ['get', 'routeType'], parseInt(type)], cfg.color);
+    for (const [type, cfg] of nonDefault) {
+        expr.push(
+            ['any',
+                ['==', ['get', 'routeType'], parseInt(type)],
+                ['==', ['get', 'routeType'], type.toString()]
+            ],
+            cfg.color
+        );
+    }
     expr.push(_defaultColor);
     return expr;
 }
-
 function _loadStopIcons() {
     const unique = Object.values(
         Object.values(STOP_ICON_MAP).reduce((acc, e) => { acc[e.id] = e; return acc; }, {})
