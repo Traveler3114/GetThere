@@ -89,8 +89,7 @@ map.on('style.load', async function () {
 async function _onMapLoad() {
     console.log('[DEBUG] _onMapLoad start');
 
-    // Route tile overlay only — no stop vector tiles needed anymore
-    _addTransitlandRouteTileLayer();
+    // No route overlays — map should show stops/vehicles/bikes only.
 
     // ── Stop source + layer ────────────────────────────────────────
     map.addSource('gtfs-stops', {
