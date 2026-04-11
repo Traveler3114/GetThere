@@ -188,36 +188,49 @@ public partial class TicketPurchasePage : ContentPage
                 },
                 new HorizontalStackLayout
                 {
-                    Spacing = 8,
+                    Spacing = 12, // Gap between Validity and Price
                     Children =
                     {
-                        new Border
+                        new HorizontalStackLayout
                         {
-                            Padding = new Thickness(0),
-                            BackgroundColor = Colors.Transparent,
-                            StrokeThickness = 0,
-                            Content = new Label
+                            Spacing = 4,
+                            VerticalOptions = LayoutOptions.Center,
+                            Children =
                             {
-                                Text = $"⏰ {option.Validity}",
-                                FontSize = 12,
-                                FontAttributes = FontAttributes.Bold,
-                                TextColor = detailColor,
-                            },
+                                new Image
+                                {
+                                    Source = "stopwatch.svg",
+                                    WidthRequest = 15,
+                                    HeightRequest = 15,
+                                    VerticalOptions = LayoutOptions.Center
+                                },
+                                new Label
+                                {
+                                    Text = option.Validity,
+                                    FontSize = 12,
+                                    FontAttributes = FontAttributes.Bold,
+                                    TextColor = detailColor,
+                                    VerticalOptions = LayoutOptions.Center
+                                }
+                            }
                         },
-                        new Border
+                        new HorizontalStackLayout
                         {
-                            Padding = new Thickness(0),
-                            BackgroundColor = Colors.Transparent,
-                            StrokeThickness = 0,
-                            Content = new Label
+                            Spacing = 4,
+                            VerticalOptions = LayoutOptions.Center,
+                            Children =
                             {
-                                Text = $"€{option.Price:F2}",
-                                FontSize = 14,
-                                FontAttributes = FontAttributes.Bold,
-                                TextColor = Colors.Black,
-                            },
-                        },
-                    },
+                                new Label
+                                {
+                                    Text = $"€{option.Price:F2}",
+                                    FontSize = 14,
+                                    FontAttributes = FontAttributes.Bold,
+                                    TextColor = Colors.Black,
+                                    VerticalOptions = LayoutOptions.Center
+                                }
+                            }
+                        }
+                    }
                 },
                 // Quantity row
                 new Grid
@@ -228,8 +241,9 @@ public partial class TicketPurchasePage : ContentPage
                         buyBtn.WithColumn(0),
                         new HorizontalStackLayout
                         {
-                            Spacing = 8,
+                            Spacing = 10,
                             VerticalOptions = LayoutOptions.Center,
+                            Margin = new Thickness(12, 0, 0, 0), // Push away from Buy button
                             Children = { minusBtn, qtyLabel, plusBtn },
                         }.WithColumn(1),
                     },
