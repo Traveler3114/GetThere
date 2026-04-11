@@ -35,9 +35,7 @@ public partial class ProfilePage : ContentPage
 
     private void UpdateResponsiveLayout()
     {
-        var isMobile = Width < PageUtility.MobileBreakpoint;
-        MainCard.HeightRequest = isMobile ? 180 : 210;
-        TopUpButton.Margin = isMobile ? new Thickness(0, -34, 0, 0) : new Thickness(0, -48, 0, 0);
+        // Layout adjusted via XAML mainly
     }
 
     private async Task LoadProfileAsync()
@@ -49,13 +47,11 @@ public partial class ProfilePage : ContentPage
 
             if (string.IsNullOrWhiteSpace(fullName) && string.IsNullOrWhiteSpace(email))
             {
-                NameLabelOnCard.Text = "Guest";
                 GuestOverlay.IsVisible = true;
                 return;
             }
 
             GuestOverlay.IsVisible = false;
-            NameLabelOnCard.Text = fullName ?? "User";
 
             await LoadWalletAsync();
             await LoadHistoryAsync();
@@ -79,6 +75,7 @@ public partial class ProfilePage : ContentPage
     {
         BusyLoader.IsVisible = true;
         BusyLoader.IsRunning = true;
+        HistoryContainer.IsVisible = false; // Hide everything while loading
         NoItemsLabel.IsVisible = false;
 
         try
@@ -99,6 +96,7 @@ public partial class ProfilePage : ContentPage
         {
             BusyLoader.IsVisible = false;
             BusyLoader.IsRunning = false;
+            HistoryContainer.IsVisible = true; // Show everything after loading
         }
     }
 

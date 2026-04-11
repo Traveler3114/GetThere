@@ -39,7 +39,6 @@ public partial class TicketsPage : ContentPage
 
     private void UpdateResponsiveLayout()
     {
-        // Relying on XAML constraints
         var isMobile = Width < 700;
         TicketsContent.Padding = isMobile ? new Thickness(20, 16, 20, 100) : new Thickness(24, 30, 24, 100);
         HeaderRow.Margin = isMobile ? new Thickness(20, 52, 20, 16) : new Thickness(24, 60, 24, 20);
@@ -160,8 +159,6 @@ public partial class TicketsPage : ContentPage
         try
         {
             string? chosen = null;
-
-            // Search for CommandParameter in the sender's recognizers
             if (sender is View view && view.GestureRecognizers.OfType<TapGestureRecognizer>().FirstOrDefault() is { } tap)
             {
                 chosen = tap.CommandParameter as string;
@@ -208,7 +205,6 @@ public partial class TicketsPage : ContentPage
             .OrderByDescending(t => t.ValidUntil)
             .ToList();
 
-        // Optimized: Only set items source, template is usually already there
         BindableLayout.SetItemsSource(TicketsRows, filtered);
         
         TicketsRows.IsVisible = filtered.Count > 0;
@@ -217,13 +213,23 @@ public partial class TicketsPage : ContentPage
         CurrentFilterSectionLabel.Text = $"{_activeFilter} Tickets";
         FilterBtnLabel.Text = $"{_activeFilter} ▾";
 
-        // Update Popup UI
+        // Update Header Badge Color
+        var (bg, fg) = _activeFilter switch
+        {
+            TicketStatus.Active => (Color.FromArgb("#D1FAE5"), Color.FromArgb("#065F46")),
+            TicketStatus.Expired => (Color.FromArgb("#FEE2E2"), Color.FromArgb("#991B1B")),
+            TicketStatus.Used => (Color.FromArgb("#FEF3C7"), Color.FromArgb("#92400E")),
+            _ => (Color.FromArgb("#E5E7EB"), Color.FromArgb("#374151"))
+        };
+        FilterBadge.BackgroundColor = bg;
+        FilterBtnLabel.TextColor = fg;
+
         UpdatePopupUI();
     }
 
     private void UpdatePopupUI()
     {
-        // Reset all to default
+        // Reset all
         ActiveOptionRow.BackgroundColor = Colors.Transparent;
         ActiveText.TextColor = Color.FromArgb("#374151");
         ActiveText.FontAttributes = FontAttributes.None;
@@ -239,34 +245,33 @@ public partial class TicketsPage : ContentPage
         UsedText.FontAttributes = FontAttributes.None;
         UsedCheckmark.IsVisible = false;
 
-        // Highlight selected
-        var highlightColor = Color.FromArgb("#E6FFFA");
-        var activeGreen = Color.FromArgb("#059669");
-
+        // Highlight based on status
         switch (_activeFilter)
         {
             case TicketStatus.Active:
-                ActiveOptionRow.BackgroundColor = highlightColor;
-                ActiveText.TextColor = activeGreen;
+                ActiveOptionRow.BackgroundColor = Color.FromArgb("#E6FFFA");
+                ActiveText.TextColor = Color.FromArgb("#059669");
                 ActiveText.FontAttributes = FontAttributes.Bold;
                 ActiveCheckmark.IsVisible = true;
+                ActiveCheckmark.TextColor = Color.FromArgb("#059669");
                 break;
             case TicketStatus.Expired:
-                ExpiredOptionRow.BackgroundColor = highlightColor;
-                ExpiredText.TextColor = activeGreen;
+                ExpiredOptionRow.BackgroundColor = Color.FromArgb("#FEF2F2");
+                ExpiredText.TextColor = Color.FromArgb("#DC2626");
                 ExpiredText.FontAttributes = FontAttributes.Bold;
                 ExpiredCheckmark.IsVisible = true;
+                ExpiredCheckmark.TextColor = Color.FromArgb("#DC2626");
                 break;
             case TicketStatus.Used:
-                UsedOptionRow.BackgroundColor = highlightColor;
-                UsedText.TextColor = activeGreen;
+                UsedOptionRow.BackgroundColor = Color.FromArgb("#FFFBEB");
+                UsedText.TextColor = Color.FromArgb("#D97706");
                 UsedText.FontAttributes = FontAttributes.Bold;
                 UsedCheckmark.IsVisible = true;
+                UsedCheckmark.TextColor = Color.FromArgb("#D97706");
                 break;
         }
     }
 
-    /// <summary>Parses an ISO 8601 datetime string and formats it as local time.</summary>
     private static string ParseAndFormatLocal(string? iso)
         => DateTime.TryParse(iso, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
             ? dt.ToLocalTime().ToString("dd MMM HH:mm")

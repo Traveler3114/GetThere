@@ -16,9 +16,10 @@
                 Grid.Column="0"
                 BackgroundColor="Transparent"
                 Clicked="OnDoneClicked"
-                Source="icon_close.svg"
-                HeightRequest="24"
-                WidthRequest="24" />
+                Source="close.svg"
+                HeightRequest="32"
+                WidthRequest="32"
+                VerticalOptions="Center" />
             <Label
                 Grid.Column="1"
                 FontAttributes="Bold"
@@ -40,7 +41,7 @@
                         <RoundRectangle CornerRadius="18" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.12" Radius="8" Offset="4,4" />
+                        <Shadow Brush="Black" Opacity="0.1" Radius="12" Offset="0,6" />
                     </Border.Shadow>
                     <Label
                         FontAttributes="Bold"
@@ -59,7 +60,7 @@
                         <RoundRectangle CornerRadius="24" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
+                        <Shadow Brush="Black" Opacity="0.12" Radius="15" Offset="0,8" />
                     </Border.Shadow>
 
                     <VerticalStackLayout Spacing="16">
@@ -92,7 +93,7 @@
                                 <RoundRectangle CornerRadius="16" />
                             </Border.StrokeShape>
                             <Border.Shadow>
-                                <Shadow Brush="Black" Opacity="0.12" Radius="8" Offset="4,4" />
+                                <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                             </Border.Shadow>
                             <VerticalStackLayout Spacing="8">
                                 <Label
@@ -129,7 +130,7 @@
                                     <RoundRectangle CornerRadius="16" />
                                 </Border.StrokeShape>
                                 <Border.Shadow>
-                                    <Shadow Brush="Black" Opacity="0.12" Radius="8" Offset="4,4" />
+                                    <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                                 </Border.Shadow>
                                 <VerticalStackLayout Spacing="2">
                                     <Label FontSize="11" Text="VALID FROM" TextColor="Gray" />
@@ -149,7 +150,7 @@
                                     <RoundRectangle CornerRadius="16" />
                                 </Border.StrokeShape>
                                 <Border.Shadow>
-                                    <Shadow Brush="Black" Opacity="0.12" Radius="8" Offset="4,4" />
+                                    <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                                 </Border.Shadow>
                                 <VerticalStackLayout Spacing="2">
                                     <Label FontSize="11" Text="VALID UNTIL" TextColor="Gray" />
@@ -184,7 +185,7 @@
                     BackgroundColor="#009688"
                     TextColor="White">
                     <Button.Shadow>
-                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
+                        <Shadow Brush="Black" Opacity="0.15" Radius="10" Offset="0,4" />
                     </Button.Shadow>
                 </Button>
 

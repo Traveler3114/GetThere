@@ -104,10 +104,10 @@ public partial class TicketPurchasePage : ContentPage
             Text = "1",
             FontSize = 16,
             FontAttributes = FontAttributes.Bold,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
+            HorizontalTextAlignment = TextAlignment.Center,
+            VerticalTextAlignment = TextAlignment.Center,
             TextColor = Colors.Black,
-            MinimumWidthRequest = 22,
+            MinimumWidthRequest = 28,
         };
 
         var minusBtn = new Button
@@ -188,36 +188,52 @@ public partial class TicketPurchasePage : ContentPage
                 },
                 new HorizontalStackLayout
                 {
-                    Spacing = 8,
+                    Spacing = 12, // Gap between Validity and Price
                     Children =
                     {
-                        new Border
+                                new Grid
+                                {
+                                    ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Auto)],
+                                    ColumnSpacing = 4,
+                                    VerticalOptions = LayoutOptions.Center,
+                                    Children =
+                                    {
+                                        new Image
+                                        {
+                                            Source = ImageSource.FromFile("stopwatch.png"),
+                                            WidthRequest = 18,
+                                            HeightRequest = 18,
+                                            Aspect = Aspect.AspectFit,
+                                            ZIndex = 10,
+                                            VerticalOptions = LayoutOptions.Center
+                                        }.WithColumn(0),
+                                        new Label
+                                        {
+                                            Text = option.Validity,
+                                            FontSize = 12,
+                                            FontAttributes = FontAttributes.Bold,
+                                            TextColor = detailColor,
+                                            VerticalOptions = LayoutOptions.Center
+                                        }.WithColumn(1)
+                                    }
+                                },
+                        new HorizontalStackLayout
                         {
-                            Padding = new Thickness(0),
-                            BackgroundColor = Colors.Transparent,
-                            StrokeThickness = 0,
-                            Content = new Label
+                            Spacing = 4,
+                            VerticalOptions = LayoutOptions.Center,
+                            Children =
                             {
-                                Text = $"⏰ {option.Validity}",
-                                FontSize = 12,
-                                FontAttributes = FontAttributes.Bold,
-                                TextColor = detailColor,
-                            },
-                        },
-                        new Border
-                        {
-                            Padding = new Thickness(0),
-                            BackgroundColor = Colors.Transparent,
-                            StrokeThickness = 0,
-                            Content = new Label
-                            {
-                                Text = $"€{option.Price:F2}",
-                                FontSize = 14,
-                                FontAttributes = FontAttributes.Bold,
-                                TextColor = Colors.Black,
-                            },
-                        },
-                    },
+                                new Label
+                                {
+                                    Text = $"€{option.Price:F2}",
+                                    FontSize = 14,
+                                    FontAttributes = FontAttributes.Bold,
+                                    TextColor = Colors.Black,
+                                    VerticalOptions = LayoutOptions.Center
+                                }
+                            }
+                        }
+                    }
                 },
                 // Quantity row
                 new Grid
@@ -228,8 +244,9 @@ public partial class TicketPurchasePage : ContentPage
                         buyBtn.WithColumn(0),
                         new HorizontalStackLayout
                         {
-                            Spacing = 8,
+                            Spacing = 10,
                             VerticalOptions = LayoutOptions.Center,
+                            Margin = new Thickness(12, 0, 0, 0), // Push away from Buy button
                             Children = { minusBtn, qtyLabel, plusBtn },
                         }.WithColumn(1),
                     },

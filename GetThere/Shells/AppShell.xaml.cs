@@ -1,5 +1,6 @@
 #nullable enable
 using GetThere.State;
+using Microsoft.Maui.Controls;
 
 namespace GetThere;
 
@@ -12,9 +13,11 @@ public partial class AppShell : Shell
 
     public void UpdateProfileIcon(ImageSource? source)
     {
-        var profileTab = this.FindByName<ShellContent>("ProfileTab");
-        if (profileTab == null) return;
-
-        profileTab.Icon = source ?? "profile.svg";
+        // Navigate correctly through ShellItem -> ShellSection -> ShellContent
+        var profileItem = Items.FirstOrDefault()?.Items.FirstOrDefault()?.Items.FirstOrDefault() as ShellContent;
+        if (profileItem != null && profileItem.Route == "profile")
+        {
+            profileItem.Icon = source ?? "profile.svg";
+        }
     }
 }

@@ -1,183 +1,103 @@
 <?xml version="1.0" encoding="utf-8" ?>
-    <ContentPage
-        x:Class="GetThere.Pages.ProfilePage"
-        xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-        xmlns:components="clr-namespace:GetThere.Components"
-        xmlns:helpers="clr-namespace:GetThere.Helpers"
-        xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-        Title="Profile"
-    BackgroundColor="#F8F9FA">
+<ContentPage
+    x:Class="GetThere.Pages.ProfilePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    Title="Profile"
+    BackgroundColor="#F3F4F6"
+    Shell.NavBarIsVisible="False">
 
     <ContentPage.Resources>
-        <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
+        <helpers:TxTypeToAmountColorConverter x:Key="AmountColorConverter" />
         <helpers:TxTypeToIconConverter x:Key="TxTypeToIconConverter" />
-        <helpers:TxTypeToAmountColorConverter x:Key="TxTypeToAmountColorConverter" />
 
         <DataTemplate x:Key="HistoryTemplate">
-            <Grid
-                Padding="0,10"
-                ColumnDefinitions="48,*,Auto"
-                ColumnSpacing="12">
-                <Border
-                    Grid.Column="0"
-                    BackgroundColor="#FFFBEB"
-                    HeightRequest="48"
-                    StrokeThickness="0"
-                    WidthRequest="48">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="24" />
-                    </Border.StrokeShape>
-                    <Label
-                        FontSize="22"
-                        HorizontalOptions="Center"
-                        Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}"
-                        VerticalOptions="Center" />
-                </Border>
-                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                    <Label
-                        FontAttributes="Bold"
-                        FontSize="15"
-                        LineBreakMode="TailTruncation"
-                        MaxLines="1"
-                        Text="{Binding Description}"
-                        TextColor="Black" />
-                    <Label
-                        FontSize="12"
-                        Text="{Binding Timestamp, StringFormat='{0:dd MMM HH:mm}'}"
-                        TextColor="#4B5563" />
-                </VerticalStackLayout>
-                <HorizontalStackLayout
-                    Grid.Column="2"
-                    Spacing="0"
-                    HorizontalOptions="End"
-                    VerticalOptions="Center">
-                    <Label
-                        FontAttributes="Bold"
-                        FontSize="16"
-                        Text="{Binding FormattedAmount}"
-                        TextColor="{Binding Type, Converter={StaticResource TxTypeToAmountColorConverter}}" />
-                </HorizontalStackLayout>
-            </Grid>
-        </DataTemplate>
+            <Border Margin="0,0,0,12" BackgroundColor="White" StrokeThickness="0" Padding="12">
+                <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                <Border.Shadow><Shadow Brush="Black" Opacity="0.22" Radius="12" Offset="0,6" /></Border.Shadow>
 
-        <DataTemplate x:Key="TicketTemplate">
-            <Grid
-                Padding="0,10"
-                ColumnDefinitions="48,*,Auto"
-                ColumnSpacing="12">
-                <Border
-                    Grid.Column="0"
-                    BackgroundColor="#FFFBEB"
-                    HeightRequest="48"
-                    StrokeThickness="0"
-                    WidthRequest="48">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="24" />
-                    </Border.StrokeShape>
-                    <Label
-                        FontSize="22"
-                        HorizontalOptions="Center"
-                        Text="🎫"
-                        VerticalOptions="Center" />
-                </Border>
-                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                    <Label
-                        FontAttributes="Bold"
-                        FontSize="15"
-                        Text="{Binding Name}"
-                        TextColor="Black" />
-                    <Label
-                        FontSize="12"
-                        Text="{Binding Status}"
-                        TextColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}" />
-                </VerticalStackLayout>
-                <HorizontalStackLayout Grid.Column="2" VerticalOptions="Center">
-                    <Label
-                        FontSize="20"
-                        Text="›"
-                        TextColor="#C7C7CC" />
-                </HorizontalStackLayout>
-            </Grid>
+                <Grid ColumnDefinitions="44,*,Auto" ColumnSpacing="12">
+                    <!-- Icon -->
+                    <Border Grid.Column="0" WidthRequest="44" HeightRequest="44" BackgroundColor="#F3F4F6" StrokeThickness="0">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="22" /></Border.StrokeShape>
+                        <Label Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+
+                    <!-- Info -->
+                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                        <Label Text="{Binding Description}" FontSize="15" FontAttributes="Bold" TextColor="#2E2055" />
+                        <Label Text="{Binding Timestamp, StringFormat='{0:dd MMM HH:mm}'}" FontSize="12" TextColor="Gray" />
+                    </VerticalStackLayout>
+
+                    <!-- Amount -->
+                    <Label Grid.Column="2" 
+                           Text="{Binding FormattedAmount}" 
+                           TextColor="{Binding Type, Converter={StaticResource AmountColorConverter}}" 
+                           FontAttributes="Bold" 
+                           FontSize="15" 
+                           VerticalOptions="Center" />
+                </Grid>
+            </Border>
         </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid x:Name="RootLayout" RowDefinitions="*,Auto">
-        <components:AnimatedBackground Grid.RowSpan="2" />
-        <Grid Grid.Row="0" RowDefinitions="Auto,*">
-            <ScrollView Grid.Row="0">
-                <VerticalStackLayout Padding="0,0,0,100" Spacing="14" MaximumWidthRequest="600" HorizontalOptions="Center">
-
-                    <!--  ── MAIN PASS CARD (Apple Style) ──  -->
-                    <Grid Margin="16,20,16,10">
+    <Grid x:Name="RootLayout">
+        <components:AnimatedBackground />
+        
+        <Grid RowDefinitions="Auto, *">
+            
+            <!-- ── FIXED TOP SECTION (CARD) ── -->
+            <VerticalStackLayout Grid.Row="0" Padding="0,20,0,10" Spacing="0" MaximumWidthRequest="1200" HorizontalOptions="Fill">
+                
+                <!--  Main Pass Card (Fixed-size card look) -->
+                <Grid Margin="16,20,16,10" HorizontalOptions="Center">
                     <Border
                         x:Name="MainCard"
-                        HeightRequest="210"
-                        HorizontalOptions="Fill"
+                        WidthRequest="350"
+                        HeightRequest="220"
+                        HorizontalOptions="Center"
                         StrokeThickness="0">
                         <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="24" />
+                            <RoundRectangle CornerRadius="20" />
                         </Border.StrokeShape>
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                 <GradientStop Offset="0.1" Color="#A2AAEE" />
-                                <GradientStop Offset="0.4" Color="#E1BEE7" />
-                                <GradientStop Offset="0.7" Color="#FFB2A0" />
+                                <GradientStop Offset="0.5" Color="#E1BEE7" />
+                                <GradientStop Offset="0.8" Color="#FFB2A0" />
                                 <GradientStop Offset="1.0" Color="#FFE082" />
                             </LinearGradientBrush>
                         </Border.Background>
                         <Border.Shadow>
-                            <Shadow
-                                Brush="Black"
-                                Opacity="0.16"
-                                Radius="8"
-                                Offset="4,4" />
+                            <Shadow Brush="Black" Opacity="0.22" Radius="12" Offset="0,6" />
                         </Border.Shadow>
 
-                        <Grid Padding="20">
-                            <Border WidthRequest="60"
-                                    HeightRequest="60"
-                                    HorizontalOptions="Start"
-                                    VerticalOptions="Start"
-                                    BackgroundColor="#35208F"
-                                    StrokeThickness="0">
-                                <Border.StrokeShape>
-                                    <RoundRectangle CornerRadius="30" />
-                                </Border.StrokeShape>
+                        <Grid Padding="24">
+                            <!-- Logo Area (Placeholder for Logo) -->
+                            <Border WidthRequest="44" HeightRequest="44" HorizontalOptions="Start" VerticalOptions="Start" BackgroundColor="#2E2055" Opacity="0.8" StrokeThickness="0">
+                                <Border.StrokeShape><RoundRectangle CornerRadius="22" /></Border.StrokeShape>
+                                <Label Text="G" TextColor="White" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
 
-                            <!--  CENTER BALANCE SECTION (NO PLUS BUTTON HERE)  -->
-                            <VerticalStackLayout
-                                HorizontalOptions="Center"
-                                Spacing="0"
-                                VerticalOptions="Center">
-                                <Label
-                                    x:Name="BalanceLabelOnCard"
-                                    FontAttributes="Bold"
-                                    FontSize="44"
-                                    HorizontalTextAlignment="Center"
-                                    Text="€0.00"
-                                    TextColor="#2E2055" />
-                            </VerticalStackLayout>
-
-                            <VerticalStackLayout Spacing="2" VerticalOptions="End">
-                                <Label
-                                    x:Name="NameLabelOnCard"
-                                    FontAttributes="Bold"
-                                    FontSize="18"
-                                    Text="User Name"
-                                    TextColor="#7A7A7A" />
-                            </VerticalStackLayout>
+                            <!-- Balance (Centered) -->
+                            <Label x:Name="BalanceLabelOnCard" 
+                                   FontAttributes="Bold" 
+                                   FontSize="42" 
+                                   HorizontalOptions="Center" 
+                                   VerticalOptions="Center" 
+                                   Text="€0.00" 
+                                   TextColor="#2E2055" 
+                                   Margin="0,0,0,0" />
                         </Grid>
                     </Border>
-                    </Grid>
 
-                    <!--  ── PLUS BUTTON BELOW CARD ──  -->
                     <Button
                         x:Name="TopUpButton"
-                        Margin="0,-48,0,0"
+                        VerticalOptions="End"
+                        TranslationY="28"
                         Padding="0"
-                        Background="{x:Null}"
                         BackgroundColor="White"
                         Clicked="OnTopUpClicked"
                         CornerRadius="28"
@@ -185,116 +105,67 @@
                         FontSize="28"
                         HeightRequest="56"
                         HorizontalOptions="Center"
-                        Style="{x:Null}"
                         Text="+"
                         TextColor="Black"
                         WidthRequest="56"
-                        ZIndex="1">
+                        ZIndex="10">
                         <Button.Shadow>
-                            <Shadow
-                                Brush="Black"
-                                Opacity="0.16"
-                                Radius="8"
-                                Offset="4,4" />
+                            <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
                         </Button.Shadow>
                     </Button>
+                </Grid>
+            </VerticalStackLayout>
 
-                    <VerticalStackLayout Margin="0,4,0,0" Spacing="6">
-                        <Label
-                            FontAttributes="Bold"
-                            FontSize="18"
-                            HorizontalOptions="Center"
-                            Text="History"
-                            TextColor="Black" />
-                        <BoxView
-                            WidthRequest="70"
-                            HeightRequest="3"
-                            CornerRadius="2"
-                            HorizontalOptions="Center"
-                            BackgroundColor="#D1D1D6" />
-                    </VerticalStackLayout>
+            <!-- ── SCROLLABLE LIST SECTION (WHITE SURFACE) ── -->
+            <Grid Grid.Row="1" HorizontalOptions="Fill">
+                <Grid x:Name="HistoryContainer" RowDefinitions="Auto, *" Spacing="0">
+                    <!-- History Title CENTERED and spaced (Row 0) -->
+                    <Label Grid.Row="0"
+                           Text="History" 
+                           FontSize="18" 
+                           FontAttributes="Bold" 
+                           TextColor="Black" 
+                           HorizontalOptions="Center"
+                           Margin="0,25,0,25" />
 
-                    <!--  ── LIST SECTION ──  -->
-                    <Grid Margin="16,2,16,0">
-                    <Border
-                        x:Name="HistoryContainer"
-                        Padding="15"
-                        HorizontalOptions="Fill"
-                        BackgroundColor="White"
-                        StrokeThickness="0">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="20" />
-                        </Border.StrokeShape>
-                        <Border.Shadow>
-                            <Shadow
-                                Brush="Black"
-                                Opacity="0.16"
-                                Radius="8"
-                                Offset="4,4" />
-                        </Border.Shadow>
-                        <VerticalStackLayout Spacing="10">
-                            <!--  Loaders  -->
-                            <ActivityIndicator
-                                x:Name="BusyLoader"
-                                HeightRequest="40"
-                                IsRunning="False"
-                                IsVisible="False"
-                                Color="#4CAF50" />
+                    <!-- History Surface (Row 1 - Grows to fill screen) -->
+                    <Border x:Name="HistorySurface" Grid.Row="1" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Center" MaximumWidthRequest="1200" VerticalOptions="Fill">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
+                        <Border.Shadow><Shadow Brush="Black" Opacity="0.05" Radius="20" Offset="0,-10" /></Border.Shadow>
+                        
+                        <ScrollView VerticalOptions="Fill">
+                            <VerticalStackLayout Padding="24,10,24,120" Spacing="0">
+                                <!-- Gray indicator line INSIDE the card -->
+                                <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E5E7EB" HorizontalOptions="Center" Margin="0,12,0,12" />
 
-                            <!--  List Content  -->
-                            <VerticalStackLayout 
-                                x:Name="HistoryRows"
-                                BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" />
+                                <StackLayout x:Name="HistoryRows" BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" Spacing="0" />
 
-                            <Label
-                                x:Name="NoItemsLabel"
-                                Margin="0,30"
-                                HorizontalOptions="Center"
-                                IsVisible="False"
-                                Text="No items found."
-                                TextColor="Gray" />
-                        </VerticalStackLayout>
+                                <Label x:Name="NoItemsLabel" Margin="0,40" HorizontalOptions="Center" IsVisible="False" Text="No transactions yet" FontSize="16" TextColor="Gray" />
+                            </VerticalStackLayout>
+                        </ScrollView>
                     </Border>
-                    </Grid>
+                </Grid>
 
-                </VerticalStackLayout>
-            </ScrollView>
+                <!-- Full Page Loader -->
+                <ActivityIndicator x:Name="BusyLoader" 
+                                   VerticalOptions="Center" 
+                                   HorizontalOptions="Center" 
+                                   HeightRequest="60" 
+                                   WidthRequest="60"
+                                   IsRunning="False" 
+                                   IsVisible="False" 
+                                   Color="#059669" />
+            </Grid>
+
         </Grid>
 
         <!--  ── GUEST OVERLAY ──  -->
-        <Grid
-            x:Name="GuestOverlay"
-            BackgroundColor="{AppThemeBinding Light=#E6FFFFFF,
-                                              Dark=#E6000000}"
-            InputTransparent="False"
-            IsVisible="False"
-            ZIndex="2000">
-            <VerticalStackLayout
-                HorizontalOptions="Center"
-                Spacing="20"
-                VerticalOptions="Center">
-                <Label
-                    FontAttributes="Bold"
-                    FontSize="26"
-                    HorizontalOptions="Center"
-                    Text="Guest Mode"
-                    TextColor="{AppThemeBinding Light=Black,
-                                                Dark=White}" />
-                <Label
-                    FontSize="16"
-                    HorizontalOptions="Center"
-                    Text="Please log in or register to access your profile."
-                    TextColor="Gray" />
-                <Button
-                    Margin="0,15,0,0"
-                    Padding="30,0"
-                    Clicked="OnLoginRegisterClicked"
-                    CornerRadius="12"
-                    FontAttributes="Bold"
-                    HeightRequest="50"
-                    Text="Login / Register" />
+        <Grid x:Name="GuestOverlay" BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}" InputTransparent="False" IsVisible="False" ZIndex="2000">
+            <VerticalStackLayout HorizontalOptions="Center" Spacing="20" VerticalOptions="Center">
+                <Label FontAttributes="Bold" FontSize="26" HorizontalOptions="Center" Text="Guest Mode" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center" Text="Sign in to see your balance and history." TextColor="{AppThemeBinding Light=#666, Dark=#AAA}" />
+                <Button Margin="0,10,0,0" Padding="30,0" Clicked="OnLoginRegisterClicked" CornerRadius="12" FontAttributes="Bold" HeightRequest="50" Text="Login / Register" />
             </VerticalStackLayout>
         </Grid>
-
     </Grid>
 </ContentPage>

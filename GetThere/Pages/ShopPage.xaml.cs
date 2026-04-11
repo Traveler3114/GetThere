@@ -168,7 +168,7 @@ public partial class ShopPage : ContentPage
             BackgroundColor = Colors.White,
             StrokeThickness = 0,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
-            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.16f, Radius = 8, Offset = new Point(4, 4) },
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.22f, Radius = 12, Offset = new Point(0, 6) },
         };
         card.Content = grid;
         card.BindingContext = op;
