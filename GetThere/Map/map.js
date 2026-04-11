@@ -349,6 +349,11 @@ async function _onMapLoad() {
 
         if (!features.length) return;
 
+        // In the sourcedata handler, after getting features:
+        if (features.length > 0) {
+            console.log('[DEBUG] Stop feature props:', JSON.stringify(features[0].properties));
+        }
+
         // Deduplicate by onestop_id
         const seen = new Set();
         const stops = [];
@@ -358,6 +363,12 @@ async function _onMapLoad() {
             if (!stopId || seen.has(stopId)) continue;
             seen.add(stopId);
 
+
+            const locType = parseInt(f.properties.location_type || '0', 10);
+            if (locType > 0) continue;
+
+            //const locType = parseInt(f.properties.location_type || '0', 10);
+            //if (locType !== 0) continue;
             // Try to infer route type from operator or stop name
             // Vector tile stops have operator_onestop_id which encodes mode
             // o-u2wm-zet style — fall back to route_type from served routes
