@@ -43,7 +43,7 @@
 
         <!--  Operators list  -->
         <ScrollView Grid.Row="2" Padding="16,8,16,100">
-            <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center">
+            <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center" MaximumWidthRequest="1200">
 
                 <ActivityIndicator
                     x:Name="BusyIndicator"

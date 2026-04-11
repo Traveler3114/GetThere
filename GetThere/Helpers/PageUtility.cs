@@ -1,4 +1,4 @@
-﻿using GetThere.Components;
+using GetThere.Components;
 using GetThereShared.Enums;
 using System.Globalization;
 
@@ -9,7 +9,7 @@ namespace GetThere.Helpers;
 // ═══════════════════════════════════════════════════════════
 public static class PageUtility
 {
-    public const double DefaultResponsiveRatio = 0.60;
+    public const double DefaultResponsiveRatio = 0.80;
     public const double DefaultResponsiveMinWidth = 340;
     public const double MobileBreakpoint = 700;
 
