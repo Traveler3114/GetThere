@@ -274,7 +274,7 @@ public class TransitlandManager
         catch (OperationCanceledException ex)
         {
             if (cancellationToken.IsCancellationRequested)
-                _logger.LogDebug(ex, "Viewport stops request canceled by client");
+                _logger.LogDebug(ex, "Viewport stops request canceled");
             else
                 _logger.LogWarning(ex, "Viewport stops request canceled or timed out");
             return [];
