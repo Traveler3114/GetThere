@@ -191,29 +191,33 @@ public partial class TicketPurchasePage : ContentPage
                     Spacing = 12, // Gap between Validity and Price
                     Children =
                     {
-                        new HorizontalStackLayout
-                        {
-                            Spacing = 4,
-                            VerticalOptions = LayoutOptions.Center,
-                            Children =
-                            {
-                                new Image
+                                new Grid
                                 {
-                                    Source = "stopwatch.svg",
-                                    WidthRequest = 15,
-                                    HeightRequest = 15,
-                                    VerticalOptions = LayoutOptions.Center
+                                    ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Auto)],
+                                    ColumnSpacing = 4,
+                                    VerticalOptions = LayoutOptions.Center,
+                                    Children =
+                                    {
+                                        new Image
+                                        {
+                                            Source = ImageSource.FromFile("stopwatch.png"),
+                                            WidthRequest = 20,
+                                            HeightRequest = 20,
+                                            Aspect = Aspect.AspectFit,
+                                            BackgroundColor = Colors.Yellow, // TEMPORARY DEBUG COLOR
+                                            ZIndex = 10,
+                                            VerticalOptions = LayoutOptions.Center
+                                        }.WithColumn(0),
+                                        new Label
+                                        {
+                                            Text = option.Validity,
+                                            FontSize = 12,
+                                            FontAttributes = FontAttributes.Bold,
+                                            TextColor = detailColor,
+                                            VerticalOptions = LayoutOptions.Center
+                                        }.WithColumn(1)
+                                    }
                                 },
-                                new Label
-                                {
-                                    Text = option.Validity,
-                                    FontSize = 12,
-                                    FontAttributes = FontAttributes.Bold,
-                                    TextColor = detailColor,
-                                    VerticalOptions = LayoutOptions.Center
-                                }
-                            }
-                        },
                         new HorizontalStackLayout
                         {
                             Spacing = 4,
