@@ -222,8 +222,8 @@ public class TransitlandManager
     }
 
     public async Task<List<StopDto>> GetStopsByBboxAsync(
-        string bbox,
-        CancellationToken cancellationToken = default)
+    string bbox,
+    CancellationToken cancellationToken = default)
     {
         var apiKey = ResolveApiKey();
         if (string.IsNullOrWhiteSpace(apiKey)) return [];
@@ -234,14 +234,15 @@ public class TransitlandManager
         var hParam = Config("Transitland:ApiKeyHeaderParam",
                         Config("Transitland:ApiKeyHeaderName", DefaultApiKeyHeaderName));
 
-        // Query each route type separately so we know the type per stop
-        var routeTypes = new[] { (0, "tram"), (2, "rail"), (3, "bus") };
+        var routeTypes = new[] { 0, 2, 3 };
         var allStops = new List<StopDto>();
         var seen = new HashSet<string>();
 
-        var tasks = routeTypes.Select(async rt =>
+        foreach (var routeType in routeTypes)
         {
-            var (routeType, _) = rt;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+
             var url = $"{baseUrl}/{path}?bbox={Uri.EscapeDataString(bbox)}" +
                       $"&served_by_route_type={routeType}" +
                       $"&limit=500" +
@@ -251,15 +252,13 @@ public class TransitlandManager
 
             try
             {
-                using var response = await SendAsync(url, hParam, apiKey, cancellationToken);
-                if (!response.IsSuccessStatusCode) return (routeType, new List<StopDto>());
+                using var response = await SendAsync(url, hParam, apiKey, cts.Token);
+                if (!response.IsSuccessStatusCode) continue;
 
-                var rawBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                var rawBody = await response.Content.ReadAsStringAsync(cts.Token);
                 using var json = JsonDocument.Parse(rawBody);
-                if (!TryGetArray(json.RootElement, out var arr))
-                    return (routeType, new List<StopDto>());
+                if (!TryGetArray(json.RootElement, out var arr)) continue;
 
-                var stops = new List<StopDto>();
                 foreach (var stop in arr.EnumerateArray())
                 {
                     if (!TryParseCoordinates(stop, out var lat, out var lon)) continue;
@@ -267,39 +266,35 @@ public class TransitlandManager
                     var stopId = GetString(stop, "onestop_id") ?? GetString(stop, "stop_id");
                     if (string.IsNullOrWhiteSpace(stopId)) continue;
 
-                    // Skip non-physical stops
                     if (stop.TryGetProperty("location_type", out var lt) &&
                         lt.ValueKind == JsonValueKind.Number &&
                         lt.GetInt32() != 0) continue;
 
-                    stops.Add(new StopDto
+                    if (!seen.Add(stopId)) continue;
+
+                    allStops.Add(new StopDto
                     {
                         StopId = stopId,
                         Name = GetString(stop, "stop_name") ?? stopId,
                         Lat = lat,
                         Lon = lon,
-                        RouteType = routeType,  // ← we know this exactly
+                        RouteType = routeType,
                         SupportsSchedule = true,
                     });
                 }
 
-                _logger.LogInformation("[DEBUG] Viewport stops type={Type}: {Count} returned",
-                    routeType, stops.Count);
-                return (routeType, stops);
+                _logger.LogInformation("[DEBUG] Viewport stops type={Type}: {Count} so far",
+                    routeType, allStops.Count);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Viewport stops type={Type} timed out, skipping", routeType);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Viewport stops request failed for route type {Type}", routeType);
-                return (routeType, new List<StopDto>());
+                _logger.LogError(ex, "Viewport stops type={Type} failed", routeType);
             }
-        });
-
-        var results = await Task.WhenAll(tasks);
-
-        foreach (var (_, stops) in results)
-            foreach (var stop in stops)
-                if (seen.Add(stop.StopId))
-                    allStops.Add(stop);
+        }
 
         _logger.LogInformation("[DEBUG] Viewport stops total: {Count}", allStops.Count);
         return allStops;
