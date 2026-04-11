@@ -104,10 +104,10 @@ public partial class TicketPurchasePage : ContentPage
             Text = "1",
             FontSize = 16,
             FontAttributes = FontAttributes.Bold,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
+            HorizontalTextAlignment = TextAlignment.Center,
+            VerticalTextAlignment = TextAlignment.Center,
             TextColor = Colors.Black,
-            MinimumWidthRequest = 22,
+            MinimumWidthRequest = 28,
         };
 
         var minusBtn = new Button
@@ -201,10 +201,9 @@ public partial class TicketPurchasePage : ContentPage
                                         new Image
                                         {
                                             Source = ImageSource.FromFile("stopwatch.png"),
-                                            WidthRequest = 20,
-                                            HeightRequest = 20,
+                                            WidthRequest = 18,
+                                            HeightRequest = 18,
                                             Aspect = Aspect.AspectFit,
-                                            BackgroundColor = Colors.Yellow, // TEMPORARY DEBUG COLOR
                                             ZIndex = 10,
                                             VerticalOptions = LayoutOptions.Center
                                         }.WithColumn(0),

@@ -90,10 +90,10 @@ public class StatusToColorConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is TicketStatus status ? status switch
         {
-            TicketStatus.Active => Color.FromArgb("#4CAF50"), // green
-            TicketStatus.Expired => Color.FromArgb("#9E9E9E"), // grey
-            TicketStatus.Used => Color.FromArgb("#2196F3"), // blue
-            TicketStatus.Cancelled => Color.FromArgb("#F44336"), // red
+            TicketStatus.Active => Color.FromArgb("#059669"), // Teal Green
+            TicketStatus.Expired => Color.FromArgb("#DC2626"), // Red
+            TicketStatus.Used => Color.FromArgb("#D97706"), // Dark Yellow/Amber
+            TicketStatus.Cancelled => Color.FromArgb("#6B7280"), // Grey
             _ => Color.FromArgb("#9E9E9E")
         } : Color.FromArgb("#9E9E9E");
 

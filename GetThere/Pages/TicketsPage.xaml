@@ -47,7 +47,7 @@
                     <Border Grid.Column="2"
                             VerticalOptions="Center"
                             Padding="14,8"
-                            BackgroundColor="#55B948"
+                            BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}"
                             StrokeThickness="0">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="16" />

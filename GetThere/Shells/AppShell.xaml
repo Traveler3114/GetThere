@@ -4,42 +4,43 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:pages="clr-namespace:GetThere.Pages"
+    xmlns:local="clr-namespace:GetThere"
     Title="GetThere"
     Shell.NavBarIsVisible="False"
-    Shell.TabBarIsVisible="True"
-    Shell.BackgroundColor="{AppThemeBinding Light=#FFF8F8FC, Dark=#120D14}"
-    Shell.TabBarBackgroundColor="{AppThemeBinding Light=#F8FFFFFF, Dark=#CC1A1020}"
-    Shell.TabBarForegroundColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
-    Shell.TabBarTitleColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
-    Shell.TabBarUnselectedColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}">
+    Shell.TabBarBackgroundColor="White"
+    Shell.TabBarForegroundColor="#059669"
+    Shell.TabBarTitleColor="#059669"
+    Shell.TabBarUnselectedColor="#9CA3AF">
 
     <TabBar>
-        <ShellContent
-            x:Name="ProfileTab"
-            Title="Profile"
-            Icon="profile_com.svg"
-            ContentTemplate="{DataTemplate pages:ProfilePage}"
+        <ShellContent 
+            Title="Profile" 
+            Icon="profile.svg" 
+            ContentTemplate="{DataTemplate pages:ProfilePage}" 
             Route="profile" />
-        <ShellContent
-            Title="Map"
-            Icon="map_com.svg"
-            ContentTemplate="{DataTemplate pages:MapPage}"
+        
+        <ShellContent 
+            Title="Map" 
+            Icon="map.svg" 
+            ContentTemplate="{DataTemplate pages:MapPage}" 
             Route="map" />
-        <ShellContent
-            Title="Shop"
-            Icon="shop_bag_com.svg"
-            ContentTemplate="{DataTemplate pages:ShopPage}"
+        
+        <ShellContent 
+            Title="Shop" 
+            Icon="shop_bag.svg" 
+            ContentTemplate="{DataTemplate pages:ShopPage}" 
             Route="shop" />
-        <ShellContent
-            x:Name="TicketsTab"
-            Title="Tickets"
-            Icon="ticket_com.svg"
-            ContentTemplate="{DataTemplate pages:TicketsPage}"
+        
+        <ShellContent 
+            Title="Tickets" 
+            Icon="ticket.svg" 
+            ContentTemplate="{DataTemplate pages:TicketsPage}" 
             Route="tickets" />
-        <ShellContent
-            Title="Settings"
-            Icon="settings_com.svg"
-            ContentTemplate="{DataTemplate pages:SettingsPage}"
+        
+        <ShellContent 
+            Title="Settings" 
+            Icon="settings.svg" 
+            ContentTemplate="{DataTemplate pages:SettingsPage}" 
             Route="settings" />
     </TabBar>
 
