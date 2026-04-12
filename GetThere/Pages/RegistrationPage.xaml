@@ -12,7 +12,7 @@
         <components:AnimatedBackground />
 
         <!--  ── HERO AREA ──  -->
-        <Border VerticalOptions="Start" HeightRequest="300" StrokeThickness="0">
+        <Border VerticalOptions="Start" HeightRequest="240" StrokeThickness="0">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
                     <GradientStop Offset="0" Color="#4E85F2" />
@@ -21,15 +21,15 @@
             </Border.Background>
 
             <Grid RowDefinitions="Auto, *">
-                <ImageButton Source="arrow_back_white.png" HeightRequest="30" WidthRequest="30" HorizontalOptions="Start" Margin="25,60,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />
-                <VerticalStackLayout Grid.Row="1" Spacing="5" VerticalOptions="Center" Margin="0,0,0,30">
-                    <Label Text="Join GetThere" FontSize="32" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" />
-                    <Label Text="Create an account to start your journey" FontSize="14" TextColor="White" Opacity="0.8" HorizontalOptions="Center" />
+                <ImageButton Source="arrow_back_white.png" HeightRequest="24" WidthRequest="24" HorizontalOptions="Start" Margin="25,35,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />
+                <VerticalStackLayout Grid.Row="1" Spacing="2" VerticalOptions="Start" Margin="0,15,0,0">
+                    <Label Text="Join GetThere" FontSize="26" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" />
+                    <Label Text="Start your journey now" FontSize="12" TextColor="White" Opacity="0.8" HorizontalOptions="Center" />
                 </VerticalStackLayout>
             </Grid>
         </Border>
 
-        <Grid Margin="0,250,0,10" HorizontalOptions="Center">
+        <Grid Margin="0,170,0,0" HorizontalOptions="Center" VerticalOptions="Fill">
         <ScrollView VerticalOptions="Fill">
             <Border x:Name="RegistrationCard" Margin="1" Padding="30,15,30,30" BackgroundColor="White" StrokeThickness="0" VerticalOptions="Start">
                 <Border.Shadow>
@@ -60,7 +60,14 @@
                         <Label Text="Password" FontAttributes="Bold" FontSize="14" TextColor="Black" />
                         <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="45">
                             <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" />
+                            <Grid ColumnDefinitions="*, auto">
+                                <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" VerticalOptions="Center" />
+                                <Label x:Name="TogglePassBtn" Grid.Column="1" Text="Show" TextColor="#A0A0A0" VerticalOptions="Center">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="TogglePass_Tapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Grid>
                         </Border>
                     </VerticalStackLayout>
 
@@ -68,7 +75,14 @@
                         <Label Text="Confirm Password" FontAttributes="Bold" FontSize="14" TextColor="Black" />
                         <Border Stroke="#EBEBEC" StrokeThickness="1" Padding="15,0" BackgroundColor="White" HeightRequest="45">
                             <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Entry x:Name="ConfirmPasswordEntry" Placeholder="Confirm Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" />
+                            <Grid ColumnDefinitions="*, auto">
+                                <Entry x:Name="ConfirmPasswordEntry" Placeholder="Confirm Password" IsPassword="True" PlaceholderColor="#A0A0A0" TextColor="Black" VerticalOptions="Center" />
+                                <Label x:Name="ToggleConfirmBtn" Grid.Column="1" Text="Show" TextColor="#A0A0A0" VerticalOptions="Center">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="ToggleConfirm_Tapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Grid>
                         </Border>
                     </VerticalStackLayout>
 

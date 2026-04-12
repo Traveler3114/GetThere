@@ -149,16 +149,9 @@ public partial class ShopPage : ContentPage
                 await Task.Delay(300, token);
             }
         }, token);
-
-        // 2. Dots loop
-        int dots = 0;
-        while (!token.IsCancellationRequested)
-        {
-            dots = (dots + 1) % 4;
-            LoadingDotsLabel.Text = "Loading" + new string('.', dots);
-            try { await Task.Delay(400, token); } catch { break; }
-        }
     }
+
+
 
     private void StopLoadingAnimations()
     {
@@ -175,15 +168,15 @@ public partial class ShopPage : ContentPage
         {
             BackgroundColor = Color.FromArgb(op.Color),
             StrokeThickness = 0,
-            WidthRequest = 56,
-            HeightRequest = 56,
+            WidthRequest = 44,
+            HeightRequest = 44,
             VerticalOptions = LayoutOptions.Center,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(14) },
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(12) },
         };
         badge.Content = new Label
         {
             Text = nameInitial,
-            FontSize = 22,
+            FontSize = 18,
             FontAttributes = FontAttributes.Bold,
             TextColor = Colors.White,
             HorizontalOptions = LayoutOptions.Center,
@@ -209,9 +202,9 @@ public partial class ShopPage : ContentPage
 
         var grid = new Grid
         {
-            ColumnDefinitions = [new ColumnDefinition(56), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)],
+            ColumnDefinitions = [new ColumnDefinition(44), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)],
             RowDefinitions = [new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto)],
-            ColumnSpacing = 14,
+            ColumnSpacing = 12,
         };
 
         Grid.SetColumn(badge, 0);
@@ -221,7 +214,7 @@ public partial class ShopPage : ContentPage
         var nameLabel = new Label
         {
             Text = op.Name,
-            FontSize = 16,
+            FontSize = 15,
             FontAttributes = FontAttributes.Bold,
             TextColor = Colors.Black,
         };
@@ -232,10 +225,10 @@ public partial class ShopPage : ContentPage
         var descLabel = new Label
         {
             Text = op.Description,
-            FontSize = 13,
+            FontSize = 12,
             TextColor = Colors.Gray,
             LineBreakMode = LineBreakMode.TailTruncation,
-            MaxLines = 2,
+            MaxLines = 1,
         };
         Grid.SetColumn(descLabel, 1);
         Grid.SetRow(descLabel, 1);
@@ -247,12 +240,12 @@ public partial class ShopPage : ContentPage
 
         var card = new Border
         {
-            Margin = new Thickness(0, 6),
-            Padding = new Thickness(16),
+            Margin = new Thickness(0, 4),
+            Padding = new Thickness(12, 10),
             BackgroundColor = Colors.White,
             StrokeThickness = 0,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
-            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.22f, Radius = 12, Offset = new Point(0, 6) },
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(14) },
+            Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.1f, Radius = 6, Offset = new Point(0, 3) },
         };
         card.Content = grid;
         card.BindingContext = op;

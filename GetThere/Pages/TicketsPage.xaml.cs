@@ -85,8 +85,8 @@ public partial class TicketsPage : ContentPage
     private void UpdateResponsiveLayout()
     {
         var isMobile = Width < 700;
-        TicketsContent.Padding = isMobile ? new Thickness(20, 16, 20, 100) : new Thickness(24, 30, 24, 100);
-        HeaderRow.Margin = isMobile ? new Thickness(20, 52, 20, 16) : new Thickness(24, 60, 24, 20);
+        TicketsContent.Padding = isMobile ? new Thickness(20, 10, 20, 80) : new Thickness(24, 20, 24, 80);
+        HeaderRow.Margin = isMobile ? new Thickness(20, 35, 20, 5) : new Thickness(24, 40, 24, 10);
         TopHandle.IsVisible = true;
     }
 
@@ -223,16 +223,9 @@ public partial class TicketsPage : ContentPage
                 await Task.Delay(300, token);
             }
         }, token);
-
-        // 2. Dots Animation Loop
-        int dots = 0;
-        while (!token.IsCancellationRequested)
-        {
-            dots = (dots + 1) % 4;
-            LoadingDotsLabel.Text = "Loading" + new string('.', dots);
-            try { await Task.Delay(400, token); } catch { break; }
-        }
     }
+
+
 
     private void StopLoadingAnimations()
     {

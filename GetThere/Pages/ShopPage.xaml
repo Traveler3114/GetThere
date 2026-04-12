@@ -65,11 +65,6 @@
                             <BoxView.Rotation>20</BoxView.Rotation>
                         </BoxView>
                     </Grid>
-
-                    <!-- Floating Label -->
-                    <VerticalStackLayout Spacing="5" VerticalOptions="End" Margin="0,0,0,120">
-                        <Label x:Name="LoadingDotsLabel" Text="Loading" FontSize="18" TextColor="#1264AB" FontAttributes="Bold" HorizontalOptions="Center" />
-                    </VerticalStackLayout>
                 </Grid>
 
                 <VerticalStackLayout x:Name="OperatorCards" Spacing="0" />

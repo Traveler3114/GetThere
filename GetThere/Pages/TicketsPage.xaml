@@ -12,50 +12,50 @@
     <ContentPage.Resources>
         <helpers:StatusToColorConverter x:Key="StatusToColorConverter" />
         <DataTemplate x:Key="TicketRowTemplate">
-            <Border Padding="16" BackgroundColor="White" Stroke="#E5E7EB" StrokeThickness="1">
+            <Border Padding="12" Margin="0,0,0,10" BackgroundColor="White" Stroke="#E5E7EB" StrokeThickness="1">
                 <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="18" />
+                    <RoundRectangle CornerRadius="12" />
                 </Border.StrokeShape>
                 <Border.Shadow>
-                    <Shadow Brush="Black" Offset="0,6" Radius="12" Opacity="0.22" />
+                    <Shadow Brush="Black" Offset="0,3" Radius="6" Opacity="0.12" />
                 </Border.Shadow>
-
-                <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
-                    <Border WidthRequest="48"
-                            HeightRequest="48"
-                            BackgroundColor="#FFFBEB"
+                
+                <Grid ColumnDefinitions="40,*,Auto" ColumnSpacing="12">
+                    <Border WidthRequest="40"
+                            HeightRequest="40"
+                            BackgroundColor="#F9FAFB"
                             StrokeThickness="0">
                         <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="24" />
+                            <RoundRectangle CornerRadius="20" />
                         </Border.StrokeShape>
                         <Label Text="🎫"
-                               FontSize="22"
+                               FontSize="18"
                                HorizontalOptions="Center"
                                VerticalOptions="Center" />
                     </Border>
 
-                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                    <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
                         <Label Text="{Binding TicketType}"
-                               FontSize="14"
+                               FontSize="13"
                                FontAttributes="Bold"
                                TextColor="#1F2937"
                                LineBreakMode="TailTruncation" />
-                        <Label Text="{Binding PurchasedAt, StringFormat='{0:dddd}'}"
-                               FontSize="12"
-                               TextColor="#9CA3AF" />
+                        <Label Text="{Binding PurchasedAt, StringFormat='{0:ddd, dd MMM}'}"
+                               FontSize="11"
+                               TextColor="#6B7280" />
                     </VerticalStackLayout>
 
                     <Border Grid.Column="2"
                             VerticalOptions="Center"
-                            Padding="14,8"
+                            Padding="12,6"
                             BackgroundColor="{Binding Status, Converter={StaticResource StatusToColorConverter}}"
                             StrokeThickness="0">
                         <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="16" />
+                            <RoundRectangle CornerRadius="10" />
                         </Border.StrokeShape>
                         <Label Text="{Binding Status}"
                                TextColor="White"
-                               FontSize="13"
+                               FontSize="12"
                                FontAttributes="Bold" />
                     </Border>
                 </Grid>
@@ -80,8 +80,8 @@
 
         <Grid RowDefinitions="Auto, *">
             <!-- ── HEADER ── -->
-            <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,60,24,20" ColumnDefinitions="*,Auto" MaximumWidthRequest="600" HorizontalOptions="Fill">
-                <Label Text="My Tickets" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
+            <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,40,24,10" ColumnDefinitions="*, Auto" MaximumWidthRequest="600" HorizontalOptions="Fill">
+                <Label Grid.Column="0" Text="My Tickets" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
                 
                 <Border x:Name="FilterBadge" Grid.Column="1" Padding="15,8" BackgroundColor="#D1FAE5" StrokeThickness="0">
                     <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
@@ -99,7 +99,7 @@
                 <Border x:Name="TicketsSurface" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Center" MaximumWidthRequest="1200">
                 <Border.StrokeShape><shapes:RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
                 <ScrollView x:Name="MainScrollView" Scrolled="OnMainScrollViewScrolled" VerticalScrollBarVisibility="Never">
-                    <VerticalStackLayout x:Name="TicketsContent" Padding="24,20,24,100" Spacing="20">
+                    <VerticalStackLayout x:Name="TicketsContent" Padding="20,15,20,100" Spacing="16">
                         <BoxView x:Name="TopHandle" WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#D8D8D8" HorizontalOptions="Center" />
                         
                         <VerticalStackLayout x:Name="MockTicketsSection" IsVisible="False" Spacing="20">
@@ -134,10 +134,6 @@
                                 </BoxView>
                             </Grid>
 
-                            <!-- Floating Label -->
-                            <VerticalStackLayout Spacing="5" VerticalOptions="End" Margin="0,0,0,100">
-                                <Label x:Name="LoadingDotsLabel" Text="Loading" FontSize="18" TextColor="#4F46E5" FontAttributes="Bold" HorizontalOptions="Center" />
-                            </VerticalStackLayout>
                         </Grid>
 
                         <VerticalStackLayout x:Name="TicketsRows" Spacing="14" BindableLayout.ItemTemplate="{StaticResource TicketRowTemplate}" />

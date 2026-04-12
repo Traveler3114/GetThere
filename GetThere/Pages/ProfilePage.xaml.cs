@@ -63,7 +63,6 @@ public partial class ProfilePage : ContentPage
     private async Task LoadProfileAsync()
     {
         if (_isLoading) return;
-        if (HistoryRows.Children.Count > 0) return; // Already loaded
 
         _isLoading = true;
         StartLoadingAnimations();
@@ -183,8 +182,11 @@ public partial class ProfilePage : ContentPage
 
     private void OnWalletTabClicked(object sender, EventArgs e)
     {
-        WalletTabView.IsVisible = true;
         AccountTabView.IsVisible = false;
+        AccountTabView.Opacity = 0;
+        
+        WalletTabView.IsVisible = true;
+        WalletTabView.Opacity = 1;
 
         // Animate indicator back to start
         TabIndicator.TranslateTo(0, 0, 250, Easing.CubicInOut);
@@ -196,7 +198,10 @@ public partial class ProfilePage : ContentPage
     private void OnAccountTabClicked(object sender, EventArgs e)
     {
         WalletTabView.IsVisible = false;
+        WalletTabView.Opacity = 0;
+        
         AccountTabView.IsVisible = true;
+        AccountTabView.Opacity = 1;
 
         // Calculate distance to move (half of the grid width)
         double targetX = TabGrid.Width / 2;
@@ -228,7 +233,7 @@ public partial class ProfilePage : ContentPage
         TabSwitcherContainer.TranslationY = -(factor * 5);
         
         // Balance Card (Deep parallax)
-        if (BalanceCardGrid != null)
+        if (BalanceCardGrid != null && WalletTabView.IsVisible)
         {
             BalanceCardGrid.TranslationY = -(factor * 20);
             BalanceCardGrid.Opacity = 1.0 - (factor * 0.15);
@@ -432,15 +437,10 @@ public partial class ProfilePage : ContentPage
             }
         }, token);
 
-        // 2. Dots loop
-        int dots = 0;
-        while (!token.IsCancellationRequested)
-        {
-            dots = (dots + 1) % 4;
-            LoadingDotsLabel.Text = "Loading" + new string('.', dots);
-            try { await Task.Delay(400, token); } catch { break; }
-        }
     }
+
+
+
 
     private void StopLoadingAnimations()
     {
