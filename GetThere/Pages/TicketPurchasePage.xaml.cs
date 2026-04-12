@@ -53,6 +53,38 @@ public partial class TicketPurchasePage : ContentPage
         UpdateResponsiveLayout();
     }
 
+    private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
+    {
+        var scrollView = sender as ScrollView;
+        if (scrollView == null) return;
+
+        double scrollY = e.ScrollY;
+        const double maxScroll = 120.0;
+        
+        // --- 1. Header Parallax & Scale ---
+        double factor = Math.Clamp(scrollY / maxScroll, 0, 1);
+        PageHeaderStack.Scale = 1.0 - (factor * 0.15);
+        PageHeaderStack.Opacity = 1.0 - (factor * 0.5);
+        PageHeaderStack.TranslationY = -(factor * 10);
+        
+        // --- 2. Premium Manual Scrollbar Logic ---
+        double contentHeight = scrollView.ContentSize.Height;
+        double viewHeight = scrollView.Height;
+        
+        if (contentHeight > viewHeight)
+        {
+            CustomScrollThumb.IsVisible = true;
+            double usableHeight = viewHeight - CustomScrollThumb.HeightRequest - 60;
+            double scrollPercent = Math.Clamp(scrollY / (contentHeight - viewHeight), 0, 1);
+            CustomScrollThumb.TranslationY = (scrollPercent * usableHeight) + 30;
+            CustomScrollThumb.Opacity = 0.5 + (scrollPercent * 0.5);
+        }
+        else
+        {
+            CustomScrollThumb.IsVisible = false;
+        }
+    }
+
     private void UpdateResponsiveLayout()
     {
         PageUtility.ApplyTicketsStyleResponsive(Width, PurchaseSurface);

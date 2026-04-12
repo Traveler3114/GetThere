@@ -3,6 +3,7 @@
     x:Class="GetThere.Pages.ShopPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
     Title="Shop"
     BackgroundColor="#F8F9FA"
@@ -12,7 +13,7 @@
         <components:AnimatedBackground Grid.RowSpan="3" />
 
         <!--  Header  -->
-        <Grid Grid.Row="0" Padding="16,18,16,0">
+        <Grid x:Name="PageHeaderGrid" Grid.Row="0" Padding="16,18,16,0">
             <Label
                 FontAttributes="Bold"
                 FontSize="32"
@@ -42,15 +43,34 @@
         </Grid>
 
         <!--  Operators list  -->
-        <ScrollView Grid.Row="2" Padding="16,8,16,100">
+        <Grid Grid.Row="2" HorizontalOptions="Fill">
+            <ScrollView x:Name="MainScrollView" Scrolled="OnMainScrollViewScrolled" VerticalScrollBarVisibility="Never" Padding="16,8,16,100">
             <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center" MaximumWidthRequest="1200">
 
-                <ActivityIndicator
-                    x:Name="BusyIndicator"
-                    HeightRequest="40"
-                    IsRunning="False"
-                    IsVisible="False"
-                    Color="#1264AB" />
+                <!-- PREMIUM SKELETON LOADING STATE -->
+                <Grid x:Name="PremiumLoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
+                    <!-- Skeleton SVG -->
+                    <Image Source="loading_shop.svg" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
+                    
+                    <!-- Shimmer Sweep -->
+                    <Grid IsClippedToBounds="True" InputTransparent="True">
+                        <BoxView x:Name="ShimmerBox" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
+                            <BoxView.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="Transparent" Offset="0" />
+                                    <GradientStop Color="#FFFFFF" Offset="0.5" />
+                                    <GradientStop Color="Transparent" Offset="1" />
+                                </LinearGradientBrush>
+                            </BoxView.Background>
+                            <BoxView.Rotation>20</BoxView.Rotation>
+                        </BoxView>
+                    </Grid>
+
+                    <!-- Floating Label -->
+                    <VerticalStackLayout Spacing="5" VerticalOptions="End" Margin="0,0,0,120">
+                        <Label x:Name="LoadingDotsLabel" Text="Loading" FontSize="18" TextColor="#1264AB" FontAttributes="Bold" HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </Grid>
 
                 <VerticalStackLayout x:Name="OperatorCards" Spacing="0" />
 
@@ -64,7 +84,21 @@
                 </VerticalStackLayout>
 
             </VerticalStackLayout>
-        </ScrollView>
+            </ScrollView>
 
+            <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+            <Border x:Name="CustomScrollThumb" 
+                    WidthRequest="4" 
+                    HeightRequest="40" 
+                    BackgroundColor="#CBD5E1" 
+                    HorizontalOptions="End" 
+                    VerticalOptions="Start"
+                    Margin="0,0,4,0" 
+                    IsVisible="False"
+                    ZIndex="1000">
+                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="2" /></Border.StrokeShape>
+            </Border>
+
+        </Grid>
     </Grid>
 </ContentPage>
