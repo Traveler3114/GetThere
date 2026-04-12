@@ -117,9 +117,6 @@ public partial class ProfilePage : ContentPage
 
     private async Task LoadHistoryAsync()
     {
-        BusyLoader.IsVisible = true;
-        BusyLoader.IsRunning = true;
-        HistoryContainer.IsVisible = false; // Hide everything while loading
         NoItemsLabel.IsVisible = false;
 
         try
@@ -135,12 +132,6 @@ public partial class ProfilePage : ContentPage
         catch
         {
             NoItemsLabel.IsVisible = true;
-        }
-        finally
-        {
-            BusyLoader.IsVisible = false;
-            BusyLoader.IsRunning = false;
-            HistoryContainer.IsVisible = true; // Show everything after loading
         }
     }
 
