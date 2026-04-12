@@ -1,5 +1,6 @@
 #nullable enable
 using GetThere.Helpers;
+using System;
 using GetThere.Services;
 using GetThere.State;
 using GetThere.Components;
@@ -199,6 +200,46 @@ public partial class ProfilePage : ContentPage
 
         WalletTabBtn.TextColor = Color.FromArgb("#64748B");
         AccountTabBtn.TextColor = Color.FromArgb("#512BD4");
+    }
+
+    private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
+    {
+        var scrollView = sender as ScrollView;
+        if (scrollView == null) return;
+
+        double scrollY = e.ScrollY;
+        const double maxScroll = 120.0;
+        
+        // --- 1. Header Parallax & Scale (Existing) ---
+        double factor = Math.Clamp(scrollY / maxScroll, 0, 1);
+        UserAvatarBorder.Scale = 1.0 - (factor * 0.3);
+        UserInfoStack.Opacity = 1.0 - (factor * 0.8);
+        UserInfoStack.TranslationX = -(factor * 10);
+        
+        if (SubSettingsView.IsVisible)
+        {
+            SubSettingsHeader.Opacity = 1.0 - (Math.Clamp(scrollY / 50.0, 0, 0.4));
+        }
+
+        // --- 2. Premium Manual Scrollbar Logic ---
+        double contentHeight = scrollView.ContentSize.Height;
+        double viewHeight = scrollView.Height;
+        
+        if (contentHeight > viewHeight)
+        {
+            CustomScrollThumb.IsVisible = true;
+            // Calculate thumb range and position
+            double maxThumbMove = viewHeight - CustomScrollThumb.HeightRequest - 20; // 20 for margin
+            double scrollPercent = scrollY / (contentHeight - viewHeight);
+            CustomScrollThumb.TranslationY = scrollPercent * maxThumbMove;
+            
+            // Subtle fade for the thumb
+            CustomScrollThumb.Opacity = 0.6 + (scrollPercent * 0.4);
+        }
+        else
+        {
+            CustomScrollThumb.IsVisible = false;
+        }
     }
 
     private void OnHideBalanceClicked(object sender, EventArgs e)

@@ -50,15 +50,15 @@
         <Grid RowDefinitions="Auto, Auto, *">
             
             <!-- 1. USER IDENTITY HEADER (ALIGNED WITH CONTENT) -->
-            <Grid Grid.Row="0" MaximumWidthRequest="600" HorizontalOptions="Center" Padding="24,35,24,10" ColumnDefinitions="Auto, *">
-                <Border WidthRequest="70" HeightRequest="70" StrokeThickness="3" Stroke="#512BD4">
+            <Grid x:Name="UserHeader" Grid.Row="0" MaximumWidthRequest="600" HorizontalOptions="Center" Padding="24,35,24,10" ColumnDefinitions="Auto, *">
+                <Border x:Name="UserAvatarBorder" WidthRequest="70" HeightRequest="70" StrokeThickness="3" Stroke="#512BD4">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="35" /></Border.StrokeShape>
                     <Image Source="profile.svg" Margin="12" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnAvatarClicked" />
                     </Border.GestureRecognizers>
                 </Border>
-                <VerticalStackLayout Grid.Column="1" Margin="16,0,0,0" VerticalOptions="Center">
+                <VerticalStackLayout x:Name="UserInfoStack" Grid.Column="1" Margin="16,0,0,0" VerticalOptions="Center">
                     <Label x:Name="UserDisplayNameLabel" Text="Luka S." FontSize="20" FontAttributes="Bold" TextColor="Black" />
                     <Label Text="● VERIFIED" FontSize="11" FontAttributes="Bold" TextColor="#10B981" />
                 </VerticalStackLayout>
@@ -135,7 +135,7 @@
                         <Border Grid.Row="1" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Center" MaximumWidthRequest="1200" VerticalOptions="Fill">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="36,36,0,0" /></Border.StrokeShape>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.05" Radius="20" Offset="0,-10" /></Border.Shadow>
-                            <ScrollView HeightRequest="450">
+                            <ScrollView x:Name="WalletScrollView" HeightRequest="450" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
                                 <VerticalStackLayout Padding="24,10,24,120">
                                     <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E5E7EB" HorizontalOptions="Center" Margin="0,12,0,12" />
                                     <StackLayout x:Name="HistoryRows" BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" Spacing="0" />
@@ -147,7 +147,7 @@
                 </VerticalStackLayout>
 
                 <!-- ── ACCOUNT TAB VIEW ── -->
-                <ScrollView x:Name="AccountTabView" IsVisible="False" Padding="24,10,24,120">
+                <ScrollView x:Name="AccountTabView" IsVisible="False" Padding="24,10,24,120" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
                     <VerticalStackLayout Spacing="24" MaximumWidthRequest="600">
                         <!-- Personal Info Card -->
                         <VerticalStackLayout Spacing="10">
@@ -248,27 +248,50 @@
             </Grid>
         </Grid>
 
+        <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+        <Border x:Name="CustomScrollThumb" 
+                Grid.Row="2"
+                WidthRequest="4" 
+                HeightRequest="40" 
+                BackgroundColor="#CBD5E1" 
+                HorizontalOptions="End" 
+                VerticalOptions="Start"
+                Margin="0,0,4,0" 
+                IsVisible="False"
+                ZIndex="1000">
+            <Border.StrokeShape><shapes:RoundRectangle CornerRadius="2" /></Border.StrokeShape>
+        </Border>
+
+        <!--  ── TOP GRADIENT FADE (PREMIUM SCROLL FINISH) ──  -->
+        <BoxView Grid.Row="2" HeightRequest="20" VerticalOptions="Start" InputTransparent="True" ZIndex="900">
+            <BoxView.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#F3F4F6" Offset="0" />
+                    <GradientStop Color="Transparent" Offset="1" />
+                </LinearGradientBrush>
+            </BoxView.Background>
+        </BoxView>
+
         <!--  ── SUB-SETTINGS OVERLAY (SHOP STYLE) ──  -->
         <Grid x:Name="SubSettingsView" BackgroundColor="#F3F4F6" IsVisible="False" ZIndex="1500">
             <Grid RowDefinitions="Auto, *">
                 <!-- Header (Shop Style) -->
-                <Grid Grid.Row="0" Padding="24,48,24,10" ColumnDefinitions="48, *, 48" MaximumWidthRequest="600" HorizontalOptions="Fill" ZIndex="2">
-                    <Button Grid.Column="0" 
-                            BackgroundColor="Transparent" 
-                            Padding="0"
-                            WidthRequest="40"
-                            HeightRequest="40"
-                            HorizontalOptions="Start"
-                            Clicked="OnBackFromSubSettings">
-                        <Button.Content>
-                            <shapes:Path Data="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" 
-                                  Fill="Black" 
-                                  WidthRequest="24" 
-                                  HeightRequest="24" 
-                                  HorizontalOptions="Center" 
-                                  VerticalOptions="Center" />
-                        </Button.Content>
-                    </Button>
+                <Grid Grid.Row="0" x:Name="SubSettingsHeader" Padding="24,48,24,10" ColumnDefinitions="48, *, 48" MaximumWidthRequest="600" HorizontalOptions="Fill" ZIndex="2">
+                    <!-- Back Arrow (Corrected Coordinates) -->
+                    <Grid Grid.Column="0" WidthRequest="44" HeightRequest="44" HorizontalOptions="Start" VerticalOptions="Center">
+                        <shapes:Path Data="M19,5L9,12l10,7 M9,12h14" 
+                                     Stroke="Black" 
+                                     StrokeThickness="2.5" 
+                                     StrokeLineCap="Round" 
+                                     StrokeLineJoin="Round"
+                                     HorizontalOptions="Center" 
+                                     VerticalOptions="Center"
+                                     WidthRequest="24" 
+                                     HeightRequest="24" />
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackFromSubSettings" />
+                        </Grid.GestureRecognizers>
+                    </Grid>
                     <Label x:Name="SubSettingsTitle" Grid.Column="1" HorizontalOptions="Center" Text="Settings" FontSize="20" FontAttributes="Bold" TextColor="Black" VerticalOptions="Center" />
                 </Grid>
 
