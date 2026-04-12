@@ -3,6 +3,7 @@ using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 
 namespace GetThereAPI.Controllers;
 
@@ -13,9 +14,8 @@ namespace GetThereAPI.Controllers;
 /// GET /operator/ticketable              → operators available for ticket purchase (optional ?countryId=)
 /// GET /operator/stops                   → all stops across all operators (optional ?countryId=)
 /// GET /operator/routes                  → all routes across all operators (optional ?countryId=)
-/// GET /operator/vehicles                → all live vehicles across all operators (optional ?countryId=)
 /// GET /operator/stops/{id}/schedule     → departures for a stop (with realtime)
-/// GET /operator/trips/{id}              → full stop sequence for a trip (with realtime)
+/// GET /operator/health                  → transit provider health for selected country instance
 /// GET /operator/transport-types         → transport types with available icons
 /// </summary>
 [ApiController]
@@ -59,10 +59,10 @@ public class OperatorController : ControllerBase
     // GET /operator/stops
     // GET /operator/stops?countryId=1
     [HttpGet("stops")]
-    public ActionResult<OperationResult<List<StopDto>>> GetStops(
+    public async Task<ActionResult<OperationResult<List<StopDto>>>> GetStops(
         [FromQuery] int? countryId = null)
     {
-        var stops = _manager.GetAllStops(countryId);
+        var stops = await _manager.GetAllStopsAsync(countryId);
         return Ok(OperationResult<List<StopDto>>.Ok(stops));
     }
 
@@ -70,30 +70,20 @@ public class OperatorController : ControllerBase
     // GET /operator/routes
     // GET /operator/routes?countryId=1
     [HttpGet("routes")]
-    public ActionResult<OperationResult<List<RouteDto>>> GetRoutes(
+    public async Task<ActionResult<OperationResult<List<RouteDto>>>> GetRoutes(
         [FromQuery] int? countryId = null)
     {
-        var routes = _manager.GetAllRoutes(countryId);
+        var routes = await _manager.GetAllRoutesAsync(countryId);
         return Ok(OperationResult<List<RouteDto>>.Ok(routes));
-    }
-
-    /// <summary>Returns all live vehicles, optionally filtered by country.</summary>
-    // GET /operator/vehicles
-    // GET /operator/vehicles?countryId=1
-    [HttpGet("vehicles")]
-    public ActionResult<OperationResult<List<VehicleDto>>> GetVehicles(
-        [FromQuery] int? countryId = null)
-    {
-        var vehicles = _manager.GetAllVehicles(countryId);
-        return Ok(OperationResult<List<VehicleDto>>.Ok(vehicles));
     }
 
     // GET /operator/stops/{stopId}/schedule
     [HttpGet("stops/{stopId}/schedule")]
     public async Task<ActionResult<OperationResult<StopScheduleDto>>> GetStopSchedule(
-        string stopId)
+        string stopId,
+        [FromQuery] int? countryId = null)
     {
-        var schedule = await _manager.GetStopScheduleAsync(stopId);
+        var schedule = await _manager.GetStopScheduleAsync(stopId, countryId);
         if (schedule is null)
             return NotFound(OperationResult<StopScheduleDto>.Fail(
                 $"Stop '{stopId}' not found"));
@@ -101,17 +91,18 @@ public class OperatorController : ControllerBase
         return Ok(OperationResult<StopScheduleDto>.Ok(schedule));
     }
 
-    // GET /operator/trips/{tripId}
-    [HttpGet("trips/{tripId}")]
-    public async Task<ActionResult<OperationResult<TripDetailDto>>> GetTripDetail(
-        string tripId)
+    // GET /operator/health
+    // GET /operator/health?countryId=1
+    [HttpGet("health")]
+    public async Task<ActionResult<OperationResult<object>>> GetTransitHealth(
+        [FromQuery] int? countryId = null)
     {
-        var detail = await _manager.GetTripDetailAsync(tripId);
-        if (detail is null)
-            return NotFound(OperationResult<TripDetailDto>.Fail(
-                $"Trip '{tripId}' not found"));
+        var ok = await _manager.IsTransitHealthyAsync(countryId);
+        if (!ok)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                OperationResult<object>.Fail("Transit provider is unavailable"));
 
-        return Ok(OperationResult<TripDetailDto>.Ok(detail));
+        return Ok(OperationResult<object>.Ok(new { healthy = true }));
     }
 
     // GET /operator/transport-types

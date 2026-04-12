@@ -1,6 +1,7 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Managers;
+using GetThereAPI.Transit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -31,15 +32,18 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddHttpClient();
+builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
+
+// ── Transit provider stack ──────────────────────────────────────────────────
+builder.Services.AddScoped<OtpClient>();
+builder.Services.AddScoped<ITransitProvider, OtpTransitProvider>();
+builder.Services.AddScoped<ITransitRouter, TransitRouter>();
+builder.Services.AddScoped<TransitOrchestrator>();
 
 // ── Singletons (in-memory cache — must NOT be scoped) ─────────────────────
-// Registered before the reflection loop so the loop skips them.
-builder.Services.AddSingleton<StaticDataManager>();
-builder.Services.AddSingleton<RealtimeManager>();
 builder.Services.AddSingleton<MobilityManager>();
 
 // Starts background polling loops when the server starts
-builder.Services.AddHostedService(sp => sp.GetRequiredService<RealtimeManager>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MobilityManager>());
 
 // ── All other managers (scoped — auto-registered by reflection) ───────────
@@ -48,8 +52,6 @@ var managerTypes = Assembly.GetExecutingAssembly()
     .Where(t => t.Namespace == "GetThereAPI.Managers"
                 && t.IsClass
                 && !t.IsAbstract
-                && t != typeof(StaticDataManager)   // already registered as singleton
-                && t != typeof(RealtimeManager)     // already registered as singleton
                 && t != typeof(MobilityManager));   // already registered as singleton
 
 foreach (var managerType in managerTypes)
@@ -95,7 +97,6 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 // ─────────────────────────────────────────────────────────────────────────
 
-// ── Load GTFS data for all operators on startup ───────────────────────────
 // ── Non-blocking background initialization ───────────────────────────────
 // We fire and forget these tasks so the server starts listening INSTANTLY.
 // Data will populate in the background over the first few seconds.
@@ -107,11 +108,7 @@ _ = Task.Run(async () =>
 
     try
     {
-        // 1. Load GTFS data for all operators
-        var operatorManager = scope.ServiceProvider.GetRequiredService<OperatorManager>();
-        await operatorManager.InitialiseAsync();
-
-        // 2. Pre-fetch bike stations
+        // Pre-fetch bike stations
         var mobilityManager = scope.ServiceProvider.GetRequiredService<MobilityManager>();
         await mobilityManager.InitialiseAsync();
 

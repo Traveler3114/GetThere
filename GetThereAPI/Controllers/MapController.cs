@@ -11,7 +11,7 @@ namespace GetThereAPI.Controllers;
 /// <summary>
 /// Unified map endpoint.
 ///
-/// GET /map/features  → all map features (stops, vehicles, bike stations …)
+/// GET /map/features  → all map features (stops, bike stations …)
 ///                      each wrapped in a <see cref="MapFeatureDto"/> envelope.
 ///
 /// The client only ever calls this one endpoint, reads the Type discriminator,
@@ -35,12 +35,22 @@ public class MapController : ControllerBase
 
     // GET /map/features
     [HttpGet("features")]
-    public ActionResult<OperationResult<List<MapFeatureDto>>> GetFeatures()
+    public async Task<ActionResult<OperationResult<List<MapFeatureDto>>>> GetFeatures(
+        [FromQuery] int? countryId = null)
     {
         var features = new List<MapFeatureDto>();
+        string? countryName = null;
+
+        if (countryId.HasValue)
+        {
+            countryName = await _db.Countries
+                .Where(c => c.Id == countryId.Value)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+        }
 
         // ── Transit stops ────────────────────────────────────────────────────
-        foreach (var stop in _operators.GetAllStops())
+        foreach (var stop in await _operators.GetAllStopsAsync(countryId))
         {
             features.Add(new MapFeatureDto
             {
@@ -51,20 +61,8 @@ public class MapController : ControllerBase
             });
         }
 
-        // ── Live vehicles ────────────────────────────────────────────────────
-        foreach (var vehicle in _operators.GetAllVehicles())
-        {
-            features.Add(new MapFeatureDto
-            {
-                Type = "Vehicle",
-                Lat  = vehicle.Lat,
-                Lon  = vehicle.Lon,
-                Data = JsonSerializer.SerializeToElement(vehicle)
-            });
-        }
-
         // ── Bike stations ────────────────────────────────────────────────────
-        foreach (var station in _mobility.GetAllStations())
+        foreach (var station in _mobility.GetAllStations(countryName))
         {
             features.Add(new MapFeatureDto
             {

@@ -77,7 +77,7 @@ Our map isn’t a clone of Google Maps—it’s **built for travelers, commuters
 ## **Technical Stack (Example)**
 
 - **Base Map:** OpenStreetMap (EU hosts/tiles, privacy-friendly).
-- **Routing:** GTFS/GTFS-RT feeds for city public transport data.
+- **Routing:** OpenTripPlanner (OTP) as transit source via GraphQL.
 - **Frontend:** Leaflet.js, MapLibre, or similar open-source map SDKs.
 - **Extensibility:** Overlay static and real-time feeds, accessibility, zone layers.
 
