@@ -16,7 +16,21 @@ public class OtpTransitProvider : ITransitProvider
 
     public async Task<List<StopDto>> GetStopsAsync(string instanceKey, CancellationToken ct = default)
     {
-        const string query = """
+        const string queryWithRoutes = """
+            query Stops {
+              stops {
+                gtfsId
+                name
+                lat
+                lon
+                routes {
+                  mode
+                }
+              }
+            }
+            """;
+
+        const string queryFallback = """
             query Stops {
               stops {
                 gtfsId
@@ -27,7 +41,8 @@ public class OtpTransitProvider : ITransitProvider
             }
             """;
 
-        var doc = await _otpClient.QueryAsync(instanceKey, query, ct: ct);
+        var doc = await _otpClient.QueryAsync(instanceKey, queryWithRoutes, ct: ct)
+                  ?? await _otpClient.QueryAsync(instanceKey, queryFallback, ct: ct);
         if (doc is null) return [];
 
         if (!TryGetDataNode(doc, "stops", out var stopsNode)
@@ -53,7 +68,7 @@ public class OtpTransitProvider : ITransitProvider
                 Name = name,
                 Lat = lat,
                 Lon = lon,
-                RouteType = 3
+                RouteType = ResolveStopRouteType(item)
             });
         }
 
@@ -362,6 +377,36 @@ public class OtpTransitProvider : ITransitProvider
             "TROLLEYBUS" => 11,
             _ => 3
         };
+
+    private static int ResolveStopRouteType(JsonElement stopNode)
+    {
+        if (!stopNode.TryGetProperty("routes", out var routesNode)
+            || routesNode.ValueKind != JsonValueKind.Array)
+        {
+            return 3;
+        }
+
+        var routeTypes = new List<int>();
+        foreach (var route in routesNode.EnumerateArray())
+        {
+            var mode = GetString(route, "mode");
+            if (string.IsNullOrWhiteSpace(mode))
+                continue;
+            routeTypes.Add(MapModeToRouteType(mode));
+        }
+
+        if (routeTypes.Count == 0)
+            return 3;
+
+        // Prefer more specific rail/tram icon categories over bus if mixed at a stop.
+        if (routeTypes.Contains(0)) return 0;   // Tram
+        if (routeTypes.Contains(2)) return 2;   // Rail
+        if (routeTypes.Contains(1)) return 1;   // Subway
+        if (routeTypes.Contains(11)) return 11; // Trolleybus
+        if (routeTypes.Contains(4)) return 4;   // Ferry
+
+        return routeTypes[0];
+    }
 
     private static string? NormalizeColor(string value)
     {
