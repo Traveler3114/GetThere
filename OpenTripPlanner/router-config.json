@@ -1,0 +1,17 @@
+{
+  "updaters": [
+    {
+      "type": "STOP_TIME_UPDATER",
+      "feedId": "zet",
+      "url": "https://www.zet.hr/gtfs-rt-protobuf",
+      "frequency": "PT30S"
+    },
+    {
+      "type": "STOP_TIME_UPDATER",
+      "feedId": "hzpp",
+      "url": "http://127.0.0.1:5000/hzpp-rt",
+      "frequency": "PT30S",
+      "fuzzyTripMatching": true
+    }
+  ]
+}

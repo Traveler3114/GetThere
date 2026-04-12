@@ -1,0 +1,20 @@
+{
+  "transitFeeds": [
+    {
+      "type": "gtfs",
+      "source": "https://www.zet.hr/gtfs-scheduled/latest",
+      "feedId": "zet"
+    },
+    {
+      "type": "gtfs",
+      "source": "https://www.hzpp.hr/GTFS_files.zip",
+      "feedId": "hzpp"
+    },
+    {
+      "type": "gtfs",
+      "source": "https://data.lpp.si/api/gtfs/feed.zip",
+      "feedId": "lpp"
+    }
+  ],
+  "transitModelTimeZone": "Europe/Zagreb"
+}
