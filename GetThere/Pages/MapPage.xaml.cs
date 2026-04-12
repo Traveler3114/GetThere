@@ -11,7 +11,6 @@ public partial class MapPage : ContentPage
     private readonly OperatorService _operatorService;
     private readonly CountryPreferenceService _countryPrefs;
 
-    private System.Timers.Timer? _vehicleTimer;
     private System.Timers.Timer? _jsMessageTimer;
 
     private readonly TaskCompletionSource _navigatedTcs = new();
@@ -202,14 +201,12 @@ public partial class MapPage : ContentPage
         await WaitForMapReadyAsync();
         await LoadStaticDataAsync();
         await GetLocationAsync();
-        StartVehiclePolling();
         StartJsMessagePolling();
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        StopVehiclePolling();
         StopJsMessagePolling();
     }
 
@@ -311,41 +308,6 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // ── Vehicle polling ───────────────────────────────────────────────────
-
-    private void StartVehiclePolling()
-    {
-        _vehicleTimer = new System.Timers.Timer(10_000);
-        _vehicleTimer.Elapsed += async (_, _) => await PollVehiclesAsync();
-        _vehicleTimer.AutoReset = true;
-        _vehicleTimer.Start();
-        Task.Run(PollVehiclesAsync);
-    }
-
-    private void StopVehiclePolling()
-    {
-        _vehicleTimer?.Stop();
-        _vehicleTimer?.Dispose();
-        _vehicleTimer = null;
-    }
-
-    private async Task PollVehiclesAsync()
-    {
-        try
-        {
-            int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
-            var vehicles = await _operatorService.GetVehiclesAsync(countryId);
-            if (vehicles is null) return;
-
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-                await CallJsAsync("renderVehicles", vehicles));
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[MapPage] PollVehicles error: {ex.Message}");
-        }
-    }
-
     // ── JS → C# message polling ───────────────────────────────────────────
 
     private void StartJsMessagePolling()
@@ -381,8 +343,6 @@ public partial class MapPage : ContentPage
 
             if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
                 await HandleStopTappedAsync(msg["stopSchedule:".Length..]);
-            else if (msg.StartsWith("tripDetail:", StringComparison.Ordinal))
-                await HandleVehicleTappedAsync(msg["tripDetail:".Length..]);
         }
         catch (Exception ex)
         {
@@ -394,20 +354,12 @@ public partial class MapPage : ContentPage
 
     private async Task HandleStopTappedAsync(string stopId)
     {
-        var schedule = await _operatorService.GetStopScheduleAsync(stopId);
+        int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
+        var schedule = await _operatorService.GetStopScheduleAsync(stopId, countryId);
 
         await MainThread.InvokeOnMainThreadAsync(async () =>
             await CallJsAsync("renderStopSchedule",
                 schedule ?? (object)new { stopId, groups = Array.Empty<object>() }));
-    }
-
-    private async Task HandleVehicleTappedAsync(string tripId)
-    {
-        var detail = await _operatorService.GetTripDetailAsync(tripId);
-        if (detail is null) return;
-
-        await MainThread.InvokeOnMainThreadAsync(async () =>
-            await CallJsAsync("renderTripDetail", detail));
     }
 
     // ── JS bridge ─────────────────────────────────────────────────────────
@@ -428,7 +380,6 @@ public partial class MapPage : ContentPage
         }
     }
 }
-
 
 
 

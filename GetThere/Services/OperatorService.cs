@@ -112,27 +112,6 @@ public class OperatorService
         }
     }
 
-    /// <summary>
-    /// Returns all live vehicle positions for the given country, or all vehicles when countryId is null.
-    /// Called every 10 seconds to keep the map up to date.
-    /// </summary>
-    public async Task<List<VehicleDto>?> GetVehiclesAsync(int? countryId = null)
-    {
-        try
-        {
-            var url = countryId.HasValue
-                ? $"operator/vehicles?countryId={countryId.Value}"
-                : "operator/vehicles";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<VehicleDto>>>(url);
-            return result?.Data;
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[OperatorService] GetVehicles failed: {ex.Message}");
-            return null;
-        }
-    }
-
     // ── Transport types ───────────────────────────────────────────────────
 
     /// <summary>
@@ -161,12 +140,15 @@ public class OperatorService
     /// Returns today's departures for a stop with realtime delays merged in.
     /// Called when a user taps a stop on the map.
     /// </summary>
-    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId)
+    public async Task<StopScheduleDto?> GetStopScheduleAsync(string stopId, int? countryId = null)
     {
         try
         {
+            var url = countryId.HasValue
+                ? $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule?countryId={countryId.Value}"
+                : $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule";
             var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(
-                $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule");
+                url);
             return result?.Data;
         }
         catch (Exception ex)
@@ -176,22 +158,4 @@ public class OperatorService
         }
     }
 
-    /// <summary>
-    /// Returns the full stop sequence for a trip with realtime delays.
-    /// Called when a user taps a vehicle on the map.
-    /// </summary>
-    public async Task<TripDetailDto?> GetTripDetailAsync(string tripId)
-    {
-        try
-        {
-            var result = await _http.GetFromJsonAsync<OperationResult<TripDetailDto>>(
-                $"operator/trips/{Uri.EscapeDataString(tripId)}");
-            return result?.Data;
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[OperatorService] GetTripDetail({tripId}) failed: {ex.Message}");
-            return null;
-        }
-    }
 }
