@@ -245,13 +245,12 @@ async function _onMapLoad() {
             typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
     });
 
-    // Vehicle click → request trip detail from C#
+    // Vehicle click disabled in OTP phase 1 (no vehicle tracking endpoint).
     ['vehicles-fg', 'vehicles-bg'].forEach(lyr => {
         map.on('click', lyr, e => {
             if (e.defaultPrevented) return;
             e.preventDefault();
-            const p = e.features[0].properties;
-            if (p.tripId) _openTripPanel(p.tripId);
+            _closeTripPanel();
         });
         map.on('mouseenter', lyr, () => map.getCanvas().style.cursor = 'pointer');
         map.on('mouseleave', lyr, () => map.getCanvas().style.cursor = '');
@@ -377,10 +376,7 @@ function renderStopSchedule(data) {
 
         const timesHtml = deps.map((d, i) => {
             let cls = 'time-chip' + (i === 0 ? ' next' : '');
-            const canClick = d.isRealtime || !!d.estimatedTime;
-            if (canClick) cls += ' click';
-            const onClick = canClick
-                ? `onclick="_openTripPanel('${d.tripId}')"` : '';
+            const onClick = '';
 
             const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
             if (hasEta) {
@@ -391,13 +387,13 @@ function renderStopSchedule(data) {
                         ? `<span class="delay-badge early">${delay}'</span>`
                         : `<span class="delay-badge ontime">✓</span>`;
                 const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
-                return `<span class="${cls}" ${onClick}>
+                return `<span class="${cls}">
                             <span class="sched-strike">${d.scheduledTime}</span>
                             <span class="eta-time">${d.estimatedTime}</span>
                             ${badge}${dot}
                         </span>`;
             } else if (d.isRealtime) {
-                return `<span class="${cls}" ${onClick}>${d.scheduledTime}<span class="live-dot">●</span></span>`;
+                return `<span class="${cls}">${d.scheduledTime}<span class="live-dot">●</span></span>`;
             } else {
                 return `<span class="${cls}">${d.scheduledTime}</span>`;
             }
@@ -566,6 +562,8 @@ function _closeStopSheet() {
 }
 
 function _openTripPanel(tripId) {
+    // Intentionally disabled in OTP phase 1 (trip detail endpoint removed).
+    if (!tripId) return;
     _sheet.classList.remove('open');
     _currentStop = null;
 
@@ -577,8 +575,8 @@ function _openTripPanel(tripId) {
     _tripBody.innerHTML = '';
     _tripPanel.classList.add('open');
 
-    // Tell C# to fetch the trip detail
-    window._pendingMsg = 'tripDetail:' + tripId;
+    _tripLoading.style.display = 'none';
+    _tripBody.innerHTML = '<div style="padding:12px 16px;color:#666;">Trip detail is not available in this phase.</div>';
 }
 
 function _closeTripPanel() {

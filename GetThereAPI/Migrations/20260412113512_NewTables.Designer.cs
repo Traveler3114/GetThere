@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260405092526_NewMigration")]
-    partial class NewMigration
+    [Migration("20260412113512_NewTables")]
+    partial class NewTables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -38,13 +38,6 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("MobilityProvidersId");
 
                     b.ToTable("MobilityProviderCity", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            CitiesId = 1,
-                            MobilityProvidersId = 1
-                        });
                 });
 
             modelBuilder.Entity("CountryMobilityProvider", b =>
@@ -60,13 +53,6 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("MobilityProvidersId");
 
                     b.ToTable("MobilityProviderCountry", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            CountriesId = 1,
-                            MobilityProvidersId = 1
-                        });
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.AppUser", b =>
@@ -176,6 +162,66 @@ namespace GetThereAPI.Migrations
                             Id = 2,
                             CountryId = 2,
                             Name = "Ljubljana"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CountryId = 3,
+                            Name = "Vienna"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CountryId = 4,
+                            Name = "Berlin"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CountryId = 5,
+                            Name = "Paris"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CountryId = 6,
+                            Name = "Rome"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            CountryId = 7,
+                            Name = "Warsaw"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            CountryId = 8,
+                            Name = "Prague"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            CountryId = 9,
+                            Name = "Budapest"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            CountryId = 10,
+                            Name = "Zurich"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            CountryId = 11,
+                            Name = "Bratislava"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            CountryId = 12,
+                            Name = "Madrid"
                         });
                 });
 
@@ -205,6 +251,56 @@ namespace GetThereAPI.Migrations
                         {
                             Id = 2,
                             Name = "Slovenia"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Austria"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Name = "Germany"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Name = "France"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Name = "Italy"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Name = "Poland"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Name = "Czechia"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Name = "Hungary"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Name = "Switzerland"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Name = "Slovakia"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Name = "Spain"
                         });
                 });
 
@@ -255,7 +351,7 @@ namespace GetThereAPI.Migrations
                             ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             FeedFormat = "NEXTBIKE_API",
-                            Name = "Bajs / Nextbike Zagreb",
+                            Name = "Bajs / Nextbike",
                             Type = "BIKE_STATION"
                         });
                 });
@@ -502,11 +598,10 @@ namespace GetThereAPI.Migrations
                         new
                         {
                             Id = 3,
-                            CityId = 2,
-                            CountryId = 2,
+                            CountryId = 3,
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
-                            Name = "LPP",
+                            GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
+                            Name = "ÖBB (Austrian Federal Railways)",
                             RealtimeAuthType = "NONE",
                             RealtimeFeedFormat = "NONE",
                             StaticFeedFormat = "GTFS",
@@ -566,14 +661,6 @@ namespace GetThereAPI.Migrations
                             GtfsRouteType = 2,
                             IconFile = "train.png",
                             Name = "Train"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Color = "#6a1b9a",
-                            GtfsRouteType = 715,
-                            IconFile = "bike.png",
-                            Name = "City Bike"
                         });
                 });
 

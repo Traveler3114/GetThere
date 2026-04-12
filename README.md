@@ -33,7 +33,7 @@ No more juggling dozens of apps: Think of how streaming was once unified—now, 
 ### 2. Scheduling & Journey Planning
 
 - Integrated journey planner/map (future):  
-  Combines GTFS/multimodal APIs for real-time routes, options, and accessibility info.
+  Uses OTP-backed transit data with provider abstractions for future multimodal expansion.
 - Users can plan complex trips across cities, countries, and operators without switching apps.
 
 ---

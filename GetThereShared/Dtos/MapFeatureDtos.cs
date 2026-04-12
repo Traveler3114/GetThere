@@ -7,8 +7,8 @@ namespace GetThereShared.Dtos;
 /// The client reads <see cref="Type"/> to determine how to render the marker,
 /// then deserialises <see cref="Data"/> into the appropriate model.
 ///
-/// Known types: "Stop" | "Vehicle" | "BikeStation"
-/// Future:      "Scooter" | "Ferry" | "FlightGate" etc.
+/// Known types: "Stop" | "BikeStation"
+/// Future:      "Vehicle" | "Scooter" | "Ferry" | "FlightGate" etc.
 /// </summary>
 public class MapFeatureDto
 {
