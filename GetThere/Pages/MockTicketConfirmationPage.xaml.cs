@@ -40,6 +40,11 @@ public partial class MockTicketConfirmationPage : ContentPage
             ? dt.ToLocalTime().ToString("dd MMM HH:mm")
             : iso ?? string.Empty;
 
+    private async void OnCloseClicked(object sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("//shop");
+    }
+
     private async void OnDoneClicked(object? sender, EventArgs e)
     {
         // Pop back to shop root (two pages: TicketPurchasePage + this)

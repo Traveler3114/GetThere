@@ -128,19 +128,21 @@
             </Grid>
         </Grid>
 
-        <!-- ── PREMIUM POPUP DROPDOWN (ANCHORED RIGHT) ── -->
+        <!-- ── PREMIUM POPUP DROPDOWN (ANCHORED TO CONTENT) ── -->
         <Grid x:Name="FilterBottomSheet" Grid.RowSpan="2" IsVisible="False" Opacity="0">
             <BoxView BackgroundColor="#66000000">
                 <BoxView.GestureRecognizers><TapGestureRecognizer Tapped="OnHideFilterBottomSheet" /></BoxView.GestureRecognizers>
             </BoxView>
             
-            <Border x:Name="FilterContent" VerticalOptions="Start" HorizontalOptions="End" 
-                    Margin="0,110,24,0" Padding="1" StrokeThickness="0" BackgroundColor="White" 
-                    WidthRequest="200" TranslationY="-20">
-                <Border.StrokeShape><RoundRectangle CornerRadius="24" /></Border.StrokeShape>
-                <Border.Shadow><Shadow Brush="Black" Offset="0,10" Radius="25" Opacity="0.15" /></Border.Shadow>
-                
-                <VerticalStackLayout Padding="8" Spacing="4">
+            <!-- Centered container that matches header width -->
+            <Grid MaximumWidthRequest="600" HorizontalOptions="Fill" VerticalOptions="Start" Margin="24,110,24,0">
+                <Border x:Name="FilterContent" HorizontalOptions="End" 
+                        Padding="1" StrokeThickness="0" BackgroundColor="White" 
+                        WidthRequest="200" TranslationY="-20">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="24" /></Border.StrokeShape>
+                    <Border.Shadow><Shadow Brush="Black" Offset="0,10" Radius="25" Opacity="0.15" /></Border.Shadow>
+                    
+                    <VerticalStackLayout Padding="8" Spacing="4">
                     <!-- Option: Active -->
                     <Border x:Name="ActiveOptionRow" Padding="12,10" StrokeThickness="0" BackgroundColor="Transparent">
                         <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
@@ -178,6 +180,7 @@
                     </Border>
                 </VerticalStackLayout>
             </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

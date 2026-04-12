@@ -36,12 +36,6 @@
             Icon="ticket.svg" 
             ContentTemplate="{DataTemplate pages:TicketsPage}" 
             Route="tickets" />
-        
-        <ShellContent 
-            Title="Settings" 
-            Icon="settings.svg" 
-            ContentTemplate="{DataTemplate pages:SettingsPage}" 
-            Route="settings" />
     </TabBar>
 
 </Shell>
