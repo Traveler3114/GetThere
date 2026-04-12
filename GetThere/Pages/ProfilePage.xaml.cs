@@ -19,6 +19,8 @@ public partial class ProfilePage : ContentPage
 
     private bool _isBalanceHidden = false;
     private string _currentBalanceText = "€0.00";
+    private bool _isLoading;
+    private CancellationTokenSource? _loadingCts;
 
     public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService, CountryService countryService, CountryPreferenceService prefs)
     {
@@ -60,6 +62,12 @@ public partial class ProfilePage : ContentPage
 
     private async Task LoadProfileAsync()
     {
+        if (_isLoading) return;
+        if (HistoryRows.Children.Count > 0) return; // Already loaded
+
+        _isLoading = true;
+        StartLoadingAnimations();
+
         try
         {
             var fullName = await _authService.GetFullNameAsync();
@@ -84,6 +92,11 @@ public partial class ProfilePage : ContentPage
         catch (Exception ex)
         {
             await DisplayAlertAsync("Error", "Could not load profile: " + ex.Message, "OK");
+        }
+        finally
+        {
+            StopLoadingAnimations();
+            _isLoading = false;
         }
     }
 
@@ -210,11 +223,26 @@ public partial class ProfilePage : ContentPage
         double scrollY = e.ScrollY;
         const double maxScroll = 120.0;
         
-        // --- 1. Header Parallax & Scale (Existing) ---
+        // --- 1. Header Parallax & Scale ---
         double factor = Math.Clamp(scrollY / maxScroll, 0, 1);
+        
+        // Avatar & Info (Fastest reaction)
         UserAvatarBorder.Scale = 1.0 - (factor * 0.3);
         UserInfoStack.Opacity = 1.0 - (factor * 0.8);
-        UserInfoStack.TranslationX = -(factor * 10);
+        UserInfoStack.TranslationX = -(factor * 15);
+        
+        // Tab Switcher (Subtle reaction)
+        TabSwitcherContainer.Scale = 1.0 - (factor * 0.1);
+        TabSwitcherContainer.Opacity = 1.0 - (factor * 0.4);
+        TabSwitcherContainer.TranslationY = -(factor * 5);
+        
+        // Balance Card (Deep parallax)
+        if (BalanceCardGrid != null)
+        {
+            BalanceCardGrid.TranslationY = -(factor * 20);
+            BalanceCardGrid.Opacity = 1.0 - (factor * 0.15);
+            BalanceCardGrid.Scale = 1.0 - (factor * 0.05);
+        }
         
         if (SubSettingsView.IsVisible)
         {
@@ -228,13 +256,11 @@ public partial class ProfilePage : ContentPage
         if (contentHeight > viewHeight)
         {
             CustomScrollThumb.IsVisible = true;
-            // Calculate thumb range and position
-            double maxThumbMove = viewHeight - CustomScrollThumb.HeightRequest - 20; // 20 for margin
-            double scrollPercent = scrollY / (contentHeight - viewHeight);
-            CustomScrollThumb.TranslationY = scrollPercent * maxThumbMove;
-            
-            // Subtle fade for the thumb
-            CustomScrollThumb.Opacity = 0.6 + (scrollPercent * 0.4);
+            // Thumb is now INSIDE the border grid
+            double usableHeight = viewHeight - CustomScrollThumb.HeightRequest - 40; 
+            double scrollPercent = Math.Clamp(scrollY / (contentHeight - viewHeight), 0, 1);
+            CustomScrollThumb.TranslationY = (scrollPercent * usableHeight) + 20;
+            CustomScrollThumb.Opacity = 0.5 + (scrollPercent * 0.5);
         }
         else
         {
@@ -393,4 +419,45 @@ public partial class ProfilePage : ContentPage
 
     private async void OnAboutClicked(object? sender, EventArgs e) => 
         await DisplayAlert("About", "GetThere v1.0\nProfessional Mobility Platform", "OK");
+    private async void StartLoadingAnimations()
+    {
+        PremiumLoadingState.IsVisible = true;
+        // Hide main content rows to show skeleton
+        UserHeader.IsVisible = false;
+        TabSwitcherContainer.IsVisible = false;
+        WalletTabView.IsVisible = false;
+
+        _loadingCts = new CancellationTokenSource();
+        var token = _loadingCts.Token;
+
+        // 1. Shimmer sweep loop
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                MainThread.BeginInvokeOnMainThread(() => ShimmerBox.TranslationX = -500);
+                await ShimmerBox.TranslateTo(1000, 0, 1500, Easing.CubicInOut);
+                await Task.Delay(300, token);
+            }
+        }, token);
+
+        // 2. Dots loop
+        int dots = 0;
+        while (!token.IsCancellationRequested)
+        {
+            dots = (dots + 1) % 4;
+            LoadingDotsLabel.Text = "Loading" + new string('.', dots);
+            try { await Task.Delay(400, token); } catch { break; }
+        }
+    }
+
+    private void StopLoadingAnimations()
+    {
+        _loadingCts?.Cancel();
+        PremiumLoadingState.IsVisible = false;
+        // Reveal main content
+        UserHeader.IsVisible = true;
+        TabSwitcherContainer.IsVisible = true;
+        WalletTabView.IsVisible = true;
+    }
 }

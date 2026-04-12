@@ -1,4 +1,4 @@
-#nullable enable
+using System;
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThereShared.Dtos;
@@ -8,6 +8,7 @@ namespace GetThere.Pages;
 public partial class LoginPage : ContentPage
 {
     private readonly AuthService _authService;
+    private CancellationTokenSource? _loadingCts;
 
     public LoginPage(AuthService authService)
     {
@@ -49,7 +50,7 @@ public partial class LoginPage : ContentPage
             return;
         }
 
-        PageUtility.SetBusy(BusyIndicator, LoginButton, true);
+        StartLoadingAnimations();
 
         try
         {
@@ -66,8 +67,43 @@ public partial class LoginPage : ContentPage
         }
         finally
         {
-            PageUtility.SetBusy(BusyIndicator, LoginButton, false);
+            StopLoadingAnimations();
         }
+    }
+
+    private async void StartLoadingAnimations()
+    {
+        LoginButton.IsVisible = false;
+        PremiumLoadingState.IsVisible = true;
+        _loadingCts = new CancellationTokenSource();
+        var token = _loadingCts.Token;
+
+        // 1. Shimmer sweep
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                MainThread.BeginInvokeOnMainThread(() => ShimmerBox.TranslationX = -70);
+                await ShimmerBox.TranslateTo(140, 0, 1000, Easing.Linear);
+                await Task.Delay(200, token);
+            }
+        }, token);
+
+        // 2. Dots loop (Signing In...)
+        int dots = 0;
+        while (!token.IsCancellationRequested)
+        {
+            dots = (dots + 1) % 4;
+            LoadingDotsLabel.Text = "Signing In" + new string('.', dots);
+            try { await Task.Delay(400, token); } catch { break; }
+        }
+    }
+
+    private void StopLoadingAnimations()
+    {
+        _loadingCts?.Cancel();
+        PremiumLoadingState.IsVisible = false;
+        LoginButton.IsVisible = true;
     }
 
     private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)

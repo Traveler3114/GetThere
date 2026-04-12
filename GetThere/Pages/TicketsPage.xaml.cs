@@ -16,6 +16,8 @@ public partial class TicketsPage : ContentPage
     private List<TicketDto> _allTickets = [];
     private TicketStatus _activeFilter = TicketStatus.Active;
 
+    private bool? _lastIsMobile;
+
     public TicketsPage(TicketService ticketService, MockTicketStore mockStore)
     {
         InitializeComponent();
@@ -27,6 +29,7 @@ public partial class TicketsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        _lastIsMobile = null; // force update
         UpdateResponsiveLayout();
         ShowMockTickets();
         await LoadTicketsAsync();
@@ -34,7 +37,49 @@ public partial class TicketsPage : ContentPage
 
     private void OnPageSizeChanged(object? sender, EventArgs e)
     {
-        UpdateResponsiveLayout();
+        var isMobile = Width < 700;
+        if (_lastIsMobile != isMobile)
+        {
+            _lastIsMobile = isMobile;
+            UpdateResponsiveLayout();
+        }
+    }
+
+    private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
+    {
+        var scrollView = sender as ScrollView;
+        if (scrollView == null) return;
+
+        double scrollY = e.ScrollY;
+        const double maxScroll = 120.0;
+        
+        // --- 1. Header Parallax & Scale ---
+        double factor = Math.Clamp(scrollY / maxScroll, 0, 1);
+        
+        // Scale the main label and the filter badge
+        HeaderRow.Scale = 1.0 - (factor * 0.15); // Shrink slightly
+        HeaderRow.Opacity = 1.0 - (factor * 0.5); // Fade slightly
+        HeaderRow.TranslationY = -(factor * 10);
+        
+        // --- 2. Premium Manual Scrollbar Logic ---
+        double contentHeight = scrollView.ContentSize.Height;
+        double viewHeight = scrollView.Height;
+        
+        if (contentHeight > viewHeight)
+        {
+            CustomScrollThumb.IsVisible = true;
+            // Calculate thumb range and position
+            double usableHeight = viewHeight - CustomScrollThumb.HeightRequest - 80; // Margin adjustment
+            double scrollPercent = Math.Clamp(scrollY / (contentHeight - viewHeight), 0, 1);
+            CustomScrollThumb.TranslationY = (scrollPercent * usableHeight) + 40; // Offset for cards
+            
+            // Subtle fade for the thumb
+            CustomScrollThumb.Opacity = 0.5 + (scrollPercent * 0.5);
+        }
+        else
+        {
+            CustomScrollThumb.IsVisible = false;
+        }
     }
 
     private void UpdateResponsiveLayout()
@@ -132,9 +177,16 @@ public partial class TicketsPage : ContentPage
         }
     }
 
+    private bool _isLoading;
+    private CancellationTokenSource? _loadingCts;
+
     private async Task LoadTicketsAsync()
     {
-        BusyIndicator.IsVisible = BusyIndicator.IsRunning = true;
+        if (_isLoading) return;
+        _isLoading = true;
+        
+        StartLoadingAnimations();
+        
         try
         {
             var result = await _ticketService.GetTicketsAsync();
@@ -150,8 +202,42 @@ public partial class TicketsPage : ContentPage
         }
         finally
         {
-            BusyIndicator.IsVisible = BusyIndicator.IsRunning = false;
+            StopLoadingAnimations();
+            _isLoading = false;
         }
+    }
+
+    private async void StartLoadingAnimations()
+    {
+        PremiumLoadingState.IsVisible = true;
+        _loadingCts = new CancellationTokenSource();
+        var token = _loadingCts.Token;
+
+        // 1. Shimmer sweep loop
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                MainThread.BeginInvokeOnMainThread(() => ShimmerBox.TranslationX = -500);
+                await ShimmerBox.TranslateTo(1000, 0, 1500, Easing.CubicInOut);
+                await Task.Delay(300, token);
+            }
+        }, token);
+
+        // 2. Dots Animation Loop
+        int dots = 0;
+        while (!token.IsCancellationRequested)
+        {
+            dots = (dots + 1) % 4;
+            LoadingDotsLabel.Text = "Loading" + new string('.', dots);
+            try { await Task.Delay(400, token); } catch { break; }
+        }
+    }
+
+    private void StopLoadingAnimations()
+    {
+        _loadingCts?.Cancel();
+        PremiumLoadingState.IsVisible = false;
     }
 
     private async void OnFilterOptionClicked(object? sender, EventArgs e)

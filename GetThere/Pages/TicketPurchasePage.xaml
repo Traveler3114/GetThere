@@ -3,6 +3,7 @@
     x:Class="GetThere.Pages.TicketPurchasePage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
     BackgroundColor="#F8F9FA"
     Shell.NavBarIsVisible="False">
@@ -32,7 +33,7 @@
                     </ImageButton.Shadow>
                 </ImageButton>
 
-                <VerticalStackLayout Grid.Row="1" Spacing="4" VerticalOptions="Center">
+                <VerticalStackLayout x:Name="PageHeaderStack" Grid.Row="1" Spacing="4" VerticalOptions="Center">
                     <Label
                         x:Name="PageTitleLabel"
                         FontAttributes="Bold"
@@ -59,7 +60,7 @@
                 <Shadow Brush="Black" Opacity="0.12" Offset="0,4" Radius="8" />
             </Border.Shadow>
 
-            <ScrollView Padding="0,0,0,100">
+            <ScrollView x:Name="MainScrollView" Padding="0,0,0,100" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
                 <VerticalStackLayout Padding="24,14,24,24" Spacing="14">
                     <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E0E0E0" HorizontalOptions="Center" />
 
@@ -67,9 +68,6 @@
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="12" />
                         </Border.StrokeShape>
-                        <Border.Shadow>
-                            <Shadow Brush="Black" Opacity="0.08" Offset="2,2" Radius="4" />
-                        </Border.Shadow>
                         <Label FontAttributes="Bold"
                                FontSize="13"
                                HorizontalTextAlignment="Center"
@@ -96,6 +94,20 @@
                 </VerticalStackLayout>
             </ScrollView>
         </Border>
+
+        <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+        <Border x:Name="CustomScrollThumb" 
+                WidthRequest="4" 
+                HeightRequest="40" 
+                BackgroundColor="#CBD5E1" 
+                HorizontalOptions="End" 
+                VerticalOptions="Start"
+                Margin="0,40,4,0" 
+                IsVisible="False"
+                ZIndex="1000">
+            <Border.StrokeShape><shapes:RoundRectangle CornerRadius="2" /></Border.StrokeShape>
+        </Border>
+
         </Grid>
     </Grid>
 </ContentPage>

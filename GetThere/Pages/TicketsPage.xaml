@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
              xmlns:helpers="clr-namespace:GetThere.Helpers"
              xmlns:components="clr-namespace:GetThere.Components"
              x:Class="GetThere.Pages.TicketsPage"
@@ -96,8 +97,8 @@
             <!-- ── TICKETS CONTENT (WHITE CARD OVERLAY) ── -->
             <Grid Grid.Row="1" Margin="0,10,0,0" HorizontalOptions="Fill">
                 <Border x:Name="TicketsSurface" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Center" MaximumWidthRequest="1200">
-                <Border.StrokeShape><RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
-                <ScrollView>
+                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
+                <ScrollView x:Name="MainScrollView" Scrolled="OnMainScrollViewScrolled" VerticalScrollBarVisibility="Never">
                     <VerticalStackLayout x:Name="TicketsContent" Padding="24,20,24,100" Spacing="20">
                         <BoxView x:Name="TopHandle" WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#D8D8D8" HorizontalOptions="Center" />
                         
@@ -114,7 +115,30 @@
                         
                         <Label x:Name="CurrentFilterSectionLabel" Text="Active Tickets" FontAttributes="Bold" FontSize="14" TextColor="#4B5563" Margin="0,10,0,0" />
                         
-                        <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="#6366F1" HorizontalOptions="Center" />
+                        <!-- PREMIUM SKELETON LOADING STATE -->
+                        <Grid x:Name="PremiumLoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
+                            <!-- Skeleton SVG -->
+                            <Image Source="loading_tickets.svg" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
+                            
+                            <!-- Shimmer Sweep (Full Screen) -->
+                            <Grid IsClippedToBounds="True" InputTransparent="True">
+                                <BoxView x:Name="ShimmerBox" WidthRequest="200" HorizontalOptions="Start" TranslationX="-300" Opacity="0.4">
+                                    <BoxView.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="Transparent" Offset="0" />
+                                            <GradientStop Color="#FFFFFF" Offset="0.5" />
+                                            <GradientStop Color="Transparent" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </BoxView.Background>
+                                    <BoxView.Rotation>15</BoxView.Rotation>
+                                </BoxView>
+                            </Grid>
+
+                            <!-- Floating Label -->
+                            <VerticalStackLayout Spacing="5" VerticalOptions="End" Margin="0,0,0,100">
+                                <Label x:Name="LoadingDotsLabel" Text="Loading" FontSize="18" TextColor="#4F46E5" FontAttributes="Bold" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Grid>
 
                         <VerticalStackLayout x:Name="TicketsRows" Spacing="14" BindableLayout.ItemTemplate="{StaticResource TicketRowTemplate}" />
 
@@ -125,6 +149,20 @@
                     </VerticalStackLayout>
                 </ScrollView>
             </Border>
+
+            <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+            <Border x:Name="CustomScrollThumb" 
+                    WidthRequest="4" 
+                    HeightRequest="40" 
+                    BackgroundColor="#CBD5E1" 
+                    HorizontalOptions="End" 
+                    VerticalOptions="Start"
+                    Margin="0,40,4,0" 
+                    IsVisible="False"
+                    ZIndex="1000">
+                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="2" /></Border.StrokeShape>
+            </Border>
+
             </Grid>
         </Grid>
 

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:components="clr-namespace:GetThere.Components"
+             xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
              x:Class="GetThere.Pages.LoginPage"
              Title="Sign In"
              BackgroundColor="#F8F9FA"
@@ -96,7 +97,26 @@
                              <Label Text="Ap" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" TextColor="Black" />
                         </Border>
                     </HorizontalStackLayout>
-                    <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="#512BD4" />
+                    <!-- PREMIUM LOADING STATE FOR LOGIN -->
+                    <Grid x:Name="PremiumLoadingState" IsVisible="False" HorizontalOptions="Center" Margin="0,10">
+                        <VerticalStackLayout Spacing="8">
+                            <Label x:Name="LoadingDotsLabel" Text="Signing In" FontSize="16" TextColor="#009688" FontAttributes="Bold" HorizontalOptions="Center" />
+                            <Border WidthRequest="140" HeightRequest="6" BackgroundColor="#F1F5F9" StrokeThickness="0">
+                                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="3" /></Border.StrokeShape>
+                                <Grid IsClippedToBounds="True">
+                                    <BoxView x:Name="ShimmerBox" WidthRequest="60" HorizontalOptions="Start" TranslationX="-60">
+                                        <BoxView.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="Transparent" Offset="0" />
+                                                <GradientStop Color="#80FFFFFF" Offset="0.5" />
+                                                <GradientStop Color="Transparent" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </BoxView.Background>
+                                    </BoxView>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
                 </VerticalStackLayout>
             </Border>
         </ScrollView>
