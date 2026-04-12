@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class NewMigration : Migration
+    public partial class NewTables : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -478,13 +478,23 @@ namespace GetThereAPI.Migrations
                 values: new object[,]
                 {
                     { 1, "Croatia" },
-                    { 2, "Slovenia" }
+                    { 2, "Slovenia" },
+                    { 3, "Austria" },
+                    { 4, "Germany" },
+                    { 5, "France" },
+                    { 6, "Italy" },
+                    { 7, "Poland" },
+                    { 8, "Czechia" },
+                    { 9, "Hungary" },
+                    { 10, "Switzerland" },
+                    { 11, "Slovakia" },
+                    { 12, "Spain" }
                 });
 
             migrationBuilder.InsertData(
                 table: "MobilityProviders",
                 columns: new[] { "Id", "AdapterConfig", "ApiBaseUrl", "ApiKey", "CreatedAt", "FeedFormat", "LogoUrl", "Name", "Type" },
-                values: new object[] { 1, null, "https://nextbike.net/maps/nextbike-live.json", null, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "NEXTBIKE_API", null, "Bajs / Nextbike Zagreb", "BIKE_STATION" });
+                values: new object[] { 1, null, "https://nextbike.net/maps/nextbike-live.json", null, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "NEXTBIKE_API", null, "Bajs / Nextbike", "BIKE_STATION" });
 
             migrationBuilder.InsertData(
                 table: "PaymentProviders",
@@ -502,8 +512,7 @@ namespace GetThereAPI.Migrations
                 {
                     { 1, "#1264AB", 0, "tram.png", "Tram" },
                     { 2, "#126400", 3, "bus.png", "Bus" },
-                    { 3, "#FF6B00", 2, "train.png", "Train" },
-                    { 4, "#6a1b9a", 715, "bike.png", "City Bike" }
+                    { 3, "#FF6B00", 2, "train.png", "Train" }
                 });
 
             migrationBuilder.InsertData(
@@ -512,31 +521,27 @@ namespace GetThereAPI.Migrations
                 values: new object[,]
                 {
                     { 1, 1, "Zagreb" },
-                    { 2, 2, "Ljubljana" }
+                    { 2, 2, "Ljubljana" },
+                    { 3, 3, "Vienna" },
+                    { 4, 4, "Berlin" },
+                    { 5, 5, "Paris" },
+                    { 6, 6, "Rome" },
+                    { 7, 7, "Warsaw" },
+                    { 8, 8, "Prague" },
+                    { 9, 9, "Budapest" },
+                    { 10, 10, "Zurich" },
+                    { 11, 11, "Bratislava" },
+                    { 12, 12, "Madrid" }
                 });
-
-            migrationBuilder.InsertData(
-                table: "MobilityProviderCountry",
-                columns: new[] { "CountriesId", "MobilityProvidersId" },
-                values: new object[] { 1, 1 });
-
-            migrationBuilder.InsertData(
-                table: "TransitOperators",
-                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
-                values: new object[] { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", null, null, "HZPP", null, null, "NONE", "NONE", "GTFS", "", "" });
-
-            migrationBuilder.InsertData(
-                table: "MobilityProviderCity",
-                columns: new[] { "CitiesId", "MobilityProvidersId" },
-                values: new object[] { 1, 1 });
 
             migrationBuilder.InsertData(
                 table: "TransitOperators",
                 columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
                 values: new object[,]
                 {
-                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" },
-                    { 3, 2, 2, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://data.lpp.si/api/gtfs/feed.zip", null, null, "LPP", null, null, "NONE", "NONE", "GTFS", "", "" }
+                    { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", null, null, "HZPP", null, null, "NONE", "NONE", "GTFS", "", "" },
+                    { 3, null, 3, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip", null, null, "ÖBB (Austrian Federal Railways)", null, null, "NONE", "NONE", "GTFS", "", "" },
+                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" }
                 });
 
             migrationBuilder.CreateIndex(
