@@ -11,7 +11,7 @@
   - `TransitOrchestrator` (global orchestration entry-point for transit provider calls)
 - Rewrote `OperatorManager` to a thin orchestration layer for transit endpoints.
 - Added OTP instance configuration and country mapping in:
-  - `/home/runner/work/GetThere/GetThere/GetThereAPI/appsettings.json`
+  - `GetThereAPI/appsettings.json`
 - Removed GTFS parser stack and realtime vehicle tracking stack from API:
   - Removed static/realtime managers and parser files.
   - Removed vehicle/trip endpoints from transit API surface.

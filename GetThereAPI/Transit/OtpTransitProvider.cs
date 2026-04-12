@@ -6,6 +6,7 @@ namespace GetThereAPI.Transit;
 
 public class OtpTransitProvider : ITransitProvider
 {
+    private const string UnknownRouteIdFallback = "unknown";
     private readonly OtpClient _otpClient;
 
     public OtpTransitProvider(OtpClient otpClient)
@@ -96,7 +97,7 @@ public class OtpTransitProvider : ITransitProvider
             routes.Add(new RouteDto
             {
                 RouteId = routeId,
-                ShortName = string.IsNullOrWhiteSpace(shortName) ? routeId : shortName,
+                ShortName = string.IsNullOrWhiteSpace(shortName) ? "Route" : shortName,
                 LongName = longName,
                 Color = NormalizeColor(GetString(item, "color")),
                 RouteType = MapModeToRouteType(mode),
@@ -161,7 +162,7 @@ public class OtpTransitProvider : ITransitProvider
         if (string.IsNullOrWhiteSpace(result.StopId))
             result.StopId = stopId;
         if (string.IsNullOrWhiteSpace(result.StopName))
-            result.StopName = stopId;
+            result.StopName = "Unknown Stop";
 
         if (!stopNode.TryGetProperty("stoptimesWithoutPatterns", out var timesNode)
             || timesNode.ValueKind != JsonValueKind.Array)
@@ -186,7 +187,7 @@ public class OtpTransitProvider : ITransitProvider
             var routeNode = tripNode.GetProperty("route");
             var routeId = GetString(routeNode, "gtfsId");
             if (string.IsNullOrWhiteSpace(routeId))
-                routeId = "unknown";
+                routeId = UnknownRouteIdFallback;
 
             var shortName = GetString(routeNode, "shortName");
             if (string.IsNullOrWhiteSpace(shortName))
