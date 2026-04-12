@@ -47,23 +47,38 @@ public class OtpClient
                 "application/json")
         };
 
-        using var http = _httpFactory.CreateClient();
-        using var response = await http.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-            return null;
-
-        var raw = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
-        if (raw.ValueKind != JsonValueKind.Object)
-            return null;
-
-        if (raw.TryGetProperty("errors", out var errors)
-            && errors.ValueKind == JsonValueKind.Array
-            && errors.GetArrayLength() > 0)
+        try
         {
+            using var http = _httpFactory.CreateClient();
+            using var response = await http.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var raw = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+
+            if (raw.ValueKind != JsonValueKind.Object)
+                return null;
+
+            if (raw.TryGetProperty("errors", out var errors)
+                && errors.ValueKind == JsonValueKind.Array
+                && errors.GetArrayLength() > 0)
+            {
+                return null;
+            }
+
+            var json = raw.GetRawText();
+            return JsonDocument.Parse(json);
+        }
+        catch (HttpRequestException)
+        {
+            // API is down / refused connection
             return null;
         }
-
-        var json = raw.GetRawText();
-        return JsonDocument.Parse(json);
+        catch (TaskCanceledException)
+        {
+            // timeout or cancellation
+            return null;
+        }
     }
 }
