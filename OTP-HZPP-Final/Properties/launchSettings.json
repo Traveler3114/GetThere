@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "HzppRtServer": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:62323;http://localhost:62324"
+    }
+  }
+}
