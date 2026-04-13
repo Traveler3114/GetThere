@@ -1,7 +1,7 @@
 """
 HŽPP GTFS-RT Server
 ====================
-Scrapes real-time train positions from vlak.hzpp.hr and serves them
+Scrapes real-time train positions from hzpp.app and serves them
 as GTFS-RT protobuf for OpenTripPlanner.
 
 Endpoint: http://localhost:5000/hzpp-rt
@@ -10,26 +10,29 @@ Requirements:
     pip install flask requests gtfs-realtime-bindings
 
 How it works:
-    1. On startup, loads the HZPP GTFS static data (trips.txt, stop_times.txt,
-       stops.txt) to build lookup tables.
-    2. Every REFRESH_INTERVAL seconds, polls vlak.hzpp.hr for each active train.
+    1. On startup, downloads the HZPP GTFS zip from GTFS_ZIP_URL and loads
+       trips.txt, stop_times.txt, stops.txt and calendar.txt directly from
+       the archive — no local GTFS files required.
+    2. Every REFRESH_INTERVAL seconds, polls hzpp.app for each active train.
     3. The website returns the train's current position (station name) and delay.
     4. We match the station name → stop_id and compute per-stop delays.
     5. OTP polls /hzpp-rt every 30s and applies the updates.
 
 Run:
     python HZPP-RT.py
-    python HZPP-RT.py --gtfs-dir C:/path/to/gtfs/folder
+    python HZPP-RT.py --gtfs-url https://www.hzpp.hr/GTFS_files.zip
 """
 
 import argparse
 import csv
+import io
 import json
 import logging
-import os
 import threading
 import time
+import zipfile
 from datetime import datetime, date, timedelta
+
 try:
     from zoneinfo import ZoneInfo as _ZoneInfo
 except Exception:
@@ -38,6 +41,21 @@ try:
     import pytz as _pytz
 except ImportError:
     _pytz = None
+
+import requests
+from flask import Flask, Response
+from google.transit import gtfs_realtime_pb2
+
+# ---------------------------------------------------------------------------
+# CONFIG
+# ---------------------------------------------------------------------------
+
+GTFS_ZIP_URL     = "https://www.hzpp.hr/GTFS_files.zip"
+REFRESH_INTERVAL = 30            # Seconds between full scrape cycles
+BASE_URL         = "https://www.hzpp.app"
+REQUEST_TIMEOUT  = 10
+REQUEST_DELAY    = 0.3           # Seconds between individual train requests
+
 
 def _make_tz(key):
     if _ZoneInfo is not None:
@@ -48,22 +66,10 @@ def _make_tz(key):
     if _pytz is not None:
         return _pytz.timezone(key)
     from datetime import timezone
-    return timezone.utc  # last resort
+    return timezone.utc
 
-import requests
-from flask import Flask, Response
-from google.transit import gtfs_realtime_pb2
 
-# ---------------------------------------------------------------------------
-# CONFIG
-# ---------------------------------------------------------------------------
-
-GTFS_DIR        = "."            # Folder with trips.txt / stop_times.txt / stops.txt
-REFRESH_INTERVAL = 30            # Seconds between full scrape cycles
-TIMEZONE         = _make_tz("Europe/Zagreb")
-BASE_URL         = "https://www.hzpp.app"
-REQUEST_TIMEOUT  = 10
-REQUEST_DELAY    = 0.3           # Seconds between individual train requests (be polite)
+TIMEZONE = _make_tz("Europe/Zagreb")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,54 +78,73 @@ logging.basicConfig(
 )
 log = logging.getLogger("hzpp-rt")
 
+
 # ---------------------------------------------------------------------------
-# GTFS STATIC DATA LOADER
+# GTFS STATIC DATA LOADER  (reads from zip, no local files needed)
 # ---------------------------------------------------------------------------
 
-def load_gtfs(gtfs_dir):
-    """Load trips, stop_times and stops into fast lookup structures."""
+def _open_zip_text(zf, filename):
+    """Return a text-mode reader for a file inside a ZipFile object."""
+    return io.TextIOWrapper(zf.open(filename), encoding="utf-8-sig")
 
-    log.info("Loading GTFS static data from %s", gtfs_dir)
 
-    # stops: stop_id → {"name": str, "name_lower": str}
-    stops_by_id   = {}
-    # stops: normalised name → stop_id  (for matching website station names)
+def download_gtfs_zip(url):
+    """Download the GTFS zip and return an in-memory ZipFile."""
+    log.info("Downloading GTFS zip from %s ...", url)
+    resp = requests.get(url, timeout=60)
+    resp.raise_for_status()
+    log.info("Downloaded %.1f KB", len(resp.content) / 1024)
+    return zipfile.ZipFile(io.BytesIO(resp.content))
+
+
+def load_gtfs(gtfs_zip_url):
+    """Download the HZPP GTFS zip and load it into fast lookup structures."""
+
+    zf = download_gtfs_zip(gtfs_zip_url)
+    available = zf.namelist()
+    log.info("Files in zip: %s", available)
+
+    # ------------------------------------------------------------------
+    # stops: stop_id → name,  normalised-name → stop_id
+    # ------------------------------------------------------------------
+    stops_by_id    = {}
     stop_id_by_name = {}
 
-    with open(os.path.join(gtfs_dir, "stops.txt"), encoding="utf-8-sig") as f:
+    with _open_zip_text(zf, "stops.txt") as f:
         for row in csv.DictReader(f):
             sid  = row["stop_id"].strip()
             name = row["stop_name"].strip()
             stops_by_id[sid] = name
             stop_id_by_name[_norm(name)] = sid
 
-    # trips: train_number (trip_short_name) → list of trip_ids running on each service_id
-    # We also need trip_id → service_id for calendar filtering.
-    # trips: trip_id → {train_number, route_id, service_id}
-    trips_by_id      = {}   # trip_id → dict
-    trips_by_train   = {}   # train_number → [trip_id, ...]
+    # ------------------------------------------------------------------
+    # trips: trip_id → info,  train_number → [trip_ids]
+    # ------------------------------------------------------------------
+    trips_by_id    = {}
+    trips_by_train = {}
 
-    with open(os.path.join(gtfs_dir, "trips.txt"), encoding="utf-8-sig") as f:
+    with _open_zip_text(zf, "trips.txt") as f:
         for row in csv.DictReader(f):
-            tid    = row["trip_id"].strip()
-            svc    = row["service_id"].strip()
-            tnum   = row.get("trip_short_name", "").strip()
-            info   = {"trip_id": tid, "service_id": svc, "train_number": tnum}
+            tid  = row["trip_id"].strip()
+            svc  = row["service_id"].strip()
+            tnum = row.get("trip_short_name", "").strip()
+            info = {"trip_id": tid, "service_id": svc, "train_number": tnum}
             trips_by_id[tid] = info
             if tnum:
                 trips_by_train.setdefault(tnum, []).append(tid)
 
-    # stop_times: trip_id → list of {stop_id, stop_sequence, arrival_sec, departure_sec}
-    # sorted by stop_sequence
-    stop_times = {}   # trip_id → sorted list
+    # ------------------------------------------------------------------
+    # stop_times: trip_id → sorted list of stop dicts
+    # ------------------------------------------------------------------
+    stop_times = {}
 
-    with open(os.path.join(gtfs_dir, "stop_times.txt"), encoding="utf-8-sig") as f:
+    with _open_zip_text(zf, "stop_times.txt") as f:
         for row in csv.DictReader(f):
-            tid  = row["trip_id"].strip()
-            sid  = row["stop_id"].strip()
-            seq  = int(row["stop_sequence"])
-            arr  = _hms_to_sec(row.get("arrival_time", "") or row.get("departure_time", ""))
-            dep  = _hms_to_sec(row.get("departure_time", "") or row.get("arrival_time", ""))
+            tid = row["trip_id"].strip()
+            sid = row["stop_id"].strip()
+            seq = int(row["stop_sequence"])
+            arr = _hms_to_sec(row.get("arrival_time", "") or row.get("departure_time", ""))
+            dep = _hms_to_sec(row.get("departure_time", "") or row.get("arrival_time", ""))
             stop_times.setdefault(tid, []).append({
                 "stop_id":       sid,
                 "stop_sequence": seq,
@@ -130,25 +155,29 @@ def load_gtfs(gtfs_dir):
     for tid in stop_times:
         stop_times[tid].sort(key=lambda x: x["stop_sequence"])
 
-    # calendar: load calendar.txt to know which service_ids run today
-    calendar_path = os.path.join(gtfs_dir, "calendar.txt")
-    calendar = {}   # service_id → set of dates it runs
+    # ------------------------------------------------------------------
+    # calendar: service_id → set of dates it runs
+    # ------------------------------------------------------------------
+    calendar = {}
 
-    if os.path.exists(calendar_path):
-        dow_cols = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
-        with open(calendar_path, encoding="utf-8-sig") as f:
+    if "calendar.txt" in available:
+        dow_cols = ["monday", "tuesday", "wednesday", "thursday",
+                    "friday", "saturday", "sunday"]
+        with _open_zip_text(zf, "calendar.txt") as f:
             for row in csv.DictReader(f):
                 svc   = row["service_id"].strip()
                 start = _parse_date(row["start_date"])
                 end   = _parse_date(row["end_date"])
                 days  = [row[d].strip() == "1" for d in dow_cols]
                 dates = set()
-                cur = start
+                cur   = start
                 while cur <= end:
                     if days[cur.weekday()]:
                         dates.add(cur)
                     cur += timedelta(days=1)
                 calendar[svc] = dates
+    else:
+        log.warning("calendar.txt not found in zip — all trips treated as active")
 
     log.info(
         "Loaded %d stops, %d trips, %d stop-time entries",
@@ -178,8 +207,7 @@ def get_active_trip_id(train_number, gtfs, for_date=None):
         if svc in cal and for_date in cal[svc]:
             return tid
 
-    # Fallback: return first candidate (useful when calendar.txt has no matching date
-    # but we still want to serve something)
+    # Fallback: return first candidate when calendar has no matching date
     return candidates[0] if candidates else None
 
 
@@ -225,7 +253,6 @@ def fetch_train_data(train_number):
         resp = SESSION.get(url, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
 
-        # Response is newline-delimited JSON -- two separate JSON objects
         html_content = None
         for line in resp.text.strip().splitlines():
             line = line.strip()
@@ -275,23 +302,19 @@ def _parse_hzinfo_html(html, train_number):
         "route":           None,
     }
 
-    # Current station: <I>Kolodvor: </I><strong>ZAGREB+GL.+KOL.<br>
     m = re.search(r'Kolodvor\s*:?\s*</I>\s*(?:<strong>)?([^<\r\n]+)', text, re.IGNORECASE)
     if m:
         raw = m.group(1).strip()
         result["current_station"] = raw.replace("+", " ").replace(".", " ").strip()
 
-    # Route: Relacija:<br> OGULIN---->ZAGREB-GLA
     m = re.search(r'Relacija\s*:?\s*(?:<br>)?\s*([^\r\n<]+)', text, re.IGNORECASE)
     if m:
         result["route"] = m.group(1).strip()
 
-    # Delay: Kasni    2 min.
     m = re.search(r'Kasni\s+(\d+)\s*min', text, re.IGNORECASE)
     if m:
         result["delay_min"] = int(m.group(1))
 
-    # Finished journey: Zavrsio voznju / Zavrsio voznju
     if re.search(r'Zavr[ss\u0161]io\s+vo[z\u017e]nju', text, re.IGNORECASE):
         result["finished"] = True
 
@@ -331,17 +354,8 @@ def get_active_train_numbers(gtfs):
 
 def compute_stop_time_updates(trip_id, train_payload, gtfs):
     """
-    Given the parsed train payload from vlak.hzpp.hr and the GTFS static trip,
+    Given the parsed train payload from hzpp.app and the GTFS static trip,
     produce a list of StopTimeUpdate dicts for the GTFS-RT feed.
-
-    The website tells us:
-      - delay: overall delay in minutes
-      - currentStation: name of the station the train is at / just passed
-      - stations: list with per-station scheduled/actual times (if available)
-
-    Strategy:
-      1. If stations list is present with actual times → compute per-stop delays.
-      2. Otherwise fall back to propagating the global delay from the current stop onward.
     """
     st_list = gtfs["stop_times"].get(trip_id, [])
     if not st_list:
@@ -350,7 +364,6 @@ def compute_stop_time_updates(trip_id, train_payload, gtfs):
     stop_id_by_name = gtfs["stop_id_by_name"]
     stops_by_id     = gtfs["stops_by_id"]
 
-    # hzpp.app gives us: delay in minutes + current station name
     delay_min        = int(train_payload.get("delay_min", 0))
     global_delay_sec = delay_min * 60
     current_station  = _norm(train_payload.get("current_station") or "")
@@ -358,9 +371,6 @@ def compute_stop_time_updates(trip_id, train_payload, gtfs):
 
     updates = []
 
-    # Find which stop sequence the train is currently at.
-    # Station names in the HTML are uppercase, GTFS names are mixed case.
-    # Normalise both to lowercase for matching.
     current_seq = None
     for st in st_list:
         sid   = st["stop_id"]
@@ -376,7 +386,6 @@ def compute_stop_time_updates(trip_id, train_payload, gtfs):
 
     for st in st_list:
         seq = st["stop_sequence"]
-        # Propagate delay to current stop and all future stops.
         if current_seq is None or seq >= current_seq or finished:
             updates.append({
                 "stop_id":       st["stop_id"],
@@ -391,16 +400,13 @@ def compute_stop_time_updates(trip_id, train_payload, gtfs):
 # FEED BUILDER
 # ---------------------------------------------------------------------------
 
-_feed_lock = threading.Lock()
-_current_feed_bytes = b""   # Latest serialised protobuf (served to OTP)
+_feed_lock          = threading.Lock()
+_current_feed_bytes = b""
 _last_update_time   = 0
 
 
 def build_feed(gtfs, updates_map):
-    """
-    Build a complete GTFS-RT FeedMessage from a map of
-    trip_id → [StopTimeUpdate dicts].
-    """
+    """Build a complete GTFS-RT FeedMessage from trip_id → [StopTimeUpdate dicts]."""
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.header.gtfs_realtime_version = "2.0"
     feed.header.incrementality        = feed.header.FULL_DATASET
@@ -409,15 +415,15 @@ def build_feed(gtfs, updates_map):
     for trip_id, stu_list in updates_map.items():
         if not stu_list:
             continue
-        entity            = feed.entity.add()
-        entity.id         = trip_id
-        trip_update       = entity.trip_update
+        entity                   = feed.entity.add()
+        entity.id                = trip_id
+        trip_update              = entity.trip_update
         trip_update.trip.trip_id = trip_id
 
         for stu in stu_list:
-            s             = trip_update.stop_time_update.add()
-            s.stop_id     = stu["stop_id"]
-            s.stop_sequence = stu["stop_sequence"]
+            s                 = trip_update.stop_time_update.add()
+            s.stop_id         = stu["stop_id"]
+            s.stop_sequence   = stu["stop_sequence"]
             s.arrival.delay   = stu["delay"]
             s.departure.delay = stu["delay"]
 
@@ -438,7 +444,7 @@ def scrape_loop(gtfs):
             active_trains = get_active_train_numbers(gtfs)
             log.info("Polling %d active trains...", len(active_trains))
 
-            updates_map = {}   # trip_id → [stu_dicts]
+            updates_map = {}
             ok_count    = 0
 
             for tnum in active_trains:
@@ -474,7 +480,7 @@ def scrape_loop(gtfs):
 
 
 # ---------------------------------------------------------------------------
-# FLASK ENDPOINT
+# FLASK ENDPOINTS
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
@@ -486,7 +492,6 @@ def hzpp_rt():
         pb = _current_feed_bytes
 
     if not pb:
-        # Return empty feed if we haven't scraped yet
         feed = gtfs_realtime_pb2.FeedMessage()
         feed.header.gtfs_realtime_version = "2.0"
         feed.header.incrementality        = feed.header.FULL_DATASET
@@ -498,7 +503,6 @@ def hzpp_rt():
 
 @app.route("/status")
 def status():
-    """Human-readable status page."""
     age = int(time.time() - _last_update_time) if _last_update_time else -1
     with _feed_lock:
         size = len(_current_feed_bytes)
@@ -517,9 +521,7 @@ def status():
 
 def _norm(s):
     """Normalise a station name for fuzzy matching."""
-    if not s:
-        return ""
-    return s.strip().lower()
+    return s.strip().lower() if s else ""
 
 
 def _hms_to_sec(hms):
@@ -539,7 +541,7 @@ def _parse_date(s):
 def _parse_hhmm(s):
     """Parse HH:MM or HH:MM:SS time string to a datetime (date=today, Zagreb TZ)."""
     parts = s.strip().split(":")
-    h, m = int(parts[0]), int(parts[1])
+    h, m  = int(parts[0]), int(parts[1])
     now   = datetime.now(TIMEZONE)
     return now.replace(hour=h % 24, minute=m, second=0, microsecond=0)
 
@@ -551,8 +553,8 @@ def _parse_hhmm(s):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="HZPP GTFS-RT server")
     parser.add_argument(
-        "--gtfs-dir", default=GTFS_DIR,
-        help="Directory containing HZPP GTFS .txt files (default: current dir)"
+        "--gtfs-url", default=GTFS_ZIP_URL,
+        help=f"URL of the HZPP GTFS zip (default: {GTFS_ZIP_URL})"
     )
     parser.add_argument(
         "--port", type=int, default=5000,
@@ -566,15 +568,15 @@ if __name__ == "__main__":
 
     REFRESH_INTERVAL = args.interval
 
-    gtfs = load_gtfs(args.gtfs_dir)
+    gtfs = load_gtfs(args.gtfs_url)
 
-    # Start background scraper thread
     scraper = threading.Thread(target=scrape_loop, args=(gtfs,), daemon=True)
     scraper.start()
 
     print(f"\n🚆 HŽPP GTFS-RT server")
-    print(f"   Feed endpoint : http://localhost:{args.port}/hzpp-rt")
-    print(f"   Status page   : http://localhost:{args.port}/status")
+    print(f"   Feed endpoint  : http://localhost:{args.port}/hzpp-rt")
+    print(f"   Status page    : http://localhost:{args.port}/status")
+    print(f"   GTFS source    : {args.gtfs_url}")
     print(f"   Scrape interval: {REFRESH_INTERVAL}s\n")
 
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=args.port)
