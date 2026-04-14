@@ -20,14 +20,18 @@ public class TransitRouter : ITransitRouter
         if (!countryId.HasValue)
             return _otp.DefaultInstance;
 
-        var exists = await _db.Countries.AnyAsync(c => c.Id == countryId.Value, ct);
-        if (!exists)
-            return _otp.DefaultInstance;
+        var configuredInstanceKeys = await _db.TransitOperators
+            .Where(o => o.CountryId == countryId.Value
+                        && !string.IsNullOrWhiteSpace(o.GtfsFeedUrl)
+                        && !string.IsNullOrWhiteSpace(o.OtpInstanceKey))
+            .Select(o => o.OtpInstanceKey.Trim())
+            .Distinct()
+            .ToListAsync(ct);
 
-        if (_otp.CountryInstanceMap.TryGetValue(countryId.Value, out var mapped)
-            && _otp.Instances.ContainsKey(mapped))
+        foreach (var key in configuredInstanceKeys)
         {
-            return mapped;
+            if (_otp.Instances.ContainsKey(key))
+                return key;
         }
 
         return _otp.DefaultInstance;

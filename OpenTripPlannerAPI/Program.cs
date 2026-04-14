@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using OpenTripPlannerAPI.Scrapers.HZPP.Services;
+using OpenTripPlannerAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5000");
@@ -19,15 +20,25 @@ builder.Services.AddHttpClient("hzpp", c =>
     c.Timeout = TimeSpan.FromSeconds(15);
 });
 
+builder.Services.AddHttpClient("operator-source", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(20);
+});
+
 // ── Services ──────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<GtfsFeedStore>();
 builder.Services.AddSingleton<GtfsLoader>();
 builder.Services.AddSingleton<HzppScraper>();
+builder.Services.AddSingleton<DbBackedOtpConfigState>();
 builder.Services.AddHostedService<ScrapeWorker>();
 builder.Services.AddControllers();
+builder.Services.AddSingleton<DbBackedOtpConfigLoader>();
 
 var app = builder.Build();
 app.MapControllers();
+
+var configLoader = app.Services.GetRequiredService<DbBackedOtpConfigLoader>();
+var configResult = await configLoader.LoadAndGenerateAsync();
 
 Console.WriteLine("""
 
@@ -40,10 +51,17 @@ Console.WriteLine("""
 // Start the web server and background scraper
 await app.StartAsync();
 
-// Wait until the first full scrape cycle is complete and feed is ready
-Console.WriteLine("⏳ Waiting for first scrape cycle to complete...");
-await GtfsReadySignal.WaitAsync();
-Console.WriteLine("✅ First scrape cycle complete, feed is ready!");
+if (configResult.RequiresHzppFallback)
+{
+    // Wait until the first full scrape cycle is complete and feed is ready
+    Console.WriteLine("⏳ Waiting for first scrape cycle to complete...");
+    await GtfsReadySignal.WaitAsync();
+    Console.WriteLine("✅ First scrape cycle complete, feed is ready!");
+}
+else
+{
+    Console.WriteLine("ℹ️  No HZPP fallback operators configured — skipping scraper warmup wait.");
+}
 
 // Now launch OTP Java
 var otpJar = Path.Combine(Directory.GetCurrentDirectory(), "otp-shaded-2.9.0.jar");

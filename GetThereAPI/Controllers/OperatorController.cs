@@ -112,4 +112,12 @@ public class OperatorController : ControllerBase
         var types = await _manager.GetTransportTypesAsync(_env);
         return Ok(OperationResult<List<TransportTypeDto>>.Ok(types));
     }
+
+    // GET /operator/otp-feeds
+    [HttpGet("otp-feeds")]
+    public async Task<ActionResult<OperationResult<List<OtpOperatorFeedDto>>>> GetOtpFeeds()
+    {
+        var feeds = await _manager.GetOtpFeedOperatorsAsync();
+        return Ok(OperationResult<List<OtpOperatorFeedDto>>.Ok(feeds));
+    }
 }

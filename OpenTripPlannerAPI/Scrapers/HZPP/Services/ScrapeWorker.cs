@@ -1,5 +1,6 @@
 using transit_realtime;
 using OpenTripPlannerAPI.Scrapers.HZPP.Models;
+using OpenTripPlannerAPI.Services;
 
 namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
@@ -10,24 +11,36 @@ public class ScrapeWorker : BackgroundService
     private readonly HzppScraper _scraper;
     private readonly GtfsFeedStore _feedStore;
     private readonly IConfiguration _config;
+    private readonly DbBackedOtpConfigState _state;
 
     public ScrapeWorker(
         ILogger<ScrapeWorker> logger,
         GtfsLoader gtfsLoader,
         HzppScraper scraper,
         GtfsFeedStore feedStore,
-        IConfiguration config)
+        IConfiguration config,
+        DbBackedOtpConfigState state)
     {
         _logger = logger;
         _gtfsLoader = gtfsLoader;
         _scraper = scraper;
         _feedStore = feedStore;
         _config = config;
+        _state = state;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var gtfsUrl = _config["Gtfs:ZipUrl"] ?? "https://www.hzpp.hr/GTFS_files.zip";
+        if (!_state.RequiresHzppFallback)
+        {
+            _logger.LogInformation("HZPP scraper fallback is disabled by DB config; worker is idle.");
+            GtfsReadySignal.SetReady();
+            return;
+        }
+
+        var gtfsUrl = _state.HzppFallbackStaticGtfsUrl
+                      ?? _config["Gtfs:ZipUrl"]
+                      ?? "https://www.hzpp.hr/GTFS_files.zip";
         var interval = int.Parse(_config["Scrape:IntervalSeconds"] ?? "30");
         var delay = double.Parse(_config["Scrape:RequestDelaySeconds"] ?? "0.3");
 

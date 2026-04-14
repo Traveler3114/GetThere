@@ -184,4 +184,28 @@ public class OperatorManager
 
     public Task<bool> IsTransitHealthyAsync(int? countryId = null, CancellationToken ct = default)
         => _transit.HealthCheckAsync(countryId, ct);
+
+    public async Task<List<OtpOperatorFeedDto>> GetOtpFeedOperatorsAsync()
+    {
+        return await _db.TransitOperators
+            .Include(o => o.Country)
+            .OrderBy(o => o.Country.Name)
+            .ThenBy(o => o.Name)
+            .Select(o => new OtpOperatorFeedDto
+            {
+                OperatorId = o.Id,
+                OperatorName = o.Name,
+                CountryId = o.CountryId,
+                CountryName = o.Country.Name,
+                OtpFeedId = o.OtpFeedId,
+                OtpInstanceKey = o.OtpInstanceKey,
+                StaticGtfsUrl = o.GtfsFeedUrl,
+                LegacyGtfsRealtimeUrl = o.GtfsRealtimeFeedUrl,
+                TripUpdatesUrl = o.GtfsRtTripUpdatesUrl,
+                VehiclePositionsUrl = o.GtfsRtVehiclePositionsUrl,
+                AlertsUrl = o.GtfsRtAlertsUrl,
+                RealtimeFallbackMode = o.RealtimeFallbackMode.ToString()
+            })
+            .ToListAsync();
+    }
 }
