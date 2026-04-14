@@ -102,21 +102,7 @@ namespace GetThereAPI.Data
                      CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                      CountryId = 1,
                      CityId = null
-                 },
-                // Additional
-                new TransitOperator
-                {
-                    Id = 3,
-                    Name = "ÖBB (Austrian Federal Railways)",
-                    LogoUrl = null,
-                    TicketApiBaseUrl = "",
-                    TicketApiKey = "",
-                    GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
-                    GtfsRealtimeFeedUrl = null,
-                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                    CountryId = 3,
-                    CityId = null
-                }
+                 }
             );
 
             modelBuilder.Entity<TransportType>().HasData(
