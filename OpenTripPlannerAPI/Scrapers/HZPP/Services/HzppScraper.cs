@@ -118,8 +118,9 @@ public partial class HzppScraper
             if (currentSeq != null && st.StopSequence < currentSeq && !train.Finished)
                 continue;
 
-            // If we don't know current station, skip stops whose scheduled departure is in the past
-            if (currentSeq == null && !train.Finished && st.DepartureSec < nowSec)
+            // If we don't know current station, never emit already-departed stops
+            var scheduledDepartureSec = st.DepartureSec > 0 ? st.DepartureSec : st.ArrivalSec;
+            if (currentSeq == null && scheduledDepartureSec <= nowSec)
                 continue;
 
             updates.Add(new StopTimeUpdateDto
