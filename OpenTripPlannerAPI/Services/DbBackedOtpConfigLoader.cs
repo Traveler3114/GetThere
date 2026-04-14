@@ -26,7 +26,7 @@ public sealed class DbBackedOtpConfigLoader
     {
         var apiBaseUrl = _configuration["OperatorSource:ApiBaseUrl"];
         if (string.IsNullOrWhiteSpace(apiBaseUrl))
-            throw new InvalidOperationException("OperatorSource:ApiBaseUrl must be configured.");
+            throw new InvalidOperationException("OperatorSource:ApiBaseUrl must be configured in appsettings.json.");
 
         var path = _configuration["OperatorSource:OtpFeedsPath"] ?? "/operator/otp-feeds";
         var sourceUrl = $"{apiBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
@@ -203,7 +203,7 @@ public sealed class DbBackedOtpConfigLoader
         foreach (var op in operators)
         {
             if (string.IsNullOrWhiteSpace(op.FeedId))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has empty feed id.");
+                throw new InvalidOperationException($"Operator '{op.OperatorName}' has empty feed ID.");
 
             if (!IsValidHttpUrl(op.StaticGtfsUrl))
                 throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid static GTFS URL.");
