@@ -1,4 +1,4 @@
-namespace HzppRtServer.Models;
+namespace OpenTripPlannerAPI.Scrapers.HZPP.Models;
 
 public class GtfsData
 {

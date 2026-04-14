@@ -1,7 +1,7 @@
 using transit_realtime;
-using HzppRtServer.Models;
+using OpenTripPlannerAPI.Scrapers.HZPP.Models;
 
-namespace HzppRtServer.Services;
+namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
 public class ScrapeWorker : BackgroundService
 {

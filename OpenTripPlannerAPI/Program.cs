@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using HzppRtServer.Services;
+using OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +30,7 @@ app.MapControllers();
 
 Console.WriteLine("""
 
-🚆 HŽPP GTFS-RT Server (C#)
+🚆 OpenTripPlannerAPI (OTP + HŽPP scraper)
    Feed endpoint : http://localhost:5000/hzpp-rt
    Status page   : http://localhost:5000/status
 

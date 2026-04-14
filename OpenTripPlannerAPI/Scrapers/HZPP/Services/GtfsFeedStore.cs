@@ -1,4 +1,4 @@
-namespace HzppRtServer.Services;
+namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
 public sealed class GtfsFeedStore
 {
