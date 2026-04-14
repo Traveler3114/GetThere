@@ -257,11 +257,7 @@ public sealed class DbBackedOtpConfigLoader
         if (!string.Equals(parsed.AbsolutePath, "/hzpp-rt", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        var isLoopbackHost = parsed.IsLoopback
-            || string.Equals(parsed.Host, "localhost", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(parsed.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase);
-
-        return isLoopbackHost;
+        return parsed.IsLoopback;
     }
 
     private static bool UrlsEqual(string? left, string? right)
