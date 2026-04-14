@@ -125,7 +125,7 @@ public sealed class DbBackedOtpConfigLoader
         if (buildConfigPath is null || routerConfigPath is null)
         {
             throw new InvalidOperationException(
-                $"Failed to fetch operator feed config from '{sourceUrl}'. Status: {ex.StatusCode?.ToString() ?? "unknown"}.",
+                $"Failed to fetch operator feed config from '{sourceUrl}'. Status: {ex.StatusCode?.ToString() ?? "unknown"}. Error: {ex.Message}",
                 ex);
         }
 
