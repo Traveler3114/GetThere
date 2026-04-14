@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
-using HzppRtServer.Models;
+using OpenTripPlannerAPI.Scrapers.HZPP.Models;
 
-namespace HzppRtServer.Services;
+namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
 public partial class HzppScraper
 {

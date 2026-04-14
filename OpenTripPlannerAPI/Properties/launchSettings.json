@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "HzppRtServer": {
+    "OpenTripPlannerAPI": {
       "commandName": "Project",
       "launchBrowser": false,
       "environmentVariables": {

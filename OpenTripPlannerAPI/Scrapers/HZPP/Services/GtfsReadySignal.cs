@@ -1,4 +1,4 @@
-namespace HzppRtServer.Services;
+namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
 /// <summary>
 /// Simple signal so Program.cs knows when the scraper has finished

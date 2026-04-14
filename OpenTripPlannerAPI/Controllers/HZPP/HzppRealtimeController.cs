@@ -1,15 +1,15 @@
 using Microsoft.AspNetCore.Mvc;
 using transit_realtime;
-using HzppRtServer.Services;
+using OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
-namespace HzppRtServer.Controllers;
+namespace OpenTripPlannerAPI.Controllers.HZPP;
 
 [ApiController]
-public class HzppRtController : ControllerBase
+public class HzppRealtimeController : ControllerBase
 {
     private readonly GtfsFeedStore _feedStore;
 
-    public HzppRtController(GtfsFeedStore feedStore)
+    public HzppRealtimeController(GtfsFeedStore feedStore)
     {
         _feedStore = feedStore;
     }

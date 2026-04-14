@@ -2,9 +2,9 @@ using System.IO.Compression;
 using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
-using HzppRtServer.Models;
+using OpenTripPlannerAPI.Scrapers.HZPP.Models;
 
-namespace HzppRtServer.Services;
+namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
 public class GtfsLoader
 {

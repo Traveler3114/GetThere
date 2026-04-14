@@ -362,4 +362,4 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 OpenTripPlanner/otp-shaded-2.9.0.jar
-OTP-HZPP-Final/otp-shaded-2.9.0.jar
+OpenTripPlannerAPI/otp-shaded-2.9.0.jar
