@@ -15,25 +15,25 @@
     <TabBar>
         <ShellContent 
             Title="Profile" 
-            Icon="profile.svg" 
+            Icon="profile.png" 
             ContentTemplate="{DataTemplate pages:ProfilePage}" 
             Route="profile" />
         
         <ShellContent 
             Title="Map" 
-            Icon="map.svg" 
+            Icon="map.png" 
             ContentTemplate="{DataTemplate pages:MapPage}" 
             Route="map" />
         
         <ShellContent 
             Title="Shop" 
-            Icon="shop_bag.svg" 
+            Icon="shop_bag.png" 
             ContentTemplate="{DataTemplate pages:ShopPage}" 
             Route="shop" />
         
         <ShellContent 
             Title="Tickets" 
-            Icon="ticket.svg" 
+            Icon="ticket.png" 
             ContentTemplate="{DataTemplate pages:TicketsPage}" 
             Route="tickets" />
     </TabBar>

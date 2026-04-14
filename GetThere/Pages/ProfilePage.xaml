@@ -53,7 +53,7 @@
             <Grid x:Name="UserHeader" Grid.Row="0" MaximumWidthRequest="600" HorizontalOptions="Center" Padding="24,15,24,0" ColumnDefinitions="Auto, *">
                 <Border x:Name="UserAvatarBorder" WidthRequest="60" HeightRequest="60" StrokeThickness="3" Stroke="#512BD4">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="30" /></Border.StrokeShape>
-                    <Image Source="profile.svg" Margin="10" />
+                    <Image Source="profile.png" Margin="10" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnAvatarClicked" />
                     </Border.GestureRecognizers>
@@ -110,15 +110,15 @@
                                     <HorizontalStackLayout Spacing="15" HorizontalOptions="Center" VerticalOptions="Center">
                                         <Label x:Name="BalanceLabelOnCard" FontAttributes="Bold" FontSize="38" Text="€0.00" TextColor="White" VerticalOptions="Center" />
                                         
-                                        <Button BackgroundColor="Transparent" Padding="8" Clicked="OnHideBalanceClicked" VerticalOptions="Center">
-                                            <Button.Content>
-                                                <Path x:Name="EyeIconPath" 
-                                                      Data="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
-                                                      Fill="White"
-                                                      WidthRequest="26"
-                                                      HeightRequest="26" />
-                                            </Button.Content>
-                                        </Button>
+                                        <ImageButton x:Name="BalanceVisibilityButton"
+                                                     Source="eye.png"
+                                                     BackgroundColor="Transparent"
+                                                     Padding="8"
+                                                     Clicked="OnHideBalanceClicked"
+                                                     VerticalOptions="Center"
+                                                     WidthRequest="42"
+                                                     HeightRequest="42"
+                                                     Aspect="AspectFit" />
                                     </HorizontalStackLayout>
                                 </VerticalStackLayout>
                             </Grid>
@@ -193,33 +193,33 @@
                                 <Border.Shadow><Shadow Brush="Black" Opacity="0.08" Radius="8" Offset="0,4" /></Border.Shadow>
                                 <VerticalStackLayout>
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image Source="profile.svg" WidthRequest="20" HeightRequest="20" />
+                                        <Image Source="profile.png" WidthRequest="20" HeightRequest="20" />
                                         <Label Grid.Column="1" Text="Account Privacy" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="Black" />
-                                        <Image Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
+                                        <Image Grid.Column="2" Source="arrow_right.png" WidthRequest="12" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnPrivacyClicked" /></Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="#F1F5F9" Margin="20,0" />
 
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image Source="ticket.svg" WidthRequest="20" HeightRequest="20" />
+                                        <Image Source="ticket.png" WidthRequest="20" HeightRequest="20" />
                                         <Label Grid.Column="1" Text="Payment Methods" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="Black" />
-                                        <Image Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
+                                        <Image Grid.Column="2" Source="arrow_right.png" WidthRequest="12" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnPaymentMethodsClicked" /></Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="#F1F5F9" Margin="20,0" />
 
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image Source="map.svg" WidthRequest="20" HeightRequest="20" />
+                                        <Image Source="map.png" WidthRequest="20" HeightRequest="20" />
                                         <Label Grid.Column="1" Text="Language &amp; Region" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="Black" />
-                                        <Image Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
+                                        <Image Grid.Column="2" Source="arrow_right.png" WidthRequest="12" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnLanguageRegionClicked" /></Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="#F1F5F9" Margin="20,0" />
 
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image Source="settings.svg" WidthRequest="20" HeightRequest="20" />
+                                        <Image Source="settings.png" WidthRequest="20" HeightRequest="20" />
                                         <Label Grid.Column="1" Text="Change Password" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="Black" />
-                                        <Image Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
+                                        <Image Grid.Column="2" Source="arrow_right.png" WidthRequest="12" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnChangePasswordClicked" /></Grid.GestureRecognizers>
                                     </Grid>
                                 </VerticalStackLayout>
@@ -234,23 +234,23 @@
                                 <Border.Shadow><Shadow Brush="Black" Opacity="0.12" Radius="10" Offset="0,4" /></Border.Shadow>
                                 <VerticalStackLayout>
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="20">
-                                        <Image Source="settings.svg" WidthRequest="20" HeightRequest="20" />
+                                        <Image Source="settings.png" WidthRequest="20" HeightRequest="20" />
                                         <Label Grid.Column="1" Text="Help Center" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="Black" />
-                                        <Image Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
+                                        <Image Grid.Column="2" Source="arrow_right.png" WidthRequest="12" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnHelpCenterClicked" /></Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="#F1F5F9" Margin="20,0" />
 
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="20">
-                                        <Image Source="profile.svg" WidthRequest="20" HeightRequest="20" Opacity="0.6" />
+                                        <Image Source="profile.png" WidthRequest="20" HeightRequest="20" Opacity="0.6" />
                                         <Label Grid.Column="1" Text="About GetThere" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="Black" />
-                                        <Image Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
+                                        <Image Grid.Column="2" Source="arrow_right.png" WidthRequest="12" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnAboutClicked" /></Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="#F1F5F9" Margin="20,0" />
                                     
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="20" Tapped="OnLogoutClicked">
-                                        <Image Source="log_off.svg" WidthRequest="20" HeightRequest="20" />
+                                        <Image Source="log_off.png" WidthRequest="20" HeightRequest="20" />
                                         <Label Grid.Column="1" Text="Sign Out" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="#991B1B" FontAttributes="Bold" />
                                         <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnLogoutClicked" /></Grid.GestureRecognizers>
                                     </Grid>

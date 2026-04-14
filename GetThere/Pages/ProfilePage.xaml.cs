@@ -112,6 +112,7 @@ public partial class ProfilePage : ContentPage
     private void UpdateBalanceDisplay()
     {
         BalanceLabelOnCard.Text = _isBalanceHidden ? "••••" : _currentBalanceText;
+        BalanceVisibilityButton.Source = _isBalanceHidden ? "eye_cl.png" : "eye.png";
     }
 
     private async Task LoadHistoryAsync()
@@ -268,9 +269,6 @@ public partial class ProfilePage : ContentPage
     {
         _isBalanceHidden = !_isBalanceHidden;
         UpdateBalanceDisplay();
-        
-        // Toggle eye icon path opacity or change data if needed
-        EyeIconPath.Opacity = _isBalanceHidden ? 0.4 : 1.0;
     }
 
     private async void OnLanguageRegionClicked(object? sender, EventArgs e)
