@@ -9,6 +9,7 @@ public partial class HzppScraper
 {
     private readonly ILogger<HzppScraper> _logger;
     private readonly HttpClient _client;
+    private static readonly TimeZoneInfo _tz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zagreb");
 
     private const string BaseUrl = "https://www.hzpp.app";
 
@@ -96,6 +97,7 @@ public partial class HzppScraper
 
         var delaySec = train.DelayMin * 60;
         var currentStation = GtfsLoader.Normalize(train.CurrentStation);
+        var nowSec = (int)TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz).TimeOfDay.TotalSeconds;
 
         int? currentSeq = null;
         foreach (var st in stList)
@@ -111,13 +113,22 @@ public partial class HzppScraper
 
         var updates = new List<StopTimeUpdateDto>();
         foreach (var st in stList)
-            if (currentSeq == null || st.StopSequence >= currentSeq || train.Finished)
-                updates.Add(new StopTimeUpdateDto
-                {
-                    StopId = st.StopId,
-                    StopSequence = st.StopSequence,
-                    DelaySec = delaySec
-                });
+        {
+            // If we know the current station, only update from there onward
+            if (currentSeq != null && st.StopSequence < currentSeq && !train.Finished)
+                continue;
+
+            // If we don't know current station, skip stops whose scheduled departure is in the past
+            if (currentSeq == null && !train.Finished && st.DepartureSec < nowSec)
+                continue;
+
+            updates.Add(new StopTimeUpdateDto
+            {
+                StopId = st.StopId,
+                StopSequence = st.StopSequence,
+                DelaySec = delaySec
+            });
+        }
 
         return updates;
     }

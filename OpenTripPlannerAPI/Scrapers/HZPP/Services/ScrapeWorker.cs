@@ -74,6 +74,10 @@ public class ScrapeWorker : BackgroundService
 
             if (payload is null) continue;
 
+            // Skip trains with no delay and no known position — nothing useful to report
+            if (payload.DelayMin == 0 && string.IsNullOrEmpty(payload.CurrentStation) && !payload.Finished)
+                continue;
+
             var tripId = _gtfsLoader.GetActiveTripId(tnum, gtfs);
             if (tripId is null) { _logger.LogDebug("No active trip for train {Train} today", tnum); continue; }
 
