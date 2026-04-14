@@ -30,7 +30,7 @@ public sealed class DbBackedOtpConfigLoader
 
         var path = _configuration["OperatorSource:OtpFeedsPath"] ?? "/operator/otp-feeds";
         var sourceUrl = $"{apiBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
-        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/hzpp-rt";
+        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5001/hzpp-rt";
 
         using var client = _httpClientFactory.CreateClient("operator-source");
         HttpResponseMessage response;
@@ -76,16 +76,17 @@ public sealed class DbBackedOtpConfigLoader
 
         foreach (var op in operators)
         {
-            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+            var realtimeUrl = NormalizeLocalHzppRealtimeUrl(op.GtfsRealtimeUrl, localHzppRealtimeUrl);
+            if (!string.IsNullOrWhiteSpace(realtimeUrl))
             {
                 updaters.Add(new
                 {
                     type = "STOP_TIME_UPDATER",
                     feedId = op.FeedId,
-                    url = op.GtfsRealtimeUrl,
+                    url = realtimeUrl,
                     frequency
                 });
-                if (UrlsEqual(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
+                if (UrlsEqual(realtimeUrl, localHzppRealtimeUrl))
                 {
                     usesLocalHzppScraper = true;
                     localHzppStaticGtfsUrl ??= op.StaticGtfsUrl;
@@ -167,7 +168,8 @@ public sealed class DbBackedOtpConfigLoader
             if (!updater.TryGetProperty("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
                 continue;
 
-            if (UrlsEqual(urlElement.GetString(), localHzppRealtimeUrl))
+            var updaterUrl = urlElement.GetString();
+            if (UrlsEqual(updaterUrl, localHzppRealtimeUrl) || IsLocalHzppRealtimeUrl(updaterUrl))
                 return true;
         }
 
@@ -238,6 +240,29 @@ public sealed class DbBackedOtpConfigLoader
     private static bool IsValidHttpUrl(string? url)
         => Uri.TryCreate(url, UriKind.Absolute, out var parsed)
            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+
+    private static string? NormalizeLocalHzppRealtimeUrl(string? url, string fallbackLocalUrl)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return url;
+
+        return IsLocalHzppRealtimeUrl(url) ? fallbackLocalUrl : url;
+    }
+
+    private static bool IsLocalHzppRealtimeUrl(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
+            return false;
+
+        if (!string.Equals(parsed.AbsolutePath, "/hzpp-rt", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var isLoopbackHost = parsed.IsLoopback
+            || string.Equals(parsed.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(parsed.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase);
+
+        return isLoopbackHost;
+    }
 
     private static bool UrlsEqual(string? left, string? right)
     {

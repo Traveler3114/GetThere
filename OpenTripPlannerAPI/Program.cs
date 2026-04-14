@@ -3,7 +3,7 @@ using OpenTripPlannerAPI.Scrapers.HZPP.Services;
 using OpenTripPlannerAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://0.0.0.0:5000");
+builder.WebHost.UseUrls("http://0.0.0.0:5001");
 
 // ── HTTP clients ──────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("gtfs", c =>
@@ -43,8 +43,8 @@ var configResult = await configLoader.LoadAndGenerateAsync();
 Console.WriteLine("""
 
 🚆 OpenTripPlannerAPI (OTP + HŽPP scraper)
-   Feed endpoint : http://localhost:5000/hzpp-rt
-   Status page   : http://localhost:5000/status
+   Feed endpoint : http://localhost:5001/hzpp-rt
+   Status page   : http://localhost:5001/status
 
 """);
 
