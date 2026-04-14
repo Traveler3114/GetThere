@@ -5,6 +5,7 @@ namespace OpenTripPlannerAPI.Services;
 
 public sealed class DbBackedOtpConfigLoader
 {
+    private const string HzppFallbackMode = "HZPP_Scraper";
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DbBackedOtpConfigLoader> _logger;
@@ -79,7 +80,7 @@ public sealed class DbBackedOtpConfigLoader
                     frequency
                 });
             }
-            else if (string.Equals(op.RealtimeFallbackMode, "HZPP_Scraper", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(op.RealtimeFallbackMode, HzppFallbackMode, StringComparison.OrdinalIgnoreCase))
             {
                 requiresHzppFallback = true;
                 hzppFallbackStaticGtfsUrl ??= op.StaticGtfsUrl;
@@ -165,7 +166,9 @@ public sealed class DbBackedOtpConfigLoader
         using var client = _httpClientFactory.CreateClient("operator-source");
         foreach (var op in operators)
         {
-            var urlsToProbe = new List<string> { op.StaticGtfsUrl! };
+            var urlsToProbe = new List<string>();
+            if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
+                urlsToProbe.Add(op.StaticGtfsUrl);
             var tripUpdatesUrl = FirstNonEmpty(op.TripUpdatesUrl, op.LegacyGtfsRealtimeUrl);
             if (!string.IsNullOrWhiteSpace(tripUpdatesUrl)) urlsToProbe.Add(tripUpdatesUrl);
             if (!string.IsNullOrWhiteSpace(op.VehiclePositionsUrl)) urlsToProbe.Add(op.VehiclePositionsUrl);
