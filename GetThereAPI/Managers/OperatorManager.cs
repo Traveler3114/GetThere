@@ -33,6 +33,8 @@ public class OperatorManager
         [4] = 3,
     };
 
+    private static string BuildOtpFeedId(int operatorId) => $"op{operatorId}";
+
     private static readonly List<TicketableOperatorDto> TicketableList =
     [
         new TicketableOperatorDto
@@ -197,7 +199,7 @@ public class OperatorManager
                 OperatorName = o.Name,
                 CountryId = o.CountryId,
                 CountryName = o.Country.Name,
-                FeedId = $"op{o.Id}",
+                FeedId = BuildOtpFeedId(o.Id),
                 StaticGtfsUrl = o.GtfsFeedUrl,
                 GtfsRealtimeUrl = o.GtfsRealtimeFeedUrl
             })

@@ -86,31 +86,23 @@ namespace GetThereAPI.Data
                      TicketApiKey = "",
                      GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
                      GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
-                     RealtimeFeedFormat = "GTFS_RT_PROTO",
-                     RealtimeAuthType = "NONE",
-                     RealtimeAuthConfig = null,
-                     RealtimeAdapterConfig = null,
                      CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                      CountryId = 1,
                      CityId = 1
                  },
-                  new TransitOperator
-                  {
-                      Id = 2,
-                      Name = "HZPP",
-                      LogoUrl = null,
-                       TicketApiBaseUrl = "",
-                       TicketApiKey = "",
-                       GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                       GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/hzpp-rt",
-                       RealtimeFeedFormat = "GTFS_RT_PROTO",
-                       RealtimeAuthType = "NONE",
-                       RealtimeAuthConfig = null,
-                       RealtimeAdapterConfig = null,
-                       CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
-                       CountryId = 1,
-                       CityId = null
-                  },
+                 new TransitOperator
+                 {
+                     Id = 2,
+                     Name = "HZPP",
+                     LogoUrl = null,
+                     TicketApiBaseUrl = "",
+                     TicketApiKey = "",
+                     GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                     GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/hzpp-rt",
+                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                     CountryId = 1,
+                     CityId = null
+                 },
                 // Additional
                 new TransitOperator
                 {
@@ -121,10 +113,6 @@ namespace GetThereAPI.Data
                     TicketApiKey = "",
                     GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
                     GtfsRealtimeFeedUrl = null,
-                    RealtimeFeedFormat = "NONE",
-                    RealtimeAuthType = "NONE",
-                    RealtimeAuthConfig = null,
-                    RealtimeAdapterConfig = null,
                     CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                     CountryId = 3,
                     CityId = null

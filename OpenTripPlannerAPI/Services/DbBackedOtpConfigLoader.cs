@@ -32,8 +32,18 @@ public sealed class DbBackedOtpConfigLoader
         var sourceUrl = $"{apiBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
 
         using var client = _httpClientFactory.CreateClient("operator-source");
-        var response = await client.GetAsync(sourceUrl, ct);
-        response.EnsureSuccessStatusCode();
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.GetAsync(sourceUrl, ct);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to fetch operator feed config from '{sourceUrl}'. Status: {ex.StatusCode?.ToString() ?? "unknown"}.",
+                ex);
+        }
 
         var payload = await response.Content.ReadFromJsonAsync<OperationResultDto<List<OtpOperatorFeedDto>>>(cancellationToken: ct);
         if (payload is null || !payload.Success || payload.Data is null)
@@ -120,8 +130,8 @@ public sealed class DbBackedOtpConfigLoader
                 throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT URL.");
         }
 
-        var strictProbe = bool.TryParse(_configuration["OperatorSource:StrictReachabilityChecks"], out var enabled) && enabled;
-        if (!strictProbe)
+        var isStrictReachabilityEnabled = bool.TryParse(_configuration["OperatorSource:StrictReachabilityChecks"], out var enabled) && enabled;
+        if (!isStrictReachabilityEnabled)
             return;
 
         using var client = _httpClientFactory.CreateClient("operator-source");
@@ -130,7 +140,8 @@ public sealed class DbBackedOtpConfigLoader
             var urlsToProbe = new List<string>();
             if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
                 urlsToProbe.Add(op.StaticGtfsUrl);
-            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl)) urlsToProbe.Add(op.GtfsRealtimeUrl);
+            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+                urlsToProbe.Add(op.GtfsRealtimeUrl);
 
             foreach (var url in urlsToProbe)
             {
