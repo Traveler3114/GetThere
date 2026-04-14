@@ -14,13 +14,17 @@ public partial class TicketPurchasePage : ContentPage
 {
     private readonly ShopService _shopService;
     private readonly MockTicketStore _store;
+    private readonly CountryPreferenceService _prefs;
+    private int _initialCountryId;
     private TicketableOperatorDto? _operator;
 
-    public TicketPurchasePage(ShopService shopService, MockTicketStore store)
+    public TicketPurchasePage(ShopService shopService, MockTicketStore store, CountryPreferenceService prefs)
     {
         InitializeComponent();
         _shopService = shopService;
         _store = store;
+        _prefs = prefs;
+        _initialCountryId = _prefs.GetSelectedCountryId();
         SizeChanged += OnPageSizeChanged;
     }
 
@@ -43,6 +47,13 @@ public partial class TicketPurchasePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        
+        if (_prefs.GetSelectedCountryId() != _initialCountryId)
+        {
+            await Navigation.PopToRootAsync();
+            return;
+        }
+
         UpdateResponsiveLayout();
         if (_operator is not null)
             await LoadOptionsAsync();

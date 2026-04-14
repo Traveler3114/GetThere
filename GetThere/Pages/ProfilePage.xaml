@@ -90,9 +90,9 @@
             <Grid Grid.Row="2">
                 
                 <!-- ── WALLET TAB VIEW ── -->
-                <VerticalStackLayout x:Name="WalletTabView" Spacing="0" IsVisible="True">
+                <Grid x:Name="WalletTabView" RowDefinitions="Auto, *" IsVisible="True">
                     <!-- Balance Card -->
-                    <Grid x:Name="BalanceCardGrid" Margin="16,5,16,10" HorizontalOptions="Center">
+                    <Grid x:Name="BalanceCardGrid" Grid.Row="0" Margin="16,5,16,10" HorizontalOptions="Center">
                         <Border x:Name="BalanceCard" WidthRequest="360" HeightRequest="180" HorizontalOptions="Center" StrokeThickness="0">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="24" /></Border.StrokeShape>
                             <Border.Background>
@@ -107,10 +107,14 @@
                                 <VerticalStackLayout Spacing="10" HorizontalOptions="Center" VerticalOptions="Center">
                                     <Label Text="CURRENT BALANCE" FontSize="10" FontAttributes="Bold" TextColor="White" Opacity="0.7" HorizontalOptions="Center" />
                                     
-                                    <HorizontalStackLayout Spacing="15" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <Label x:Name="BalanceLabelOnCard" FontAttributes="Bold" FontSize="38" Text="€0.00" TextColor="White" VerticalOptions="Center" />
+                                    <Grid ColumnSpacing="15" HorizontalOptions="Center" VerticalOptions="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="42" />
+                                        </Grid.ColumnDefinitions>
+                                        <Label Grid.Column="0" x:Name="BalanceLabelOnCard" FontAttributes="Bold" MinimumWidthRequest="140" HorizontalTextAlignment="Center" FontSize="38" Text="€0.00" TextColor="White" VerticalOptions="Center" />
                                         
-                                        <ImageButton x:Name="BalanceVisibilityButton"
+                                        <ImageButton Grid.Column="1" x:Name="BalanceVisibilityButton"
                                                      Source="eye.png"
                                                      BackgroundColor="Transparent"
                                                      Padding="8"
@@ -119,7 +123,7 @@
                                                      WidthRequest="42"
                                                      HeightRequest="42"
                                                      Aspect="AspectFit" />
-                                    </HorizontalStackLayout>
+                                    </Grid>
                                 </VerticalStackLayout>
                             </Grid>
                         </Border>
@@ -130,7 +134,7 @@
                     </Grid>
 
                     <!-- History Surface -->
-                    <Grid x:Name="HistoryContainer" RowDefinitions="Auto, *" Margin="0,25,0,0">
+                    <Grid x:Name="HistoryContainer" Grid.Row="1" RowDefinitions="Auto, *" Margin="0,25,0,0">
                         <Label x:Name="RecentActivityLabel" Grid.Row="0" Text="Recent Activity" FontSize="16" FontAttributes="Bold" TextColor="Black" HorizontalOptions="Center" Margin="0,5,0,10" />
                         <Border Grid.Row="1" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Center" MaximumWidthRequest="1200" VerticalOptions="Fill">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="36,36,0,0" /></Border.StrokeShape>
@@ -138,7 +142,7 @@
                             
                             <!-- WRAPPER GRID TO HOLD SCROLLVIEW + THUMB -->
                             <Grid>
-                                <ScrollView x:Name="WalletScrollView" HeightRequest="450" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
+                                <ScrollView x:Name="WalletScrollView" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
                                     <VerticalStackLayout Padding="24,20,24,120">
                                         <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E5E7EB" HorizontalOptions="Center" Margin="0,12,0,12" />
                                         <StackLayout x:Name="HistoryRows" BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" Spacing="0" />
@@ -161,7 +165,7 @@
                             </Grid>
                         </Border>
                     </Grid>
-                </VerticalStackLayout>
+                </Grid>
 
                 <!-- ── ACCOUNT TAB VIEW ── -->
                 <ScrollView x:Name="AccountTabView" IsVisible="False" Padding="20,10,20,120" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">

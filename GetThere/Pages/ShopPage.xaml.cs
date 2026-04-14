@@ -259,7 +259,7 @@ public partial class ShopPage : ContentPage
 
     private async void OnOperatorTapped(TicketableOperatorDto op)
     {
-        var page = new TicketPurchasePage(_shopService, _mockStore);
+        var page = new TicketPurchasePage(_shopService, _mockStore, _prefs);
         page.Prepare(op);
         await Navigation.PushAsync(page);
     }
