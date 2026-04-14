@@ -30,6 +30,7 @@ public sealed class DbBackedOtpConfigLoader
 
         var path = _configuration["OperatorSource:OtpFeedsPath"] ?? "/operator/otp-feeds";
         var sourceUrl = $"{apiBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/hzpp-rt";
 
         using var client = _httpClientFactory.CreateClient("operator-source");
         HttpResponseMessage response;
@@ -40,9 +41,7 @@ public sealed class DbBackedOtpConfigLoader
         }
         catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException(
-                $"Failed to fetch operator feed config from '{sourceUrl}'. Status: {ex.StatusCode?.ToString() ?? "unknown"}.",
-                ex);
+            return LoadExistingConfigOrThrow(sourceUrl, localHzppRealtimeUrl, ex);
         }
 
         var payload = await response.Content.ReadFromJsonAsync<OperationResultDto<List<OtpOperatorFeedDto>>>(cancellationToken: ct);
@@ -59,7 +58,6 @@ public sealed class DbBackedOtpConfigLoader
         await ValidateOperatorsAsync(operators, ct);
 
         var frequency = _configuration["OperatorSource:UpdaterFrequency"] ?? "PT30S";
-        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/hzpp-rt";
 
         var buildConfig = new
         {
@@ -114,6 +112,90 @@ public sealed class DbBackedOtpConfigLoader
 
         _logger.LogInformation("Generated OTP build-config.json and router-config.json from DB source ({Count} operators).", operators.Count);
         return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
+    }
+
+    private DbBackedOtpConfigResult LoadExistingConfigOrThrow(string sourceUrl, string localHzppRealtimeUrl, HttpRequestException ex)
+    {
+        var outputDir = AppContext.BaseDirectory;
+        var currentDir = Directory.GetCurrentDirectory();
+
+        var buildConfigPath = ResolveExistingConfigPath("build-config.json", outputDir, currentDir);
+        var routerConfigPath = ResolveExistingConfigPath("router-config.json", outputDir, currentDir);
+
+        if (buildConfigPath is null || routerConfigPath is null)
+        {
+            throw new InvalidOperationException(
+                $"Failed to fetch operator feed config from '{sourceUrl}'. Status: {ex.StatusCode?.ToString() ?? "unknown"}.",
+                ex);
+        }
+
+        var usesLocalHzppScraper = TryDetectLocalHzppUpdater(routerConfigPath, localHzppRealtimeUrl);
+        var localHzppStaticGtfsUrl = usesLocalHzppScraper ? TryResolveStaticGtfsUrl(buildConfigPath, "hzpp") : null;
+
+        _state.UsesLocalHzppScraper = usesLocalHzppScraper;
+        _state.LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl;
+
+        _logger.LogWarning(
+            ex,
+            "Failed to fetch operator feed config from '{SourceUrl}'. Falling back to existing build/router config files ('{BuildConfigPath}', '{RouterConfigPath}').",
+            sourceUrl,
+            buildConfigPath,
+            routerConfigPath);
+
+        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
+    }
+
+    private static string? ResolveExistingConfigPath(string fileName, string outputDir, string currentDir)
+    {
+        var outputPath = Path.Combine(outputDir, fileName);
+        if (File.Exists(outputPath))
+            return outputPath;
+
+        var currentPath = Path.Combine(currentDir, fileName);
+        return File.Exists(currentPath) ? currentPath : null;
+    }
+
+    private static bool TryDetectLocalHzppUpdater(string routerConfigPath, string localHzppRealtimeUrl)
+    {
+        using var stream = File.OpenRead(routerConfigPath);
+        using var doc = JsonDocument.Parse(stream);
+        if (!doc.RootElement.TryGetProperty("updaters", out var updaters) || updaters.ValueKind != JsonValueKind.Array)
+            return false;
+
+        foreach (var updater in updaters.EnumerateArray())
+        {
+            if (!updater.TryGetProperty("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
+                continue;
+
+            if (UrlsEqual(urlElement.GetString(), localHzppRealtimeUrl))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string? TryResolveStaticGtfsUrl(string buildConfigPath, string feedId)
+    {
+        using var stream = File.OpenRead(buildConfigPath);
+        using var doc = JsonDocument.Parse(stream);
+        if (!doc.RootElement.TryGetProperty("transitFeeds", out var transitFeeds) || transitFeeds.ValueKind != JsonValueKind.Array)
+            return null;
+
+        foreach (var feed in transitFeeds.EnumerateArray())
+        {
+            if (!feed.TryGetProperty("feedId", out var feedIdElement) || feedIdElement.ValueKind != JsonValueKind.String)
+                continue;
+
+            if (!string.Equals(feedIdElement.GetString(), feedId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!feed.TryGetProperty("source", out var sourceElement) || sourceElement.ValueKind != JsonValueKind.String)
+                return null;
+
+            return sourceElement.GetString();
+        }
+
+        return null;
     }
 
     private async Task ValidateOperatorsAsync(List<OtpOperatorFeedDto> operators, CancellationToken ct)
