@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GetThereAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class NewTables : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -357,12 +357,7 @@ namespace GetThereAPI.Migrations
                     TicketApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     TicketApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     GtfsFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    StaticFeedFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     GtfsRealtimeFeedUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RealtimeFeedFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    RealtimeAuthType = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    RealtimeAuthConfig = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RealtimeAdapterConfig = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CountryId = table.Column<int>(type: "int", nullable: false),
                     CityId = table.Column<int>(type: "int", nullable: true)
@@ -536,12 +531,12 @@ namespace GetThereAPI.Migrations
 
             migrationBuilder.InsertData(
                 table: "TransitOperators",
-                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "RealtimeAdapterConfig", "RealtimeAuthConfig", "RealtimeAuthType", "RealtimeFeedFormat", "StaticFeedFormat", "TicketApiBaseUrl", "TicketApiKey" },
+                columns: new[] { "Id", "CityId", "CountryId", "CreatedAt", "GtfsFeedUrl", "GtfsRealtimeFeedUrl", "LogoUrl", "Name", "TicketApiBaseUrl", "TicketApiKey" },
                 values: new object[,]
                 {
-                    { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", null, null, "HZPP", null, null, "NONE", "NONE", "GTFS", "", "" },
-                    { 3, null, 3, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip", null, null, "ÖBB (Austrian Federal Railways)", null, null, "NONE", "NONE", "GTFS", "", "" },
-                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", null, null, "NONE", "GTFS_RT_PROTO", "GTFS", "", "" }
+                    { 2, null, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://www.hzpp.hr/GTFS_files.zip", "http://127.0.0.1:5000/hzpp-rt", null, "HZPP", "", "" },
+                    { 3, null, 3, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip", null, null, "ÖBB (Austrian Federal Railways)", "", "" },
+                    { 1, 1, 1, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "https://zet.hr/gtfs-scheduled/latest", "https://zet.hr/gtfs-rt-protobuf", null, "ZET", "", "" }
                 });
 
             migrationBuilder.CreateIndex(
