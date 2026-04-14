@@ -1,7 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
-
 namespace GetThereAPI.Entities
 {
     public class TransitOperator
@@ -16,8 +12,6 @@ namespace GetThereAPI.Entities
         // ── Static feed ────────────────────────────────────────────────────
 
         public string? GtfsFeedUrl { get; set; }
-        public string OtpFeedId { get; set; } = string.Empty;
-        public string OtpInstanceKey { get; set; } = "eu";
 
         /// <summary>
         /// How to parse the static feed.
@@ -29,9 +23,6 @@ namespace GetThereAPI.Entities
         // ── Realtime feed ──────────────────────────────────────────────────
 
         public string? GtfsRealtimeFeedUrl { get; set; }
-        public string? GtfsRtTripUpdatesUrl { get; set; }
-        public string? GtfsRtVehiclePositionsUrl { get; set; }
-        public string? GtfsRtAlertsUrl { get; set; }
 
         /// <summary>
         /// How to parse the realtime feed.
@@ -58,7 +49,6 @@ namespace GetThereAPI.Entities
         /// Null for standard GTFS-RT operators.
         /// </summary>
         public string? RealtimeAdapterConfig { get; set; }
-        public RealtimeFallbackMode RealtimeFallbackMode { get; set; } = RealtimeFallbackMode.None;
 
         // ── Metadata ───────────────────────────────────────────────────────
 
@@ -73,11 +63,5 @@ namespace GetThereAPI.Entities
 
         // Navigation: Transport types this operator runs (tram, bus, train etc.)
         public ICollection<TransportType> TransportTypes { get; set; } = new List<TransportType>();
-    }
-
-    public enum RealtimeFallbackMode
-    {
-        None,
-        HZPP_Scraper
     }
 }

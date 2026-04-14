@@ -31,14 +31,14 @@ public class ScrapeWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_state.RequiresHzppFallback)
+        if (!_state.UsesLocalHzppScraper)
         {
-            _logger.LogInformation("HZPP scraper fallback is disabled by DB config; worker is idle.");
+            _logger.LogInformation("Local HZPP GTFS-RT endpoint is not used by DB config; worker is idle.");
             GtfsReadySignal.SetReady();
             return;
         }
 
-        var gtfsUrl = _state.HzppFallbackStaticGtfsUrl
+        var gtfsUrl = _state.LocalHzppStaticGtfsUrl
                       ?? _config["Gtfs:ZipUrl"]
                       ?? "https://www.hzpp.hr/GTFS_files.zip";
         var interval = int.Parse(_config["Scrape:IntervalSeconds"] ?? "30");

@@ -5,7 +5,6 @@ namespace OpenTripPlannerAPI.Services;
 
 public sealed class DbBackedOtpConfigLoader
 {
-    private const string HzppFallbackMode = "HZPP_Scraper";
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DbBackedOtpConfigLoader> _logger;
@@ -50,7 +49,7 @@ public sealed class DbBackedOtpConfigLoader
         await ValidateOperatorsAsync(operators, ct);
 
         var frequency = _configuration["OperatorSource:UpdaterFrequency"] ?? "PT30S";
-        var localHzppFallbackUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/hzpp-rt";
+        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/hzpp-rt";
 
         var buildConfig = new
         {
@@ -58,62 +57,31 @@ public sealed class DbBackedOtpConfigLoader
             {
                 type = "gtfs",
                 source = o.StaticGtfsUrl,
-                feedId = o.OtpFeedId
+                feedId = o.FeedId
             }).ToList(),
             transitModelTimeZone = _configuration["OperatorSource:TransitModelTimeZone"] ?? "Europe/Zagreb"
         };
 
         var updaters = new List<object>();
-        var requiresHzppFallback = false;
-        string? hzppFallbackStaticGtfsUrl = null;
+        var usesLocalHzppScraper = false;
+        string? localHzppStaticGtfsUrl = null;
 
         foreach (var op in operators)
         {
-            var tripUpdatesUrl = FirstNonEmpty(op.TripUpdatesUrl, op.LegacyGtfsRealtimeUrl);
-            if (!string.IsNullOrWhiteSpace(tripUpdatesUrl))
+            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
             {
                 updaters.Add(new
                 {
                     type = "STOP_TIME_UPDATER",
-                    feedId = op.OtpFeedId,
-                    url = tripUpdatesUrl,
+                    feedId = op.FeedId,
+                    url = op.GtfsRealtimeUrl,
                     frequency
                 });
-            }
-            else if (string.Equals(op.RealtimeFallbackMode, HzppFallbackMode, StringComparison.OrdinalIgnoreCase))
-            {
-                requiresHzppFallback = true;
-                hzppFallbackStaticGtfsUrl ??= op.StaticGtfsUrl;
-                updaters.Add(new
+                if (UrlsEqual(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
                 {
-                    type = "STOP_TIME_UPDATER",
-                    feedId = op.OtpFeedId,
-                    url = localHzppFallbackUrl,
-                    frequency,
-                    fuzzyTripMatching = true
-                });
-            }
-
-            if (!string.IsNullOrWhiteSpace(op.VehiclePositionsUrl))
-            {
-                updaters.Add(new
-                {
-                    type = "VEHICLE_POSITION_UPDATER",
-                    feedId = op.OtpFeedId,
-                    url = op.VehiclePositionsUrl,
-                    frequency
-                });
-            }
-
-            if (!string.IsNullOrWhiteSpace(op.AlertsUrl))
-            {
-                updaters.Add(new
-                {
-                    type = "ALERTS_UPDATER",
-                    feedId = op.OtpFeedId,
-                    url = op.AlertsUrl,
-                    frequency
-                });
+                    usesLocalHzppScraper = true;
+                    localHzppStaticGtfsUrl ??= op.StaticGtfsUrl;
+                }
             }
         }
 
@@ -131,32 +99,25 @@ public sealed class DbBackedOtpConfigLoader
             JsonSerializer.Serialize(routerConfig, jsonOptions),
             ct);
 
-        _state.RequiresHzppFallback = requiresHzppFallback;
-        _state.HzppFallbackStaticGtfsUrl = hzppFallbackStaticGtfsUrl;
+        _state.UsesLocalHzppScraper = usesLocalHzppScraper;
+        _state.LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl;
 
         _logger.LogInformation("Generated OTP build-config.json and router-config.json from DB source ({Count} operators).", operators.Count);
-        return new DbBackedOtpConfigResult { RequiresHzppFallback = requiresHzppFallback };
+        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
     }
 
     private async Task ValidateOperatorsAsync(List<OtpOperatorFeedDto> operators, CancellationToken ct)
     {
         foreach (var op in operators)
         {
-            if (string.IsNullOrWhiteSpace(op.OtpFeedId))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has empty OtpFeedId.");
+            if (string.IsNullOrWhiteSpace(op.FeedId))
+                throw new InvalidOperationException($"Operator '{op.OperatorName}' has empty feed id.");
 
             if (!IsValidHttpUrl(op.StaticGtfsUrl))
                 throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid static GTFS URL.");
 
-            var tripUpdatesUrl = FirstNonEmpty(op.TripUpdatesUrl, op.LegacyGtfsRealtimeUrl);
-            if (!string.IsNullOrWhiteSpace(tripUpdatesUrl) && !IsValidHttpUrl(tripUpdatesUrl))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT trip-updates URL.");
-
-            if (!string.IsNullOrWhiteSpace(op.VehiclePositionsUrl) && !IsValidHttpUrl(op.VehiclePositionsUrl))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT vehicle positions URL.");
-
-            if (!string.IsNullOrWhiteSpace(op.AlertsUrl) && !IsValidHttpUrl(op.AlertsUrl))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT alerts URL.");
+            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl) && !IsValidHttpUrl(op.GtfsRealtimeUrl))
+                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT URL.");
         }
 
         var strictProbe = bool.TryParse(_configuration["OperatorSource:StrictReachabilityChecks"], out var enabled) && enabled;
@@ -169,10 +130,7 @@ public sealed class DbBackedOtpConfigLoader
             var urlsToProbe = new List<string>();
             if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
                 urlsToProbe.Add(op.StaticGtfsUrl);
-            var tripUpdatesUrl = FirstNonEmpty(op.TripUpdatesUrl, op.LegacyGtfsRealtimeUrl);
-            if (!string.IsNullOrWhiteSpace(tripUpdatesUrl)) urlsToProbe.Add(tripUpdatesUrl);
-            if (!string.IsNullOrWhiteSpace(op.VehiclePositionsUrl)) urlsToProbe.Add(op.VehiclePositionsUrl);
-            if (!string.IsNullOrWhiteSpace(op.AlertsUrl)) urlsToProbe.Add(op.AlertsUrl);
+            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl)) urlsToProbe.Add(op.GtfsRealtimeUrl);
 
             foreach (var url in urlsToProbe)
             {
@@ -188,19 +146,26 @@ public sealed class DbBackedOtpConfigLoader
         => Uri.TryCreate(url, UriKind.Absolute, out var parsed)
            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
 
-    private static string? FirstNonEmpty(params string?[] values)
-        => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+    private static bool UrlsEqual(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+            return false;
+
+        return Uri.TryCreate(left, UriKind.Absolute, out var l)
+            && Uri.TryCreate(right, UriKind.Absolute, out var r)
+            && Uri.Compare(l, r, UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
+    }
 }
 
 public sealed class DbBackedOtpConfigResult
 {
-    public bool RequiresHzppFallback { get; set; }
+    public bool UsesLocalHzppScraper { get; set; }
 }
 
 public sealed class DbBackedOtpConfigState
 {
-    public bool RequiresHzppFallback { get; set; }
-    public string? HzppFallbackStaticGtfsUrl { get; set; }
+    public bool UsesLocalHzppScraper { get; set; }
+    public string? LocalHzppStaticGtfsUrl { get; set; }
 }
 
 internal sealed class OperationResultDto<T>
@@ -216,12 +181,7 @@ internal sealed class OtpOperatorFeedDto
     public string OperatorName { get; set; } = string.Empty;
     public int CountryId { get; set; }
     public string CountryName { get; set; } = string.Empty;
-    public string OtpFeedId { get; set; } = string.Empty;
-    public string OtpInstanceKey { get; set; } = string.Empty;
+    public string FeedId { get; set; } = string.Empty;
     public string? StaticGtfsUrl { get; set; }
-    public string? LegacyGtfsRealtimeUrl { get; set; }
-    public string? TripUpdatesUrl { get; set; }
-    public string? VehiclePositionsUrl { get; set; }
-    public string? AlertsUrl { get; set; }
-    public string RealtimeFallbackMode { get; set; } = "None";
+    public string? GtfsRealtimeUrl { get; set; }
 }

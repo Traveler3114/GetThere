@@ -51,7 +51,7 @@ Console.WriteLine("""
 // Start the web server and background scraper
 await app.StartAsync();
 
-if (configResult.RequiresHzppFallback)
+if (configResult.UsesLocalHzppScraper)
 {
     // Wait until the first full scrape cycle is complete and feed is ready
     Console.WriteLine("⏳ Waiting for first scrape cycle to complete...");
@@ -60,7 +60,7 @@ if (configResult.RequiresHzppFallback)
 }
 else
 {
-    Console.WriteLine("ℹ️  No HZPP fallback operators configured — skipping scraper warmup wait.");
+    Console.WriteLine("ℹ️  No operators use local HZPP GTFS-RT endpoint — skipping scraper warmup wait.");
 }
 
 // Now launch OTP Java

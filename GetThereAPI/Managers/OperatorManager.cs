@@ -197,14 +197,9 @@ public class OperatorManager
                 OperatorName = o.Name,
                 CountryId = o.CountryId,
                 CountryName = o.Country.Name,
-                OtpFeedId = o.OtpFeedId,
-                OtpInstanceKey = o.OtpInstanceKey,
+                FeedId = $"op{o.Id}",
                 StaticGtfsUrl = o.GtfsFeedUrl,
-                LegacyGtfsRealtimeUrl = o.GtfsRealtimeFeedUrl,
-                TripUpdatesUrl = o.GtfsRtTripUpdatesUrl,
-                VehiclePositionsUrl = o.GtfsRtVehiclePositionsUrl,
-                AlertsUrl = o.GtfsRtAlertsUrl,
-                RealtimeFallbackMode = o.RealtimeFallbackMode.ToString()
+                GtfsRealtimeUrl = o.GtfsRealtimeFeedUrl
             })
             .ToListAsync();
     }
