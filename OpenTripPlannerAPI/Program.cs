@@ -53,12 +53,20 @@ if (!File.Exists(otpJar))
 }
 else
 {
+    var configuredJavaPath = builder.Configuration["Otp:JavaExecutable"];
+    var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
+    var javaExecutable = !string.IsNullOrWhiteSpace(configuredJavaPath)
+        ? configuredJavaPath
+        : !string.IsNullOrWhiteSpace(javaHome)
+            ? Path.Combine(javaHome, "bin", OperatingSystem.IsWindows() ? "java.exe" : "java")
+            : "java";
+
     Console.WriteLine("🚀 Starting OpenTripPlanner...");
     var otpProcess = new Process
     {
         StartInfo = new ProcessStartInfo
         {
-            FileName = @"C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot\bin\java.exe",
+            FileName = javaExecutable,
             Arguments = $"-Xmx2G -jar \"{otpJar}\" --build --serve .",
             UseShellExecute = false,
             WorkingDirectory = AppContext.BaseDirectory
