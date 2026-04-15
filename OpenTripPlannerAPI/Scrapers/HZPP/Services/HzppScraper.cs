@@ -127,7 +127,9 @@ public partial class HzppScraper
             {
                 StopId = st.StopId,
                 StopSequence = st.StopSequence,
-                DelaySec = delaySec
+                DelaySec = delaySec,
+                ScheduledArrivalSec = st.ArrivalSec,
+                ScheduledDepartureSec = st.DepartureSec
             });
         }
 
