@@ -129,8 +129,8 @@ public class ScrapeWorker : BackgroundService
 
             foreach (var stu in stus)
             {
-                var hasScheduledArrival = stu.ScheduledArrivalSec > 0;
-                var hasScheduledDeparture = stu.ScheduledDepartureSec > 0;
+                var hasScheduledArrival = stu.ScheduledArrivalSec >= 0;
+                var hasScheduledDeparture = stu.ScheduledDepartureSec >= 0;
 
                 if (!hasScheduledArrival && !hasScheduledDeparture)
                     continue;

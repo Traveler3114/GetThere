@@ -119,7 +119,7 @@ public partial class HzppScraper
                 continue;
 
             // If we don't know current station, never emit already-departed stops
-            var scheduledDepartureSec = st.DepartureSec > 0 ? st.DepartureSec : st.ArrivalSec;
+            var scheduledDepartureSec = st.DepartureSec >= 0 ? st.DepartureSec : st.ArrivalSec;
             if (currentSeq == null && scheduledDepartureSec <= nowSec)
                 continue;
 
