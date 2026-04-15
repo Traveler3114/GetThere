@@ -113,9 +113,19 @@ public partial class ProfilePage : ContentPage
 
     private void UpdateBalanceDisplay()
     {
-        BalanceLabelOnCard.Text = _isBalanceHidden ? "••••" : _currentBalanceText;
+        BalanceLabelOnCard.Text = _isBalanceHidden ? GetMaskedBalanceText() : _currentBalanceText;
         BalanceVisibilityIcon.Source = _isBalanceHidden ? "eye_cl.png" : "eye.png";
         BalanceVisibilityButton.Opacity = _isBalanceHidden ? 0.88 : 1.0;
+    }
+
+    private string GetMaskedBalanceText()
+    {
+        if (string.IsNullOrWhiteSpace(_currentBalanceText))
+            return "EUR •••,••";
+
+        return new string(_currentBalanceText
+            .Select(ch => char.IsDigit(ch) ? '•' : ch)
+            .ToArray());
     }
 
     private void OnHideBalanceTapped(object sender, TappedEventArgs e)

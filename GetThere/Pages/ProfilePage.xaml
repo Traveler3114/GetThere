@@ -92,8 +92,8 @@
                 <!-- ── WALLET TAB VIEW ── -->
                 <Grid x:Name="WalletTabView" RowDefinitions="Auto, *" IsVisible="True">
                     <!-- Balance Card -->
-                    <Grid x:Name="BalanceCardGrid" Grid.Row="0" Margin="16,5,16,10" HorizontalOptions="Center">
-                        <Border x:Name="BalanceCard" WidthRequest="360" HeightRequest="188" HorizontalOptions="Center" StrokeThickness="0">
+                    <Grid x:Name="BalanceCardGrid" Grid.Row="0" RowDefinitions="Auto,52" Margin="16,5,16,10" HorizontalOptions="Center">
+                        <Border x:Name="BalanceCard" Grid.Row="0" WidthRequest="360" HeightRequest="188" HorizontalOptions="Center" StrokeThickness="0">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="24" /></Border.StrokeShape>
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -105,47 +105,46 @@
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="16" Offset="0,10" /></Border.Shadow>
 
                             <Grid Padding="28,24">
-                                <VerticalStackLayout Spacing="12" HorizontalOptions="Center" VerticalOptions="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="60" />
+                                </Grid.ColumnDefinitions>
+
+                                <VerticalStackLayout Grid.Column="0" Grid.ColumnSpan="2" Spacing="12" HorizontalOptions="Center" VerticalOptions="Center" Padding="0,0,56,0">
                                     <Label Text="CURRENT BALANCE" FontSize="11" FontAttributes="Bold" TextColor="White" Opacity="0.72" HorizontalOptions="Center" LetterSpacing="0.6" />
-                                    
-                                    <Grid ColumnSpacing="12" HorizontalOptions="Center" VerticalOptions="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="44" />
-                                        </Grid.ColumnDefinitions>
-                                        <Label Grid.Column="0" x:Name="BalanceLabelOnCard" FontAttributes="Bold" MinimumWidthRequest="148" HorizontalTextAlignment="Center" FontSize="42" Text="€0,00" TextColor="White" VerticalOptions="Center" />
-                                        
-                                        <Border Grid.Column="1"
-                                                x:Name="BalanceVisibilityButton"
-                                                BackgroundColor="#33FFFFFF"
-                                                StrokeThickness="0"
-                                                Padding="10"
-                                                WidthRequest="44"
-                                                HeightRequest="44"
-                                                HorizontalOptions="Center"
-                                                VerticalOptions="Center">
-                                            <Border.StrokeShape>
-                                                <shapes:RoundRectangle CornerRadius="22" />
-                                            </Border.StrokeShape>
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnHideBalanceTapped" />
-                                            </Border.GestureRecognizers>
-                                            <Image x:Name="BalanceVisibilityIcon"
-                                                   Source="eye.png"
-                                                   WidthRequest="20"
-                                                   HeightRequest="20"
-                                                   Aspect="AspectFit"
-                                                   HorizontalOptions="Center"
-                                                   VerticalOptions="Center" />
-                                        </Border>
-                                    </Grid>
+
+                                    <Label x:Name="BalanceLabelOnCard" FontAttributes="Bold" MinimumWidthRequest="148" MaxWidthRequest="250" HorizontalTextAlignment="Center" LineBreakMode="NoWrap" FontSize="34" Text="€0,00" TextColor="White" VerticalOptions="Center" />
 
                                     <Label Text="Tap the eye to hide your balance" FontSize="12" TextColor="White" Opacity="0.68" HorizontalOptions="Center" />
                                 </VerticalStackLayout>
+
+                                <Border Grid.Column="1"
+                                        x:Name="BalanceVisibilityButton"
+                                        BackgroundColor="#33FFFFFF"
+                                        StrokeThickness="0"
+                                        Padding="10"
+                                        WidthRequest="42"
+                                        HeightRequest="42"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="Center">
+                                    <Border.StrokeShape>
+                                        <shapes:RoundRectangle CornerRadius="21" />
+                                    </Border.StrokeShape>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnHideBalanceTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Image x:Name="BalanceVisibilityIcon"
+                                           Source="eye.svg"
+                                           WidthRequest="20"
+                                           HeightRequest="20"
+                                           Aspect="AspectFit"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center" />
+                                </Border>
                             </Grid>
                         </Border>
 
-                        <Button x:Name="TopUpButton" VerticalOptions="End" TranslationY="30" BackgroundColor="White" Clicked="OnTopUpClicked" CornerRadius="24" FontAttributes="Bold" FontSize="16" HeightRequest="48" HorizontalOptions="Center" Text="Add" TextColor="#111827" WidthRequest="92" ZIndex="10">
+                        <Button x:Name="TopUpButton" Grid.Row="1" VerticalOptions="Start" Margin="0,-18,0,0" BackgroundColor="White" Clicked="OnTopUpClicked" CornerRadius="24" FontAttributes="Bold" FontSize="16" HeightRequest="48" HorizontalOptions="Center" Text="Add" TextColor="#111827" WidthRequest="92" ZIndex="10">
                             <Button.Shadow><Shadow Brush="Black" Opacity="0.14" Radius="12" Offset="0,6" /></Button.Shadow>
                         </Button>
                     </Grid>
