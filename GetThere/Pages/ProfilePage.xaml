@@ -131,7 +131,7 @@
                                                 <TapGestureRecognizer Tapped="OnHideBalanceTapped" />
                                             </Border.GestureRecognizers>
                                             <Image x:Name="BalanceVisibilityIcon"
-                                                   Source="eye.svg"
+                                                   Source="eye.png"
                                                    WidthRequest="20"
                                                    HeightRequest="20"
                                                    Aspect="AspectFit"

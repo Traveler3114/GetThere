@@ -114,7 +114,7 @@ public partial class ProfilePage : ContentPage
     private void UpdateBalanceDisplay()
     {
         BalanceLabelOnCard.Text = _isBalanceHidden ? "••••" : _currentBalanceText;
-        BalanceVisibilityIcon.Source = _isBalanceHidden ? "eye_cl.svg" : "eye.svg";
+        BalanceVisibilityIcon.Source = _isBalanceHidden ? "eye_cl.png" : "eye.png";
         BalanceVisibilityButton.Opacity = _isBalanceHidden ? 0.88 : 1.0;
     }
 
