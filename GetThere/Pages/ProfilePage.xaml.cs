@@ -6,6 +6,7 @@ using GetThere.State;
 using GetThere.Components;
 using Microsoft.Maui.Controls.Shapes;
 using GetThereShared.Dtos;
+using System.Globalization;
 
 namespace GetThere.Pages;
 
@@ -18,7 +19,8 @@ public partial class ProfilePage : ContentPage
     private readonly CountryPreferenceService _prefs;
 
     private bool _isBalanceHidden = false;
-    private string _currentBalanceText = "€0.00";
+    private static readonly CultureInfo BalanceCulture = CultureInfo.GetCultureInfo("hr-HR");
+    private string _currentBalanceText = "€0,00";
     private bool _isLoading;
     private CancellationTokenSource? _loadingCts;
 
@@ -104,7 +106,7 @@ public partial class ProfilePage : ContentPage
         var result = await _walletService.GetWalletAsync();
         if (result.Success && result.Data != null)
         {
-            _currentBalanceText = $"€{result.Data.Balance:F2}";
+            _currentBalanceText = $"€{result.Data.Balance.ToString("N2", BalanceCulture)}";
             UpdateBalanceDisplay();
         }
     }
@@ -112,7 +114,13 @@ public partial class ProfilePage : ContentPage
     private void UpdateBalanceDisplay()
     {
         BalanceLabelOnCard.Text = _isBalanceHidden ? "••••" : _currentBalanceText;
-        BalanceVisibilityButton.Source = _isBalanceHidden ? "eye_cl.png" : "eye.png";
+        BalanceVisibilityIcon.Source = _isBalanceHidden ? "eye_cl.svg" : "eye.svg";
+        BalanceVisibilityButton.Opacity = _isBalanceHidden ? 0.88 : 1.0;
+    }
+
+    private void OnHideBalanceTapped(object sender, TappedEventArgs e)
+    {
+        OnHideBalanceClicked(sender, EventArgs.Empty);
     }
 
     private async Task LoadHistoryAsync()
