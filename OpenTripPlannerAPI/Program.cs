@@ -1,11 +1,12 @@
-using System.Diagnostics;
-using OpenTripPlannerAPI.Scrapers.HZPP.Services;
+using OpenTripPlannerAPI.Core;
+using OpenTripPlannerAPI.Scrapers.Base;
+using OpenTripPlannerAPI.Scrapers.Hzpp;
 using OpenTripPlannerAPI.Services;
+using OpenTripPlannerAPI.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5000");
 
-// ── HTTP clients ──────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("gtfs", c =>
 {
     c.Timeout = TimeSpan.FromSeconds(60);
@@ -25,14 +26,17 @@ builder.Services.AddHttpClient("operator-source", c =>
     c.Timeout = TimeSpan.FromSeconds(20);
 });
 
-// ── Services ──────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<GtfsFeedStore>();
-builder.Services.AddSingleton<GtfsLoader>();
-builder.Services.AddSingleton<HzppScraper>();
+builder.Services.AddSingleton<GtfsReadySignal>();
+builder.Services.AddSingleton<ProtobufFeedBuilder>();
 builder.Services.AddSingleton<DbBackedOtpConfigState>();
-builder.Services.AddHostedService<ScrapeWorker>();
-builder.Services.AddControllers();
 builder.Services.AddSingleton<DbBackedOtpConfigLoader>();
+
+builder.Services.AddSingleton<HzppGtfsLoader>();
+builder.Services.AddSingleton<IScraper, HzppScraper>();
+
+builder.Services.AddHostedService<ScraperWorker>();
+builder.Services.AddControllers();
 
 var app = builder.Build();
 app.MapControllers();
@@ -42,58 +46,27 @@ var configResult = await configLoader.LoadAndGenerateAsync();
 
 Console.WriteLine("""
 
-🚆 OpenTripPlannerAPI (OTP + HŽPP scraper)
-   Feed endpoint : http://localhost:5000/hzpp-rt
-   Status page   : http://localhost:5000/status
+🚆 OpenTripPlannerAPI Scraper Host
+   Realtime API    : http://localhost:5000/rt/{feedId}
+   HZPP shortcut   : http://localhost:5000/hzpp-rt
+   Status page     : http://localhost:5000/status
+
+ℹ️  Run OTP Java in a separate terminal.
 
 """);
 
-// Start the web server and background scraper
 await app.StartAsync();
 
 if (configResult.UsesLocalHzppScraper)
 {
-    // Wait until the first full scrape cycle is complete and feed is ready
     Console.WriteLine("⏳ Waiting for first scrape cycle to complete...");
-    await GtfsReadySignal.WaitAsync();
+    var readySignal = app.Services.GetRequiredService<GtfsReadySignal>();
+    await readySignal.WaitAsync();
     Console.WriteLine("✅ First scrape cycle complete, feed is ready!");
 }
 else
 {
-    Console.WriteLine("ℹ️  No operators use local HZPP GTFS-RT endpoint — skipping scraper warmup wait.");
+    Console.WriteLine("ℹ️  No operators use local HZPP GTFS-RT endpoint — scraper worker remains idle.");
 }
 
-// Now launch OTP Java
-var otpJar = Path.Combine(Directory.GetCurrentDirectory(), "otp-shaded-2.9.0.jar");
-
-if (!File.Exists(otpJar))
-{
-    Console.WriteLine($"⚠️  OTP jar not found at {otpJar} — skipping OTP launch.");
-}
-else
-{
-    var configuredJavaPath = builder.Configuration["Otp:JavaExecutable"];
-    var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
-    var javaExecutable = !string.IsNullOrWhiteSpace(configuredJavaPath)
-        ? configuredJavaPath
-        : !string.IsNullOrWhiteSpace(javaHome)
-            ? Path.Combine(javaHome, "bin", OperatingSystem.IsWindows() ? "java.exe" : "java")
-            : "java";
-
-    Console.WriteLine("🚀 Starting OpenTripPlanner...");
-    var otpProcess = new Process
-    {
-        StartInfo = new ProcessStartInfo
-        {
-            FileName = javaExecutable,
-            Arguments = $"-Xmx2G -jar \"{otpJar}\" --build --serve .",
-            UseShellExecute = false,
-            WorkingDirectory = AppContext.BaseDirectory
-        }
-    };
-    otpProcess.Start();
-    Console.WriteLine($"   OTP running (PID {otpProcess.Id})");
-}
-
-// Keep the app running
 await app.WaitForShutdownAsync();
