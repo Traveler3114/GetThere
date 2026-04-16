@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using OpenTripPlannerAPI.Data;
 using OpenTripPlannerAPI.Core;
 using OpenTripPlannerAPI.Scrapers.Base;
 using OpenTripPlannerAPI.Scrapers.Hzpp;
@@ -28,6 +30,13 @@ builder.Services.AddHttpClient("operator-source", c =>
     c.Timeout = TimeSpan.FromSeconds(20);
 });
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
+
+builder.Services.AddDbContextFactory<OtpReadDbContext>(options =>
+    options.UseSqlServer(connectionString)
+        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+
 builder.Services.AddSingleton<GtfsFeedStore>();
 builder.Services.AddSingleton<GtfsReadySignal>();
 builder.Services.AddSingleton<ProtobufFeedBuilder>();
@@ -50,7 +59,6 @@ Console.WriteLine("""
 
 🚆 OpenTripPlannerAPI Scraper Host
    Realtime API    : http://localhost:5000/rt/{feedId}
-   HZPP shortcut   : http://localhost:5000/hzpp-rt
    Status page     : http://localhost:5000/status
 
 ℹ️  OTP will auto-start in a separate terminal window after first scraper cycle.

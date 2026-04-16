@@ -3,7 +3,7 @@
 ## 1) Project role in the solution
 `OpenTripPlannerAPI` is a specialized scraper + GTFS-Realtime feed host.
 
-It bridges external realtime source data (currently HZPP scraping flow) into OTP-consumable GTFS-RT protobuf endpoints and prepares OTP runtime configs from DB-backed operator metadata.
+It bridges external realtime source data (currently HZPP scraping flow) into OTP-consumable GTFS-RT protobuf endpoints and prepares OTP runtime configs from SQL Server operator metadata.
 
 ---
 
@@ -24,7 +24,10 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 ### Registered named HTTP clients
 - `gtfs` (60s timeout)
 - `hzpp` (base address `https://www.hzpp.app`, custom headers, 15s timeout)
-- `operator-source` (20s timeout)
+- `operator-source` (20s timeout, only for optional migration comparison/rollback mode)
+
+### Registered DB services
+- `OtpReadDbContext` (read-only SQL Server context)
 
 ### Registered singleton services
 - `GtfsFeedStore`
@@ -40,7 +43,7 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 
 ### Startup sequence
 1. Build app and map controllers.
-2. Load/generate OTP config from GetThereAPI via `DbBackedOtpConfigLoader.LoadAndGenerateAsync()`.
+2. Load/generate OTP config via `DbBackedOtpConfigLoader.LoadAndGenerateAsync()` using `OtpConfigSource` (`Database`/`Http`).
 3. Start app host.
 4. Wait for first scrape cycle readiness (`GtfsReadySignal`).
 5. Optionally auto-start OTP Java process in separate terminal based on config.
@@ -65,12 +68,17 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 - `WorkingDirectory`
 
 ### OperatorSource
-- `ApiBaseUrl` (GetThereAPI base)
-- `OtpFeedsPath`
+- `ApiBaseUrl` (migration-only HTTP source base)
+- `OtpFeedsPath` (migration-only HTTP source path)
 - `UpdaterFrequency`
 - `HzppFallbackRealtimeUrl`
 - `TransitModelTimeZone`
 - `StrictReachabilityChecks`
+
+### OTP config source / migration validation
+- `OtpConfigSource` (`Database` or `Http`)
+- `OtpConfigValidation:EnableDualPathComparison`
+- `OtpConfigValidation:FailOnMismatch`
 
 ---
 
@@ -80,7 +88,6 @@ Controller: `Controllers/RealtimeController.cs`
 ### Realtime feed endpoints
 - `GET /rt/{feedId}` (canonical)
 - `GET /{feedId}-rt` (compat route)
-- `GET /hzpp-rt` (legacy shortcut)
 
 Behavior:
 - Reads latest bytes from in-memory feed store.
@@ -201,8 +208,9 @@ Regex-based extraction for:
 
 ## 10) DB-backed OTP config generation (`DbBackedOtpConfigLoader`)
 
-### Source API contract
-Fetches `OperationResult<List<OtpOperatorFeedDto>>` from `GetThereAPI`.
+### Source contracts
+- DB source (primary): reads operator feeds directly from SQL Server (read-only context).
+- HTTP source (temporary migration bridge): fetches `OperationResult<List<OtpOperatorFeedDto>>` from `GetThereAPI`.
 
 ### Generated files
 - `build-config.json` with `transitFeeds` list.
@@ -214,7 +222,7 @@ Fetches `OperationResult<List<OtpOperatorFeedDto>>` from `GetThereAPI`.
 - Detects whether local HZPP scraper should be active by comparing realtime updater URL with configured fallback URL.
 
 ### Fallback mode
-If API fetch fails:
+If selected source fetch/read fails:
 - attempts to use existing local config files,
 - derives scraper state from existing router/build configs,
 - logs warning with fallback path context,

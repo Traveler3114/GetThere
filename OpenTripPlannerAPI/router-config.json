@@ -9,9 +9,8 @@
     {
       "type": "STOP_TIME_UPDATER",
       "feedId": "hzpp",
-      "url": "http://127.0.0.1:5000/hzpp-rt",
-      "frequency": "PT30S",
-      "fuzzyTripMatching": true
+      "url": "http://127.0.0.1:5000/rt/hzpp",
+      "frequency": "PT30S"
     }
   ]
 }
