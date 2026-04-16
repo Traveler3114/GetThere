@@ -129,12 +129,10 @@ static bool TryStartOtpInSeparateTerminal(IConfiguration configuration, string c
 
 static bool TryStartOtpWindows(string javaExecutable, string otpArguments, string workingDirectory)
 {
-    var command = $"cd /d {QuoteForCmd(workingDirectory)} && {QuoteForCmd(javaExecutable)} {otpArguments}";
-    var escapedCommand = command.Replace("\"", "\"\"");
     var process = Process.Start(new ProcessStartInfo
     {
         FileName = "cmd.exe",
-        Arguments = $"/c start \"OTP\" cmd /k \"{escapedCommand}\"",
+        Arguments = $"/c start \"OTP\" /D {QuoteForCmd(workingDirectory)} {QuoteForCmd(javaExecutable)} {otpArguments}",
         UseShellExecute = false,
         CreateNoWindow = true
     });
