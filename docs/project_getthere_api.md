@@ -5,7 +5,7 @@
 
 It is:
 - a business API consumed by the MAUI app,
-- and includes a temporary migration bridge endpoint consumed by `OpenTripPlannerAPI` only when `OtpConfigSource=Http`.
+- and is no longer required for OpenTripPlannerAPI startup config loading.
 
 ---
 
@@ -113,7 +113,6 @@ Primary context: `Data/AppDbContext.cs`
 - `GET /operator/stops/{stopId}/schedule`
 - `GET /operator/health`
 - `GET /operator/transport-types`
-- `GET /operator/otp-feeds` (migration/rollback bridge for OTP config source)
 
 ### MapController (`/map`)
 - `GET /map/features`

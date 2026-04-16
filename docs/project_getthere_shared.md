@@ -89,11 +89,6 @@ These wrappers enforce predictable API response shape.
 ### Mobility DTO (`BikeStationDto.cs`)
 - Bike station payload with country-name for dynamic filtering.
 
-### OTP feed DTO (`OtpOperatorFeedDtos.cs`)
-- Operator feed metadata consumed by OpenTripPlannerAPI config loader.
-
----
-
 ## 5) Enum contracts
 Location: `GetThereShared/Enums`
 - `WalletTransactionType`

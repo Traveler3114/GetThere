@@ -1,154 +1,75 @@
 using Microsoft.EntityFrameworkCore;
 using OpenTripPlannerAPI.Data;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace OpenTripPlannerAPI.Services;
 
 public sealed class DbBackedOtpConfigLoader
 {
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IDbContextFactory<OtpReadDbContext> _dbContextFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DbBackedOtpConfigLoader> _logger;
     private readonly DbBackedOtpConfigState _state;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public DbBackedOtpConfigLoader(
-        IHttpClientFactory httpClientFactory,
         IDbContextFactory<OtpReadDbContext> dbContextFactory,
         IConfiguration configuration,
         ILogger<DbBackedOtpConfigLoader> logger,
-        DbBackedOtpConfigState state)
+        DbBackedOtpConfigState state,
+        IHttpClientFactory httpClientFactory)
     {
-        _httpClientFactory = httpClientFactory;
         _dbContextFactory = dbContextFactory;
         _configuration = configuration;
         _logger = logger;
         _state = state;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<DbBackedOtpConfigResult> LoadAndGenerateAsync(CancellationToken ct = default)
     {
-        var source = ParseSource(_configuration["OtpConfigSource"]);
         var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/rt/hzpp";
-        var compareBoth = bool.TryParse(_configuration["OtpConfigValidation:EnableDualPathComparison"], out var compareEnabled) && compareEnabled;
-        var failOnMismatch = bool.TryParse(_configuration["OtpConfigValidation:FailOnMismatch"], out var failEnabled) && failEnabled;
+        _logger.LogInformation("Using OTP config source: DB");
 
-        var sourceLogLabel = source == OtpConfigSource.Database ? "DB" : "HTTP";
-        _logger.LogInformation("Using OTP config source: {Source}", sourceLogLabel);
-
-        OtpConfigArtifacts? httpArtifacts = null;
-        OtpConfigArtifacts? dbArtifacts = null;
-
-        if (source == OtpConfigSource.Http || compareBoth)
-        {
-            httpArtifacts = await BuildArtifactsFromHttpAsync(localHzppRealtimeUrl, ct);
-        }
-
-        if (source == OtpConfigSource.Database || compareBoth)
-        {
-            dbArtifacts = await BuildArtifactsFromDatabaseAsync(localHzppRealtimeUrl, ct);
-        }
-
-        if (compareBoth)
-        {
-            if (httpArtifacts is null || dbArtifacts is null)
-                throw new InvalidOperationException("Dual-path comparison requires both HTTP and DB artifacts.");
-
-            await WriteConfigFilesAsync(httpArtifacts, ".http", ct);
-            await WriteConfigFilesAsync(dbArtifacts, ".db", ct);
-
-            var diff = Compare(httpArtifacts, dbArtifacts);
-            if (!diff.AreEquivalent)
-            {
-                _logger.LogError("OTP config mismatch between HTTP and DB source. {Details}", diff.Description);
-                if (failOnMismatch)
-                    throw new InvalidOperationException($"OTP config mismatch between HTTP and DB source: {diff.Description}");
-            }
-            else
-            {
-                _logger.LogInformation("Dual-path OTP config comparison passed; HTTP and DB outputs are equivalent.");
-            }
-        }
-
-        var selectedArtifacts = source switch
-        {
-            OtpConfigSource.Http => httpArtifacts,
-            OtpConfigSource.Database => dbArtifacts,
-            _ => null
-        };
-
-        if (selectedArtifacts is null)
-            throw new InvalidOperationException("No OTP config artifacts were generated for the selected source.");
-
-        await WriteConfigFilesAsync(selectedArtifacts, suffix: null, ct);
-        _state.UsesLocalHzppScraper = selectedArtifacts.UsesLocalHzppScraper;
-        _state.LocalHzppStaticGtfsUrl = selectedArtifacts.LocalHzppStaticGtfsUrl;
-
-        _logger.LogInformation("Loaded {Count} operators from {Source}.", selectedArtifacts.OperatorsCount, sourceLogLabel);
-        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = selectedArtifacts.UsesLocalHzppScraper };
-    }
-
-    private async Task<OtpConfigArtifacts> BuildArtifactsFromHttpAsync(string localHzppRealtimeUrl, CancellationToken ct)
-    {
-        var apiBaseUrl = _configuration["OperatorSource:ApiBaseUrl"];
-        if (string.IsNullOrWhiteSpace(apiBaseUrl))
-            throw new InvalidOperationException("OperatorSource:ApiBaseUrl must be configured for HTTP config source.");
-
-        var path = _configuration["OperatorSource:OtpFeedsPath"] ?? "/operator/otp-feeds";
-        var sourceUrl = $"{apiBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
-
-        using var client = _httpClientFactory.CreateClient("operator-source");
-        HttpResponseMessage response;
+        OtpConfigArtifacts artifacts;
         try
         {
-            response = await client.GetAsync(sourceUrl, ct);
-            response.EnsureSuccessStatusCode();
+            artifacts = await BuildArtifactsFromDatabaseAsync(localHzppRealtimeUrl, ct);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex)
         {
-            return LoadExistingConfigOrThrow(sourceUrl, localHzppRealtimeUrl, ex);
+            artifacts = LoadExistingConfigOrThrow("DB source", localHzppRealtimeUrl, ex);
         }
 
-        var payload = await response.Content.ReadFromJsonAsync<OperationResultDto<List<OtpOperatorFeedDto>>>(cancellationToken: ct);
-        if (payload is null || !payload.Success || payload.Data is null)
-            throw new InvalidOperationException("Failed to load OTP operator feed config from API.");
+        await WriteConfigFilesAsync(artifacts, ct);
+        _state.UsesLocalHzppScraper = artifacts.UsesLocalHzppScraper;
+        _state.LocalHzppStaticGtfsUrl = artifacts.LocalHzppStaticGtfsUrl;
 
-        var operators = payload.Data
-            .Where(x => !string.IsNullOrWhiteSpace(x.StaticGtfsUrl))
-            .ToList();
-
-        return await BuildArtifactsAsync(operators, localHzppRealtimeUrl, ct);
+        _logger.LogInformation("Loaded {Count} operators from DB.", artifacts.OperatorsCount);
+        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = artifacts.UsesLocalHzppScraper };
     }
 
     private async Task<OtpConfigArtifacts> BuildArtifactsFromDatabaseAsync(string localHzppRealtimeUrl, CancellationToken ct)
     {
-        try
-        {
-            await using var db = await _dbContextFactory.CreateDbContextAsync(ct);
-            var operators = await db.TransitOperators
-                .AsNoTracking()
-                .Include(o => o.Country)
-                .OrderBy(o => o.Country!.Name)
-                .ThenBy(o => o.Name)
-                .Select(o => new OtpOperatorFeedDto
-                {
-                    OperatorId = o.Id,
-                    OperatorName = o.Name,
-                    CountryId = o.CountryId,
-                    CountryName = o.Country!.Name,
-                    FeedId = $"op{o.Id}",
-                    StaticGtfsUrl = o.GtfsFeedUrl,
-                    GtfsRealtimeUrl = o.GtfsRealtimeFeedUrl
-                })
-                .ToListAsync(ct);
+        await using var db = await _dbContextFactory.CreateDbContextAsync(ct);
+        var operators = await db.TransitOperators
+            .AsNoTracking()
+            .Include(o => o.Country)
+            .OrderBy(o => o.Country!.Name)
+            .ThenBy(o => o.Name)
+            .Select(o => new OtpOperatorFeedDto
+            {
+                OperatorId = o.Id,
+                OperatorName = o.Name,
+                CountryId = o.CountryId,
+                CountryName = o.Country!.Name,
+                FeedId = $"op{o.Id}",
+                StaticGtfsUrl = o.GtfsFeedUrl,
+                GtfsRealtimeUrl = o.GtfsRealtimeFeedUrl
+            })
+            .ToListAsync(ct);
 
-            return await BuildArtifactsAsync(operators, localHzppRealtimeUrl, ct);
-        }
-        catch (Exception ex)
-        {
-            return LoadExistingConfigOrThrow("DB source", localHzppRealtimeUrl, ex);
-        }
+        return await BuildArtifactsAsync(operators, localHzppRealtimeUrl, ct);
     }
 
     private async Task<OtpConfigArtifacts> BuildArtifactsAsync(List<OtpOperatorFeedDto> operators, string localHzppRealtimeUrl, CancellationToken ct)
@@ -227,7 +148,7 @@ public sealed class DbBackedOtpConfigLoader
         if (!isStrictReachabilityEnabled)
             return;
 
-        using var client = _httpClientFactory.CreateClient("operator-source");
+        using var client = _httpClientFactory.CreateClient();
         foreach (var op in operators)
         {
             var urlsToProbe = new List<string>();
@@ -246,20 +167,18 @@ public sealed class DbBackedOtpConfigLoader
         }
     }
 
-    private async Task WriteConfigFilesAsync(OtpConfigArtifacts artifacts, string? suffix, CancellationToken ct)
+    private async Task WriteConfigFilesAsync(OtpConfigArtifacts artifacts, CancellationToken ct)
     {
         var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
         var outputDir = AppContext.BaseDirectory;
-        var buildName = suffix is null ? "build-config.json" : $"build-config{suffix}.json";
-        var routerName = suffix is null ? "router-config.json" : $"router-config{suffix}.json";
 
         await File.WriteAllTextAsync(
-            Path.Combine(outputDir, buildName),
+            Path.Combine(outputDir, "build-config.json"),
             JsonSerializer.Serialize(artifacts.BuildConfig, jsonOptions),
             ct);
 
         await File.WriteAllTextAsync(
-            Path.Combine(outputDir, routerName),
+            Path.Combine(outputDir, "router-config.json"),
             JsonSerializer.Serialize(artifacts.RouterConfig, jsonOptions),
             ct);
     }
@@ -366,64 +285,6 @@ public sealed class DbBackedOtpConfigLoader
         return null;
     }
 
-    private static OtpConfigDiff Compare(OtpConfigArtifacts httpArtifacts, OtpConfigArtifacts dbArtifacts)
-    {
-        var httpFeeds = httpArtifacts.BuildConfig.transitFeeds
-            .Select(x => $"{x.feedId}|{x.source}")
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var dbFeeds = dbArtifacts.BuildConfig.transitFeeds
-            .Select(x => $"{x.feedId}|{x.source}")
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var httpUpdaters = httpArtifacts.RouterConfig.updaters
-            .Select(x => $"{x.feedId}|{x.url}")
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var dbUpdaters = dbArtifacts.RouterConfig.updaters
-            .Select(x => $"{x.feedId}|{x.url}")
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var missingFeedsInDb = httpFeeds.Except(dbFeeds, StringComparer.OrdinalIgnoreCase).ToList();
-        var missingFeedsInHttp = dbFeeds.Except(httpFeeds, StringComparer.OrdinalIgnoreCase).ToList();
-        var missingUpdatersInDb = httpUpdaters.Except(dbUpdaters, StringComparer.OrdinalIgnoreCase).ToList();
-        var missingUpdatersInHttp = dbUpdaters.Except(httpUpdaters, StringComparer.OrdinalIgnoreCase).ToList();
-
-        if (missingFeedsInDb.Count == 0 && missingFeedsInHttp.Count == 0
-            && missingUpdatersInDb.Count == 0 && missingUpdatersInHttp.Count == 0)
-        {
-            return new OtpConfigDiff { AreEquivalent = true, Description = "No differences." };
-        }
-
-        var parts = new List<string>();
-        if (missingFeedsInDb.Count > 0)
-            parts.Add($"Missing feeds in DB: {string.Join(", ", missingFeedsInDb)}");
-        if (missingFeedsInHttp.Count > 0)
-            parts.Add($"Missing feeds in HTTP: {string.Join(", ", missingFeedsInHttp)}");
-        if (missingUpdatersInDb.Count > 0)
-            parts.Add($"Missing updaters in DB: {string.Join(", ", missingUpdatersInDb)}");
-        if (missingUpdatersInHttp.Count > 0)
-            parts.Add($"Missing updaters in HTTP: {string.Join(", ", missingUpdatersInHttp)}");
-
-        return new OtpConfigDiff
-        {
-            AreEquivalent = false,
-            Description = string.Join(" | ", parts)
-        };
-    }
-
-    private static OtpConfigSource ParseSource(string? value)
-    {
-        if (string.Equals(value, "Database", StringComparison.OrdinalIgnoreCase))
-            return OtpConfigSource.Database;
-        if (string.Equals(value, "Http", StringComparison.OrdinalIgnoreCase))
-            return OtpConfigSource.Http;
-
-        return OtpConfigSource.Http;
-    }
-
     private static string? NormalizeLegacyRealtimeUrl(string? value, string canonicalHzppUrl)
     {
         if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed))
@@ -461,13 +322,6 @@ public sealed class DbBackedOtpConfigState
     public string? LocalHzppStaticGtfsUrl { get; set; }
 }
 
-internal sealed class OperationResultDto<T>
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public T? Data { get; set; }
-}
-
 internal sealed class OtpOperatorFeedDto
 {
     public int OperatorId { get; set; }
@@ -479,12 +333,6 @@ internal sealed class OtpOperatorFeedDto
     public string? GtfsRealtimeUrl { get; set; }
 }
 
-internal enum OtpConfigSource
-{
-    Http,
-    Database
-}
-
 internal sealed class OtpConfigArtifacts
 {
     public OtpBuildConfig BuildConfig { get; set; } = new();
@@ -492,12 +340,6 @@ internal sealed class OtpConfigArtifacts
     public int OperatorsCount { get; set; }
     public bool UsesLocalHzppScraper { get; set; }
     public string? LocalHzppStaticGtfsUrl { get; set; }
-}
-
-internal sealed class OtpConfigDiff
-{
-    public bool AreEquivalent { get; set; }
-    public string Description { get; set; } = string.Empty;
 }
 
 internal sealed class OtpBuildConfig

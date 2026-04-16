@@ -24,7 +24,6 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 ### Registered named HTTP clients
 - `gtfs` (60s timeout)
 - `hzpp` (base address `https://www.hzpp.app`, custom headers, 15s timeout)
-- `operator-source` (20s timeout, only for optional migration comparison/rollback mode)
 
 ### Registered DB services
 - `OtpReadDbContext` (read-only SQL Server context)
@@ -43,7 +42,7 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 
 ### Startup sequence
 1. Build app and map controllers.
-2. Load/generate OTP config via `DbBackedOtpConfigLoader.LoadAndGenerateAsync()` using `OtpConfigSource` (`Database`/`Http`).
+2. Load/generate OTP config via `DbBackedOtpConfigLoader.LoadAndGenerateAsync()` from SQL Server (DB-only).
 3. Start app host.
 4. Wait for first scrape cycle readiness (`GtfsReadySignal`).
 5. Optionally auto-start OTP Java process in separate terminal based on config.
@@ -68,17 +67,10 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 - `WorkingDirectory`
 
 ### OperatorSource
-- `ApiBaseUrl` (migration-only HTTP source base)
-- `OtpFeedsPath` (migration-only HTTP source path)
 - `UpdaterFrequency`
 - `HzppFallbackRealtimeUrl`
 - `TransitModelTimeZone`
 - `StrictReachabilityChecks`
-
-### OTP config source / migration validation
-- `OtpConfigSource` (`Database` or `Http`)
-- `OtpConfigValidation:EnableDualPathComparison`
-- `OtpConfigValidation:FailOnMismatch`
 
 ---
 
@@ -209,8 +201,7 @@ Regex-based extraction for:
 ## 10) DB-backed OTP config generation (`DbBackedOtpConfigLoader`)
 
 ### Source contracts
-- DB source (primary): reads operator feeds directly from SQL Server (read-only context).
-- HTTP source (temporary migration bridge): fetches `OperationResult<List<OtpOperatorFeedDto>>` from `GetThereAPI`.
+- DB source: reads operator feeds directly from SQL Server (read-only context).
 
 ### Generated files
 - `build-config.json` with `transitFeeds` list.

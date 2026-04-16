@@ -25,11 +25,6 @@ builder.Services.AddHttpClient("hzpp", c =>
     c.Timeout = TimeSpan.FromSeconds(15);
 });
 
-builder.Services.AddHttpClient("operator-source", c =>
-{
-    c.Timeout = TimeSpan.FromSeconds(20);
-});
-
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
