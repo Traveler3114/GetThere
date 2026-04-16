@@ -80,7 +80,19 @@ await app.WaitForShutdownAsync();
 
 static bool ShouldAutoStartOtp(IConfiguration configuration)
 {
-    return !bool.TryParse(configuration["Otp:AutoStart"], out var autoStart) || autoStart;
+    var rawValue = configuration["Otp:AutoStart"];
+    if (string.IsNullOrWhiteSpace(rawValue))
+    {
+        return true;
+    }
+
+    if (bool.TryParse(rawValue, out var autoStart))
+    {
+        return autoStart;
+    }
+
+    Console.WriteLine($"⚠️  Invalid Otp:AutoStart value '{rawValue}'. OTP auto-start disabled.");
+    return false;
 }
 
 static bool TryStartOtp(IConfiguration configuration, string contentRootPath)
