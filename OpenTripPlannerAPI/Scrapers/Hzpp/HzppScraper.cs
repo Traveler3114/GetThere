@@ -33,8 +33,9 @@ public partial class HzppScraper : IScraper
         _gtfsLoader = gtfsLoader;
         _state = state;
         _configuration = configuration;
-        _options = configuration.GetSection("Scrapers:Hzpp").Get<HzppScraperOptions>()
-                   ?? configuration.GetSection("Scrapers:HZPP").Get<HzppScraperOptions>()
+        _options = configuration.GetSection("Scrapers:HZPP").Get<HzppScraperOptions>()
+                   // Backward-compatible fallback for legacy key casing.
+                   ?? configuration.GetSection("Scrapers:Hzpp").Get<HzppScraperOptions>()
                    ?? new HzppScraperOptions();
     }
 

@@ -46,7 +46,7 @@ public sealed class GtfsFeedStore
     }
 
     public FeedState Read(string feedId)
-        => _feeds.TryGetValue(feedId, out var value) ? value : FeedState.Empty;
+        => _feeds.TryGetValue(feedId, out var value) ? value : new FeedState();
 
     public IReadOnlyDictionary<string, FeedState> ReadAll()
         => new Dictionary<string, FeedState>(_feeds, StringComparer.OrdinalIgnoreCase);
@@ -54,8 +54,6 @@ public sealed class GtfsFeedStore
 
 public sealed record FeedState
 {
-    public static FeedState Empty { get; } = new();
-
     public byte[] Bytes { get; init; } = [];
     public DateTime LastUpdated { get; init; } = DateTime.MinValue;
     public bool IsHealthy { get; init; }

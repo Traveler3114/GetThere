@@ -88,7 +88,7 @@ public sealed class DbBackedOtpConfigLoader
                 frequency
             });
 
-            if (IsLocalScraperUpdaterUrl(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
+            if (IsLocalRealtimeUrl(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
             {
                 localScraperFeedIds.Add(op.FeedId);
                 if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
@@ -183,7 +183,7 @@ public sealed class DbBackedOtpConfigLoader
             if (string.IsNullOrWhiteSpace(feedId))
                 continue;
 
-            if (IsLocalScraperUpdaterUrl(urlElement.GetString(), localHzppRealtimeUrl))
+            if (IsLocalRealtimeUrl(urlElement.GetString(), localHzppRealtimeUrl))
                 feedIds.Add(feedId);
         }
 
@@ -262,7 +262,7 @@ public sealed class DbBackedOtpConfigLoader
         => Uri.TryCreate(url, UriKind.Absolute, out var parsed)
            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
 
-    private static bool IsLocalScraperUpdaterUrl(string? url, string localHzppRealtimeUrl)
+    private static bool IsLocalRealtimeUrl(string? url, string localHzppRealtimeUrl)
     {
         if (string.IsNullOrWhiteSpace(url))
             return false;
