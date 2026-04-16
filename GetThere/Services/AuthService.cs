@@ -10,6 +10,7 @@ public class AuthService
 {
     private readonly HttpClient _httpClient;
     private const string TokenKey = "jwt_token";
+    private const string TokenFallbackKey = "jwt_token_fallback";
 
     public AuthService(HttpClient httpClient)
     {
@@ -23,7 +24,7 @@ public class AuthService
             ?? OperationResult<UserDto>.Fail("Unexpected error occurred.");
 
         if (result.Success && result.Data?.Token != null)
-            await SecureStorage.SetAsync(TokenKey, result.Data.Token);
+            await SaveTokenAsync(result.Data.Token);
 
         return result;
     }
@@ -36,7 +37,22 @@ public class AuthService
     }
 
     public async Task<string?> GetTokenAsync()
-        => await SecureStorage.GetAsync(TokenKey);
+    {
+        try
+        {
+            var secureToken = await SecureStorage.GetAsync(TokenKey);
+            if (!string.IsNullOrWhiteSpace(secureToken))
+                return secureToken;
+        }
+        catch
+        {
+            // Some Android devices can fail to create/read keystore-backed entries.
+            // Fall back to Preferences so login remains usable in development.
+        }
+
+        var fallbackToken = Preferences.Default.Get(TokenFallbackKey, string.Empty);
+        return string.IsNullOrWhiteSpace(fallbackToken) ? null : fallbackToken;
+    }
 
     /// <summary>
     /// Decodes the JWT payload and returns the claims as a dictionary.
@@ -87,5 +103,28 @@ public class AuthService
     }
 
     public void Logout()
-        => SecureStorage.Remove(TokenKey);
+    {
+        try
+        {
+            SecureStorage.Remove(TokenKey);
+        }
+        catch
+        {
+        }
+
+        Preferences.Default.Remove(TokenFallbackKey);
+    }
+
+    private static async Task SaveTokenAsync(string token)
+    {
+        try
+        {
+            await SecureStorage.SetAsync(TokenKey, token);
+            Preferences.Default.Remove(TokenFallbackKey);
+        }
+        catch
+        {
+            Preferences.Default.Set(TokenFallbackKey, token);
+        }
+    }
 }

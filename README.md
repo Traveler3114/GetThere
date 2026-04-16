@@ -78,6 +78,18 @@ No more juggling dozens of apps: Think of how streaming was once unified—now, 
 - **Frontend:** Dynamic UI for ticket management, trip planning, branding, and multimodal display.
 - **API:** Endpoints for wallet actions, ticketing, trip requests, operator onboarding, and feature modules.
 
+## Running On Android Device
+
+- Android emulator uses `https://10.0.2.2:7230/` to reach the local API.
+- A physical Android device connected with USB should use `adb reverse tcp:7230 tcp:7230` before starting the app.
+- Then run the API and app separately:
+
+```powershell
+dotnet run --project GetThereAPI/GetThereAPI.csproj --launch-profile https
+adb reverse tcp:7230 tcp:7230
+dotnet build GetThere/GetThere.csproj -t:Run -f net10.0-android
+```
+
 ---
 
 ## Operator/Provider Integration
