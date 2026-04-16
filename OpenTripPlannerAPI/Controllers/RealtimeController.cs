@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using OpenTripPlannerAPI.Core;
+using OpenTripPlannerAPI.Services;
 using transit_realtime;
 
 namespace OpenTripPlannerAPI.Controllers;
@@ -9,11 +10,13 @@ public class RealtimeController : ControllerBase
 {
     private readonly GtfsFeedStore _feedStore;
     private readonly IConfiguration _configuration;
+    private readonly DbBackedOtpConfigState _state;
 
-    public RealtimeController(GtfsFeedStore feedStore, IConfiguration configuration)
+    public RealtimeController(GtfsFeedStore feedStore, IConfiguration configuration, DbBackedOtpConfigState state)
     {
         _feedStore = feedStore;
         _configuration = configuration;
+        _state = state;
     }
 
     [HttpGet(RealtimeRouteConventions.GenericFeedRoute)]
@@ -27,9 +30,16 @@ public class RealtimeController : ControllerBase
     [HttpGet(RealtimeRouteConventions.LegacyHzppRoute)]
     public IActionResult GetHzppCompatibilityFeed()
     {
-        var feedId = _configuration["Scrapers:Hzpp:FeedId"]
-                     ?? _configuration["Scrapers:HZPP:FeedId"]
-                     ?? "hzpp";
+        var configuredFeedId = _configuration["Scrapers:HZPP:FeedId"]
+                               ?? _configuration["Scrapers:Hzpp:FeedId"]
+                               ?? "hzpp";
+
+        var feedId = _state.LocalScraperFeedIds.Contains(configuredFeedId)
+            ? configuredFeedId
+            : _state.LocalScraperFeedIds.Count == 1
+                ? _state.LocalScraperFeedIds.First()
+                : configuredFeedId;
+
         return GetFeed(feedId);
     }
 

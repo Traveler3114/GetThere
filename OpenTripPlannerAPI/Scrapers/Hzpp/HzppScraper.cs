@@ -39,11 +39,23 @@ public partial class HzppScraper : IScraper
                    ?? new HzppScraperOptions();
     }
 
-    public string FeedId => _options.FeedId;
+    public string FeedId => ResolveFeedId();
 
     public bool IsEnabled => _options.Enabled;
 
     public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Max(1, _options.IntervalSeconds));
+
+    private string ResolveFeedId()
+    {
+        var configured = string.IsNullOrWhiteSpace(_options.FeedId) ? "hzpp" : _options.FeedId;
+
+        if (_state.LocalScraperFeedIds.Contains(configured))
+            return configured;
+
+        return _state.LocalScraperFeedIds.Count == 1
+            ? _state.LocalScraperFeedIds.First()
+            : configured;
+    }
 
     public async Task InitializeAsync(CancellationToken ct)
     {
