@@ -1,5 +1,6 @@
 using transit_realtime;
 using OpenTripPlannerAPI.Scrapers.HZPP.Models;
+using OpenTripPlannerAPI.Services;
 
 namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
 
@@ -10,24 +11,36 @@ public class ScrapeWorker : BackgroundService
     private readonly HzppScraper _scraper;
     private readonly GtfsFeedStore _feedStore;
     private readonly IConfiguration _config;
+    private readonly DbBackedOtpConfigState _state;
 
     public ScrapeWorker(
         ILogger<ScrapeWorker> logger,
         GtfsLoader gtfsLoader,
         HzppScraper scraper,
         GtfsFeedStore feedStore,
-        IConfiguration config)
+        IConfiguration config,
+        DbBackedOtpConfigState state)
     {
         _logger = logger;
         _gtfsLoader = gtfsLoader;
         _scraper = scraper;
         _feedStore = feedStore;
         _config = config;
+        _state = state;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var gtfsUrl = _config["Gtfs:ZipUrl"] ?? "https://www.hzpp.hr/GTFS_files.zip";
+        if (!_state.UsesLocalHzppScraper)
+        {
+            _logger.LogInformation("Local HZPP GTFS-RT endpoint is not used by DB config; worker is idle.");
+            GtfsReadySignal.SetReady();
+            return;
+        }
+
+        var gtfsUrl = _state.LocalHzppStaticGtfsUrl
+                      ?? _config["Gtfs:ZipUrl"]
+                      ?? "https://www.hzpp.hr/GTFS_files.zip";
         var interval = int.Parse(_config["Scrape:IntervalSeconds"] ?? "30");
         var delay = double.Parse(_config["Scrape:RequestDelaySeconds"] ?? "0.3");
 
@@ -115,15 +128,30 @@ public class ScrapeWorker : BackgroundService
             };
 
             foreach (var stu in stus)
-                entity.TripUpdate.StopTimeUpdate.Add(new TripUpdate.Types.StopTimeUpdate
+            {
+                var hasScheduledArrival = stu.ScheduledArrivalSec >= 0;
+                var hasScheduledDeparture = stu.ScheduledDepartureSec >= 0;
+
+                if (!hasScheduledArrival && !hasScheduledDeparture)
+                    continue;
+
+                var stopTimeUpdate = new TripUpdate.Types.StopTimeUpdate
                 {
                     StopSequence = (uint)stu.StopSequence,
-                    StopId = stu.StopId,
-                    Arrival = new TripUpdate.Types.StopTimeEvent { Delay = stu.DelaySec },
-                    Departure = new TripUpdate.Types.StopTimeEvent { Delay = stu.DelaySec }
-                });
+                    StopId = stu.StopId
+                };
 
-            feed.Entity.Add(entity);
+                if (hasScheduledArrival)
+                    stopTimeUpdate.Arrival = new TripUpdate.Types.StopTimeEvent { Delay = stu.DelaySec };
+
+                if (hasScheduledDeparture)
+                    stopTimeUpdate.Departure = new TripUpdate.Types.StopTimeEvent { Delay = stu.DelaySec };
+
+                entity.TripUpdate.StopTimeUpdate.Add(stopTimeUpdate);
+            }
+
+            if (entity.TripUpdate.StopTimeUpdate.Count > 0)
+                feed.Entity.Add(entity);
         }
 
         return feed;

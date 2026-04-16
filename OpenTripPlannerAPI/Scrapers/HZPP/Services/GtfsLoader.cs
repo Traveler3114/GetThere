@@ -89,8 +89,11 @@ public class GtfsLoader
             var seq = int.Parse(record["stop_sequence"].ToString()!);
             var arrStr = record.ContainsKey("arrival_time") ? record["arrival_time"].ToString()! : "";
             var depStr = record.ContainsKey("departure_time") ? record["departure_time"].ToString()! : "";
-            var arr = HmsToSec(string.IsNullOrWhiteSpace(arrStr) ? depStr : arrStr);
-            var dep = HmsToSec(string.IsNullOrWhiteSpace(depStr) ? arrStr : depStr);
+            var arr = string.IsNullOrWhiteSpace(arrStr) ? -1 : HmsToSec(arrStr);
+            var dep = string.IsNullOrWhiteSpace(depStr) ? -1 : HmsToSec(depStr);
+
+            if (arr < 0 && dep >= 0) arr = dep;
+            if (dep < 0 && arr >= 0) dep = arr;
 
             if (!data.StopTimes.TryGetValue(tid, out var times))
                 data.StopTimes[tid] = times = [];

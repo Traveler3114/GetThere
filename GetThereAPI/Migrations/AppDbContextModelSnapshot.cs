@@ -529,24 +529,6 @@ namespace GetThereAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RealtimeAdapterConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RealtimeAuthConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RealtimeAuthType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RealtimeFeedFormat")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("StaticFeedFormat")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("TicketApiBaseUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -573,9 +555,6 @@ namespace GetThereAPI.Migrations
                             GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
                             GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
                             Name = "ZET",
-                            RealtimeAuthType = "NONE",
-                            RealtimeFeedFormat = "GTFS_RT_PROTO",
-                            StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         },
@@ -585,10 +564,8 @@ namespace GetThereAPI.Migrations
                             CountryId = 1,
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
+                            GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/hzpp-rt",
                             Name = "HZPP",
-                            RealtimeAuthType = "NONE",
-                            RealtimeFeedFormat = "NONE",
-                            StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         },
@@ -599,9 +576,6 @@ namespace GetThereAPI.Migrations
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
                             Name = "ÖBB (Austrian Federal Railways)",
-                            RealtimeAuthType = "NONE",
-                            RealtimeFeedFormat = "NONE",
-                            StaticFeedFormat = "GTFS",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         });
