@@ -89,14 +89,6 @@ public partial class LoginPage : ContentPage
             }
         }, token);
 
-        // 2. Dots loop (Signing In...)
-        int dots = 0;
-        while (!token.IsCancellationRequested)
-        {
-            dots = (dots + 1) % 4;
-            LoadingDotsLabel.Text = "Signing In" + new string('.', dots);
-            try { await Task.Delay(400, token); } catch { break; }
-        }
     }
 
     private void StopLoadingAnimations()

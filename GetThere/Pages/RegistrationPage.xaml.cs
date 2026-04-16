@@ -94,4 +94,16 @@ public partial class RegistrationPage : ContentPage
     {
         await Shell.Current.GoToAsync("///login");
     }
+
+    private void TogglePass_Tapped(object? sender, TappedEventArgs e)
+    {
+        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
+        TogglePassBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
+    }
+
+    private void ToggleConfirm_Tapped(object? sender, TappedEventArgs e)
+    {
+        ConfirmPasswordEntry.IsPassword = !ConfirmPasswordEntry.IsPassword;
+        ToggleConfirmBtn.Text = ConfirmPasswordEntry.IsPassword ? "Show" : "Hide";
+    }
 }

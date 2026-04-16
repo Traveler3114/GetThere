@@ -51,7 +51,7 @@ Press `F5`
 
 ## Quick Reference
 ```bash
-cd GetThereAPI
+cd GetThereAPI¸
 dotnet ef migrations add YourMigrationName
 dotnet ef database update
 ```
