@@ -33,7 +33,9 @@ public partial class HzppScraper : IScraper
         _gtfsLoader = gtfsLoader;
         _state = state;
         _configuration = configuration;
-        _options = configuration.GetSection("Scrapers:Hzpp").Get<HzppScraperOptions>() ?? new HzppScraperOptions();
+        _options = configuration.GetSection("Scrapers:Hzpp").Get<HzppScraperOptions>()
+                   ?? configuration.GetSection("Scrapers:HZPP").Get<HzppScraperOptions>()
+                   ?? new HzppScraperOptions();
     }
 
     public string FeedId => _options.FeedId;

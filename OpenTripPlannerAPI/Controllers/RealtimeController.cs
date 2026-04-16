@@ -16,7 +16,7 @@ public class RealtimeController : ControllerBase
         _configuration = configuration;
     }
 
-    [HttpGet("/rt/{feedId}")]
+    [HttpGet(RealtimeRouteConventions.GenericFeedRoute)]
     public IActionResult GetFeed(string feedId)
     {
         var state = _feedStore.Read(feedId);
@@ -24,14 +24,16 @@ public class RealtimeController : ControllerBase
         return File(bytes, "application/x-protobuf");
     }
 
-    [HttpGet("/hzpp-rt")]
+    [HttpGet(RealtimeRouteConventions.LegacyHzppRoute)]
     public IActionResult GetHzppCompatibilityFeed()
     {
-        var feedId = _configuration["Scrapers:Hzpp:FeedId"] ?? "hzpp";
+        var feedId = _configuration["Scrapers:Hzpp:FeedId"]
+                     ?? _configuration["Scrapers:HZPP:FeedId"]
+                     ?? "hzpp";
         return GetFeed(feedId);
     }
 
-    [HttpGet("/{feedId}-rt")]
+    [HttpGet(RealtimeRouteConventions.LegacyFeedBySuffixRoute)]
     public IActionResult GetFeedByLegacyPath(string feedId)
         => GetFeed(feedId);
 

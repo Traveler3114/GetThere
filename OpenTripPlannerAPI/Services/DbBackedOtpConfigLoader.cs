@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using OpenTripPlannerAPI.Core;
 
 namespace OpenTripPlannerAPI.Services;
 
@@ -272,10 +273,7 @@ public sealed class DbBackedOtpConfigLoader
         if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
             return false;
 
-        return parsed.IsLoopback &&
-               (parsed.AbsolutePath.StartsWith("/rt/", StringComparison.OrdinalIgnoreCase)
-                || parsed.AbsolutePath.EndsWith("-rt", StringComparison.OrdinalIgnoreCase)
-                || parsed.AbsolutePath.Equals("/hzpp-rt", StringComparison.OrdinalIgnoreCase));
+        return parsed.IsLoopback && RealtimeRouteConventions.IsLocalRealtimePath(parsed.AbsolutePath);
     }
 
     private static bool UrlsEqual(string? left, string? right)

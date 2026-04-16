@@ -31,15 +31,15 @@ public class ScraperWorker : BackgroundService
             return;
         }
 
-        var nextRun = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
-        var readyFeeds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var nextRunTimes = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        var readyFeedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var scraper in enabledScrapers)
         {
             try
             {
                 await scraper.InitializeAsync(stoppingToken);
-                nextRun[scraper.FeedId] = DateTimeOffset.UtcNow;
+                nextRunTimes[scraper.FeedId] = DateTimeOffset.UtcNow;
                 _logger.LogInformation("Initialized scraper for feed '{FeedId}'.", scraper.FeedId);
             }
             catch (Exception ex)
@@ -55,10 +55,10 @@ public class ScraperWorker : BackgroundService
 
             foreach (var scraper in enabledScrapers)
             {
-                if (!nextRun.TryGetValue(scraper.FeedId, out var scheduledAt) || now < scheduledAt)
+                if (!nextRunTimes.TryGetValue(scraper.FeedId, out var scheduledAt) || now < scheduledAt)
                     continue;
 
-                nextRun[scraper.FeedId] = now.Add(scraper.PollInterval);
+                nextRunTimes[scraper.FeedId] = now.Add(scraper.PollInterval);
 
                 try
                 {
@@ -67,7 +67,7 @@ public class ScraperWorker : BackgroundService
                     {
                         _feedStore.Update(scraper.FeedId, bytes);
 
-                        if (readyFeeds.Add(scraper.FeedId))
+                        if (readyFeedIds.Add(scraper.FeedId))
                             _readySignal.SetReady(scraper.FeedId);
                     }
                 }

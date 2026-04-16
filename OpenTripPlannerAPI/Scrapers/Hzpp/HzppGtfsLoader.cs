@@ -112,7 +112,7 @@ public class HzppGtfsLoader
             return;
         }
 
-        string[] dowCols = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+        string[] dayOfWeekColumns = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
         using var reader = OpenEntry(zip, "calendar.txt");
         using var csv = new CsvReader(reader, CsvConfig());
 
@@ -122,7 +122,7 @@ public class HzppGtfsLoader
             var svc = record["service_id"].ToString()!.Trim();
             var start = ParseDate(record["start_date"].ToString()!);
             var end = ParseDate(record["end_date"].ToString()!);
-            var days = dowCols.Select(d => record[d].ToString()!.Trim() == "1").ToArray();
+            var days = dayOfWeekColumns.Select(d => record[d].ToString()!.Trim() == "1").ToArray();
             var dates = new HashSet<DateOnly>();
 
             for (var cur = start; cur <= end; cur = cur.AddDays(1))
