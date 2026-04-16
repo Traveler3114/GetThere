@@ -164,10 +164,10 @@ static bool TryStartOtpLinux(string javaExecutable, string otpArguments, string 
     var escapedShellCommand = QuoteForBash(shellCommand);
     var terminalCandidates = new (string FileName, string Arguments)[]
     {
-        ("x-terminal-emulator", $"-e bash -lc {escapedShellCommand}"),
+        ("x-terminal-emulator", $"-- bash -lc {escapedShellCommand}"),
         ("gnome-terminal", $"-- bash -lc {escapedShellCommand}"),
         ("konsole", $"-e bash -lc {escapedShellCommand}"),
-        ("xfce4-terminal", $"--command=bash -lc {escapedShellCommand}"),
+        ("xfce4-terminal", $"--command \"bash -lc {escapedShellCommand}\""),
         ("xterm", $"-e bash -lc {escapedShellCommand}")
     };
 
