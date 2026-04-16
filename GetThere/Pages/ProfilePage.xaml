@@ -280,12 +280,29 @@
                     </VerticalStackLayout>
                 </ScrollView>
 
-                <!-- PREMIUM SKELETON LOADING -->
-                <Grid x:Name="PremiumLoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
-                    <Image Source="loading_profile.svg" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
+                <!-- Loading overlays -->
+                <Grid x:Name="WalletLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="#F3F4F6" InputTransparent="False" ZIndex="1000">
+                    <Image Source="loading_profile.svg" Aspect="AspectFill" InputTransparent="True" Opacity="1" />
                     
                     <Grid IsClippedToBounds="True" InputTransparent="True">
-                        <BoxView x:Name="ShimmerBox" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
+                        <BoxView x:Name="WalletLoadingShimmer" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
+                            <BoxView.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="Transparent" Offset="0" />
+                                    <GradientStop Color="#FFFFFF" Offset="0.5" />
+                                    <GradientStop Color="Transparent" Offset="1" />
+                                </LinearGradientBrush>
+                            </BoxView.Background>
+                            <BoxView.Rotation>20</BoxView.Rotation>
+                        </BoxView>
+                    </Grid>
+                </Grid>
+
+                <Grid x:Name="AccountLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="#F3F4F6" InputTransparent="False" ZIndex="1000">
+                    <Image Source="loading_profile_account.svg" Aspect="AspectFill" InputTransparent="True" Opacity="1" />
+
+                    <Grid IsClippedToBounds="True" InputTransparent="True">
+                        <BoxView x:Name="AccountLoadingShimmer" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
                             <BoxView.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                     <GradientStop Color="Transparent" Offset="0" />

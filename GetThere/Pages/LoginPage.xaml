@@ -83,7 +83,7 @@
                             </Button.Shadow>
                         </Button>
 
-                        <Border x:Name="PremiumLoadingState" IsVisible="False" HeightRequest="52" BackgroundColor="#E0F2F1" StrokeThickness="0">
+                        <Border x:Name="LoadingState" IsVisible="False" HeightRequest="52" BackgroundColor="#E0F2F1" StrokeThickness="0">
                             <Border.StrokeShape><RoundRectangle CornerRadius="26" /></Border.StrokeShape>
                             <Grid IsClippedToBounds="True">
                                 <Label x:Name="LoadingDotsLabel" Text="Signing In" FontSize="16" TextColor="#009688" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />

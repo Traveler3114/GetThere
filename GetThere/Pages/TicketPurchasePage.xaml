@@ -95,7 +95,7 @@
             </ScrollView>
         </Border>
 
-        <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+        <!--  ── CUSTOM SCROLLBAR THUMB ──  -->
         <Border x:Name="CustomScrollThumb" 
                 WidthRequest="4" 
                 HeightRequest="40" 

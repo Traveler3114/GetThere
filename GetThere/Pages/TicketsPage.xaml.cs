@@ -61,7 +61,7 @@ public partial class TicketsPage : ContentPage
         HeaderRow.Opacity = 1.0 - (factor * 0.5); // Fade slightly
         HeaderRow.TranslationY = -(factor * 10);
         
-        // --- 2. Premium Manual Scrollbar Logic ---
+        // --- 2. Custom scrollbar logic ---
         double contentHeight = scrollView.ContentSize.Height;
         double viewHeight = scrollView.Height;
         
@@ -209,7 +209,7 @@ public partial class TicketsPage : ContentPage
 
     private async void StartLoadingAnimations()
     {
-        PremiumLoadingState.IsVisible = true;
+        LoadingState.IsVisible = true;
         _loadingCts = new CancellationTokenSource();
         var token = _loadingCts.Token;
 
@@ -230,7 +230,7 @@ public partial class TicketsPage : ContentPage
     private void StopLoadingAnimations()
     {
         _loadingCts?.Cancel();
-        PremiumLoadingState.IsVisible = false;
+        LoadingState.IsVisible = false;
     }
 
     private async void OnFilterOptionClicked(object? sender, EventArgs e)

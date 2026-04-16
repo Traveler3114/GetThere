@@ -78,7 +78,7 @@ public partial class TicketPurchasePage : ContentPage
         PageHeaderStack.Opacity = 1.0 - (factor * 0.5);
         PageHeaderStack.TranslationY = -(factor * 10);
         
-        // --- 2. Premium Manual Scrollbar Logic ---
+        // --- 2. Custom scrollbar logic ---
         double contentHeight = scrollView.ContentSize.Height;
         double viewHeight = scrollView.Height;
         

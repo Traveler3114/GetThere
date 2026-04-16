@@ -47,8 +47,8 @@
             <ScrollView x:Name="MainScrollView" Scrolled="OnMainScrollViewScrolled" VerticalScrollBarVisibility="Never" Padding="16,8,16,100">
             <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center" MaximumWidthRequest="1200">
 
-                <!-- PREMIUM SKELETON LOADING STATE -->
-                <Grid x:Name="PremiumLoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
+                <!-- Loading state -->
+                <Grid x:Name="LoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
                     <!-- Skeleton SVG -->
                     <Image Source="loading_shop.svg" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
                     
@@ -81,7 +81,7 @@
             </VerticalStackLayout>
             </ScrollView>
 
-            <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+            <!--  ── CUSTOM SCROLLBAR THUMB ──  -->
             <Border x:Name="CustomScrollThumb" 
                     WidthRequest="4" 
                     HeightRequest="40" 

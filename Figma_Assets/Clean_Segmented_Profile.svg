@@ -1,51 +1,41 @@
 <svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- BACKGROUND -->
-  <rect width="414" height="896" fill="#F8F9FA"/>
-  
-  <!-- HEADER AREA -->
-  <g transform="translate(0, 60)">
-    <text x="207" y="10" font-family="Arial" font-size="22" font-weight="bold" text-anchor="middle" fill="black">Profile</text>
-    <g transform="translate(24, 40)">
-      <circle cx="20" cy="20" r="20" fill="#E5E7EB" stroke="#512BD4" stroke-width="2"/>
-      <text x="50" y="18" font-family="Arial" font-size="16" font-weight="bold" fill="black">Luka S.</text>
-      <text x="50" y="34" font-family="Arial" font-size="11" font-weight="bold" fill="#10B981">● VERIFIED</text>
-    </g>
-  </g>
-
-  <!-- ─── SEGMENTED SWITCH (WALLET ACTIVE) ─── -->
-  <rect x="24" y="160" width="366" height="48" rx="24" fill="#E2E8F0"/>
-  <rect x="28" y="164" width="179" height="40" rx="20" fill="white" filter="url(#premiumShadow)"/>
-  <text x="117" y="189" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#512BD4">Wallet</text>
-  <text x="300" y="189" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#64748B">Account</text>
-
-  <!-- ─── WALLET CONTENT (WITH HIDE BALANCE EYE) ─── -->
-  <g id="WalletView" transform="translate(24, 230)">
-    <rect width="366" height="180" rx="30" fill="url(#balanceGrad)" filter="url(#premiumShadow)"/>
-    
-    <text x="183" y="60" font-family="Arial" font-size="12" text-anchor="middle" fill="white" fill-opacity="0.8">CURRENT BALANCE</text>
-    
-    <!-- HIDE BALANCE EYE ICON -->
-    <g transform="translate(320, 45)">
-       <path d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z" fill="white" fill-opacity="0.8"/>
-    </g>
-
-    <text x="183" y="105" font-family="Arial" font-size="38" font-weight="bold" text-anchor="middle" fill="white">€9586.20</text>
-    
-    <circle cx="183" cy="180" r="28" fill="white" filter="url(#premiumShadow)"/>
-    <path d="M183 172V188M175 180H191" stroke="black" stroke-width="2.5" stroke-linecap="round"/>
-
-    <text x="0" y="250" font-family="Arial" font-size="18" font-weight="bold" fill="black">Recent Activity</text>
-    <rect width="366" height="80" rx="20" fill="white" y="270" filter="url(#premiumShadow)"/>
-  </g>
-
-  <!-- DEFS -->
   <defs>
-    <linearGradient id="balanceGrad" x1="0" y1="0" x2="366" y2="180" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4E85F2"/>
-      <stop offset="1" stop-color="#512BD4"/>
-    </linearGradient>
-    <filter id="premiumShadow" x="-20" y="0" width="414" height="250" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="black" flood-opacity="0.22"/>
+    <filter id="lowShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.08"/>
     </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000000" flood-opacity="0.10"/>
+    </filter>
+    <linearGradient id="balanceGrad" x1="27" y1="147" x2="387" y2="335" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5F8FF5"/>
+      <stop offset="0.55" stop-color="#5565EA"/>
+      <stop offset="1" stop-color="#5A24D9"/>
+    </linearGradient>
   </defs>
+
+  <rect width="414" height="896" fill="#F3F4F6"/>
+
+  <circle cx="54" cy="46" r="30" fill="#F3F4F6" stroke="#512BD4" stroke-width="3"/>
+  <path d="M54 31C57.866 31 61 34.134 61 38C61 41.866 57.866 45 54 45C50.134 45 47 41.866 47 38C47 34.134 50.134 31 54 31ZM54 48C61.732 48 68 52.477 68 57.999V60H40V57.999C40 52.477 46.268 48 54 48Z" fill="#9CA3AF"/>
+  <text x="100" y="39" font-family="Segoe UI, Roboto, sans-serif" font-size="20" font-weight="700" fill="#000000">Luka S.</text>
+  <text x="100" y="58" font-family="Segoe UI, Roboto, sans-serif" font-size="11" font-weight="700" fill="#10B981">● VERIFIED</text>
+
+  <rect x="24" y="82" width="366" height="50" rx="25" fill="#E2E8F0"/>
+  <rect x="28" y="86" width="175" height="42" rx="21" fill="#FFFFFF" filter="url(#lowShadow)"/>
+  <text x="115.5" y="113" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#512BD4">Wallet</text>
+  <text x="299" y="113" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#64748B">Account</text>
+
+  <rect x="27" y="147" width="360" height="188" rx="24" fill="url(#balanceGrad)" filter="url(#softShadow)"/>
+  <text x="179" y="199" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" fill-opacity="0.72">CURRENT BALANCE</text>
+  <text x="179" y="248" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">€0,00</text>
+  <text x="179" y="279" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="12" fill="#FFFFFF" fill-opacity="0.68">Tap the eye to hide your balance</text>
+  <rect x="331" y="220" width="42" height="42" rx="21" fill="#FFFFFF" fill-opacity="0.2"/>
+  <path d="M352 232C345.6 232 340.8 239 340.8 239C340.8 239 345.6 246 352 246C358.4 246 363.2 239 363.2 239C363.2 239 358.4 232 352 232ZM352 243.4C349 243.4 346.3 241 344.8 239C346.3 237 349 234.6 352 234.6C355 234.6 357.7 237 359.2 239C357.7 241 355 243.4 352 243.4ZM352 236.5C350.6 236.5 349.5 237.6 349.5 239C349.5 240.4 350.6 241.5 352 241.5C353.4 241.5 354.5 240.4 354.5 239C354.5 237.6 353.4 236.5 352 236.5Z" fill="#FFFFFF"/>
+
+  <rect x="161" y="317" width="92" height="48" rx="24" fill="#FFFFFF" filter="url(#lowShadow)"/>
+  <text x="207" y="347" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#111827">Add</text>
+
+  <text x="207" y="392" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#000000">Recent Activity</text>
+  <path d="M0 426C0 406.118 16.118 390 36 390H378C397.882 390 414 406.118 414 426V896H0V426Z" fill="#FFFFFF" filter="url(#softShadow)"/>
+  <rect x="187" y="420" width="40" height="4" rx="2" fill="#E5E7EB"/>
 </svg>

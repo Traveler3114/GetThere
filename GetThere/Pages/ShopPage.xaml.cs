@@ -64,7 +64,7 @@ public partial class ShopPage : ContentPage
         CountryBadge.Scale = 1.0 - (factor * 0.1);
         CountryBadge.TranslationY = -(factor * 5);
         
-        // --- 2. Premium Manual Scrollbar Logic ---
+        // --- 2. Custom scrollbar logic ---
         double contentHeight = scrollView.ContentSize.Height;
         double viewHeight = scrollView.Height;
         
@@ -135,7 +135,7 @@ public partial class ShopPage : ContentPage
 
     private async void StartLoadingAnimations()
     {
-        PremiumLoadingState.IsVisible = true;
+        LoadingState.IsVisible = true;
         _loadingCts = new CancellationTokenSource();
         var token = _loadingCts.Token;
 
@@ -156,7 +156,7 @@ public partial class ShopPage : ContentPage
     private void StopLoadingAnimations()
     {
         _loadingCts?.Cancel();
-        PremiumLoadingState.IsVisible = false;
+        LoadingState.IsVisible = false;
     }
 
     private Border BuildOperatorCard(TicketableOperatorDto op)

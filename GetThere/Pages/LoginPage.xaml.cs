@@ -74,7 +74,7 @@ public partial class LoginPage : ContentPage
     private async void StartLoadingAnimations()
     {
         LoginButton.IsVisible = false;
-        PremiumLoadingState.IsVisible = true;
+        LoadingState.IsVisible = true;
         _loadingCts = new CancellationTokenSource();
         var token = _loadingCts.Token;
 
@@ -94,7 +94,7 @@ public partial class LoginPage : ContentPage
     private void StopLoadingAnimations()
     {
         _loadingCts?.Cancel();
-        PremiumLoadingState.IsVisible = false;
+        LoadingState.IsVisible = false;
         LoginButton.IsVisible = true;
     }
 

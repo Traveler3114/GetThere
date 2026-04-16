@@ -1,64 +1,64 @@
-﻿<svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
-<defs>
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000000" flood-opacity="0.10"/>
-    </filter>
-    <filter id="lowShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.08"/>
-    </filter>
-    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#5F8FF5" />
-      <stop offset="55%" stop-color="#5565EA" />
-      <stop offset="100%" stop-color="#5A24D9" />
-    </linearGradient>
-</defs>
-<rect width="414" height="896" fill="#F3F4F6"/>
-    <!-- Header -->
-    <circle cx="50" cy="70" r="26" fill="#E5E7EB" stroke="#512BD4" stroke-width="3"/>
-    
-    <!-- User Icon Path -->
-    <path d="M50 56C53.3137 56 56 58.6863 56 62C56 65.3137 53.3137 68 50 68C46.6863 68 44 65.3137 44 62C44 58.6863 46.6863 56 50 56ZM50 71C56.6274 71 62 74.5817 62 79V80H38V79C38 74.5817 43.3726 71 50 71Z" fill="#9CA3AF"/>
-    
-    <text x="95" y="65" font-family="'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="900" fill="#111827">Luka S.</text>
-    <circle cx="100" cy="81" r="4" fill="#10B981"/>
-    <text x="110" y="85" font-family="'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="bold" fill="#10B981">VERIFIED</text>
-    <!-- Tab Switcher Active Wallet -->
-    <rect x="20" y="130" width="374" height="54" rx="27" fill="#E2E8F0"/>
-    <rect x="24" y="134" width="185" height="46" rx="23" fill="#FFFFFF" filter="url(#lowShadow)"/>
-    <text x="116" y="162" font-family="sans-serif" font-size="16" font-weight="bold" fill="#512BD4" text-anchor="middle">Wallet</text>
-    <text x="303" y="162" font-family="sans-serif" font-size="16" font-weight="bold" fill="#64748B" text-anchor="middle">Account</text>
+<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="390" height="844" fill="#F3F4F6"/>
+  
+  <!-- Header -->
+  <g id="Header">
+    <circle cx="54" cy="64" r="30" fill="white" stroke="#512BD4" stroke-width="3"/>
+    <path d="M54 50C57.866 50 61 53.134 61 57C61 60.866 57.866 64 54 64C50.134 64 47 60.866 47 57C47 53.134 50.134 50 54 50ZM54 66C60.6274 66 66 69.3579 66 73.5V75H42V73.5C42 69.3579 47.3726 66 54 66Z" fill="#512BD4"/>
+    <text x="96" y="62" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 20px;">Luka S.</text>
+    <circle cx="100" cy="78" r="3" fill="#10B981"/>
+    <text x="108" y="82" fill="#10B981" style="font-family: sans-serif; font-weight: bold; font-size: 11px; letter-spacing: 0.05em;">VERIFIED</text>
+  </g>
+
+  <!-- Tab Switcher -->
+  <rect x="24" y="114" width="342" height="54" rx="27" fill="#E2E8F0"/>
+  <rect x="28" y="118" width="167" height="46" rx="23" fill="white"/>
+  <text x="111" y="147" fill="#512BD4" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">Wallet</text>
+  <text x="281" y="147" fill="#64748B" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">Account</text>
+
+  <!-- Wallet Content (Active) -->
+  <g id="WalletView">
     <!-- Balance Card -->
-    <rect x="20" y="210" width="374" height="200" rx="28" fill="url(#cardGrad)" filter="url(#softShadow)"/>
-    <text x="207" y="255" font-family="sans-serif" font-size="12" font-weight="bold" fill="#FFF" opacity="0.8" text-anchor="middle" letter-spacing="1">CURRENT BALANCE</text>
-    <text x="177" y="325" font-family="sans-serif" font-size="46" font-weight="bold" fill="#FFF" text-anchor="middle">EUR 124.50</text>
-    <circle cx="330" cy="308" r="22" fill="#FFF" opacity="0.2"/>
-    <!-- Eye vector instead of unicode emoji -->
-    <path d="M330 300C323 300 318 308 318 308C318 308 323 316 330 316C337 316 342 308 342 308C342 308 337 300 330 300ZM330 313C326.5 313 323 309 321.5 308C323 307 326.5 303 330 303C333.5 303 337 307 338.5 308C337 309 333.5 313 330 313Z" fill="#FFF"/>
-    <circle cx="330" cy="308" r="4" fill="#FFF"/>
+    <defs>
+      <linearGradient id="cardGrad" x1="0" y1="0" x2="360" y2="188" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#5F8FF5"/>
+        <stop offset="0.55" stop-color="#5565EA"/>
+        <stop offset="1" stop-color="#5A24D9"/>
+      </linearGradient>
+    </defs>
+    <rect x="15" y="193" width="360" height="188" rx="24" fill="url(#cardGrad)"/>
+    <text x="195" y="240" fill="white" fill-opacity="0.8" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 11px; letter-spacing: 0.1em;">CURRENT BALANCE</text>
+    <text x="195" y="290" fill="white" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 34px;">€42,50</text>
+    <text x="195" y="330" fill="white" fill-opacity="0.7" text-anchor="middle" style="font-family: sans-serif; font-size: 12px;">Tap the eye to hide your balance</text>
     
-    <rect x="157" y="385" width="100" height="50" rx="25" fill="#FFF" filter="url(#lowShadow)"/>
-    <text x="207" y="415" font-family="sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="middle">Add</text>
+    <!-- Visibility Icon (Eye Open) -->
+    <rect x="318" y="266" width="42" height="42" rx="21" fill="white" fill-opacity="0.2"/>
+    <path d="M339 281C333 281 328 287 328 287C328 287 333 293 339 293C345 293 350 287 350 287C350 287 345 281 339 281ZM339 291.5C336.515 291.5 334.5 289.485 334.5 287C334.5 284.515 336.515 282.5 339 282.5C341.485 282.5 343.5 284.515 343.5 287C343.5 289.485 341.485 291.5 339 291.5ZM339 284C337.343 284 336 285.343 336 287C336 288.657 337.343 290 339 290C340.657 290 342 288.657 342 287C342 285.343 340.657 284 339 284Z" fill="white"/>
 
-    <text x="207" y="480" font-family="sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="middle">Recent Activity</text>
-    <path d="M 0 500 Q 0 460 40 460 L 374 460 Q 414 460 414 500 L 414 896 L 0 896 Z" fill="#FFFFFF" filter="url(#softShadow)"/>
-    
-    <rect x="187" y="475" width="40" height="5" rx="2.5" fill="#E5E7EB"/>
-    
-    <!-- Row 1 -->
-    <rect x="20" y="510" width="374" height="70" rx="14" fill="#FFF" filter="url(#lowShadow)"/>
-    <circle cx="50" cy="545" r="18" fill="#F3F4F6"/>
-    <!-- Box icon inside circle -->
-    <rect x="42" y="537" width="16" height="16" rx="2" fill="#9CA3AF"/>
-    <text x="85" y="540" font-family="sans-serif" font-size="16" font-weight="bold" fill="#111827">Bus Ticket ZG</text>
-    <text x="85" y="560" font-family="sans-serif" font-size="13" fill="#9CA3AF">15 Apr 14:30</text>
-    <text x="374" y="550" font-family="sans-serif" font-size="16" font-weight="bold" fill="#EF4444" text-anchor="end">- EUR 4.50</text>
+    <!-- Add Button -->
+    <rect x="149" y="361" width="92" height="48" rx="24" fill="white"/>
+    <text x="195" y="391" fill="#111827" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 16px;">Add</text>
 
-    <!-- Row 2 -->
-    <rect x="20" y="595" width="374" height="70" rx="14" fill="#FFF" filter="url(#lowShadow)"/>
-    <circle cx="50" cy="630" r="18" fill="#F3F4F6"/>
-    <!-- Box icon inside circle -->
-    <rect x="42" y="622" width="16" height="16" rx="2" fill="#9CA3AF"/>
-    <text x="85" y="625" font-family="sans-serif" font-size="16" font-weight="bold" fill="#111827">Wallet Top-Up</text>
-    <text x="85" y="645" font-family="sans-serif" font-size="13" fill="#9CA3AF">14 Apr 09:12</text>
-    <text x="374" y="635" font-family="sans-serif" font-size="16" font-weight="bold" fill="#10B981" text-anchor="end">+ EUR 50.00</text>
+    <!-- Recent Activity -->
+    <text x="195" y="445" fill="#111827" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 16px;">Recent Activity</text>
+    <rect x="0" y="465" width="390" height="379" rx="36" fill="white"/>
+    <rect x="175" y="485" width="40" height="4" rx="2" fill="#E5E7EB"/>
+    
+    <!-- Activity Row 1 -->
+    <rect x="24" y="510" width="342" height="60" rx="12" fill="#F8FAFC"/>
+    <circle cx="50" cy="540" r="18" fill="#E2E8F0"/>
+    <path d="M50 532L54 536H52V544H48V536H46L50 532Z" fill="#10B981"/> <!-- Arrow Up (Deposit) -->
+    <text x="78" y="538" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">Wallet Top-up</text>
+    <text x="78" y="552" fill="#94A3B8" style="font-family: sans-serif; font-size: 11px;">12 Apr 10:45</text>
+    <text x="354" y="542" fill="#10B981" text-anchor="end" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">+€20,00</text>
+
+    <!-- Activity Row 2 -->
+    <rect x="24" y="580" width="342" height="60" rx="12" fill="#F8FAFC"/>
+    <circle cx="50" cy="610" r="18" fill="#E2E8F0"/>
+    <path d="M50 618L46 614H48V606H52V614H54L50 618Z" fill="#EF4444"/> <!-- Arrow Down (Payment) -->
+    <text x="78" y="608" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">ZET Bus Ticket</text>
+    <text x="78" y="622" fill="#94A3B8" style="font-family: sans-serif; font-size: 11px;">10 Apr 18:20</text>
+    <text x="354" y="612" fill="#EF4444" text-anchor="end" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">-€1,40</text>
+  </g>
 </svg>
