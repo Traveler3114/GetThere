@@ -59,7 +59,9 @@ public partial class HzppScraper : ScraperBase
         if (!IsEnabled || _gtfsData is null)
             return BuildEmptyResult();
 
-        var requestDelay = double.Parse(_config["Scrape:RequestDelaySeconds"] ?? "0.3");
+        var requestDelay = double.TryParse(_config["Scrape:RequestDelaySeconds"], out var parsedRequestDelay) && parsedRequestDelay >= 0
+            ? parsedRequestDelay
+            : 0.3;
         var activeTrains = _gtfsLoader.GetActiveTrainNumbers(_gtfsData);
 
         var total = activeTrains.Count;
@@ -171,8 +173,8 @@ public partial class HzppScraper : ScraperBase
             payload.Route = m.Groups[1].Value.Trim();
 
         m = DelayRegex().Match(text);
-        if (m.Success)
-            payload.DelayMin = int.Parse(m.Groups[1].Value);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var delayMin))
+            payload.DelayMin = delayMin;
 
         payload.Finished = FinishedRegex().IsMatch(text);
 

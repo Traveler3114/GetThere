@@ -128,11 +128,15 @@ public sealed class HzppGtfsLoader
             var record = (IDictionary<string, object>)row;
             var tid = record["trip_id"].ToString()!.Trim();
             var sid = record["stop_id"].ToString()!.Trim();
-            var seq = int.Parse(record["stop_sequence"].ToString()!);
+            if (!int.TryParse(record["stop_sequence"].ToString(), out var seq))
+            {
+                _logger.LogDebug("Skipping stop_time with invalid stop_sequence for trip {TripId}", tid);
+                continue;
+            }
             var arrStr = record.ContainsKey("arrival_time") ? record["arrival_time"].ToString()! : string.Empty;
             var depStr = record.ContainsKey("departure_time") ? record["departure_time"].ToString()! : string.Empty;
-            var arr = string.IsNullOrWhiteSpace(arrStr) ? -1 : HmsToSec(arrStr);
-            var dep = string.IsNullOrWhiteSpace(depStr) ? -1 : HmsToSec(depStr);
+            var arr = string.IsNullOrWhiteSpace(arrStr) ? -1 : HmsToSec(arrStr, $"trip_id={tid},field=arrival_time");
+            var dep = string.IsNullOrWhiteSpace(depStr) ? -1 : HmsToSec(depStr, $"trip_id={tid},field=departure_time");
 
             if (arr < 0 && dep >= 0) arr = dep;
             if (dep < 0 && arr >= 0) dep = arr;
@@ -163,8 +167,8 @@ public sealed class HzppGtfsLoader
         {
             var record = (IDictionary<string, object>)row;
             var svc = record["service_id"].ToString()!.Trim();
-            var start = ParseDate(record["start_date"].ToString()!);
-            var end = ParseDate(record["end_date"].ToString()!);
+            var start = ParseDate(record["start_date"].ToString()!, "calendar.txt:start_date");
+            var end = ParseDate(record["end_date"].ToString()!, "calendar.txt:end_date");
             var days = dowCols.Select(d => record[d].ToString()!.Trim() == "1").ToArray();
             var dates = new HashSet<DateOnly>();
 
@@ -187,13 +191,38 @@ public sealed class HzppGtfsLoader
     private static CsvConfiguration CsvConfig() =>
         new(CultureInfo.InvariantCulture) { HasHeaderRecord = true, MissingFieldFound = null, BadDataFound = null };
 
-    private static int HmsToSec(string hms)
+    private int HmsToSec(string hms, string context)
     {
         if (string.IsNullOrWhiteSpace(hms)) return 0;
         var parts = hms.Trim().Split(':');
-        return int.Parse(parts[0]) * 3600 + int.Parse(parts[1]) * 60 + (parts.Length > 2 ? int.Parse(parts[2]) : 0);
+        if (parts.Length < 2)
+        {
+            _logger.LogDebug("Invalid GTFS time '{Value}' for {Context}: expected HH:mm[:ss]", hms, context);
+            return -1;
+        }
+
+        if (!int.TryParse(parts[0], out var hours) || !int.TryParse(parts[1], out var minutes))
+        {
+            _logger.LogDebug("Invalid GTFS time '{Value}' for {Context}: non-numeric hour/minute", hms, context);
+            return -1;
+        }
+
+        var seconds = 0;
+        if (parts.Length > 2 && !int.TryParse(parts[2], out seconds))
+        {
+            _logger.LogDebug("Invalid GTFS time '{Value}' for {Context}: non-numeric seconds", hms, context);
+            return -1;
+        }
+
+        return hours * 3600 + minutes * 60 + seconds;
     }
 
-    private static DateOnly ParseDate(string s) =>
-        new(int.Parse(s[..4]), int.Parse(s[4..6]), int.Parse(s[6..8]));
+    private static DateOnly ParseDate(string s, string context) =>
+        s.Length >= 8
+        && int.TryParse(s[..4], out var year)
+        && int.TryParse(s[4..6], out var month)
+        && int.TryParse(s[6..8], out var day)
+        && DateOnly.TryParse($"{year:D4}-{month:D2}-{day:D2}", out var parsed)
+            ? parsed
+            : throw new FormatException($"Invalid GTFS date value '{s}' in {context}.");
 }

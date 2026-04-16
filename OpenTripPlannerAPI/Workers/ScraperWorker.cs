@@ -38,7 +38,9 @@ public sealed class ScraperWorker : BackgroundService
         foreach (var scraper in enabledScrapers)
             await scraper.InitialiseAsync(stoppingToken);
 
-        var interval = int.Parse(_config["Scrape:IntervalSeconds"] ?? "30");
+        var interval = int.TryParse(_config["Scrape:IntervalSeconds"], out var parsedInterval) && parsedInterval > 0
+            ? parsedInterval
+            : 30;
         _logger.LogInformation("Scraper loop started — interval={Interval}s, enabled={Count}", interval, enabledScrapers.Count);
 
         var firstCycle = true;
