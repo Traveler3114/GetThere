@@ -1,135 +1,251 @@
-# GetThereAPI — Detailed Code Documentation
+# GetThereAPI — Full Code Documentation
 
-## 1. Purpose of this project
-`GetThereAPI` is the main backend API for account, wallet, ticketing, map-support endpoints, operator metadata, and transit orchestration.
+## 1) Project role in the solution
+`GetThereAPI` is the core backend API and domain service for user/account, wallet/payment/tickets, operator metadata, mobility caching, and OTP-transit orchestration.
 
-It is the primary system of record for:
-- Users/Identity,
-- Wallet balances and transactions,
-- Payment records,
-- Tickets,
-- Operators, countries, cities, transport types, and mobility providers.
+It is both:
+- a business API consumed by the MAUI app,
+- a configuration source consumed by `OpenTripPlannerAPI` (`/operator/otp-feeds`).
 
 ---
 
-## 2. Technical architecture
-
-### Runtime and hosting
-- File: `GetThereAPI/Program.cs`
-- ASP.NET Core Web API (`net10.0`).
-- Uses:
-  - EF Core + SQL Server,
-  - ASP.NET Identity,
-  - JWT bearer auth,
-  - CORS policy for map image assets.
-
-### Core modules
-- `Controllers/` → HTTP API surface.
-- `Managers/` → business logic / orchestration for each domain.
-- `Data/AppDbContext.cs` → EF model, relationships, seed data.
-- `Transit/` → OTP abstraction layer:
-  - `ITransitProvider`, `OtpTransitProvider`,
-  - `ITransitRouter`, `TransitRouter`,
-  - `TransitOrchestrator`.
-
-### Startup behavior
-- Registers `MobilityManager` as singleton + hosted background service.
-- Performs non-blocking background initialization for mobility station cache.
+## 2) Runtime and platform details
+- Project file: `GetThereAPI/GetThereAPI.csproj`
+- SDK: `Microsoft.NET.Sdk.Web`
+- Target framework: `net10.0`
+- Primary packages:
+  - ASP.NET Core JWT bearer auth
+  - ASP.NET Identity + EF stores
+  - EF Core SQL Server + tools
+  - OpenAPI + Scalar UI
 
 ---
 
-## 3. Important API areas
+## 3) Startup pipeline (`Program.cs`)
 
-### Auth and identity
-- `AuthController`:
-  - `POST /auth/register`
-  - `POST /auth/login`
-- `TokenManager` creates JWT tokens with standard claims (`sub`, `email`, `given_name`, `jti`).
+### Service registration summary
+- Controllers + OpenAPI.
+- `AppDbContext` using SQL Server `DefaultConnection`.
+- Identity with password policy and unique-email rule.
+- Transit stack:
+  - `OtpClient`
+  - `ITransitProvider -> OtpTransitProvider`
+  - `ITransitRouter -> TransitRouter`
+  - `TransitOrchestrator`
+- `MobilityManager` as singleton + hosted background service.
+- Reflection-based auto-registration for all managers in namespace except `MobilityManager` (already singleton).
+- JWT bearer authentication.
+- CORS policy `MapAssets` allowing all origins/methods/headers (for map image fetch scenarios from MAUI WebView).
 
-### Wallet, payments, tickets
-- `WalletController`:
-  - `GET /wallet`
-  - `GET /wallet/transactions`
-- `PaymentController`:
-  - `GET /payment/providers`
-  - `POST /payment/topup`
-- `TicketController`:
-  - `GET /ticket`
+### App middleware order
+1. Development-only OpenAPI + Scalar.
+2. `UseCors("MapAssets")`
+3. `UseStaticFiles()`
+4. `UseHttpsRedirection()`
+5. `UseAuthentication()`
+6. `UseAuthorization()`
+7. `MapControllers()`
 
-### Operator/transit/map
-- `OperatorController`:
-  - operators, ticketable operators, stops, routes, stop schedule, health, transport types, OTP feed config.
-- `MapController`:
-  - unified feature envelope endpoint + bike stations endpoint.
-- `CountryController`:
-  - country lookup data.
-
-### Mock ticket purchase
-- `MockTicketController`:
-  - `GET /mock-tickets/{operatorId}/options`
-  - `POST /mock-tickets/{operatorId}/purchase` (authorized)
-- Uses DB transaction for atomic balance check + deduction + ticket/transaction persistence.
+### Background init detail
+A fire-and-forget startup task calls `MobilityManager.InitialiseAsync()` so initial station cache is primed early.
 
 ---
 
-## 4. Transit integration design
+## 4) Configuration (`appsettings.json`)
 
-The API intentionally isolates OTP specifics:
-- Controller → `OperatorManager` → `TransitOrchestrator` → `ITransitProvider` → `OtpClient`.
-- This keeps backend contracts stable when provider details evolve.
-
-Current provider behavior:
-- Stops and routes from OTP GraphQL.
-- Stop schedule grouped by route/headsign with realtime-aware delay fields.
-- Health check uses lightweight GraphQL query.
-
----
-
-## 5. Data model and persistence behavior
-
-### Database context
-- `AppDbContext` includes identity and domain entities.
-- Enum values are stored as strings via automatic converter setup.
-- Seed data includes initial countries/cities/operators/payment providers/transport types.
-
-### Operator feed model
-- `TransitOperator` stores feed URLs for OTP integration:
-  - `GtfsFeedUrl`
-  - `GtfsRealtimeFeedUrl`
+### Main sections
+- `ConnectionStrings:DefaultConnection`
+- `Jwt`:
+  - key, issuer, audience, expiry
+- `Otp`:
+  - `DefaultInstance`
+  - `Instances` dictionary with base URL + GraphQL path
 
 ---
 
-## 6. How future backend code should be done
+## 5) Data model and persistence
+Primary context: `Data/AppDbContext.cs`
 
-### Keep contract-first discipline
-For any new API capability:
-1. Define/extend DTO in `GetThereShared`.
-2. Implement manager logic.
-3. Keep controller thin (mapping/request validation only).
-4. Return `OperationResult` wrappers consistently.
+### DbSets
+- Wallets
+- WalletTransactions
+- Tickets
+- Payments
+- TransitOperators
+- TransportTypes
+- PaymentProviders
+- Countries
+- Cities
+- MobilityProviders
 
-### Keep provider abstraction clean
-- Do not couple controllers/managers to raw OTP GraphQL schema.
-- Add new transit/mobility providers behind interfaces.
-- Keep `TransitOrchestrator` as the only routing/orchestration entry point.
+### Important model behaviors
+- All enum properties are automatically persisted as strings (converter applied by model iteration).
+- Seed data is included for countries, cities, operators, transport types, payment providers, mobility provider.
+- Mobility many-to-many join tables are configured:
+  - `MobilityProviderCountry`
+  - `MobilityProviderCity`
 
-### Concurrency and atomicity
-- Any wallet/balance mutation must be transactional.
-- Avoid split writes for ticket purchase/payment flows.
-
-### Security standards
-- Keep `[Authorize]` on user-specific endpoints.
-- Use user id from JWT claims only.
-- Never expose provider secrets through DTOs.
-
-### Performance and caching
-- Continue using background polling caches for slowly changing external data (mobility feeds).
-- Add scoped caching around expensive OTP queries only through provider layer, not controllers.
+### Entity responsibilities (high-level)
+- `AppUser`: identity user extension with `FullName`, timestamps.
+- `Wallet`: per-user balance.
+- `WalletTransaction`: history ledger.
+- `Payment`: top-up/payment transaction log.
+- `Ticket`: purchased ticket records.
+- `TransitOperator`: operator identity + static/realtime GTFS URL references.
+- `MobilityProvider`: provider feed metadata for bike/scooter-like sources.
 
 ---
 
-## 7. Recommended next backend improvements
-- Add input validation layer for request DTOs.
-- Add optimistic concurrency/version fields for wallet and ticket entities.
-- Add endpoint-level telemetry and structured operation IDs for debugging.
-- Add automated tests for auth, wallet top-up, mock purchase, and transit schedule aggregation.
+## 6) API controller surface
+
+### AuthController (`/auth`)
+- `POST /auth/register`
+- `POST /auth/login`
+
+### CountryController (`/countries`)
+- `GET /countries`
+
+### OperatorController (`/operator`)
+- `GET /operator`
+- `GET /operator/ticketable`
+- `GET /operator/stops`
+- `GET /operator/routes`
+- `GET /operator/stops/{stopId}/schedule`
+- `GET /operator/health`
+- `GET /operator/transport-types`
+- `GET /operator/otp-feeds`
+
+### MapController (`/map`)
+- `GET /map/features`
+- `GET /map/bike-stations`
+
+### WalletController (`/wallet`, authorized)
+- `GET /wallet`
+- `GET /wallet/transactions`
+
+### PaymentController (`/payment`, authorized)
+- `GET /payment/providers`
+- `POST /payment/topup`
+
+### TicketController (`/ticket`, authorized)
+- `GET /ticket`
+
+### MockTicketController (`/mock-tickets`)
+- `GET /mock-tickets/{operatorId}/options`
+- `POST /mock-tickets/{operatorId}/purchase` (authorized)
+
+---
+
+## 7) Manager layer responsibilities
+
+### OperatorManager
+- Lists operators.
+- Produces ticketable operator list (including mobility-aware country filtering).
+- Delegates stops/routes/schedules/health checks to transit orchestrator.
+- Produces OTP feed metadata used by OpenTripPlannerAPI.
+
+### MobilityManager
+- Background service polling all configured mobility providers every 2 minutes.
+- Parses provider feeds through parser factory.
+- Caches station lists in memory per provider.
+- Exposes read/filter helper methods for map/ticketable usage.
+
+### PaymentManager
+- Wallet top-up operation.
+- Creates payment records.
+- Adds wallet transaction history entry.
+
+### WalletManager
+- Creates wallet on registration.
+- Reads wallet and wallet transaction history.
+
+### TicketManager
+- Returns purchased tickets for requesting user.
+
+### TokenManager
+- Issues JWT signed with HMAC SHA-256.
+
+---
+
+## 8) Transit abstraction stack
+Location: `GetThereAPI/Transit`
+
+### Why abstraction exists
+To isolate OTP GraphQL schema from controllers and keep future provider swaps possible.
+
+### Components
+- `ITransitProvider`: stops/routes/schedule/health contract.
+- `OtpTransitProvider`: OTP GraphQL implementation.
+- `ITransitRouter` + `TransitRouter`: chooses instance key by country context.
+- `TransitOrchestrator`: orchestration entry used by managers.
+- `OtpClient`: raw GraphQL HTTP query client.
+
+### Current routing behavior
+`TransitRouter.ResolveInstanceKeyAsync` currently returns default instance (`Otp:DefaultInstance`) with country-aware guard checks in place for future expansion.
+
+### OtpTransitProvider behavior details
+- Stops query with route mode fallback logic.
+- Routes query with mode-to-GTFS-route-type mapping.
+- Stop schedule query using `stoptimesWithoutPatterns` grouped by route/headsign.
+- Delay computation from `scheduledDeparture` vs `realtimeDeparture`.
+- Health check uses minimal GraphQL typename query.
+
+---
+
+## 9) Security model
+
+### Authentication
+- JWT bearer for protected endpoints.
+- User identity taken from `sub` claim.
+
+### Authorization
+- User-scoped controllers use `[Authorize]`.
+- Public endpoints are limited to discovery/transit metadata as currently implemented.
+
+### Data handling considerations
+- Sensitive operator internal fields are not exposed by public DTOs.
+- Mock purchase flow validates wallet balance before mutation and executes in DB transaction.
+
+---
+
+## 10) Background and cache behavior
+- `MobilityManager` initial load is executed on startup.
+- Poll loop continues with fixed interval.
+- On fetch failure, stale data is preserved rather than dropped.
+
+---
+
+## 11) How future backend code should be implemented
+
+### Rule 1 — controller thinness
+Controllers should only:
+- parse input,
+- call manager/service,
+- map HTTP status/result wrappers.
+
+Business logic belongs in manager/services.
+
+### Rule 2 — contract stability
+- Add/modify DTOs in `GetThereShared` first.
+- Prefer additive changes.
+- Avoid breaking renames/removals without migration strategy.
+
+### Rule 3 — transactional money/ticket operations
+Any workflow changing wallet/ticket/payment state must use atomic transaction semantics.
+
+### Rule 4 — provider decoupling
+Do not call OTP directly from controllers/managers outside transit provider stack.
+
+### Rule 5 — extension through abstraction
+- New transit provider -> implement `ITransitProvider`.
+- New routing strategy -> expand `ITransitRouter` implementation.
+- Keep API contracts stable while internals evolve.
+
+---
+
+## 12) Recommended engineering backlog
+- Add explicit validation attributes/filters for request DTOs.
+- Add API-level integration tests for auth/topup/purchase/transit schedule.
+- Add structured logs with correlation IDs.
+- Add concurrency safeguards for wallet row updates at scale.
+- Expand transit instance routing policy for true multi-region behavior.
