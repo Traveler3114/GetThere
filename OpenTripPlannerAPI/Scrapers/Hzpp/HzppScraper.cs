@@ -1,30 +1,102 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
-using OpenTripPlannerAPI.Scrapers.HZPP.Models;
+using OpenTripPlannerAPI.Core;
+using OpenTripPlannerAPI.Scrapers.Base;
+using OpenTripPlannerAPI.Services;
 
-namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
+namespace OpenTripPlannerAPI.Scrapers.Hzpp;
 
-public partial class HzppScraper
+public partial class HzppScraper : IScraper
 {
     private readonly ILogger<HzppScraper> _logger;
     private readonly HttpClient _client;
-    private static readonly TimeZoneInfo _tz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zagreb");
+    private readonly HzppGtfsLoader _gtfsLoader;
+    private readonly DbBackedOtpConfigState _state;
+    private readonly IConfiguration _configuration;
 
+    private static readonly TimeZoneInfo _tz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zagreb");
     private const string BaseUrl = "https://www.hzpp.app";
 
-    public HzppScraper(ILogger<HzppScraper> logger, IHttpClientFactory httpClientFactory)
+    private GtfsData? _gtfs;
+    private readonly HzppScraperOptions _options;
+
+    public HzppScraper(
+        ILogger<HzppScraper> logger,
+        IHttpClientFactory httpClientFactory,
+        HzppGtfsLoader gtfsLoader,
+        DbBackedOtpConfigState state,
+        IConfiguration configuration)
     {
         _logger = logger;
         _client = httpClientFactory.CreateClient("hzpp");
+        _gtfsLoader = gtfsLoader;
+        _state = state;
+        _configuration = configuration;
+        _options = configuration.GetSection("Scrapers:Hzpp").Get<HzppScraperOptions>() ?? new HzppScraperOptions();
     }
 
-    public async Task<TrainPayload?> FetchTrainDataAsync(string trainNumber, CancellationToken ct = default)
+    public string FeedId => _options.FeedId;
+
+    public bool IsEnabled => _options.Enabled;
+
+    public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Max(1, _options.IntervalSeconds));
+
+    public async Task InitializeAsync(CancellationToken ct)
+    {
+        if (!IsEnabled)
+            return;
+
+        var gtfsUrl = _state.LocalScraperStaticGtfsUrls.TryGetValue(FeedId, out var localGtfsUrl)
+            ? localGtfsUrl
+            : _options.GtfsZipUrl;
+
+        gtfsUrl = string.IsNullOrWhiteSpace(gtfsUrl)
+            ? _configuration["Gtfs:ZipUrl"] ?? "https://www.hzpp.hr/GTFS_files.zip"
+            : gtfsUrl;
+
+        _logger.LogInformation("[{FeedId}] Loading GTFS from {Url}", FeedId, gtfsUrl);
+        _gtfs = await _gtfsLoader.LoadAsync(gtfsUrl, ct);
+    }
+
+    public async Task<ScrapeResult?> ScrapeAsync(CancellationToken ct)
+    {
+        if (!IsEnabled || _gtfs is null)
+            return null;
+
+        var activeTrains = _gtfsLoader.GetActiveTrainNumbers(_gtfs);
+        var updatesMap = new Dictionary<string, List<StopTimeUpdateDto>>();
+
+        foreach (var trainNumber in activeTrains)
+        {
+            var payload = await FetchTrainDataAsync(trainNumber, ct);
+            await Task.Delay(TimeSpan.FromSeconds(_options.RequestDelaySeconds), ct);
+
+            if (payload is null)
+                continue;
+
+            if (payload.DelayMin == 0 && string.IsNullOrEmpty(payload.CurrentStation) && !payload.Finished)
+                continue;
+
+            var tripId = _gtfsLoader.GetActiveTripId(trainNumber, _gtfs);
+            if (tripId is null)
+                continue;
+
+            var stus = ComputeStopTimeUpdates(tripId, payload, _gtfs);
+            if (stus.Count > 0)
+                updatesMap[tripId] = stus;
+        }
+
+        var bytes = ProtobufFeedBuilder.BuildFromStopTimeUpdates(updatesMap).ToByteArray();
+        return new ScrapeResult { FeedBytes = bytes };
+    }
+
+    private async Task<TrainPayload?> FetchTrainDataAsync(string trainNumber, CancellationToken ct = default)
     {
         var url = $"{BaseUrl}/__data.json"
                 + $"?trainId={trainNumber}"
-                + $"&x-sveltekit-trailing-slash=1"
-                + $"&x-sveltekit-invalidated=01";
+                + "&x-sveltekit-trailing-slash=1"
+                + "&x-sveltekit-invalidated=01";
 
         try
         {
@@ -42,14 +114,22 @@ public partial class HzppScraper
                     var root = doc.RootElement;
                     if (root.TryGetProperty("type", out var t) && t.GetString() == "chunk"
                         && root.TryGetProperty("data", out var d))
+                    {
                         foreach (var item in d.EnumerateArray())
                         {
                             var val = item.ValueKind == JsonValueKind.String ? item.GetString() ?? "" : "";
                             if (val.Contains("<HTML>", StringComparison.OrdinalIgnoreCase))
-                            { htmlContent = val; break; }
+                            {
+                                htmlContent = val;
+                                break;
+                            }
                         }
+                    }
                 }
-                catch { /* skip non-JSON lines */ }
+                catch
+                {
+                    // skip non-JSON lines
+                }
             }
 
             if (htmlContent == null)
@@ -96,29 +176,30 @@ public partial class HzppScraper
             return [];
 
         var delaySec = train.DelayMin * 60;
-        var currentStation = GtfsLoader.Normalize(train.CurrentStation);
+        var currentStation = HzppGtfsLoader.Normalize(train.CurrentStation);
         var nowSec = (int)TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz).TimeOfDay.TotalSeconds;
 
         int? currentSeq = null;
         foreach (var st in stList)
         {
-            var stopName = GtfsLoader.Normalize(data.StopsById.GetValueOrDefault(st.StopId, ""));
+            var stopName = HzppGtfsLoader.Normalize(data.StopsById.GetValueOrDefault(st.StopId, ""));
             if (!string.IsNullOrEmpty(currentStation) && (
                 stopName == currentStation ||
                 currentStation.Contains(stopName, StringComparison.Ordinal) ||
                 stopName.Contains(currentStation, StringComparison.Ordinal) ||
                 currentStation.Split(' ').Any(w => w.Length > 3 && stopName.Contains(w, StringComparison.Ordinal))))
-            { currentSeq = st.StopSequence; break; }
+            {
+                currentSeq = st.StopSequence;
+                break;
+            }
         }
 
         var updates = new List<StopTimeUpdateDto>();
         foreach (var st in stList)
         {
-            // If we know the current station, only update from there onward
             if (currentSeq != null && st.StopSequence < currentSeq && !train.Finished)
                 continue;
 
-            // If we don't know current station, never emit already-departed stops
             var scheduledDepartureSec = st.DepartureSec >= 0 ? st.DepartureSec : st.ArrivalSec;
             if (currentSeq == null && scheduledDepartureSec <= nowSec)
                 continue;

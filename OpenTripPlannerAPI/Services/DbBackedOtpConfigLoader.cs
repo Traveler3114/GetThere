@@ -71,25 +71,27 @@ public sealed class DbBackedOtpConfigLoader
         };
 
         var updaters = new List<object>();
-        var usesLocalHzppScraper = false;
-        string? localHzppStaticGtfsUrl = null;
+        var localScraperFeedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var localScraperStaticGtfsUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var op in operators)
         {
-            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+            if (string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+                continue;
+
+            updaters.Add(new
             {
-                updaters.Add(new
-                {
-                    type = "STOP_TIME_UPDATER",
-                    feedId = op.FeedId,
-                    url = op.GtfsRealtimeUrl,
-                    frequency
-                });
-                if (UrlsEqual(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
-                {
-                    usesLocalHzppScraper = true;
-                    localHzppStaticGtfsUrl ??= op.StaticGtfsUrl;
-                }
+                type = "STOP_TIME_UPDATER",
+                feedId = op.FeedId,
+                url = op.GtfsRealtimeUrl,
+                frequency
+            });
+
+            if (IsLocalScraperUpdaterUrl(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
+            {
+                localScraperFeedIds.Add(op.FeedId);
+                if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
+                    localScraperStaticGtfsUrls[op.FeedId] = op.StaticGtfsUrl;
             }
         }
 
@@ -107,11 +109,13 @@ public sealed class DbBackedOtpConfigLoader
             JsonSerializer.Serialize(routerConfig, jsonOptions),
             ct);
 
-        _state.UsesLocalHzppScraper = usesLocalHzppScraper;
-        _state.LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl;
+        _state.SetLocalScraperFeeds(localScraperFeedIds, localScraperStaticGtfsUrls);
 
         _logger.LogInformation("Generated OTP build-config.json and router-config.json from DB source ({Count} operators).", operators.Count);
-        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
+        return new DbBackedOtpConfigResult
+        {
+            LocalScraperFeedIds = localScraperFeedIds.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList()
+        };
     }
 
     private DbBackedOtpConfigResult LoadExistingConfigOrThrow(string sourceUrl, string localHzppRealtimeUrl, HttpRequestException ex)
@@ -129,11 +133,10 @@ public sealed class DbBackedOtpConfigLoader
                 ex);
         }
 
-        var usesLocalHzppScraper = TryDetectLocalHzppUpdater(routerConfigPath, localHzppRealtimeUrl);
-        var localHzppStaticGtfsUrl = usesLocalHzppScraper ? TryResolveStaticGtfsUrl(buildConfigPath, "hzpp") : null;
+        var localScraperFeedIds = TryDetectLocalScraperFeedIds(routerConfigPath, localHzppRealtimeUrl);
+        var localScraperStaticGtfsUrls = TryResolveStaticGtfsUrls(buildConfigPath, localScraperFeedIds);
 
-        _state.UsesLocalHzppScraper = usesLocalHzppScraper;
-        _state.LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl;
+        _state.SetLocalScraperFeeds(localScraperFeedIds, localScraperStaticGtfsUrls);
 
         _logger.LogWarning(
             ex,
@@ -142,7 +145,10 @@ public sealed class DbBackedOtpConfigLoader
             buildConfigPath,
             routerConfigPath);
 
-        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
+        return new DbBackedOtpConfigResult
+        {
+            LocalScraperFeedIds = localScraperFeedIds.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList()
+        };
     }
 
     private static string? ResolveExistingConfigPath(string fileName, string outputDir, string currentDir)
@@ -155,47 +161,63 @@ public sealed class DbBackedOtpConfigLoader
         return File.Exists(currentPath) ? currentPath : null;
     }
 
-    private static bool TryDetectLocalHzppUpdater(string routerConfigPath, string localHzppRealtimeUrl)
+    private static HashSet<string> TryDetectLocalScraperFeedIds(string routerConfigPath, string localHzppRealtimeUrl)
     {
+        var feedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         using var stream = File.OpenRead(routerConfigPath);
         using var doc = JsonDocument.Parse(stream);
         if (!doc.RootElement.TryGetProperty("updaters", out var updaters) || updaters.ValueKind != JsonValueKind.Array)
-            return false;
+            return feedIds;
 
         foreach (var updater in updaters.EnumerateArray())
         {
             if (!updater.TryGetProperty("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
                 continue;
 
-            if (UrlsEqual(urlElement.GetString(), localHzppRealtimeUrl))
-                return true;
+            if (!updater.TryGetProperty("feedId", out var feedIdElement) || feedIdElement.ValueKind != JsonValueKind.String)
+                continue;
+
+            var feedId = feedIdElement.GetString();
+            if (string.IsNullOrWhiteSpace(feedId))
+                continue;
+
+            if (IsLocalScraperUpdaterUrl(urlElement.GetString(), localHzppRealtimeUrl))
+                feedIds.Add(feedId);
         }
 
-        return false;
+        return feedIds;
     }
 
-    private static string? TryResolveStaticGtfsUrl(string buildConfigPath, string feedId)
+    private static Dictionary<string, string> TryResolveStaticGtfsUrls(string buildConfigPath, ISet<string> feedIds)
     {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (feedIds.Count == 0)
+            return map;
+
         using var stream = File.OpenRead(buildConfigPath);
         using var doc = JsonDocument.Parse(stream);
         if (!doc.RootElement.TryGetProperty("transitFeeds", out var transitFeeds) || transitFeeds.ValueKind != JsonValueKind.Array)
-            return null;
+            return map;
 
         foreach (var feed in transitFeeds.EnumerateArray())
         {
             if (!feed.TryGetProperty("feedId", out var feedIdElement) || feedIdElement.ValueKind != JsonValueKind.String)
                 continue;
 
-            if (!string.Equals(feedIdElement.GetString(), feedId, StringComparison.OrdinalIgnoreCase))
+            var feedId = feedIdElement.GetString();
+            if (string.IsNullOrWhiteSpace(feedId) || !feedIds.Contains(feedId))
                 continue;
 
             if (!feed.TryGetProperty("source", out var sourceElement) || sourceElement.ValueKind != JsonValueKind.String)
-                return null;
+                continue;
 
-            return sourceElement.GetString();
+            var source = sourceElement.GetString();
+            if (!string.IsNullOrWhiteSpace(source))
+                map[feedId] = source;
         }
 
-        return null;
+        return map;
     }
 
     private async Task ValidateOperatorsAsync(List<OtpOperatorFeedDto> operators, CancellationToken ct)
@@ -239,6 +261,23 @@ public sealed class DbBackedOtpConfigLoader
         => Uri.TryCreate(url, UriKind.Absolute, out var parsed)
            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
 
+    private static bool IsLocalScraperUpdaterUrl(string? url, string localHzppRealtimeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        if (UrlsEqual(url, localHzppRealtimeUrl))
+            return true;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
+            return false;
+
+        return parsed.IsLoopback &&
+               (parsed.AbsolutePath.StartsWith("/rt/", StringComparison.OrdinalIgnoreCase)
+                || parsed.AbsolutePath.EndsWith("-rt", StringComparison.OrdinalIgnoreCase)
+                || parsed.AbsolutePath.Equals("/hzpp-rt", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static bool UrlsEqual(string? left, string? right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
@@ -252,13 +291,26 @@ public sealed class DbBackedOtpConfigLoader
 
 public sealed class DbBackedOtpConfigResult
 {
-    public bool UsesLocalHzppScraper { get; set; }
+    public List<string> LocalScraperFeedIds { get; set; } = [];
 }
 
 public sealed class DbBackedOtpConfigState
 {
-    public bool UsesLocalHzppScraper { get; set; }
-    public string? LocalHzppStaticGtfsUrl { get; set; }
+    private readonly object _lock = new();
+
+    public IReadOnlySet<string> LocalScraperFeedIds { get; private set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyDictionary<string, string> LocalScraperStaticGtfsUrls { get; private set; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    public void SetLocalScraperFeeds(ISet<string> feedIds, IDictionary<string, string> staticGtfsUrls)
+    {
+        lock (_lock)
+        {
+            LocalScraperFeedIds = new HashSet<string>(feedIds, StringComparer.OrdinalIgnoreCase);
+            LocalScraperStaticGtfsUrls = new Dictionary<string, string>(staticGtfsUrls, StringComparer.OrdinalIgnoreCase);
+        }
+    }
 }
 
 internal sealed class OperationResultDto<T>

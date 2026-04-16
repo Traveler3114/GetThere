@@ -1,4 +1,4 @@
-namespace OpenTripPlannerAPI.Scrapers.HZPP.Models;
+namespace OpenTripPlannerAPI.Scrapers.Hzpp;
 
 public class GtfsData
 {
@@ -41,4 +41,13 @@ public class StopTimeUpdateDto
     public int DelaySec { get; set; }
     public int ScheduledArrivalSec { get; set; }
     public int ScheduledDepartureSec { get; set; }
+}
+
+public sealed class HzppScraperOptions
+{
+    public bool Enabled { get; set; } = true;
+    public string FeedId { get; set; } = "hzpp";
+    public int IntervalSeconds { get; set; } = 30;
+    public double RequestDelaySeconds { get; set; } = 0.3;
+    public string GtfsZipUrl { get; set; } = "https://www.hzpp.hr/GTFS_files.zip";
 }

@@ -1,18 +1,17 @@
-using System.IO.Compression;
 using System.Globalization;
+using System.IO.Compression;
 using CsvHelper;
 using CsvHelper.Configuration;
-using OpenTripPlannerAPI.Scrapers.HZPP.Models;
 
-namespace OpenTripPlannerAPI.Scrapers.HZPP.Services;
+namespace OpenTripPlannerAPI.Scrapers.Hzpp;
 
-public class GtfsLoader
+public class HzppGtfsLoader
 {
-    private readonly ILogger<GtfsLoader> _logger;
+    private readonly ILogger<HzppGtfsLoader> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private static readonly TimeZoneInfo _tz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zagreb");
 
-    public GtfsLoader(ILogger<GtfsLoader> logger, IHttpClientFactory httpClientFactory)
+    public HzppGtfsLoader(ILogger<HzppGtfsLoader> logger, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
@@ -49,7 +48,7 @@ public class GtfsLoader
         foreach (var row in csv.GetRecords<dynamic>())
         {
             var record = (IDictionary<string, object>)row;
-            var sid  = record["stop_id"].ToString()!.Trim();
+            var sid = record["stop_id"].ToString()!.Trim();
             var name = record["stop_name"].ToString()!.Trim();
             data.StopsById[sid] = name;
             data.StopIdByName[Normalize(name)] = sid;
@@ -63,8 +62,8 @@ public class GtfsLoader
         foreach (var row in csv.GetRecords<dynamic>())
         {
             var record = (IDictionary<string, object>)row;
-            var tid  = record["trip_id"].ToString()!.Trim();
-            var svc  = record["service_id"].ToString()!.Trim();
+            var tid = record["trip_id"].ToString()!.Trim();
+            var svc = record["service_id"].ToString()!.Trim();
             var tnum = record.ContainsKey("trip_short_name") ? record["trip_short_name"].ToString()!.Trim() : "";
             var info = new TripInfo { TripId = tid, ServiceId = svc, TrainNumber = tnum };
             data.TripsById[tid] = info;
@@ -120,10 +119,10 @@ public class GtfsLoader
         foreach (var row in csv.GetRecords<dynamic>())
         {
             var record = (IDictionary<string, object>)row;
-            var svc   = record["service_id"].ToString()!.Trim();
+            var svc = record["service_id"].ToString()!.Trim();
             var start = ParseDate(record["start_date"].ToString()!);
-            var end   = ParseDate(record["end_date"].ToString()!);
-            var days  = dowCols.Select(d => record[d].ToString()!.Trim() == "1").ToArray();
+            var end = ParseDate(record["end_date"].ToString()!);
+            var days = dowCols.Select(d => record[d].ToString()!.Trim() == "1").ToArray();
             var dates = new HashSet<DateOnly>();
 
             for (var cur = start; cur <= end; cur = cur.AddDays(1))
@@ -159,7 +158,10 @@ public class GtfsLoader
             {
                 var svc = data.TripsById[tid].ServiceId;
                 if (data.Calendar.TryGetValue(svc, out var dates) && dates.Contains(today))
-                { active.Add(tnum); break; }
+                {
+                    active.Add(tnum);
+                    break;
+                }
             }
 
         if (active.Count == 0)
