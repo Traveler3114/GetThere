@@ -3,7 +3,6 @@ using OpenTripPlannerAPI.Scrapers.Base;
 using OpenTripPlannerAPI.Scrapers.Hzpp;
 using OpenTripPlannerAPI.Services;
 using OpenTripPlannerAPI.Workers;
-using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5000");
@@ -52,7 +51,7 @@ Console.WriteLine("""
    HZPP shortcut   : http://localhost:5000/hzpp-rt
    Status page     : http://localhost:5000/status
 
-ℹ️  OTP will auto-start after the first scraper cycle completes.
+ℹ️  Start OTP Java manually in a separate terminal window.
 
 """);
 
@@ -61,76 +60,7 @@ await app.StartAsync();
 var readySignal = app.Services.GetRequiredService<GtfsReadySignal>();
 Console.WriteLine("⏳ Waiting for first scrape cycle to complete...");
 await readySignal.WaitAsync();
-Console.WriteLine("✅ First scrape cycle complete, starting OTP...");
-
-if (ShouldAutoStartOtp(app.Configuration))
-{
-    var started = TryStartOtp(app.Configuration, app.Environment.ContentRootPath);
-    if (!started)
-    {
-        Console.WriteLine("⚠️  Failed to auto-start OTP. Check Otp configuration and try starting OTP manually.");
-    }
-}
-else
-{
-    Console.WriteLine("ℹ️  OTP auto-start disabled via configuration (Otp:AutoStart=false).");
-}
+Console.WriteLine("✅ First scrape cycle complete.");
+Console.WriteLine("ℹ️  Keep this scraper host running and start OTP in a separate terminal.");
 
 await app.WaitForShutdownAsync();
-
-static bool ShouldAutoStartOtp(IConfiguration configuration)
-{
-    var rawValue = configuration["Otp:AutoStart"];
-    if (string.IsNullOrWhiteSpace(rawValue))
-    {
-        return true;
-    }
-
-    if (bool.TryParse(rawValue, out var autoStart))
-    {
-        return autoStart;
-    }
-
-    Console.WriteLine($"⚠️  Invalid Otp:AutoStart value '{rawValue}'. OTP auto-start disabled.");
-    return false;
-}
-
-static bool TryStartOtp(IConfiguration configuration, string contentRootPath)
-{
-    var javaExecutable = string.IsNullOrWhiteSpace(configuration["Otp:JavaExecutable"])
-        ? "java"
-        : configuration["Otp:JavaExecutable"]!;
-    var otpJarPath = string.IsNullOrWhiteSpace(configuration["Otp:JarPath"])
-        ? "otp-shaded-2.9.0.jar"
-        : configuration["Otp:JarPath"]!;
-    var otpArguments = string.IsNullOrWhiteSpace(configuration["Otp:Arguments"])
-        ? $"-Xmx2G -jar \"{otpJarPath}\" --build --serve ."
-        : configuration["Otp:Arguments"]!;
-    var workingDirectory = string.IsNullOrWhiteSpace(configuration["Otp:WorkingDirectory"])
-        ? contentRootPath
-        : configuration["Otp:WorkingDirectory"]!;
-
-    try
-    {
-        var process = Process.Start(new ProcessStartInfo
-        {
-            FileName = javaExecutable,
-            Arguments = otpArguments,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false
-        });
-
-        if (process is null)
-        {
-            return false;
-        }
-
-        Console.WriteLine($"🚀 OTP started (PID {process.Id})");
-        return true;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"❌ OTP startup error: {ex.Message}");
-        return false;
-    }
-}
