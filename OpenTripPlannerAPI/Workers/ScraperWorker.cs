@@ -65,7 +65,17 @@ public class ScraperWorker : BackgroundService
                     var result = await scraper.ScrapeAsync(stoppingToken);
                     if (result?.FeedBytes is { Length: > 0 } bytes)
                     {
-                        _feedStore.Update(scraper.FeedId, bytes);
+                        _feedStore.Update(scraper.FeedId, bytes, result.Progress);
+
+                        if (result.Progress is { } progress)
+                        {
+                            _logger.LogInformation(
+                                "Feed '{FeedId}' scraped {Processed}/{Total} items ({WithUpdates} with updates).",
+                                scraper.FeedId,
+                                progress.ProcessedItems,
+                                progress.TotalItems,
+                                progress.ItemsWithUpdates);
+                        }
 
                         if (readyFeedIds.Add(scraper.FeedId))
                             _readySignal.SetReady(scraper.FeedId);

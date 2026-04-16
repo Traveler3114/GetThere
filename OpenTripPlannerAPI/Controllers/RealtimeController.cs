@@ -66,6 +66,8 @@ public class RealtimeController : ControllerBase
                 lines.Add($"Size        : {state.Bytes.Length} bytes");
                 lines.Add($"Last updated: {age}");
                 lines.Add($"Healthy     : {state.IsHealthy}");
+                if (state.LastProgress is { } progress)
+                    lines.Add($"Progress    : {progress.ProcessedItems}/{progress.TotalItems} scraped ({progress.ItemsWithUpdates} with updates)");
                 if (!string.IsNullOrWhiteSpace(state.LastError))
                     lines.Add($"Last error  : {state.LastError}");
                 lines.Add("");
@@ -86,7 +88,15 @@ public class RealtimeController : ControllerBase
             lastUpdatedUtc = state.LastUpdated == DateTime.MinValue ? (DateTime?)null : state.LastUpdated,
             healthy = state.IsHealthy,
             lastError = state.LastError,
-            endpoint = $"/rt/{feedId}"
+            endpoint = $"/rt/{feedId}",
+            scrapeProgress = state.LastProgress is null
+                ? null
+                : new
+                {
+                    processed = state.LastProgress.ProcessedItems,
+                    total = state.LastProgress.TotalItems,
+                    withUpdates = state.LastProgress.ItemsWithUpdates
+                }
         });
     }
 

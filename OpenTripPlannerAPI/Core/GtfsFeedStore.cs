@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using OpenTripPlannerAPI.Scrapers.Base;
 
 namespace OpenTripPlannerAPI.Core;
 
@@ -6,7 +7,7 @@ public sealed class GtfsFeedStore
 {
     private readonly ConcurrentDictionary<string, FeedState> _feeds = new(StringComparer.OrdinalIgnoreCase);
 
-    public void Update(string feedId, byte[] bytes)
+    public void Update(string feedId, byte[] bytes, ScrapeProgress? progress = null)
     {
         var now = DateTime.UtcNow;
         _feeds.AddOrUpdate(
@@ -16,14 +17,16 @@ public sealed class GtfsFeedStore
                 Bytes = bytes,
                 LastUpdated = now,
                 IsHealthy = true,
-                LastError = null
+                LastError = null,
+                LastProgress = progress
             },
             (_, existing) => existing with
             {
                 Bytes = bytes,
                 LastUpdated = now,
                 IsHealthy = true,
-                LastError = null
+                LastError = null,
+                LastProgress = progress ?? existing.LastProgress
             });
     }
 
@@ -58,4 +61,5 @@ public sealed record FeedState
     public DateTime LastUpdated { get; init; } = DateTime.MinValue;
     public bool IsHealthy { get; init; }
     public string? LastError { get; init; }
+    public ScrapeProgress? LastProgress { get; init; }
 }

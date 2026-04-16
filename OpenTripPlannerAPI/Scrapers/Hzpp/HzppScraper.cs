@@ -69,9 +69,12 @@ public partial class HzppScraper : IScraper
 
         var activeTrains = _gtfsLoader.GetActiveTrainNumbers(_gtfs);
         var updatesMap = new Dictionary<string, List<StopTimeUpdateDto>>();
+        var processedTrains = 0;
+        var trainsWithUpdates = 0;
 
         foreach (var trainNumber in activeTrains)
         {
+            processedTrains++;
             var payload = await FetchTrainDataAsync(trainNumber, ct);
             await Task.Delay(TimeSpan.FromSeconds(_options.RequestDelaySeconds), ct);
 
@@ -87,11 +90,23 @@ public partial class HzppScraper : IScraper
 
             var stus = ComputeStopTimeUpdates(tripId, payload, _gtfs);
             if (stus.Count > 0)
+            {
                 updatesMap[tripId] = stus;
+                trainsWithUpdates++;
+            }
         }
 
         var bytes = ProtobufFeedBuilder.BuildFromStopTimeUpdates(updatesMap).ToByteArray();
-        return new ScrapeResult { FeedBytes = bytes };
+        return new ScrapeResult
+        {
+            FeedBytes = bytes,
+            Progress = new ScrapeProgress
+            {
+                TotalItems = activeTrains.Count,
+                ProcessedItems = processedTrains,
+                ItemsWithUpdates = trainsWithUpdates
+            }
+        };
     }
 
     private async Task<TrainPayload?> FetchTrainDataAsync(string trainNumber, CancellationToken ct = default)
