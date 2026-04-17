@@ -1,148 +1,229 @@
-using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using OpenTripPlannerAPI.Data;
 using System.Text.Json;
 
 namespace OpenTripPlannerAPI.Services;
 
 public sealed class DbBackedOtpConfigLoader
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IDbContextFactory<OtpReadDbContext> _dbContextFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DbBackedOtpConfigLoader> _logger;
     private readonly DbBackedOtpConfigState _state;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public DbBackedOtpConfigLoader(
-        IHttpClientFactory httpClientFactory,
+        IDbContextFactory<OtpReadDbContext> dbContextFactory,
         IConfiguration configuration,
         ILogger<DbBackedOtpConfigLoader> logger,
-        DbBackedOtpConfigState state)
+        DbBackedOtpConfigState state,
+        IHttpClientFactory httpClientFactory)
     {
-        _httpClientFactory = httpClientFactory;
+        _dbContextFactory = dbContextFactory;
         _configuration = configuration;
         _logger = logger;
         _state = state;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<DbBackedOtpConfigResult> LoadAndGenerateAsync(CancellationToken ct = default)
     {
-        var apiBaseUrl = _configuration["OperatorSource:ApiBaseUrl"];
-        if (string.IsNullOrWhiteSpace(apiBaseUrl))
-            throw new InvalidOperationException("OperatorSource:ApiBaseUrl must be configured in appsettings.json.");
+        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/rt/hzpp";
+        _logger.LogInformation("Using OTP config source: DB");
 
-        var path = _configuration["OperatorSource:OtpFeedsPath"] ?? "/operator/otp-feeds";
-        var sourceUrl = $"{apiBaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
-        var localHzppRealtimeUrl = _configuration["OperatorSource:HzppFallbackRealtimeUrl"] ?? "http://127.0.0.1:5000/hzpp-rt";
-
-        using var client = _httpClientFactory.CreateClient("operator-source");
-        HttpResponseMessage response;
+        OtpConfigArtifacts artifacts;
         try
         {
-            response = await client.GetAsync(sourceUrl, ct);
-            response.EnsureSuccessStatusCode();
+            artifacts = await BuildArtifactsFromDatabaseAsync(localHzppRealtimeUrl, ct);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex)
         {
-            return LoadExistingConfigOrThrow(sourceUrl, localHzppRealtimeUrl, ex);
+            artifacts = LoadExistingConfigOrThrow("DB source", localHzppRealtimeUrl, ex);
         }
 
-        var payload = await response.Content.ReadFromJsonAsync<OperationResultDto<List<OtpOperatorFeedDto>>>(cancellationToken: ct);
-        if (payload is null || !payload.Success || payload.Data is null)
-            throw new InvalidOperationException("Failed to load OTP operator feed config from API.");
+        await WriteConfigFilesAsync(artifacts, ct);
+        _state.UsesLocalHzppScraper = artifacts.UsesLocalHzppScraper;
+        _state.LocalHzppStaticGtfsUrl = artifacts.LocalHzppStaticGtfsUrl;
 
-        var operators = payload.Data
-            .Where(x => !string.IsNullOrWhiteSpace(x.StaticGtfsUrl))
-            .ToList();
+        _logger.LogInformation("Loaded {Count} operators from DB.", artifacts.OperatorsCount);
+        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = artifacts.UsesLocalHzppScraper };
+    }
 
+    private async Task<OtpConfigArtifacts> BuildArtifactsFromDatabaseAsync(string localHzppRealtimeUrl, CancellationToken ct)
+    {
+        await using var db = await _dbContextFactory.CreateDbContextAsync(ct);
+        var operators = await db.TransitOperators
+            .AsNoTracking()
+            .Include(o => o.Country)
+            .OrderBy(o => o.Country!.Name)
+            .ThenBy(o => o.Name)
+            .Select(o => new OtpOperatorFeedDto
+            {
+                OperatorId = o.Id,
+                OperatorName = o.Name,
+                CountryId = o.CountryId,
+                CountryName = o.Country!.Name,
+                FeedId = $"op{o.Id}",
+                StaticGtfsUrl = o.GtfsFeedUrl,
+                GtfsRealtimeUrl = o.GtfsRealtimeFeedUrl
+            })
+            .ToListAsync(ct);
+
+        return await BuildArtifactsAsync(operators, localHzppRealtimeUrl, ct);
+    }
+
+    private async Task<OtpConfigArtifacts> BuildArtifactsAsync(List<OtpOperatorFeedDto> operators, string localHzppRealtimeUrl, CancellationToken ct)
+    {
         if (operators.Count == 0)
-            throw new InvalidOperationException("No operators with static GTFS URL were returned from the database.");
+            throw new InvalidOperationException("No operators with static GTFS URL were returned from the source.");
+
+        foreach (var op in operators)
+        {
+            op.GtfsRealtimeUrl = NormalizeLegacyRealtimeUrl(op.GtfsRealtimeUrl, localHzppRealtimeUrl);
+        }
 
         await ValidateOperatorsAsync(operators, ct);
-
         var frequency = _configuration["OperatorSource:UpdaterFrequency"] ?? "PT30S";
 
-        var buildConfig = new
+        var buildConfig = new OtpBuildConfig
         {
-            transitFeeds = operators.Select(o => new
+            transitFeeds = operators.Select(o => new OtpTransitFeedConfig
             {
                 type = "gtfs",
-                source = o.StaticGtfsUrl,
+                source = o.StaticGtfsUrl!,
                 feedId = o.FeedId
             }).ToList(),
             transitModelTimeZone = _configuration["OperatorSource:TransitModelTimeZone"] ?? "Europe/Zagreb"
         };
 
-        var updaters = new List<object>();
+        var updaters = new List<OtpRouterUpdaterConfig>();
         var usesLocalHzppScraper = false;
         string? localHzppStaticGtfsUrl = null;
 
         foreach (var op in operators)
         {
-            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+            if (string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+                continue;
+
+            updaters.Add(new OtpRouterUpdaterConfig
             {
-                updaters.Add(new
-                {
-                    type = "STOP_TIME_UPDATER",
-                    feedId = op.FeedId,
-                    url = op.GtfsRealtimeUrl,
-                    frequency
-                });
-                if (UrlsEqual(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
-                {
-                    usesLocalHzppScraper = true;
-                    localHzppStaticGtfsUrl ??= op.StaticGtfsUrl;
-                }
+                type = "STOP_TIME_UPDATER",
+                feedId = op.FeedId,
+                url = op.GtfsRealtimeUrl,
+                frequency = frequency
+            });
+
+            if (UrlsEqual(op.GtfsRealtimeUrl, localHzppRealtimeUrl))
+            {
+                usesLocalHzppScraper = true;
+                localHzppStaticGtfsUrl ??= op.StaticGtfsUrl;
             }
         }
 
-        var routerConfig = new { updaters };
+        return new OtpConfigArtifacts
+        {
+            BuildConfig = buildConfig,
+            RouterConfig = new OtpRouterConfig { updaters = updaters },
+            OperatorsCount = operators.Count,
+            UsesLocalHzppScraper = usesLocalHzppScraper,
+            LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl
+        };
+    }
+
+    private async Task ValidateOperatorsAsync(List<OtpOperatorFeedDto> operators, CancellationToken ct)
+    {
+        foreach (var op in operators)
+        {
+            if (string.IsNullOrWhiteSpace(op.FeedId))
+                throw new InvalidOperationException($"Operator '{op.OperatorName}' has empty feed ID.");
+
+            if (!IsValidHttpUrl(op.StaticGtfsUrl))
+                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid static GTFS URL.");
+
+            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl) && !IsValidHttpUrl(op.GtfsRealtimeUrl))
+                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT URL.");
+        }
+
+        var isStrictReachabilityEnabled = bool.TryParse(_configuration["OperatorSource:StrictReachabilityChecks"], out var enabled) && enabled;
+        if (!isStrictReachabilityEnabled)
+            return;
+
+        using var client = _httpClientFactory.CreateClient();
+        foreach (var op in operators)
+        {
+            var urlsToProbe = new List<string>();
+            if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
+                urlsToProbe.Add(op.StaticGtfsUrl);
+            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
+                urlsToProbe.Add(op.GtfsRealtimeUrl);
+
+            foreach (var url in urlsToProbe)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, url);
+                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!response.IsSuccessStatusCode)
+                    throw new InvalidOperationException($"Reachability check failed ({(int)response.StatusCode}) for URL '{url}' (operator '{op.OperatorName}').");
+            }
+        }
+    }
+
+    private async Task WriteConfigFilesAsync(OtpConfigArtifacts artifacts, CancellationToken ct)
+    {
         var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
         var outputDir = AppContext.BaseDirectory;
 
         await File.WriteAllTextAsync(
             Path.Combine(outputDir, "build-config.json"),
-            JsonSerializer.Serialize(buildConfig, jsonOptions),
+            JsonSerializer.Serialize(artifacts.BuildConfig, jsonOptions),
             ct);
 
         await File.WriteAllTextAsync(
             Path.Combine(outputDir, "router-config.json"),
-            JsonSerializer.Serialize(routerConfig, jsonOptions),
+            JsonSerializer.Serialize(artifacts.RouterConfig, jsonOptions),
             ct);
-
-        _state.UsesLocalHzppScraper = usesLocalHzppScraper;
-        _state.LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl;
-
-        _logger.LogInformation("Generated OTP build-config.json and router-config.json from DB source ({Count} operators).", operators.Count);
-        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
     }
 
-    private DbBackedOtpConfigResult LoadExistingConfigOrThrow(string sourceUrl, string localHzppRealtimeUrl, HttpRequestException ex)
+    private OtpConfigArtifacts LoadExistingConfigOrThrow(string sourceDescription, string localHzppRealtimeUrl, Exception ex)
     {
         var outputDir = AppContext.BaseDirectory;
         var currentDir = Directory.GetCurrentDirectory();
-
         var buildConfigPath = ResolveExistingConfigPath("build-config.json", outputDir, currentDir);
         var routerConfigPath = ResolveExistingConfigPath("router-config.json", outputDir, currentDir);
 
         if (buildConfigPath is null || routerConfigPath is null)
         {
             throw new InvalidOperationException(
-                $"Failed to fetch operator feed config from '{sourceUrl}'. Status: {ex.StatusCode?.ToString() ?? "unknown"}. Error: {ex.Message}",
+                $"Failed to load operator feed config from '{sourceDescription}'. Error: {ex.Message}",
                 ex);
         }
 
-        var usesLocalHzppScraper = TryDetectLocalHzppUpdater(routerConfigPath, localHzppRealtimeUrl);
-        var localHzppStaticGtfsUrl = usesLocalHzppScraper ? TryResolveStaticGtfsUrl(buildConfigPath, "hzpp") : null;
-
+        var localHzppFeedId = TryResolveLocalHzppFeedId(routerConfigPath, localHzppRealtimeUrl);
+        var usesLocalHzppScraper = !string.IsNullOrWhiteSpace(localHzppFeedId);
+        var localHzppStaticGtfsUrl = usesLocalHzppScraper ? TryResolveStaticGtfsUrl(buildConfigPath, localHzppFeedId!) : null;
         _state.UsesLocalHzppScraper = usesLocalHzppScraper;
         _state.LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl;
 
         _logger.LogWarning(
             ex,
-            "Failed to fetch operator feed config from '{SourceUrl}'. Falling back to existing build/router config files ('{BuildConfigPath}', '{RouterConfigPath}').",
-            sourceUrl,
+            "Failed to load operator feed config from '{SourceDescription}'. Falling back to existing build/router config files ('{BuildConfigPath}', '{RouterConfigPath}').",
+            sourceDescription,
             buildConfigPath,
             routerConfigPath);
 
-        return new DbBackedOtpConfigResult { UsesLocalHzppScraper = usesLocalHzppScraper };
+        using var buildStream = File.OpenRead(buildConfigPath);
+        var buildConfig = JsonSerializer.Deserialize<OtpBuildConfig>(buildStream) ?? new OtpBuildConfig();
+
+        using var routerStream = File.OpenRead(routerConfigPath);
+        var routerConfig = JsonSerializer.Deserialize<OtpRouterConfig>(routerStream) ?? new OtpRouterConfig();
+
+        return new OtpConfigArtifacts
+        {
+            BuildConfig = buildConfig,
+            RouterConfig = routerConfig,
+            OperatorsCount = buildConfig.transitFeeds.Count,
+            UsesLocalHzppScraper = usesLocalHzppScraper,
+            LocalHzppStaticGtfsUrl = localHzppStaticGtfsUrl
+        };
     }
 
     private static string? ResolveExistingConfigPath(string fileName, string outputDir, string currentDir)
@@ -155,23 +236,29 @@ public sealed class DbBackedOtpConfigLoader
         return File.Exists(currentPath) ? currentPath : null;
     }
 
-    private static bool TryDetectLocalHzppUpdater(string routerConfigPath, string localHzppRealtimeUrl)
+    private static string? TryResolveLocalHzppFeedId(string routerConfigPath, string localHzppRealtimeUrl)
     {
         using var stream = File.OpenRead(routerConfigPath);
         using var doc = JsonDocument.Parse(stream);
         if (!doc.RootElement.TryGetProperty("updaters", out var updaters) || updaters.ValueKind != JsonValueKind.Array)
-            return false;
+            return null;
 
         foreach (var updater in updaters.EnumerateArray())
         {
             if (!updater.TryGetProperty("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
                 continue;
 
-            if (UrlsEqual(urlElement.GetString(), localHzppRealtimeUrl))
-                return true;
+            var normalized = NormalizeLegacyRealtimeUrl(urlElement.GetString(), localHzppRealtimeUrl);
+            if (!UrlsEqual(normalized, localHzppRealtimeUrl))
+                continue;
+
+            if (!updater.TryGetProperty("feedId", out var feedIdElement) || feedIdElement.ValueKind != JsonValueKind.String)
+                return null;
+
+            return feedIdElement.GetString();
         }
 
-        return false;
+        return null;
     }
 
     private static string? TryResolveStaticGtfsUrl(string buildConfigPath, string feedId)
@@ -198,41 +285,15 @@ public sealed class DbBackedOtpConfigLoader
         return null;
     }
 
-    private async Task ValidateOperatorsAsync(List<OtpOperatorFeedDto> operators, CancellationToken ct)
+    private static string? NormalizeLegacyRealtimeUrl(string? value, string canonicalHzppUrl)
     {
-        foreach (var op in operators)
-        {
-            if (string.IsNullOrWhiteSpace(op.FeedId))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has empty feed ID.");
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed))
+            return value;
 
-            if (!IsValidHttpUrl(op.StaticGtfsUrl))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid static GTFS URL.");
+        if (!parsed.AbsolutePath.Equals("/hzpp-rt", StringComparison.OrdinalIgnoreCase))
+            return value;
 
-            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl) && !IsValidHttpUrl(op.GtfsRealtimeUrl))
-                throw new InvalidOperationException($"Operator '{op.OperatorName}' has invalid GTFS-RT URL.");
-        }
-
-        var isStrictReachabilityEnabled = bool.TryParse(_configuration["OperatorSource:StrictReachabilityChecks"], out var enabled) && enabled;
-        if (!isStrictReachabilityEnabled)
-            return;
-
-        using var client = _httpClientFactory.CreateClient("operator-source");
-        foreach (var op in operators)
-        {
-            var urlsToProbe = new List<string>();
-            if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
-                urlsToProbe.Add(op.StaticGtfsUrl);
-            if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))
-                urlsToProbe.Add(op.GtfsRealtimeUrl);
-
-            foreach (var url in urlsToProbe)
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Head, url);
-                using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (!response.IsSuccessStatusCode)
-                    throw new InvalidOperationException($"Reachability check failed ({(int)response.StatusCode}) for URL '{url}' (operator '{op.OperatorName}').");
-            }
-        }
+        return canonicalHzppUrl;
     }
 
     private static bool IsValidHttpUrl(string? url)
@@ -261,13 +322,6 @@ public sealed class DbBackedOtpConfigState
     public string? LocalHzppStaticGtfsUrl { get; set; }
 }
 
-internal sealed class OperationResultDto<T>
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public T? Data { get; set; }
-}
-
 internal sealed class OtpOperatorFeedDto
 {
     public int OperatorId { get; set; }
@@ -277,4 +331,39 @@ internal sealed class OtpOperatorFeedDto
     public string FeedId { get; set; } = string.Empty;
     public string? StaticGtfsUrl { get; set; }
     public string? GtfsRealtimeUrl { get; set; }
+}
+
+internal sealed class OtpConfigArtifacts
+{
+    public OtpBuildConfig BuildConfig { get; set; } = new();
+    public OtpRouterConfig RouterConfig { get; set; } = new();
+    public int OperatorsCount { get; set; }
+    public bool UsesLocalHzppScraper { get; set; }
+    public string? LocalHzppStaticGtfsUrl { get; set; }
+}
+
+internal sealed class OtpBuildConfig
+{
+    public List<OtpTransitFeedConfig> transitFeeds { get; set; } = [];
+    public string transitModelTimeZone { get; set; } = "Europe/Zagreb";
+}
+
+internal sealed class OtpTransitFeedConfig
+{
+    public string type { get; set; } = "gtfs";
+    public string source { get; set; } = string.Empty;
+    public string feedId { get; set; } = string.Empty;
+}
+
+internal sealed class OtpRouterConfig
+{
+    public List<OtpRouterUpdaterConfig> updaters { get; set; } = [];
+}
+
+internal sealed class OtpRouterUpdaterConfig
+{
+    public string type { get; set; } = "STOP_TIME_UPDATER";
+    public string feedId { get; set; } = string.Empty;
+    public string url { get; set; } = string.Empty;
+    public string frequency { get; set; } = "PT30S";
 }

@@ -24,7 +24,7 @@ Projects:
 `OpenTripPlannerAPI` scrapes realtime -> serves GTFS-RT feed endpoint(s).
 
 ### D) OTP feed config source
-`OpenTripPlannerAPI` -> calls `GetThereAPI /operator/otp-feeds` -> generates OTP config files.
+`OpenTripPlannerAPI` -> reads SQL Server transit operator metadata directly (read-only) -> generates OTP config files.
 
 ### E) Shared contract alignment
 `GetThere` and `GetThereAPI` both reference `GetThereShared` so payload models remain synchronized.
@@ -84,8 +84,8 @@ Projects:
 - Protocol: GraphQL over HTTP
 - Encapsulation point: `OtpClient` + `ITransitProvider`.
 
-### Boundary 3: OpenTripPlannerAPI <-> API
-- Protocol: JSON HTTP call to `/operator/otp-feeds`
+### Boundary 3: OpenTripPlannerAPI <-> SQL Server
+- Protocol: EF Core SQL Server read-only queries
 - Purpose: obtain operator static/realtime feed URLs and feed IDs.
 
 ### Boundary 4: External source <-> OpenTripPlannerAPI

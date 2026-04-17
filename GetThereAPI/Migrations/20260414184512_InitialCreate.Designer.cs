@@ -567,7 +567,7 @@ namespace GetThereAPI.Migrations
                             CountryId = 1,
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                            GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/hzpp-rt",
+                            GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/rt/hzpp",
                             Name = "HZPP",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""

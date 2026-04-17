@@ -3,9 +3,9 @@
 ## 1) Project role in the solution
 `GetThereAPI` is the core backend API and domain service for user/account, wallet/payment/tickets, operator metadata, mobility caching, and OTP-transit orchestration.
 
-It is both:
+It is:
 - a business API consumed by the MAUI app,
-- a configuration source consumed by `OpenTripPlannerAPI` (`/operator/otp-feeds`).
+- and is no longer required for OpenTripPlannerAPI startup config loading.
 
 ---
 
@@ -113,7 +113,6 @@ Primary context: `Data/AppDbContext.cs`
 - `GET /operator/stops/{stopId}/schedule`
 - `GET /operator/health`
 - `GET /operator/transport-types`
-- `GET /operator/otp-feeds`
 
 ### MapController (`/map`)
 - `GET /map/features`
