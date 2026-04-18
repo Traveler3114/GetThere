@@ -16,7 +16,6 @@ window.map = new maplibregl.Map({
     style: window._MAP_STYLE,
     center: [15.9775, 45.8129],
     zoom: 13,
-    minZoom: 10,
     maxPitch: 60
 });
 
@@ -493,14 +492,20 @@ function renderTripDetail(data) {
 // ── updateMapLocation ──────────────────────────────────────────────
 // Called by C# when GPS location is available.
 function updateMapLocation(lng, lat) {
+    _userLng = lng;
+    _userLat = lat;
+
     if (!_userMarker) {
         _userMarker = new maplibregl.Marker({ color: '#4285F4' })
             .setLngLat([lng, lat]).addTo(map);
     } else {
         _userMarker.setLngLat([lng, lat]);
     }
-    map.setCenter([lng, lat]);
-    map.setZoom(15);
+}
+
+function flyToUserLocation() {
+    if (_userLng === null || _userLat === null) return;
+    map.flyTo({ center: [_userLng, _userLat], zoom: 15, duration: 800 });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -509,6 +514,8 @@ function updateMapLocation(lng, lat) {
 
 let _routeMap = {};
 let _userMarker = null;
+let _userLng = null;
+let _userLat = null;
 let _currentStop = null;
 
 // Panel element refs
@@ -836,6 +843,9 @@ document.getElementById('trip-panel-close').addEventListener('click', e => {
 });
 document.getElementById('bike-sheet-close').addEventListener('click', e => {
     e.stopPropagation(); _closeBikeSheet();
+});
+document.getElementById('locate-btn').addEventListener('click', () => {
+    flyToUserLocation();
 });
 
 // Prevent map clicks from firing when touching panels
