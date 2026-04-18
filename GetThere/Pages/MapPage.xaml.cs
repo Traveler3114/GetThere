@@ -353,17 +353,9 @@ public partial class MapPage : ContentPage
         try
         {
             string? raw = null;
-            try
-            {
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                    raw = await MapWebView.EvaluateJavaScriptAsync(
-                        "(function(){ var m=window._pendingMsg||''; window._pendingMsg=''; return m; })()"));
-            }
-            catch (InvalidOperationException ex)
-            {
-                Trace.WriteLine($"[MapPage] PollJsMessages skipped: {ex.Message}");
-                return;
-            }
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                raw = await MapWebView.EvaluateJavaScriptAsync(
+                    "(function(){ var m=window._pendingMsg||''; window._pendingMsg=''; return m; })()"));
 
             if (string.IsNullOrEmpty(raw) || raw == "null") return;
 
@@ -422,5 +414,4 @@ public partial class MapPage : ContentPage
         }
     }
 }
-
 

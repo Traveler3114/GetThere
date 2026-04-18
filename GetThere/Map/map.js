@@ -492,8 +492,8 @@ function renderTripDetail(data) {
 // ── updateMapLocation ──────────────────────────────────────────────
 // Called by C# when GPS location is available.
 function updateMapLocation(lng, lat) {
-    _userLng = lng;
-    _userLat = lat;
+    _lastUserLng = lng;
+    _lastUserLat = lat;
 
     if (!_userMarker) {
         _userMarker = new maplibregl.Marker({ color: '#4285F4' })
@@ -504,8 +504,8 @@ function updateMapLocation(lng, lat) {
 }
 
 function flyToUserLocation() {
-    if (_userLng === null || _userLat === null) return;
-    map.flyTo({ center: [_userLng, _userLat], zoom: 15, duration: 800 });
+    if (_lastUserLng === null || _lastUserLat === null) return;
+    map.flyTo({ center: [_lastUserLng, _lastUserLat], zoom: 15, duration: 800 });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -514,8 +514,8 @@ function flyToUserLocation() {
 
 let _routeMap = {};
 let _userMarker = null;
-let _userLng = null;
-let _userLat = null;
+let _lastUserLng = null;
+let _lastUserLat = null;
 let _currentStop = null;
 
 // Panel element refs
