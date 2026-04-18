@@ -4,6 +4,12 @@
 
 const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
 
+let _routeMap = {};
+let _userMarker = null;
+let _lastUserLng = null;
+let _lastUserLat = null;
+let _currentStop = null;
+
 // ═══════════════════════════════════════════════════════════════════
 // BOOT — init map using the injected style (window._MAP_STYLE)
 // Style is injected by C# as a <script> block before this file loads.
@@ -16,7 +22,6 @@ window.map = new maplibregl.Map({
     style: window._MAP_STYLE,
     center: [15.9775, 45.8129],
     zoom: 13,
-    minZoom: 10,
     maxPitch: 60
 });
 
@@ -493,23 +498,21 @@ function renderTripDetail(data) {
 // ── updateMapLocation ──────────────────────────────────────────────
 // Called by C# when GPS location is available.
 function updateMapLocation(lng, lat) {
+    _lastUserLng = lng;
+    _lastUserLat = lat;
+
     if (!_userMarker) {
         _userMarker = new maplibregl.Marker({ color: '#4285F4' })
             .setLngLat([lng, lat]).addTo(map);
     } else {
         _userMarker.setLngLat([lng, lat]);
     }
-    map.setCenter([lng, lat]);
-    map.setZoom(15);
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════════════
-
-let _routeMap = {};
-let _userMarker = null;
-let _currentStop = null;
+function flyToUserLocation() {
+    if (_lastUserLng === null || _lastUserLat === null) return;
+    map.flyTo({ center: [_lastUserLng, _lastUserLat], zoom: 15, duration: 800 });
+}
 
 // Panel element refs
 const _sheet = document.getElementById('stop-sheet');
@@ -836,6 +839,9 @@ document.getElementById('trip-panel-close').addEventListener('click', e => {
 });
 document.getElementById('bike-sheet-close').addEventListener('click', e => {
     e.stopPropagation(); _closeBikeSheet();
+});
+document.getElementById('locate-btn').addEventListener('click', () => {
+    flyToUserLocation();
 });
 
 // Prevent map clicks from firing when touching panels
