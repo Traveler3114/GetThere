@@ -4,6 +4,12 @@
 
 const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
 
+let _routeMap = {};
+let _userMarker = null;
+let _lastUserLng = null;
+let _lastUserLat = null;
+let _currentStop = null;
+
 // ═══════════════════════════════════════════════════════════════════
 // BOOT — init map using the injected style (window._MAP_STYLE)
 // Style is injected by C# as a <script> block before this file loads.
@@ -507,16 +513,6 @@ function flyToUserLocation() {
     if (_lastUserLng === null || _lastUserLat === null) return;
     map.flyTo({ center: [_lastUserLng, _lastUserLat], zoom: 15, duration: 800 });
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════════════
-
-let _routeMap = {};
-let _userMarker = null;
-let _lastUserLng = null;
-let _lastUserLat = null;
-let _currentStop = null;
 
 // Panel element refs
 const _sheet = document.getElementById('stop-sheet');
