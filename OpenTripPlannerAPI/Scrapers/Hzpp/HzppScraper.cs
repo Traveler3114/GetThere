@@ -83,14 +83,16 @@ public partial class HzppScraper : ScraperBase
             if (payload.DelayMin == 0 && string.IsNullOrEmpty(payload.CurrentStation) && !payload.Finished)
                 continue;
 
-            var tripId = _gtfsLoader.GetActiveTripId(tnum, _gtfsData);
+            var serviceDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz));
+            var serviceDateGtfs = serviceDate.ToString("yyyyMMdd");
+            var tripId = _gtfsLoader.GetActiveTripId(tnum, _gtfsData, serviceDate);
             if (tripId is null)
             {
                 _logger.LogDebug("No active trip for train {Train} today", tnum);
                 continue;
             }
 
-            var stus = ComputeStopTimeUpdates(tripId, payload, _gtfsData);
+            var stus = ComputeStopTimeUpdates(tripId, payload, _gtfsData, serviceDateGtfs);
             if (stus.Count > 0)
             {
                 updatesMap[tripId] = stus;
@@ -184,7 +186,7 @@ public partial class HzppScraper : ScraperBase
         return payload;
     }
 
-    private List<StopTimeUpdateData> ComputeStopTimeUpdates(string tripId, TrainPayload train, GtfsData data)
+    private List<StopTimeUpdateData> ComputeStopTimeUpdates(string tripId, TrainPayload train, GtfsData data, string serviceDateGtfs)
     {
         if (!data.StopTimes.TryGetValue(tripId, out var stList) || stList.Count == 0)
             return [];
@@ -224,7 +226,8 @@ public partial class HzppScraper : ScraperBase
                 StopSequence = st.StopSequence,
                 DelaySec = delaySec,
                 ScheduledArrivalSec = st.ArrivalSec,
-                ScheduledDepartureSec = st.DepartureSec
+                ScheduledDepartureSec = st.DepartureSec,
+                TripStartDate = serviceDateGtfs
             });
         }
 
