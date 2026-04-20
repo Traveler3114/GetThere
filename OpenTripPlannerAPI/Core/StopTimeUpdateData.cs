@@ -7,4 +7,5 @@ public sealed class StopTimeUpdateData
     public int DelaySec { get; set; }
     public int ScheduledArrivalSec { get; set; }
     public int ScheduledDepartureSec { get; set; }
+    public string? TripStartDate { get; set; }
 }

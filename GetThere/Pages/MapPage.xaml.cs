@@ -203,6 +203,7 @@ public partial class MapPage : ContentPage
         base.OnAppearing();
         await _navigatedTcs.Task;
         await WaitForMapReadyAsync();
+        _isWebViewReady = true;
         await LoadStaticDataAsync();
         await GetLocationAsync();
         StartJsMessagePolling();
@@ -211,7 +212,6 @@ public partial class MapPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        _isWebViewReady = false;
         StopJsMessagePolling();
     }
 
@@ -414,4 +414,3 @@ public partial class MapPage : ContentPage
         }
     }
 }
-

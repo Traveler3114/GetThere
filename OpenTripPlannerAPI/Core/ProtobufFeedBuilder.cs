@@ -29,6 +29,12 @@ public sealed class ProtobufFeedBuilder
                 }
             };
 
+            var tripStartDate = stus
+                .Select(s => s.TripStartDate)
+                .FirstOrDefault(d => !string.IsNullOrWhiteSpace(d));
+            if (!string.IsNullOrWhiteSpace(tripStartDate))
+                entity.TripUpdate.Trip.StartDate = tripStartDate;
+
             foreach (var stu in stus)
             {
                 var hasScheduledArrival = stu.ScheduledArrivalSec >= 0;
