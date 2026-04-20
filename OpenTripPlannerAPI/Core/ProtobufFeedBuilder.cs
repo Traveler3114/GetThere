@@ -29,11 +29,13 @@ public sealed class ProtobufFeedBuilder
                 }
             };
 
-            var tripStartDate = stus
+            var tripStartDates = stus
                 .Select(s => s.TripStartDate)
-                .FirstOrDefault(d => !string.IsNullOrWhiteSpace(d));
-            if (!string.IsNullOrWhiteSpace(tripStartDate))
-                entity.TripUpdate.Trip.StartDate = tripStartDate;
+                .Where(d => !string.IsNullOrWhiteSpace(d))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (tripStartDates.Count == 1)
+                entity.TripUpdate.Trip.StartDate = tripStartDates[0]!;
 
             foreach (var stu in stus)
             {

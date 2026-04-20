@@ -68,8 +68,6 @@ public partial class HzppScraper : ScraperBase
         var processed = 0;
         var withUpdates = 0;
         var updatesMap = new Dictionary<string, List<StopTimeUpdateData>>();
-        var serviceDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz));
-        var serviceDateGtfs = serviceDate.ToString("yyyyMMdd");
 
         foreach (var tnum in activeTrains)
         {
@@ -85,6 +83,8 @@ public partial class HzppScraper : ScraperBase
             if (payload.DelayMin == 0 && string.IsNullOrEmpty(payload.CurrentStation) && !payload.Finished)
                 continue;
 
+            var serviceDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz));
+            var serviceDateGtfs = serviceDate.ToString("yyyyMMdd");
             var tripId = _gtfsLoader.GetActiveTripId(tnum, _gtfsData, serviceDate);
             if (tripId is null)
             {
