@@ -1,66 +1,54 @@
-<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="390" height="844" fill="#F3F4F6"/>
-  
-  <!-- Header -->
-  <g id="Header">
-    <circle cx="54" cy="64" r="30" fill="white" stroke="#512BD4" stroke-width="3"/>
-    <path d="M54 50C57.866 50 61 53.134 61 57C61 60.866 57.866 64 54 64C50.134 64 47 60.866 47 57C47 53.134 50.134 50 54 50ZM54 66C60.6274 66 66 69.3579 66 73.5V75H42V73.5C42 69.3579 47.3726 66 54 66Z" fill="#512BD4"/>
-    <text x="96" y="62" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 20px;">Luka S.</text>
-    <circle cx="100" cy="78" r="3" fill="#10B981"/>
-    <text x="108" y="82" fill="#10B981" style="font-family: sans-serif; font-weight: bold; font-size: 11px; letter-spacing: 0.05em;">VERIFIED</text>
-  </g>
-
-  <!-- Tab Switcher (Account Active) -->
-  <rect x="24" y="114" width="342" height="54" rx="27" fill="#E2E8F0"/>
-  <rect x="195" y="118" width="167" height="46" rx="23" fill="white"/>
-  <text x="111" y="147" fill="#64748B" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">Wallet</text>
-  <text x="281" y="147" fill="#512BD4" text-anchor="middle" style="font-family: sans-serif; font-weight: bold; font-size: 14px;">Account</text>
-
-  <!-- Account Content -->
-  <g id="AccountView">
-    <!-- Personal Info Section -->
-    <text x="24" y="200" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 16px;">Personal Information</text>
-    <rect x="20" y="215" width="350" height="120" rx="14" fill="white"/>
-    
-    <text x="40" y="245" fill="#94A3B8" style="font-family: sans-serif; font-weight: bold; font-size: 10px;">FULL NAME</text>
-    <text x="40" y="265" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 15px;">Luka S.</text>
-    
-    <text x="40" y="295" fill="#94A3B8" style="font-family: sans-serif; font-weight: bold; font-size: 10px;">EMAIL ADDRESS</text>
-    <text x="40" y="315" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 15px;">luka.s@email.com</text>
-
-    <!-- Settings Section -->
-    <text x="24" y="365" fill="#111827" style="font-family: sans-serif; font-weight: bold; font-size: 16px;">Settings &amp; Security</text>
-    <rect x="20" y="380" width="350" height="180" rx="14" fill="white"/>
-    
-    <!-- Item 1: Privacy -->
-    <circle cx="44" cy="405" r="12" fill="#F1F5F9"/>
-    <path d="M44 398L48 402V408H40V402L44 398Z" fill="#512BD4"/> <!-- Simple Shield/Profile Vector -->
-    <text x="68" y="410" fill="#111827" style="font-family: sans-serif; font-size: 15px;">Account Privacy</text>
-    <path d="M350 401L355 405L350 409" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    
-    <rect x="68" y="425" width="280" height="1" fill="#F1F5F9"/>
-
-    <!-- Item 2: Payments -->
-    <circle cx="44" cy="450" r="12" fill="#F1F5F9"/>
-    <rect x="38" y="445" width="12" height="10" rx="2" fill="#512BD4"/> <!-- Simple Card Vector -->
-    <text x="68" y="455" fill="#111827" style="font-family: sans-serif; font-size: 15px;">Payment Methods</text>
-    <path d="M350 446L355 450L350 454" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-
-    <rect x="68" y="470" width="280" height="1" fill="#F1F5F9"/>
-
-    <!-- Item 3: Language -->
-    <circle cx="44" cy="495" r="12" fill="#F1F5F9"/>
-    <circle cx="44" cy="495" r="6" stroke="#512BD4" stroke-width="2"/> <!-- Globe Vector -->
-    <text x="68" y="500" fill="#111827" style="font-family: sans-serif; font-size: 15px;">Language &amp; Region</text>
-    <path d="M350 491L355 495L350 499" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-
-    <rect x="68" y="515" width="280" height="1" fill="#F1F5F9"/>
-
-    <!-- Item 4: Sign Out -->
-    <circle cx="44" cy="540" r="12" fill="#FEF2F2"/>
-    <path d="M42 535H40V545H42" stroke="#991B1B" stroke-width="2" stroke-linecap="round"/> <!-- Log Off Vector -->
-    <path d="M44 540H50M50 540L47 537M50 540L47 543" stroke="#991B1B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="68" y="545" fill="#991B1B" style="font-family: sans-serif; font-weight: bold; font-size: 15px;">Sign Out</text>
-  </g>
+<svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000000" flood-opacity="0.10"/>
+    </filter>
+    <filter id="lowShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+  <rect width="414" height="896" fill="#F3F4F6"/>
+  <circle cx="54" cy="46" r="30" fill="#F3F4F6" stroke="#512BD4" stroke-width="3"/>
+  <path d="M54 31C57.866 31 61 34.134 61 38C61 41.866 57.866 45 54 45C50.134 45 47 41.866 47 38C47 34.134 50.134 31 54 31ZM54 48C61.732 48 68 52.477 68 57.999V60H40V57.999C40 52.477 46.268 48 54 48Z" fill="#9CA3AF"/>
+  <text x="100" y="39" font-family="Segoe UI, Roboto, sans-serif" font-size="20" font-weight="700" fill="#000000">Luka S.</text>
+  <text x="100" y="58" font-family="Segoe UI, Roboto, sans-serif" font-size="11" font-weight="700" fill="#10B981">● VERIFIED</text>
+  <rect x="24" y="82" width="366" height="50" rx="25" fill="#E2E8F0"/>
+  <rect x="211" y="86" width="175" height="42" rx="21" fill="#FFFFFF" filter="url(#lowShadow)"/>
+  <text x="115.5" y="113" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#64748B">Wallet</text>
+  <text x="299" y="113" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#512BD4">Account</text>
+  <text x="20" y="170" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#000000">Personal Information</text>
+  <rect x="20" y="180" width="374" height="106" rx="14" fill="#FFFFFF" filter="url(#lowShadow)"/>
+  <text x="36" y="210" font-family="Segoe UI, Roboto, sans-serif" font-size="10" font-weight="700" fill="#94A3B8">FULL NAME</text>
+  <text x="36" y="232" font-family="Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" fill="#000000">Luka Luksa</text>
+  <text x="36" y="260" font-family="Segoe UI, Roboto, sans-serif" font-size="10" font-weight="700" fill="#94A3B8">EMAIL ADDRESS</text>
+  <text x="36" y="282" font-family="Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" fill="#000000">luksa@getthere.com</text>
+  <text x="20" y="320" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#000000">Settings &amp; Security</text>
+  <rect x="20" y="330" width="374" height="184" rx="14" fill="#FFFFFF" filter="url(#lowShadow)"/>
+  <path d="M46 348C43.24 348 41 350.24 41 353C41 355.76 43.24 358 46 358C48.76 358 51 355.76 51 353C51 350.24 48.76 348 46 348ZM46 350C47.65 350 49 351.35 49 353C49 354.65 47.65 356 46 356C44.35 356 43 354.65 43 353C43 351.35 44.35 350 46 350ZM46 359C41.58 359 38 361.69 38 365V366H54V365C54 361.69 50.42 359 46 359ZM46 361C48.97 361 51.42 362.42 51.91 364H40.09C40.58 362.42 43.03 361 46 361Z" fill="#111827"/>
+  <text x="66" y="364" font-family="Segoe UI, Roboto, sans-serif" font-size="15" fill="#000000">Account Privacy</text>
+  <path d="M370 355L376 361L370 367" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="40" y="378" width="334" height="1" fill="#F1F5F9"/>
+  <path d="M40 401C40 399.9 40.9 399 42 399H50C51.1 399 52 399.9 52 401C52 401.55 52.45 402 53 402H54V406H53C51.9 406 51 406.9 51 408V411C51 412.1 50.1 413 49 413H43C41.9 413 41 412.1 41 411V408C41 406.9 40.1 406 39 406H38V402H39C39.55 402 40 401.55 40 401ZM43 401H42C42 402.3 41.16 403.4 40 403.82V404.18C41.16 404.6 42 405.7 42 407V411H50V407C50 405.7 50.84 404.6 52 404.18V403.82C50.84 403.4 50 402.3 50 401H43ZM45 403H47V405H45V403ZM45 407H47V409H45V407Z" fill="#111827"/>
+  <text x="66" y="412" font-family="Segoe UI, Roboto, sans-serif" font-size="15" fill="#000000">Payment Methods</text>
+  <path d="M370 403L376 409L370 415" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="40" y="426" width="334" height="1" fill="#F1F5F9"/>
+  <path d="M46 443C42.69 443 40 445.69 40 449C40 453.3 44.72 458.91 45.26 459.54C45.64 459.97 46.36 459.97 46.74 459.54C47.28 458.91 52 453.3 52 449C52 445.69 49.31 443 46 443ZM46 445C48.21 445 50 446.79 50 449C50 451.65 47.32 455.49 46 457.18C44.68 455.49 42 451.65 42 449C42 446.79 43.79 445 46 445ZM46 447.5C44.62 447.5 43.5 448.62 43.5 450C43.5 451.38 44.62 452.5 46 452.5C47.38 452.5 48.5 451.38 48.5 450C48.5 448.62 47.38 447.5 46 447.5Z" fill="#111827"/>
+  <text x="66" y="460" font-family="Segoe UI, Roboto, sans-serif" font-size="15" fill="#000000">Language &amp; Region</text>
+  <path d="M370 451L376 457L370 463" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="40" y="474" width="334" height="1" fill="#F1F5F9"/>
+  <path d="M46 489.5C43.52 489.5 41.5 491.52 41.5 494C41.5 496.48 43.52 498.5 46 498.5C48.48 498.5 50.5 496.48 50.5 494C50.5 491.52 48.48 489.5 46 489.5ZM46 491.5C47.38 491.5 48.5 492.62 48.5 494C48.5 495.38 47.38 496.5 46 496.5C44.62 496.5 43.5 495.38 43.5 494C43.5 492.62 44.62 491.5 46 491.5ZM45 485H47L47.3 486.63C47.92 486.77 48.5 487 49.03 487.32L50.4 486.37L51.82 487.79L50.87 489.16C51.18 489.69 51.42 490.27 51.56 490.89L53.19 491.19V493.19L51.56 493.49C51.42 494.11 51.18 494.69 50.87 495.22L51.82 496.59L50.4 498.01L49.03 497.06C48.5 497.38 47.92 497.61 47.3 497.75L47 499.38H45L44.7 497.75C44.08 497.61 43.5 497.38 42.97 497.06L41.6 498.01L40.18 496.59L41.13 495.22C40.82 494.69 40.58 494.11 40.44 493.49L38.81 493.19V491.19L40.44 490.89C40.58 490.27 40.82 489.69 41.13 489.16L40.18 487.79L41.6 486.37L42.97 487.32C43.5 487 44.08 486.77 44.7 486.63L45 485Z" fill="#111827"/>
+  <text x="66" y="508" font-family="Segoe UI, Roboto, sans-serif" font-size="15" fill="#000000">Change Password</text>
+  <path d="M370 499L376 505L370 511" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="20" y="548" font-family="Segoe UI, Roboto, sans-serif" font-size="17" font-weight="700" fill="#000000">Support &amp; More</text>
+  <rect x="20" y="558" width="374" height="146" rx="20" fill="#FFFFFF" filter="url(#lowShadow)"/>
+  <path d="M46 575.5C43.52 575.5 41.5 577.52 41.5 580C41.5 582.48 43.52 584.5 46 584.5C48.48 584.5 50.5 582.48 50.5 580C50.5 577.52 48.48 575.5 46 575.5ZM46 577.5C47.38 577.5 48.5 578.62 48.5 580C48.5 581.38 47.38 582.5 46 582.5C44.62 582.5 43.5 581.38 43.5 580C43.5 578.62 44.62 577.5 46 577.5ZM45 571H47L47.3 572.63C47.92 572.77 48.5 573 49.03 573.32L50.4 572.37L51.82 573.79L50.87 575.16C51.18 575.69 51.42 576.27 51.56 576.89L53.19 577.19V579.19L51.56 579.49C51.42 580.11 51.18 580.69 50.87 581.22L51.82 582.59L50.4 584.01L49.03 583.06C48.5 583.38 47.92 583.61 47.3 583.75L47 585.38H45L44.7 583.75C44.08 583.61 43.5 583.38 42.97 583.06L41.6 584.01L40.18 582.59L41.13 581.22C40.82 580.69 40.58 580.11 40.44 579.49L38.81 579.19V577.19L40.44 576.89C40.58 576.27 40.82 575.69 41.13 575.16L40.18 573.79L41.6 572.37L42.97 573.32C43.5 573 44.08 572.77 44.7 572.63L45 571Z" fill="#111827"/>
+  <text x="66" y="594" font-family="Segoe UI, Roboto, sans-serif" font-size="15" fill="#000000">Help Center</text>
+  <path d="M370 585L376 591L370 597" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="40" y="608" width="334" height="1" fill="#F1F5F9"/>
+  <path d="M46 626C43.24 626 41 628.24 41 631C41 633.76 43.24 636 46 636C48.76 636 51 633.76 51 631C51 628.24 48.76 626 46 626ZM46 628C47.65 628 49 629.35 49 631C49 632.65 47.65 634 46 634C44.35 634 43 632.65 43 631C43 629.35 44.35 628 46 628ZM46 637C41.58 637 38 639.69 38 643V644H54V643C54 639.69 50.42 637 46 637ZM46 639C48.97 639 51.42 640.42 51.91 642H40.09C40.58 640.42 43.03 639 46 639Z" fill="#111827" fill-opacity="0.6"/>
+  <text x="66" y="642" font-family="Segoe UI, Roboto, sans-serif" font-size="15" fill="#000000">About GetThere</text>
+  <path d="M370 633L376 639L370 645" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="40" y="656" width="334" height="1" fill="#F1F5F9"/>
+  <path d="M46 674C46.55 674 47 674.45 47 675V682C47 682.55 46.55 683 46 683C45.45 683 45 682.55 45 682V675C45 674.45 45.45 674 46 674ZM39 682C39 678.13 42.13 675 46 675C49.87 675 53 678.13 53 682C53 685.87 49.87 689 46 689C42.13 689 39 685.87 39 682ZM41 682C41 684.76 43.24 687 46 687C48.76 687 51 684.76 51 682C51 679.24 48.76 677 46 677C43.24 677 41 679.24 41 682Z" fill="#991B1B"/>
+  <text x="66" y="690" font-family="Segoe UI, Roboto, sans-serif" font-size="15" font-weight="700" fill="#991B1B">Sign Out</text>
 </svg>
