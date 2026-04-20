@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
-    BackgroundColor="#F8F9FA"
+    BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
     <Grid RowDefinitions="250,*">
@@ -41,18 +41,18 @@
                         HorizontalTextAlignment="Center"
                         Text="Buy Tickets"
                         TextColor="White" />
-                    <Label
-                        x:Name="PageSubtitleLabel"
-                        FontSize="14"
-                        HorizontalTextAlignment="Center"
-                        Text="Choose a ticket for this operator"
-                        TextColor="#E5E7EB" />
+                     <Label
+                         x:Name="PageSubtitleLabel"
+                         FontSize="14"
+                         HorizontalTextAlignment="Center"
+                         Text="Choose a ticket for this operator"
+                         TextColor="{AppThemeBinding Light=#E5E7EB, Dark=#CBD5E1}" />
                 </VerticalStackLayout>
             </Grid>
         </Border>
 
         <Grid Grid.Row="1" Margin="0,-28,0,0" HorizontalOptions="Center">
-        <Border x:Name="PurchaseSurface" BackgroundColor="White" StrokeThickness="0" HorizontalOptions="Fill">
+        <Border x:Name="PurchaseSurface" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" HorizontalOptions="Fill">
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="30,30,0,0" />
             </Border.StrokeShape>
@@ -62,9 +62,9 @@
 
             <ScrollView x:Name="MainScrollView" Padding="0,0,0,100" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
                 <VerticalStackLayout Padding="24,14,24,24" Spacing="14">
-                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="#E0E0E0" HorizontalOptions="Center" />
+                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#334155}" HorizontalOptions="Center" />
 
-                    <Border x:Name="MockBanner" Padding="14,10" BackgroundColor="#FFF3CD" StrokeThickness="0">
+                     <Border x:Name="MockBanner" Padding="14,10" BackgroundColor="{AppThemeBinding Light=#FFF3CD, Dark=#3F3520}" StrokeThickness="0">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="12" />
                         </Border.StrokeShape>
@@ -72,7 +72,7 @@
                                FontSize="13"
                                HorizontalTextAlignment="Center"
                                Text="⚠ MOCK TICKETS — NOT VALID FOR TRAVEL ⚠"
-                               TextColor="#9A6B00" />
+                               TextColor="{AppThemeBinding Light=#9A6B00, Dark=#FCD34D}" />
                     </Border>
 
                     <ActivityIndicator
@@ -80,7 +80,7 @@
                         HeightRequest="40"
                         IsRunning="False"
                         IsVisible="False"
-                        Color="#009688" />
+                         Color="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" />
 
                     <VerticalStackLayout x:Name="OptionsContainer" Spacing="18" />
 
@@ -89,7 +89,7 @@
                             FontSize="15"
                             HorizontalOptions="Center"
                             Text="No ticket options available."
-                            TextColor="Gray" />
+                             TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </ScrollView>
@@ -99,7 +99,7 @@
         <Border x:Name="CustomScrollThumb" 
                 WidthRequest="4" 
                 HeightRequest="40" 
-                BackgroundColor="#CBD5E1" 
+                BackgroundColor="{AppThemeBinding Light=#CBD5E1, Dark=#475569}" 
                 HorizontalOptions="End" 
                 VerticalOptions="Start"
                 Margin="0,40,4,0" 

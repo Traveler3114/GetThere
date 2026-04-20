@@ -7,10 +7,10 @@
     xmlns:local="clr-namespace:GetThere"
     Title="GetThere"
     Shell.NavBarIsVisible="False"
-    Shell.TabBarBackgroundColor="White"
+    Shell.TabBarBackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
     Shell.TabBarForegroundColor="#059669"
     Shell.TabBarTitleColor="#059669"
-    Shell.TabBarUnselectedColor="#9CA3AF">
+    Shell.TabBarUnselectedColor="{AppThemeBinding Light=#9CA3AF, Dark=#94A3B8}">
 
     <TabBar>
         <ShellContent 

@@ -24,6 +24,12 @@
     <Color x:Key="Gray900">#111827</Color>
     <Color x:Key="Gray950">#020202</Color>
     <Color x:Key="OffWhite">#F8F9FA</Color>
+    <Color x:Key="DarkBackground">#0F172A</Color>
+    <Color x:Key="DarkSurface">#111827</Color>
+    <Color x:Key="DarkSurfaceAlt">#1F2937</Color>
+    <Color x:Key="DarkBorder">#374151</Color>
+    <Color x:Key="DarkMuted">#334155</Color>
+    <Color x:Key="DarkTextSecondary">#9CA3AF</Color>
 
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
@@ -41,4 +47,7 @@
     <SolidColorBrush x:Key="Gray600Brush" Color="{StaticResource Gray600}" />
     <SolidColorBrush x:Key="Gray900Brush" Color="{StaticResource Gray900}" />
     <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}" />
+    <SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource DarkBackground}" />
+    <SolidColorBrush x:Key="DarkSurfaceBrush" Color="{StaticResource DarkSurface}" />
+    <SolidColorBrush x:Key="DarkSurfaceAltBrush" Color="{StaticResource DarkSurfaceAlt}" />
 </ResourceDictionary>

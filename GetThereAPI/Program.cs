@@ -97,6 +97,13 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 // ─────────────────────────────────────────────────────────────────────────
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureDeleted();
+    db.Database.EnsureCreated();
+}
+
 // ── Non-blocking background initialization ───────────────────────────────
 // We fire and forget these tasks so the server starts listening INSTANTLY.
 // Data will populate in the background over the first few seconds.
