@@ -102,7 +102,20 @@ namespace GetThereAPI.Data
                      CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                      CountryId = 1,
                      CityId = null
-                 }
+                 },
+                new TransitOperator
+                {
+                    Id = 3,
+                    Name = "LPP",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 2,
+                    CityId = 3
+                }
             );
 
             modelBuilder.Entity<TransportType>().HasData(

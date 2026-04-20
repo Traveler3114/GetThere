@@ -572,10 +572,11 @@ namespace GetThereAPI.Migrations
                         new
                         {
                             Id = 3,
-                            CountryId = 3,
+                            CityId = 3,
+                            CountryId = 2,
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
-                            Name = "ÖBB (Austrian Federal Railways)",
+                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                            Name = "LPP",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         });
