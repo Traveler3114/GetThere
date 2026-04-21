@@ -4,7 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
-    BackgroundColor="#F8F9FA"
+    BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
     <Grid RowDefinitions="Auto,*">
@@ -13,12 +13,12 @@
         <!-- Header with Close button (Vision Fix) -->
         <Grid Grid.Row="0" Padding="24,48,24,10" ColumnDefinitions="Auto, *, Auto">
             <ImageButton Grid.Column="0" 
-                         Source="close.svg" 
+                         Source="{AppThemeBinding Light=close.png, Dark=close_white.png}" 
                          WidthRequest="32" 
                          HeightRequest="32" 
                          BackgroundColor="Transparent" 
                          Clicked="OnCloseClicked" />
-            <Label Grid.Column="0" Grid.ColumnSpan="3" HorizontalOptions="Center" Text="Ticket Confirmed" FontSize="20" FontAttributes="Bold" TextColor="Black" VerticalOptions="Center" />
+            <Label Grid.Column="0" Grid.ColumnSpan="3" HorizontalOptions="Center" Text="Ticket Confirmed" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
         </Grid>
 
         <ScrollView Grid.Row="1" Padding="24,16,24,100">
@@ -27,7 +27,7 @@
                 <!--  Mock disclaimer banner  -->
                 <Border
                     Padding="14,10"
-                    BackgroundColor="#F8D7DA"
+                    BackgroundColor="{AppThemeBinding Light=#F8D7DA, Dark=#3F1D24}"
                     StrokeThickness="0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="18" />
@@ -40,13 +40,13 @@
                         FontSize="13"
                         HorizontalTextAlignment="Center"
                         Text="⛔  MOCK TICKET — NOT VALID FOR TRAVEL  ⛔"
-                        TextColor="#842029" />
+                        TextColor="{AppThemeBinding Light=#842029, Dark=#FCA5A5}" />
                 </Border>
 
                 <!--  Ticket card  -->
                 <Border
                     Padding="24"
-                    BackgroundColor="White"
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
                     StrokeThickness="0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="24" />
@@ -63,22 +63,22 @@
                             FontAttributes="Bold"
                             FontSize="22"
                             HorizontalTextAlignment="Center"
-                            TextColor="Black" />
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
 
                         <!--  Ticket name  -->
                         <Label
                             x:Name="TicketNameLabel"
                             FontSize="16"
                             HorizontalTextAlignment="Center"
-                            TextColor="#8E8E93" />
+                            TextColor="{AppThemeBinding Light=#8E8E93, Dark=#9CA3AF}" />
 
                         <!--  QR placeholder  -->
                         <Border
                             Margin="20,8"
                             Padding="16"
-                            BackgroundColor="#F8F9FA"
+                            BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#1F2937}"
                             HorizontalOptions="Center"
-                            Stroke="#EBEBEC"
+                            Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}"
                             StrokeThickness="1"
                             WidthRequest="200">
                             <Border.StrokeShape>
@@ -93,9 +93,9 @@
                                     FontSize="11"
                                     HorizontalTextAlignment="Center"
                                     Text="QR CODE (MOCK)"
-                                    TextColor="Gray" />
+                                    TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                                 <BoxView
-                                    BackgroundColor="White"
+                                    BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
                                     HeightRequest="140"
                                     HorizontalOptions="Fill"
                                     CornerRadius="8" />
@@ -104,7 +104,7 @@
                                     FontSize="10"
                                     HorizontalTextAlignment="Center"
                                     LineBreakMode="CharacterWrap"
-                                    TextColor="#A0A0A0" />
+                                    TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" />
                             </VerticalStackLayout>
                         </Border>
 
@@ -116,7 +116,7 @@
                             <Border
                                 Grid.Column="0"
                                 Padding="12"
-                                BackgroundColor="#F4F5F7"
+                                BackgroundColor="{AppThemeBinding Light=#F4F5F7, Dark=#1F2937}"
                                 StrokeThickness="0">
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="16" />
@@ -125,18 +125,18 @@
                                     <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                                 </Border.Shadow>
                                 <VerticalStackLayout Spacing="2">
-                                    <Label FontSize="11" Text="VALID FROM" TextColor="Gray" />
+                                    <Label FontSize="11" Text="VALID FROM" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                                     <Label
                                         x:Name="ValidFromLabel"
                                         FontAttributes="Bold"
                                         FontSize="13"
-                                        TextColor="Black" />
+                                        TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                                 </VerticalStackLayout>
                             </Border>
                             <Border
                                 Grid.Column="1"
                                 Padding="12"
-                                BackgroundColor="#F4F5F7"
+                                BackgroundColor="{AppThemeBinding Light=#F4F5F7, Dark=#1F2937}"
                                 StrokeThickness="0">
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="16" />
@@ -145,12 +145,12 @@
                                     <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                                 </Border.Shadow>
                                 <VerticalStackLayout Spacing="2">
-                                    <Label FontSize="11" Text="VALID UNTIL" TextColor="Gray" />
+                                    <Label FontSize="11" Text="VALID UNTIL" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                                     <Label
                                         x:Name="ValidUntilLabel"
                                         FontAttributes="Bold"
                                         FontSize="13"
-                                        TextColor="Black" />
+                                        TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                                 </VerticalStackLayout>
                             </Border>
                         </Grid>
@@ -161,7 +161,7 @@
                             FontAttributes="Bold"
                             FontSize="28"
                             HorizontalTextAlignment="Center"
-                            TextColor="Black" />
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
 
                     </VerticalStackLayout>
                 </Border>
@@ -174,7 +174,7 @@
                     FontSize="16"
                     HeightRequest="56"
                     Text="Done"
-                    BackgroundColor="#009688"
+                    BackgroundColor="{AppThemeBinding Light=#009688, Dark=#0F766E}"
                     TextColor="White">
                     <Button.Shadow>
                         <Shadow Brush="Black" Opacity="0.15" Radius="10" Offset="0,4" />

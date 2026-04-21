@@ -6,7 +6,7 @@
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
     Title="Shop"
-    BackgroundColor="#F8F9FA"
+    BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
     <Grid RowDefinitions="Auto,Auto,*">
@@ -19,7 +19,7 @@
                 FontSize="32"
                 HorizontalTextAlignment="Center"
                 Text="Shop"
-                TextColor="Black" />
+                TextColor="{AppThemeBinding Light=Black, Dark=White}" />
         </Grid>
 
         <!--  Country badge  -->
@@ -28,7 +28,7 @@
                 x:Name="CountryBadge"
                 Margin="16,10,16,0"
                 Padding="12,6"
-                BackgroundColor="#EBEBF0"
+                BackgroundColor="{AppThemeBinding Light=#EBEBF0, Dark=#1F2937}"
                 HorizontalOptions="Start"
                 StrokeThickness="0">
                 <Border.StrokeShape>
@@ -38,7 +38,7 @@
                     x:Name="CountryBadgeLabel"
                     FontSize="13"
                     Text="All countries"
-                    TextColor="#555" />
+                    TextColor="{AppThemeBinding Light=#555, Dark=#CBD5E1}" />
             </Border>
         </Grid>
 
@@ -47,10 +47,10 @@
             <ScrollView x:Name="MainScrollView" Scrolled="OnMainScrollViewScrolled" VerticalScrollBarVisibility="Never" Padding="16,8,16,100">
             <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center" MaximumWidthRequest="1200">
 
-                <!-- PREMIUM SKELETON LOADING STATE -->
-                <Grid x:Name="PremiumLoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
+                <!-- Loading state -->
+                <Grid x:Name="LoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
                     <!-- Skeleton SVG -->
-                    <Image Source="loading_shop.svg" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
+                    <Image Source="loading_shop.png" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
                     
                     <!-- Shimmer Sweep -->
                     <Grid IsClippedToBounds="True" InputTransparent="True">
@@ -75,17 +75,17 @@
                         FontSize="16"
                         HorizontalOptions="Center"
                         Text="No operators available for ticket purchase."
-                        TextColor="Gray" />
+                        TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                 </VerticalStackLayout>
 
             </VerticalStackLayout>
             </ScrollView>
 
-            <!--  ── PREMIUM CUSTOM SCROLLBAR THUMB ──  -->
+            <!--  ── CUSTOM SCROLLBAR THUMB ──  -->
             <Border x:Name="CustomScrollThumb" 
                     WidthRequest="4" 
                     HeightRequest="40" 
-                    BackgroundColor="#CBD5E1" 
+                    BackgroundColor="{AppThemeBinding Light=#CBD5E1, Dark=#475569}" 
                     HorizontalOptions="End" 
                     VerticalOptions="Start"
                     Margin="0,0,4,0" 

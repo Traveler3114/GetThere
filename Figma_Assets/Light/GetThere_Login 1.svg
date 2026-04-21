@@ -1,0 +1,54 @@
+<svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="heroGrad" x1="207" y1="0" x2="207" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4E85F2"/>
+      <stop offset="1" stop-color="#512BD4"/>
+    </linearGradient>
+    <filter id="heroShadow" x="-6%" y="-4%" width="112%" height="112%">
+      <feDropShadow dx="0" dy="5" stdDeviation="10" flood-color="#000000" flood-opacity="0.30"/>
+    </filter>
+    <filter id="logoShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="3" dy="3" stdDeviation="10" flood-color="#000000" flood-opacity="0.20"/>
+    </filter>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+    <filter id="buttonShadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="4" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <rect width="414" height="896" fill="#F8F9FA"/>
+
+  <rect width="414" height="320" fill="url(#heroGrad)" filter="url(#heroShadow)"/>
+
+  <circle cx="175" cy="69" r="9" fill="#10B981"/>
+  <text x="207" y="76" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">GetThere</text>
+
+  <circle cx="207" cy="175" r="50" fill="#2C167A" fill-opacity="0.6" filter="url(#logoShadow)"/>
+
+  <rect x="1" y="240" width="412" height="656" fill="none"/>
+  <rect x="2" y="241" width="410" height="540" rx="16" fill="#FFFFFF" filter="url(#cardShadow)"/>
+
+  <rect x="187" y="256" width="40" height="4" rx="2" fill="#E0E0E0"/>
+
+  <text x="32" y="299" font-family="Segoe UI, Roboto, sans-serif" font-size="14" font-weight="700" fill="#000000">Email</text>
+  <rect x="32" y="307" width="350" height="50" rx="8" fill="#FFFFFF" stroke="#EBEBEC"/>
+  <text x="47" y="338" font-family="Segoe UI, Roboto, sans-serif" font-size="16" fill="#A0A0A0">Email</text>
+
+  <text x="32" y="381" font-family="Segoe UI, Roboto, sans-serif" font-size="14" font-weight="700" fill="#000000">Password</text>
+  <rect x="32" y="389" width="350" height="50" rx="8" fill="#FFFFFF" stroke="#EBEBEC"/>
+  <text x="47" y="420" font-family="Segoe UI, Roboto, sans-serif" font-size="16" fill="#A0A0A0">Password</text>
+  <text x="338" y="420" font-family="Segoe UI, Roboto, sans-serif" font-size="16" fill="#A0A0A0">Show</text>
+
+  <rect x="32" y="484" width="350" height="52" rx="26" fill="#009688" filter="url(#buttonShadow)"/>
+  <text x="207" y="516" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">Sign In</text>
+
+  <text x="207" y="561" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#009688">Create Account</text>
+
+  <circle cx="187" cy="598" r="22" fill="#F1F5F9" stroke="#F1F5F9"/>
+  <text x="187" y="605" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="18" font-weight="700" fill="#4285F4">G</text>
+
+  <circle cx="227" cy="598" r="22" fill="#1F2937" stroke="#1F2937"/>
+  <text x="227" y="604" text-anchor="middle" font-family="Segoe UI, Roboto, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">Ap</text>
+</svg>

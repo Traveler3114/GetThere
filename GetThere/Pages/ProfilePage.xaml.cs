@@ -22,6 +22,7 @@ public partial class ProfilePage : ContentPage
     private static readonly CultureInfo BalanceCulture = CultureInfo.GetCultureInfo("hr-HR");
     private string _currentBalanceText = "€0,00";
     private bool _isLoading;
+    private bool _isAccountTabSelected;
     private CancellationTokenSource? _loadingCts;
 
     public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService, CountryService countryService, CountryPreferenceService prefs)
@@ -201,6 +202,7 @@ public partial class ProfilePage : ContentPage
 
     private void OnWalletTabClicked(object sender, EventArgs e)
     {
+        _isAccountTabSelected = false;
         AccountTabView.IsVisible = false;
         AccountTabView.Opacity = 0;
         
@@ -216,6 +218,7 @@ public partial class ProfilePage : ContentPage
 
     private void OnAccountTabClicked(object sender, EventArgs e)
     {
+        _isAccountTabSelected = true;
         WalletTabView.IsVisible = false;
         WalletTabView.Opacity = 0;
         
@@ -264,7 +267,7 @@ public partial class ProfilePage : ContentPage
             SubSettingsHeader.Opacity = 1.0 - (Math.Clamp(scrollY / 50.0, 0, 0.4));
         }
 
-        // --- 2. Premium Manual Scrollbar Logic ---
+        // --- 2. Custom scrollbar logic ---
         double contentHeight = scrollView.ContentSize.Height;
         double viewHeight = scrollView.Height;
         
@@ -431,24 +434,25 @@ public partial class ProfilePage : ContentPage
 
     private async void OnAboutClicked(object? sender, EventArgs e) => 
         await DisplayAlert("About", "GetThere v1.0\nProfessional Mobility Platform", "OK");
-    private async void StartLoadingAnimations()
+    private void StartLoadingAnimations()
     {
-        PremiumLoadingState.IsVisible = true;
-        // Hide main content rows to show skeleton
+        WalletLoadingState.IsVisible = !_isAccountTabSelected;
+        AccountLoadingState.IsVisible = _isAccountTabSelected;
         UserHeader.IsVisible = false;
         TabSwitcherContainer.IsVisible = false;
         WalletTabView.IsVisible = false;
+        AccountTabView.IsVisible = false;
 
         _loadingCts = new CancellationTokenSource();
         var token = _loadingCts.Token;
+        var shimmer = _isAccountTabSelected ? AccountLoadingShimmer : WalletLoadingShimmer;
 
-        // 1. Shimmer sweep loop
         _ = Task.Run(async () =>
         {
             while (!token.IsCancellationRequested)
             {
-                MainThread.BeginInvokeOnMainThread(() => ShimmerBox.TranslationX = -500);
-                await ShimmerBox.TranslateTo(1000, 0, 1500, Easing.CubicInOut);
+                MainThread.BeginInvokeOnMainThread(() => shimmer.TranslationX = -500);
+                await shimmer.TranslateTo(1000, 0, 1500, Easing.CubicInOut);
                 await Task.Delay(300, token);
             }
         }, token);
@@ -461,10 +465,13 @@ public partial class ProfilePage : ContentPage
     private void StopLoadingAnimations()
     {
         _loadingCts?.Cancel();
-        PremiumLoadingState.IsVisible = false;
-        // Reveal main content
+        WalletLoadingState.IsVisible = false;
+        AccountLoadingState.IsVisible = false;
         UserHeader.IsVisible = true;
         TabSwitcherContainer.IsVisible = true;
-        WalletTabView.IsVisible = true;
+        WalletTabView.IsVisible = !_isAccountTabSelected;
+        AccountTabView.IsVisible = _isAccountTabSelected;
+        WalletTabView.Opacity = _isAccountTabSelected ? 0 : 1;
+        AccountTabView.Opacity = _isAccountTabSelected ? 1 : 0;
     }
 }
