@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using GetThereAPI.Entities;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -54,5 +55,33 @@ public class TokenManager
         var handler = new JsonWebTokenHandler();
         return handler.CreateToken(tokenDescriptor);
         // Returns a string like: eyJhbGci....eyJzdWIi....abc123
+    }
+
+    public string GenerateRefreshToken()
+    {
+        var randomBytes = RandomNumberGenerator.GetBytes(64);
+        return Convert.ToBase64String(randomBytes);
+    }
+
+    public string HashToken(string token)
+    {
+        var tokenBytes = Encoding.UTF8.GetBytes(token);
+        var hashBytes = SHA256.HashData(tokenBytes);
+        return Convert.ToBase64String(hashBytes);
+    }
+
+    public DateTime GetRefreshTokenExpiry(bool rememberMe)
+    {
+        var days = rememberMe
+            ? int.Parse(_config["Jwt:RefreshTokenDaysRememberMe"]!)
+            : int.Parse(_config["Jwt:RefreshTokenDays"]!);
+
+        return DateTime.UtcNow.AddDays(days);
+    }
+
+    public bool IsRememberMeRefreshToken(DateTime createdAt, DateTime expiresAt)
+    {
+        var standardDays = int.Parse(_config["Jwt:RefreshTokenDays"]!);
+        return (expiresAt - createdAt) > TimeSpan.FromDays(standardDays);
     }
 }

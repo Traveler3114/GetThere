@@ -31,3 +31,21 @@ public class UserDto
     /// <summary>JWT — included in login/register response only.</summary>
     public string? Token    { get; set; }
 }
+
+public class LoginResponseDto
+{
+    public UserDto User { get; set; } = new();
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class RefreshTokenRequestDto
+{
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class RefreshTokenResponseDto
+{
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
+}

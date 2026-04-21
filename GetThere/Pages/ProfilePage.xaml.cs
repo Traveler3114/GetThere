@@ -195,7 +195,7 @@ public partial class ProfilePage : ContentPage
     {
         if (await DisplayAlertAsync("Logout", "Are you sure?", "Yes", "No"))
         {
-            _authService.Logout();
+            await _authService.Logout();
             App.GoToLogin();
         }
     }
