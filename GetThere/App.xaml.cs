@@ -1,4 +1,6 @@
 using Microsoft.Maui.Controls.Xaml;
+using Microsoft.Extensions.DependencyInjection;
+using GetThere.Services;
 
 [assembly: XamlCompilation(XamlCompilationOptions.Compile)]
 
@@ -6,13 +8,26 @@ namespace GetThere
 {
     public partial class App : Application
     {
-        public App()
+        private readonly IServiceProvider _serviceProvider;
+
+        public App(IServiceProvider serviceProvider)
         {
+            _serviceProvider = serviceProvider;
             InitializeComponent();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
+            var authService = _serviceProvider.GetService<AuthService>();
+            if (authService?.GetRememberMe() == true)
+            {
+                var accessToken = SecureStorage.GetAsync("jwt_token").GetAwaiter().GetResult();
+                var refreshToken = SecureStorage.GetAsync("refresh_token").GetAwaiter().GetResult();
+
+                if (!string.IsNullOrWhiteSpace(accessToken) || !string.IsNullOrWhiteSpace(refreshToken))
+                    return new Window(new AppShell());
+            }
+
             return new Window(new LoginShell());
         }
 

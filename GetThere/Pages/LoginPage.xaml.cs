@@ -54,7 +54,7 @@ public partial class LoginPage : ContentPage
 
         try
         {
-            var result = await _authService.LoginAsync(loginData);
+            var result = await _authService.LoginAsync(loginData, RememberMeCheckbox.IsChecked);
 
             if (result.Success)
                 App.GoToApp();
@@ -101,6 +101,11 @@ public partial class LoginPage : ContentPage
     private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
     {
         await Shell.Current.GoToAsync("registration");
+    }
+
+    private void RememberMeLabel_Tapped(object? sender, TappedEventArgs e)
+    {
+        RememberMeCheckbox.IsChecked = !RememberMeCheckbox.IsChecked;
     }
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)

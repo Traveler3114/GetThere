@@ -1,5 +1,6 @@
-﻿using GetThereShared.Common;
+using GetThereShared.Common;
 using GetThereShared.Dtos;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -10,22 +11,37 @@ public class AuthService
 {
     private readonly HttpClient _httpClient;
     private const string TokenKey = "jwt_token";
+    private const string RefreshTokenKey = "refresh_token";
+    private const string RememberMeKey = "remember_me";
 
     public AuthService(HttpClient httpClient)
     {
         _httpClient = httpClient;
     }
 
-    public async Task<OperationResult<UserDto>> LoginAsync(LoginDto dto)
+    public async Task<OperationResult<UserDto>> LoginAsync(LoginDto dto, bool rememberMe = false)
     {
-        var response = await _httpClient.PostAsJsonAsync("auth/login", dto);
-        var result = await response.Content.ReadFromJsonAsync<OperationResult<UserDto>>()
-            ?? OperationResult<UserDto>.Fail("Unexpected error occurred.");
+        var response = await _httpClient.PostAsJsonAsync($"auth/login?rememberMe={rememberMe.ToString().ToLowerInvariant()}", dto);
+        if (!response.IsSuccessStatusCode)
+            return OperationResult<UserDto>.Fail("Invalid credentials");
 
-        if (result.Success && result.Data?.Token != null)
-            await SecureStorage.SetAsync(TokenKey, result.Data.Token);
+        var result = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
+        if (result == null || string.IsNullOrWhiteSpace(result.AccessToken) || string.IsNullOrWhiteSpace(result.RefreshToken))
+            return OperationResult<UserDto>.Fail("Unexpected error occurred.");
 
-        return result;
+        await SecureStorage.SetAsync(TokenKey, result.AccessToken);
+        await SecureStorage.SetAsync(RefreshTokenKey, result.RefreshToken);
+        Preferences.Default.Set(RememberMeKey, rememberMe);
+
+        return OperationResult<UserDto>.Ok(
+            new UserDto
+            {
+                Id = result.User.Id,
+                Email = result.User.Email,
+                FullName = result.User.FullName,
+                Token = result.AccessToken
+            },
+            "Login successful");
     }
 
     public async Task<OperationResult> RegisterAsync(RegisterDto dto)
@@ -37,6 +53,43 @@ public class AuthService
 
     public async Task<string?> GetTokenAsync()
         => await SecureStorage.GetAsync(TokenKey);
+
+    public async Task<bool> TryRefreshTokenAsync()
+    {
+        try
+        {
+            var currentRefreshToken = await SecureStorage.GetAsync(RefreshTokenKey);
+            if (string.IsNullOrWhiteSpace(currentRefreshToken))
+                return false;
+
+            var response = await _httpClient.PostAsJsonAsync("auth/refresh", new RefreshTokenRequestDto
+            {
+                RefreshToken = currentRefreshToken
+            });
+
+            if (!response.IsSuccessStatusCode)
+                return false;
+
+            var refreshResponse = await response.Content.ReadFromJsonAsync<RefreshTokenResponseDto>();
+            if (refreshResponse == null
+                || string.IsNullOrWhiteSpace(refreshResponse.AccessToken)
+                || string.IsNullOrWhiteSpace(refreshResponse.RefreshToken))
+            {
+                return false;
+            }
+
+            await SecureStorage.SetAsync(TokenKey, refreshResponse.AccessToken);
+            await SecureStorage.SetAsync(RefreshTokenKey, refreshResponse.RefreshToken);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public bool GetRememberMe()
+        => Preferences.Default.Get(RememberMeKey, false);
 
     /// <summary>
     /// Decodes the JWT payload and returns the claims as a dictionary.
@@ -87,5 +140,34 @@ public class AuthService
     }
 
     public void Logout()
-        => SecureStorage.Remove(TokenKey);
+    {
+        string? refreshToken = null;
+        string? accessToken = null;
+        try
+        {
+            refreshToken = SecureStorage.GetAsync(RefreshTokenKey).GetAwaiter().GetResult();
+            accessToken = SecureStorage.GetAsync(TokenKey).GetAwaiter().GetResult();
+        }
+        catch
+        {
+        }
+
+        if (!string.IsNullOrWhiteSpace(refreshToken) && !string.IsNullOrWhiteSpace(accessToken))
+        {
+            var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "auth/logout")
+            {
+                Content = JsonContent.Create(new RefreshTokenRequestDto
+                {
+                    RefreshToken = refreshToken
+                })
+            };
+
+            logoutRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            _ = _httpClient.SendAsync(logoutRequest);
+        }
+
+        SecureStorage.Remove(TokenKey);
+        SecureStorage.Remove(RefreshTokenKey);
+        Preferences.Default.Remove(RememberMeKey);
+    }
 }

@@ -74,6 +74,15 @@
                         </Border>
                     </VerticalStackLayout>
 
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                        <CheckBox x:Name="RememberMeCheckbox" Color="#009688" IsChecked="False" />
+                        <Label Text="Remember me" VerticalOptions="Center" TextColor="Black">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="RememberMeLabel_Tapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </HorizontalStackLayout>
+
                     <Label x:Name="ErrorLabel" TextColor="Red" FontSize="12" HorizontalOptions="Center" IsVisible="False" />
 
                     <Grid Margin="0,20,0,0">
