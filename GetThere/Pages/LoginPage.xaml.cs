@@ -71,29 +71,44 @@ public partial class LoginPage : ContentPage
         }
     }
 
-    private async void StartLoadingAnimations()
+    private void StartLoadingAnimations()
     {
         LoginButton.IsVisible = false;
         LoadingState.IsVisible = true;
         _loadingCts = new CancellationTokenSource();
         var token = _loadingCts.Token;
 
-        // 1. Shimmer sweep
         _ = Task.Run(async () =>
         {
             while (!token.IsCancellationRequested)
             {
-                MainThread.BeginInvokeOnMainThread(() => ShimmerBox.TranslationX = -70);
-                await ShimmerBox.TranslateTo(140, 0, 1000, Easing.Linear);
-                await Task.Delay(200, token);
+                try
+                {
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        var shimmerWidth = ShimmerBox.WidthRequest;
+                        var travelWidth = LoadingState.Width > 0 ? LoadingState.Width : LoginButton.Width;
+                        if (travelWidth <= 0)
+                            travelWidth = 350;
+
+                        ShimmerBox.TranslationX = -shimmerWidth;
+                        await ShimmerBox.TranslateTo(travelWidth + shimmerWidth, 0, 1200, Easing.Linear);
+                    });
+
+                    await Task.Delay(120, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }, token);
-
     }
 
     private void StopLoadingAnimations()
     {
         _loadingCts?.Cancel();
+        ShimmerBox.TranslationX = -ShimmerBox.WidthRequest;
         LoadingState.IsVisible = false;
         LoginButton.IsVisible = true;
     }

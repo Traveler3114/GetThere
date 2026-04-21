@@ -308,19 +308,20 @@ public partial class TicketsPage : ContentPage
 
     private void UpdatePopupUI()
     {
+        var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
         // Reset all
         ActiveOptionRow.BackgroundColor = Colors.Transparent;
-        ActiveText.TextColor = Color.FromArgb("#374151");
+        ActiveText.TextColor = isDark ? Colors.White : Color.FromArgb("#374151");
         ActiveText.FontAttributes = FontAttributes.None;
         ActiveCheckmark.IsVisible = false;
 
         ExpiredOptionRow.BackgroundColor = Colors.Transparent;
-        ExpiredText.TextColor = Color.FromArgb("#374151");
+        ExpiredText.TextColor = isDark ? Colors.White : Color.FromArgb("#374151");
         ExpiredText.FontAttributes = FontAttributes.None;
         ExpiredCheckmark.IsVisible = false;
 
         UsedOptionRow.BackgroundColor = Colors.Transparent;
-        UsedText.TextColor = Color.FromArgb("#374151");
+        UsedText.TextColor = isDark ? Colors.White : Color.FromArgb("#374151");
         UsedText.FontAttributes = FontAttributes.None;
         UsedCheckmark.IsVisible = false;
 
@@ -328,21 +329,21 @@ public partial class TicketsPage : ContentPage
         switch (_activeFilter)
         {
             case TicketStatus.Active:
-                ActiveOptionRow.BackgroundColor = Color.FromArgb("#E6FFFA");
+                ActiveOptionRow.BackgroundColor = isDark ? Color.FromArgb("#134E4A") : Color.FromArgb("#E6FFFA");
                 ActiveText.TextColor = Color.FromArgb("#059669");
                 ActiveText.FontAttributes = FontAttributes.Bold;
                 ActiveCheckmark.IsVisible = true;
                 ActiveCheckmark.TextColor = Color.FromArgb("#059669");
                 break;
             case TicketStatus.Expired:
-                ExpiredOptionRow.BackgroundColor = Color.FromArgb("#FEF2F2");
+                ExpiredOptionRow.BackgroundColor = isDark ? Color.FromArgb("#3F1D24") : Color.FromArgb("#FEF2F2");
                 ExpiredText.TextColor = Color.FromArgb("#DC2626");
                 ExpiredText.FontAttributes = FontAttributes.Bold;
                 ExpiredCheckmark.IsVisible = true;
                 ExpiredCheckmark.TextColor = Color.FromArgb("#DC2626");
                 break;
             case TicketStatus.Used:
-                UsedOptionRow.BackgroundColor = Color.FromArgb("#FFFBEB");
+                UsedOptionRow.BackgroundColor = isDark ? Color.FromArgb("#3F3520") : Color.FromArgb("#FFFBEB");
                 UsedText.TextColor = Color.FromArgb("#D97706");
                 UsedText.FontAttributes = FontAttributes.Bold;
                 UsedCheckmark.IsVisible = true;

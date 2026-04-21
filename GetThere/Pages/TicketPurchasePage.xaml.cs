@@ -132,6 +132,7 @@ public partial class TicketPurchasePage : ContentPage
 
     private View BuildOptionCard(MockTicketOptionDto option)
     {
+        var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
         var accentColor = Color.FromArgb("#009688");
         var detailColor = _operator?.Name switch
         {
@@ -149,7 +150,7 @@ public partial class TicketPurchasePage : ContentPage
             FontAttributes = FontAttributes.Bold,
             HorizontalTextAlignment = TextAlignment.Center,
             VerticalTextAlignment = TextAlignment.Center,
-            TextColor = Colors.Black,
+            TextColor = isDark ? Colors.White : Colors.Black,
             MinimumWidthRequest = 28,
         };
 
@@ -161,9 +162,9 @@ public partial class TicketPurchasePage : ContentPage
             WidthRequest = 34,
             HeightRequest = 34,
             Padding = Thickness.Zero,
-            BackgroundColor = Colors.White,
-            TextColor = Color.FromArgb("#A0A0A0"),
-            BorderColor = Color.FromArgb("#EBEBEC"),
+            BackgroundColor = isDark ? Color.FromArgb("#1F2937") : Colors.White,
+            TextColor = isDark ? Color.FromArgb("#CBD5E1") : Color.FromArgb("#A0A0A0"),
+            BorderColor = isDark ? Color.FromArgb("#374151") : Color.FromArgb("#EBEBEC"),
             BorderWidth = 1,
             CornerRadius = 17,
             Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.08f, Radius = 4, Offset = new Point(1, 1) },
@@ -176,9 +177,9 @@ public partial class TicketPurchasePage : ContentPage
             WidthRequest = 34,
             HeightRequest = 34,
             Padding = Thickness.Zero,
-            BackgroundColor = Colors.White,
-            TextColor = Color.FromArgb("#A0A0A0"),
-            BorderColor = Color.FromArgb("#EBEBEC"),
+            BackgroundColor = isDark ? Color.FromArgb("#1F2937") : Colors.White,
+            TextColor = isDark ? Color.FromArgb("#CBD5E1") : Color.FromArgb("#A0A0A0"),
+            BorderColor = isDark ? Color.FromArgb("#374151") : Color.FromArgb("#EBEBEC"),
             BorderWidth = 1,
             CornerRadius = 17,
             Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.08f, Radius = 4, Offset = new Point(1, 1) },
@@ -204,9 +205,9 @@ public partial class TicketPurchasePage : ContentPage
         var card = new Border
         {
             Padding = new Thickness(16),
-            BackgroundColor = Colors.White,
+            BackgroundColor = isDark ? Color.FromArgb("#111827") : Colors.White,
             StrokeThickness = 1,
-            Stroke = new SolidColorBrush(Color.FromArgb("#EBEBEC")),
+            Stroke = new SolidColorBrush(isDark ? Color.FromArgb("#374151") : Color.FromArgb("#EBEBEC")),
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(18) },
             Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.16f, Radius = 8, Offset = new Point(4, 4) },
         };
@@ -221,13 +222,13 @@ public partial class TicketPurchasePage : ContentPage
                     Text = option.Name,
                     FontSize = 15,
                     FontAttributes = FontAttributes.Bold,
-                    TextColor = Colors.Black,
+                    TextColor = isDark ? Colors.White : Colors.Black,
                 },
                 new Label
                 {
                     Text = option.Description,
                     FontSize = 13,
-                    TextColor = Color.FromArgb("#A0A0A0"),
+                    TextColor = isDark ? Color.FromArgb("#9CA3AF") : Color.FromArgb("#A0A0A0"),
                 },
                 new HorizontalStackLayout
                 {
@@ -243,7 +244,7 @@ public partial class TicketPurchasePage : ContentPage
                                     {
                                         new Image
                                         {
-                                            Source = ImageSource.FromFile("stopwatch.png"),
+                                            Source = ImageSource.FromFile("stopwatch.svg"),
                                             WidthRequest = 18,
                                             HeightRequest = 18,
                                             Aspect = Aspect.AspectFit,
@@ -271,7 +272,7 @@ public partial class TicketPurchasePage : ContentPage
                                     Text = $"€{option.Price:F2}",
                                     FontSize = 14,
                                     FontAttributes = FontAttributes.Bold,
-                                    TextColor = Colors.Black,
+                                    TextColor = isDark ? Colors.White : Colors.Black,
                                     VerticalOptions = LayoutOptions.Center
                                 }
                             }
