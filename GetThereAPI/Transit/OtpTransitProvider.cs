@@ -112,7 +112,7 @@ public class OtpTransitProvider : ITransitProvider
             routes.Add(new RouteDto
             {
                 RouteId = routeId,
-                ShortName = string.IsNullOrWhiteSpace(shortName) ? "Route" : shortName,
+                ShortName = ResolveDisplayName(shortName, longName, routeId),
                 LongName = longName,
                 Color = NormalizeColor(GetString(item, "color")),
                 RouteType = MapModeToRouteType(mode),
@@ -128,6 +128,7 @@ public class OtpTransitProvider : ITransitProvider
         string stopId,
         CancellationToken ct = default)
     {
+        // Also fetch longName so we have a clean fallback when shortName is empty
         const string query = """
             query StopSchedule($id: String!, $count: Int!, $range: Int!) {
               stop(id: $id) {
@@ -144,6 +145,7 @@ public class OtpTransitProvider : ITransitProvider
                     route {
                       gtfsId
                       shortName
+                      longName
                     }
                   }
                 }
@@ -205,8 +207,10 @@ public class OtpTransitProvider : ITransitProvider
                 routeId = UnknownRouteIdFallback;
 
             var shortName = GetString(routeNode, "shortName");
-            if (string.IsNullOrWhiteSpace(shortName))
-                shortName = routeId;
+            var longName = GetString(routeNode, "longName");
+
+            // Use the best available human-readable name — never expose a raw GTFS ID
+            var displayName = ResolveDisplayName(shortName, longName, routeId);
 
             var headsign = GetString(tripNode, "tripHeadsign");
 
@@ -216,7 +220,7 @@ public class OtpTransitProvider : ITransitProvider
                 group = new DepartureGroupDto
                 {
                     RouteId = routeId,
-                    ShortName = shortName,
+                    ShortName = displayName,
                     Headsign = headsign,
                     Departures = []
                 };
@@ -273,6 +277,39 @@ public class OtpTransitProvider : ITransitProvider
         var doc = await _otpClient.QueryAsync(instanceKey, query, ct: ct);
         return doc is not null;
     }
+
+    // ── Display name resolution ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the best human-readable name for a route, in priority order:
+    ///   1. shortName  (e.g. "6", "X2", "IC 521")
+    ///   2. longName   (e.g. "Zagreb GK - Split")
+    ///   3. The local part of the GTFS ID after the colon (e.g. "hzpp:521" → "521")
+    ///      — only used when both names are empty, so raw GTFS IDs are never shown.
+    /// </summary>
+    private static string ResolveDisplayName(string shortName, string longName, string routeId)
+    {
+        if (!string.IsNullOrWhiteSpace(shortName))
+            return shortName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(longName))
+            return longName.Trim();
+
+        // Strip the feed-prefix from the GTFS ID (e.g. "hzpp:521" → "521",
+        // "zet:2A-202" → "2A-202") so at least something legible is shown.
+        if (!string.IsNullOrWhiteSpace(routeId))
+        {
+            var colonIdx = routeId.IndexOf(':', StringComparison.Ordinal);
+            if (colonIdx >= 0 && colonIdx < routeId.Length - 1)
+                return routeId[(colonIdx + 1)..];
+
+            return routeId;
+        }
+
+        return "?";
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
 
     private static bool TryGetDataNode(JsonDocument doc, string property, out JsonElement node)
     {

@@ -564,7 +564,7 @@ namespace GetThereAPI.Migrations
                             CountryId = 1,
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                            GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/hzpp-rt",
+                            GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/rt/hzpp",
                             Name = "HZPP",
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
@@ -572,10 +572,16 @@ namespace GetThereAPI.Migrations
                         new
                         {
                             Id = 3,
-                            CountryId = 3,
+                            CityId = 3,
+                            CountryId = 2,
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+<<<<<<< HEAD
                             GtfsFeedUrl = "https://static.web.oebb.at/open-data/soll-fahrplan-gtfs/GTFS_Fahrplan_2026.zip",
                             Name = "OBB (Austrian Federal Railways)",
+=======
+                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                            Name = "LPP",
+>>>>>>> main
                             TicketApiBaseUrl = "",
                             TicketApiKey = ""
                         });

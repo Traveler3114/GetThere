@@ -98,11 +98,24 @@ namespace GetThereAPI.Data
                      TicketApiBaseUrl = "",
                      TicketApiKey = "",
                      GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                     GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/hzpp-rt",
+                     GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/rt/hzpp",
                      CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
                      CountryId = 1,
                      CityId = null
-                 }
+                 },
+                new TransitOperator
+                {
+                    Id = 3,
+                    Name = "LPP",
+                    LogoUrl = null,
+                    TicketApiBaseUrl = "",
+                    TicketApiKey = "",
+                    GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
+                    GtfsRealtimeFeedUrl = null,
+                    CreatedAt = new DateTime(2024, 01, 01, 0, 0, 0, DateTimeKind.Utc),
+                    CountryId = 2,
+                    CityId = 3
+                }
             );
 
             modelBuilder.Entity<TransportType>().HasData(

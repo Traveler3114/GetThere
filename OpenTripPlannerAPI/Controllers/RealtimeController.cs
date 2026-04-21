@@ -17,7 +17,6 @@ public sealed class RealtimeController : ControllerBase
 
     [HttpGet("/rt/{feedId}")]
     [HttpGet("/{feedId}-rt")]
-    [HttpGet("/hzpp-rt")]
     public IActionResult GetFeed(string? feedId = null)
     {
         var resolvedFeedId = string.IsNullOrWhiteSpace(feedId) ? "hzpp" : feedId;

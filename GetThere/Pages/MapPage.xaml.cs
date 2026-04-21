@@ -14,6 +14,7 @@ public partial class MapPage : ContentPage
     private System.Timers.Timer? _jsMessageTimer;
 
     private readonly TaskCompletionSource _navigatedTcs = new();
+    private bool _isWebViewReady = false;
 
     public MapPage(OperatorService operatorService, CountryPreferenceService countryPrefs)
     {
@@ -30,7 +31,10 @@ public partial class MapPage : ContentPage
     private void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
     {
         if (e.Result == WebNavigationResult.Success)
+        {
             _navigatedTcs.TrySetResult();
+            _isWebViewReady = true;
+        }
     }
 
     // ── Load HTML ─────────────────────────────────────────────────────────
@@ -199,6 +203,7 @@ public partial class MapPage : ContentPage
         base.OnAppearing();
         await _navigatedTcs.Task;
         await WaitForMapReadyAsync();
+        _isWebViewReady = true;
         await LoadStaticDataAsync();
         await GetLocationAsync();
         StartJsMessagePolling();
@@ -218,9 +223,18 @@ public partial class MapPage : ContentPage
         {
             try
             {
-                var result = await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await MapWebView.EvaluateJavaScriptAsync(
-                        "window._mapReady === true ? '1' : (window._jsError || '0')"));
+                string? result = null;
+                try
+                {
+                    result = await MainThread.InvokeOnMainThreadAsync(async () =>
+                        await MapWebView.EvaluateJavaScriptAsync(
+                            "window._mapReady === true ? '1' : (window._jsError || '0')"));
+                }
+                catch (InvalidOperationException)
+                {
+                    await Task.Delay(300);
+                    continue;
+                }
 
                 var clean = result?.Trim('"', '\'', ' ') ?? "0";
                 if (clean == "1") break;
@@ -299,8 +313,15 @@ public partial class MapPage : ContentPage
             var lon = location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var lat = location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-                await MapWebView.EvaluateJavaScriptAsync($"updateMapLocation({lon},{lat})"));
+            try
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await MapWebView.EvaluateJavaScriptAsync($"updateMapLocation({lon},{lat})"));
+            }
+            catch (InvalidOperationException)
+            {
+                Trace.WriteLine("[MapPage] Location JS update skipped: WebView not ready.");
+            }
         }
         catch (Exception ex)
         {
@@ -327,6 +348,8 @@ public partial class MapPage : ContentPage
 
     private async Task PollJsMessagesAsync()
     {
+        if (!_isWebViewReady) return;
+
         try
         {
             string? raw = null;
@@ -343,6 +366,10 @@ public partial class MapPage : ContentPage
 
             if (msg.StartsWith("stopSchedule:", StringComparison.Ordinal))
                 await HandleStopTappedAsync(msg["stopSchedule:".Length..]);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Trace.WriteLine($"[MapPage] PollJsMessages skipped: {ex.Message}");
         }
         catch (Exception ex)
         {
@@ -371,8 +398,15 @@ public partial class MapPage : ContentPage
             var json = JsonSerializer.Serialize(data,
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-            await MapWebView.EvaluateJavaScriptAsync(
-                $"{function}(JSON.parse(atob('{b64}')))");
+            try
+            {
+                await MapWebView.EvaluateJavaScriptAsync(
+                    $"{function}(JSON.parse(atob('{b64}')))");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Trace.WriteLine($"[MapPage] CallJs({function}) skipped: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
@@ -380,6 +414,3 @@ public partial class MapPage : ContentPage
         }
     }
 }
-
-
-
