@@ -115,7 +115,9 @@ namespace GetThereAPI.Controllers
 
             var newRawRefreshToken = _tokenManager.GenerateRefreshToken();
             var newHashedRefreshToken = _tokenManager.HashToken(newRawRefreshToken);
-            var wasRememberMeToken = (existingRefreshToken.ExpiresAt - existingRefreshToken.CreatedAt) > TimeSpan.FromDays(1);
+            var wasRememberMeToken = _tokenManager.IsRememberMeRefreshToken(
+                existingRefreshToken.CreatedAt,
+                existingRefreshToken.ExpiresAt);
 
             var newRefreshTokenEntity = new RefreshToken
             {

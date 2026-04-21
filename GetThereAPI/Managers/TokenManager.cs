@@ -78,4 +78,10 @@ public class TokenManager
 
         return DateTime.UtcNow.AddDays(days);
     }
+
+    public bool IsRememberMeRefreshToken(DateTime createdAt, DateTime expiresAt)
+    {
+        var standardDays = int.Parse(_config["Jwt:RefreshTokenDays"]!);
+        return (expiresAt - createdAt) > TimeSpan.FromDays(standardDays);
+    }
 }
