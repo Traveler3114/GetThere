@@ -125,7 +125,7 @@ namespace GetThereAPI.Controllers
                 DeviceInfo = Request.Headers["User-Agent"].ToString()
             };
 
-            existingRefreshToken.ReplacedByToken = newRawRefreshToken;
+            existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
 
             _dbContext.RefreshTokens.Add(newRefreshTokenEntity);
             await _dbContext.SaveChangesAsync();

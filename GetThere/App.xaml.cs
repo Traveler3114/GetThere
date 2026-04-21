@@ -21,8 +21,8 @@ namespace GetThere
             var authService = _serviceProvider.GetService<AuthService>();
             if (authService?.GetRememberMe() == true)
             {
-                var accessToken = SecureStorage.GetAsync("jwt_token").GetAwaiter().GetResult();
-                var refreshToken = SecureStorage.GetAsync("refresh_token").GetAwaiter().GetResult();
+                var accessToken = Task.Run(() => SecureStorage.GetAsync(AuthService.TokenKey)).GetAwaiter().GetResult();
+                var refreshToken = Task.Run(() => SecureStorage.GetAsync(AuthService.RefreshTokenKey)).GetAwaiter().GetResult();
 
                 if (!string.IsNullOrWhiteSpace(accessToken) || !string.IsNullOrWhiteSpace(refreshToken))
                     return new Window(new AppShell());

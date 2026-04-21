@@ -110,7 +110,7 @@ public partial class LoginPage : ContentPage
 
     private async void GuestButton_Clicked(object? sender, EventArgs e)
     {
-        _authService.Logout();
+        await _authService.Logout();
         App.GoToApp();
     }
 }

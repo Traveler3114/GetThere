@@ -90,7 +90,7 @@ public partial class SettingsPage : ContentPage
         var confirmed = await DisplayAlertAsync("Log out", "Do you want to log out?", "Log out", "Cancel");
         if (!confirmed) return;
 
-        _authService.Logout();
+        await _authService.Logout();
         App.GoToLogin();
     }
 }

@@ -39,7 +39,7 @@ public class AuthenticatedHttpHandler : DelegatingHandler
         var refreshed = await _authService.TryRefreshTokenAsync();
         if (!refreshed)
         {
-            _authService.Logout();
+            await _authService.Logout();
             MainThread.BeginInvokeOnMainThread(App.GoToLogin);
             return response;
         }

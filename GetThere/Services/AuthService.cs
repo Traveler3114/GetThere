@@ -10,9 +10,9 @@ namespace GetThere.Services;
 public class AuthService
 {
     private readonly HttpClient _httpClient;
-    private const string TokenKey = "jwt_token";
-    private const string RefreshTokenKey = "refresh_token";
-    private const string RememberMeKey = "remember_me";
+    public const string TokenKey = "jwt_token";
+    public const string RefreshTokenKey = "refresh_token";
+    public const string RememberMeKey = "remember_me";
 
     public AuthService(HttpClient httpClient)
     {
@@ -139,18 +139,10 @@ public class AuthService
         return claims?.GetValueOrDefault("email").GetString();
     }
 
-    public void Logout()
+    public async Task Logout()
     {
-        string? refreshToken = null;
-        string? accessToken = null;
-        try
-        {
-            refreshToken = SecureStorage.GetAsync(RefreshTokenKey).GetAwaiter().GetResult();
-            accessToken = SecureStorage.GetAsync(TokenKey).GetAwaiter().GetResult();
-        }
-        catch
-        {
-        }
+        var refreshToken = await SecureStorage.GetAsync(RefreshTokenKey);
+        var accessToken = await SecureStorage.GetAsync(TokenKey);
 
         if (!string.IsNullOrWhiteSpace(refreshToken) && !string.IsNullOrWhiteSpace(accessToken))
         {
