@@ -64,7 +64,7 @@ public partial class ShopPage : ContentPage
         CountryBadge.Scale = 1.0 - (factor * 0.1);
         CountryBadge.TranslationY = -(factor * 5);
         
-        // --- 2. Premium Manual Scrollbar Logic ---
+        // --- 2. Custom scrollbar logic ---
         double contentHeight = scrollView.ContentSize.Height;
         double viewHeight = scrollView.Height;
         
@@ -135,7 +135,7 @@ public partial class ShopPage : ContentPage
 
     private async void StartLoadingAnimations()
     {
-        PremiumLoadingState.IsVisible = true;
+        LoadingState.IsVisible = true;
         _loadingCts = new CancellationTokenSource();
         var token = _loadingCts.Token;
 
@@ -156,11 +156,12 @@ public partial class ShopPage : ContentPage
     private void StopLoadingAnimations()
     {
         _loadingCts?.Cancel();
-        PremiumLoadingState.IsVisible = false;
+        LoadingState.IsVisible = false;
     }
 
     private Border BuildOperatorCard(TicketableOperatorDto op)
     {
+        var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
         var nameInitial = op.Name.Length > 0 ? op.Name[0].ToString() : "?";
 
         // Brand colour badge
@@ -216,7 +217,7 @@ public partial class ShopPage : ContentPage
             Text = op.Name,
             FontSize = 15,
             FontAttributes = FontAttributes.Bold,
-            TextColor = Colors.Black,
+            TextColor = isDark ? Colors.White : Colors.Black,
         };
         Grid.SetColumn(nameLabel, 1);
         Grid.SetRow(nameLabel, 0);
@@ -226,7 +227,7 @@ public partial class ShopPage : ContentPage
         {
             Text = op.Description,
             FontSize = 12,
-            TextColor = Colors.Gray,
+            TextColor = isDark ? Color.FromArgb("#9CA3AF") : Colors.Gray,
             LineBreakMode = LineBreakMode.TailTruncation,
             MaxLines = 1,
         };
@@ -242,7 +243,7 @@ public partial class ShopPage : ContentPage
         {
             Margin = new Thickness(0, 4),
             Padding = new Thickness(12, 10),
-            BackgroundColor = Colors.White,
+            BackgroundColor = isDark ? Color.FromArgb("#111827") : Colors.White,
             StrokeThickness = 0,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(14) },
             Shadow = new Shadow { Brush = Brush.Black, Opacity = 0.1f, Radius = 6, Offset = new Point(0, 3) },

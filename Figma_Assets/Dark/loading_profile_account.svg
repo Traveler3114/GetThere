@@ -1,0 +1,51 @@
+<svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="414" y2="896" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="414" height="896" fill="url(#bg)"/>
+  <circle cx="54" cy="46" r="30" fill="#1F2937"/>
+  <rect x="100" y="28" width="84" height="16" rx="8" fill="#334155"/>
+  <rect x="100" y="52" width="58" height="10" rx="5" fill="#334155"/>
+  <rect x="24" y="82" width="366" height="50" rx="25" fill="#1F2937"/>
+  <rect x="211" y="86" width="175" height="42" rx="21" fill="#111827" stroke="#374151"/>
+  <rect x="85" y="100" width="60" height="12" rx="6" fill="#475569"/>
+  <rect x="267" y="100" width="64" height="12" rx="6" fill="#475569"/>
+  <rect x="20" y="160" width="150" height="16" rx="8" fill="#334155"/>
+  <rect x="20" y="180" width="374" height="106" rx="14" fill="#111827"/>
+  <rect x="36" y="210" width="74" height="10" rx="5" fill="#334155"/>
+  <rect x="36" y="228" width="98" height="14" rx="7" fill="#475569"/>
+  <rect x="36" y="258" width="96" height="10" rx="5" fill="#334155"/>
+  <rect x="36" y="276" width="138" height="14" rx="7" fill="#475569"/>
+  <rect x="20" y="310" width="174" height="16" rx="8" fill="#334155"/>
+  <rect x="20" y="330" width="374" height="184" rx="14" fill="#111827"/>
+  <circle cx="44" cy="361" r="10" fill="#475569"/>
+  <rect x="68" y="355" width="122" height="12" rx="6" fill="#475569"/>
+  <circle cx="370" cy="361" r="14" fill="#334155"/>
+  <rect x="40" y="378" width="334" height="1" fill="#374151"/>
+  <circle cx="44" cy="409" r="10" fill="#475569"/>
+  <rect x="68" y="403" width="146" height="12" rx="6" fill="#475569"/>
+  <circle cx="370" cy="409" r="14" fill="#334155"/>
+  <rect x="40" y="426" width="334" height="1" fill="#374151"/>
+  <circle cx="44" cy="457" r="10" fill="#475569"/>
+  <rect x="68" y="451" width="148" height="12" rx="6" fill="#475569"/>
+  <circle cx="370" cy="457" r="14" fill="#334155"/>
+  <rect x="40" y="474" width="334" height="1" fill="#374151"/>
+  <circle cx="44" cy="505" r="10" fill="#475569"/>
+  <rect x="68" y="499" width="142" height="12" rx="6" fill="#475569"/>
+  <circle cx="370" cy="505" r="14" fill="#334155"/>
+  <rect x="20" y="538" width="150" height="16" rx="8" fill="#334155"/>
+  <rect x="20" y="558" width="374" height="146" rx="20" fill="#111827"/>
+  <circle cx="44" cy="591" r="10" fill="#475569"/>
+  <rect x="68" y="585" width="128" height="12" rx="6" fill="#475569"/>
+  <circle cx="370" cy="591" r="14" fill="#334155"/>
+  <rect x="40" y="608" width="334" height="1" fill="#374151"/>
+  <circle cx="44" cy="639" r="10" fill="#475569" fill-opacity="0.85"/>
+  <rect x="68" y="633" width="134" height="12" rx="6" fill="#475569"/>
+  <circle cx="370" cy="639" r="14" fill="#334155"/>
+  <rect x="40" y="656" width="334" height="1" fill="#374151"/>
+  <circle cx="44" cy="687" r="10" fill="#7F1D1D"/>
+  <rect x="68" y="681" width="86" height="12" rx="6" fill="#7F1D1D"/>
+</svg>

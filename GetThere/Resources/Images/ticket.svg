@@ -1,9 +1,17 @@
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<!-- Uploaded to: SVG Repo, www.svgrepo.com, Transformed by: SVG Repo Mixer Tools -->
-<svg fill="#000000" width="150px" height="150px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<g id="SVGRepo_bgCarrier" stroke-width="0"/>
-<g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
-<g id="SVGRepo_iconCarrier">
-<path d="M6,23H18a3,3,0,0,0,3-3V4a3,3,0,0,0-3-3H15a1,1,0,0,0-1,1,2,2,0,0,1-4,0A1,1,0,0,0,9,1H6A3,3,0,0,0,3,4V20A3,3,0,0,0,6,23ZM5,10h.882a1,1,0,0,0,0-2H5V4A1,1,0,0,1,6,3H8.126a4,4,0,0,0,7.748,0H18a1,1,0,0,1,1,1V8h-.882a1,1,0,0,0,0,2H19V20a1,1,0,0,1-1,1H6a1,1,0,0,1-1-1ZM7.706,9a1,1,0,0,1,1-1h1.882a1,1,0,1,1,0,2H8.706A1,1,0,0,1,7.706,9Zm4.706,0a1,1,0,0,1,1-1h1.882a1,1,0,0,1,0,2H13.412A1,1,0,0,1,12.412,9Z"/>
-</g>
-</svg>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 27.3.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="_x32_" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">
+<g>
+	<path d="M413.6,451.6V60.4c0-33.3-27.1-60.4-60.4-60.4l-56,0l-17.9,0l-2.5,17.7c-1.5,10.3-10.4,18-20.7,18
+		c-10.3,0-19.3-7.7-20.7-18L232.7,0l-17.9,0l-56,0c-33.3,0-60.4,27.1-60.4,60.4v391.2c0,33.3,27.1,60.4,60.4,60.4h55.6h19.7
+		l0.9-19.7c0.5-11.2,9.7-20,20.9-20c11.2,0,20.4,8.8,20.9,20l0.9,19.7h19.7h55.6C386.5,512,413.6,484.9,413.6,451.6z M297.6,491.3
+		c-1-22.1-19.2-39.7-41.6-39.7c-22.3,0-40.5,17.6-41.6,39.7h-55.6c-21.9,0-39.7-17.8-39.7-39.8V60.4c0-22,17.8-39.8,39.7-39.8h56
+		c2.9,20.2,20.2,35.7,41.2,35.7c21,0,38.3-15.5,41.2-35.7h56c22,0,39.8,17.8,39.8,39.8l0,391.2c0,22-17.8,39.8-39.8,39.8
+		L297.6,491.3L297.6,491.3z"/>
+	<rect x="144.2" y="118.7" width="35.7" height="13.7"/>
+	<rect x="206.8" y="118.7" width="35.7" height="13.7"/>
+	<rect x="269.5" y="118.7" width="35.7" height="13.7"/>
+	<rect x="332.2" y="118.7" width="35.7" height="13.7"/>
+</g>
+</svg>

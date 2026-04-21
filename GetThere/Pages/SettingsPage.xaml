@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
     Title="Settings"
-    BackgroundColor="#F8F9FA"
+    BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
     <Grid RowDefinitions="Auto,*">
@@ -19,7 +19,7 @@
             FontSize="32"
             HorizontalTextAlignment="Center"
             Text="Settings"
-            TextColor="Black" />
+            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
 
         <ScrollView Grid.Row="1" Padding="16,16,16,100">
             <VerticalStackLayout x:Name="SettingsContent" Spacing="16" HorizontalOptions="Center">
@@ -27,7 +27,7 @@
                 <!--  Country card  -->
                 <Border
                     Padding="20"
-                    BackgroundColor="White"
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
                     StrokeThickness="0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="20" />
@@ -41,34 +41,34 @@
                             FontAttributes="Bold"
                             FontSize="18"
                             Text="Country"
-                            TextColor="Black" />
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
 
                         <Label
                             FontSize="14"
                             Text="Select your country to see relevant operators and services."
-                            TextColor="Gray" />
+                            TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
 
                         <ActivityIndicator
                             x:Name="CountryLoader"
                             HeightRequest="30"
                             IsRunning="False"
                             IsVisible="False"
-                            Color="#1264AB" />
+                            Color="{AppThemeBinding Light=#1264AB, Dark=#60A5FA}" />
 
                         <Picker
                             x:Name="CountryPicker"
                             Title="Select a country…"
-                            TitleColor="Black"
+                            TitleColor="{AppThemeBinding Light=Black, Dark=White}"
                             FontSize="16"
                             SelectedIndexChanged="OnCountrySelected"
-                            TextColor="Black"
-                            BackgroundColor="#FFFFFF" />
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1F2937}" />
 
                         <Label
                             x:Name="CurrentCountryLabel"
                             FontSize="13"
                             IsVisible="False"
-                            TextColor="#1264AB" />
+                            TextColor="{AppThemeBinding Light=#1264AB, Dark=#60A5FA}" />
 
                     </VerticalStackLayout>
                 </Border>
@@ -76,7 +76,7 @@
                 <!--  About card  -->
                 <Border
                     Padding="20"
-                    BackgroundColor="White"
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
                     StrokeThickness="0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="20" />
@@ -89,20 +89,20 @@
                             FontAttributes="Bold"
                             FontSize="18"
                             Text="About"
-                            TextColor="Black" />
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                         <Label
                             FontSize="14"
                             Text="GetThere — public transport &amp; mobility app."
-                            TextColor="Gray" />
+                            TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                         <Label
                             FontSize="12"
                             Text="Mock ticket purchases are for demonstration only and are not valid for travel."
-                            TextColor="Gray" />
+                            TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Button
-                    x:Name="LogoutButton"
+                    <Button
+                     x:Name="LogoutButton"
                     Text="Log out"
                     Clicked="OnLogoutClicked"
                     HorizontalOptions="Center"
@@ -110,8 +110,8 @@
                     Padding="20,10"
                     FontAttributes="Bold"
                     FontSize="14"
-                    TextColor="White"
-                    BackgroundColor="#0EA5A4"
+                     TextColor="White"
+                     BackgroundColor="{AppThemeBinding Light=#0EA5A4, Dark=#0F766E}"
                     CornerRadius="18"
                     WidthRequest="110">
                     <Button.Shadow>
