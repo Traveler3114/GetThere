@@ -21,7 +21,7 @@
             </Border.Background>
 
             <Grid RowDefinitions="Auto, *">
-                <ImageButton Source="arrow_back_white.png" HeightRequest="24" WidthRequest="24" HorizontalOptions="Start" Margin="25,35,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />
+                <ImageButton Source="arrow_left_white.png" HeightRequest="24" WidthRequest="24" HorizontalOptions="Start" Margin="25,35,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />
                 <VerticalStackLayout Grid.Row="1" Spacing="2" VerticalOptions="Start" Margin="0,15,0,0">
                     <Label Text="Join GetThere" FontSize="26" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" />
                     <Label Text="Start your journey now" FontSize="12" TextColor="White" Opacity="0.8" HorizontalOptions="Center" />

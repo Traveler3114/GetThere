@@ -15,25 +15,25 @@
     <TabBar>
         <ShellContent 
             Title="Profile" 
-            Icon="profile.svg" 
+            Icon="{AppThemeBinding Light=profile.png, Dark=profile_white.png}" 
             ContentTemplate="{DataTemplate pages:ProfilePage}" 
             Route="profile" />
         
         <ShellContent 
             Title="Map" 
-            Icon="map.svg" 
+            Icon="{AppThemeBinding Light=map.png, Dark=map_white.png}" 
             ContentTemplate="{DataTemplate pages:MapPage}" 
             Route="map" />
         
         <ShellContent 
             Title="Shop" 
-            Icon="shop_bag.svg" 
+            Icon="{AppThemeBinding Light=shop_bag.png, Dark=shop_bag_white.png}" 
             ContentTemplate="{DataTemplate pages:ShopPage}" 
             Route="shop" />
         
         <ShellContent 
             Title="Tickets" 
-            Icon="ticket.svg" 
+            Icon="{AppThemeBinding Light=ticket.png, Dark=ticket_white.png}" 
             ContentTemplate="{DataTemplate pages:TicketsPage}" 
             Route="tickets" />
     </TabBar>

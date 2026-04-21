@@ -13,7 +13,7 @@
         <!-- Header with Close button (Vision Fix) -->
         <Grid Grid.Row="0" Padding="24,48,24,10" ColumnDefinitions="Auto, *, Auto">
             <ImageButton Grid.Column="0" 
-                         Source="{OnAppTheme Light=close.svg, Dark=close_white.svg}" 
+                         Source="{AppThemeBinding Light=close.png, Dark=close_white.png}" 
                          WidthRequest="32" 
                          HeightRequest="32" 
                          BackgroundColor="Transparent" 

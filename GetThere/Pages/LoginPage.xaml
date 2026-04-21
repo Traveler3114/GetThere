@@ -23,7 +23,7 @@
                 <Shadow Brush="Black" Opacity="0.3" Offset="0,5" Radius="10" />
             </Border.Shadow>
 
-            <VerticalStackLayout Spacing="15" VerticalOptions="Start" Margin="0,60,0,0">
+            <VerticalStackLayout Spacing="15" VerticalOptions="Start" Margin="0,30,0,0">
                 <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
                     <Border WidthRequest="18" HeightRequest="18" BackgroundColor="#10B981" StrokeThickness="0">
                         <Border.StrokeShape><RoundRectangle CornerRadius="9"/></Border.StrokeShape>
@@ -31,16 +31,17 @@
                     <Label Text="GetThere" FontSize="22" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
                 </HorizontalStackLayout>
                 
-                <Border WidthRequest="100" HeightRequest="100" BackgroundColor="#2C167A" HorizontalOptions="Center" StrokeThickness="0" Opacity="0.6">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="50" /></Border.StrokeShape>
+                <Border WidthRequest="160" HeightRequest="160" BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark=#2C167A}" HorizontalOptions="Center" StrokeThickness="0" Opacity="1">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="80" /></Border.StrokeShape>
                     <Border.Shadow>
                         <Shadow Brush="Black" Opacity="0.2" Offset="3,3" Radius="10" />
                     </Border.Shadow>
+                    <Image Source="{AppThemeBinding Light=logo.png, Dark=logo_white.png}" Margin="10" Aspect="AspectFit" Opacity="1" />
                 </Border>
             </VerticalStackLayout>
         </Border>
 
-        <Grid Margin="0,240,0,0" HorizontalOptions="Center" VerticalOptions="Fill">
+        <Grid Margin="0,260,0,0" HorizontalOptions="Center" VerticalOptions="Fill">
         <ScrollView VerticalOptions="Fill">
             <Border x:Name="LoginCard" Margin="1" Padding="30,15,30,30" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" VerticalOptions="Start">
                 <Border.Shadow>

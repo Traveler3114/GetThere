@@ -1,0 +1,45 @@
+<svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="414" height="896" fill="#F3F4F6"/>
+
+  <circle cx="54" cy="46" r="30" fill="#E5E7EB"/>
+  <rect x="100" y="28" width="110" height="18" rx="9" fill="#E5E7EB"/>
+  <rect x="100" y="52" width="74" height="12" rx="6" fill="#E5E7EB"/>
+
+  <rect x="24" y="82" width="366" height="50" rx="25" fill="#E2E8F0"/>
+  <rect x="28" y="86" width="175" height="42" rx="21" fill="#FFFFFF"/>
+
+  <rect x="27" y="147" width="360" height="188" rx="24" fill="#E5E7EB"/>
+  <rect x="125" y="193" width="108" height="12" rx="6" fill="#D8DEE8"/>
+  <rect x="101" y="228" width="156" height="34" rx="10" fill="#D8DEE8"/>
+  <rect x="121" y="272" width="116" height="12" rx="6" fill="#D8DEE8"/>
+  <rect x="331" y="220" width="42" height="42" rx="21" fill="#D8DEE8"/>
+
+  <rect x="161" y="317" width="92" height="48" rx="24" fill="#FFFFFF"/>
+  <rect x="188" y="334" width="38" height="10" rx="5" fill="#E5E7EB"/>
+
+  <rect x="146" y="388" width="122" height="12" rx="6" fill="#E5E7EB"/>
+  <path d="M0 426C0 406.118 16.118 390 36 390H378C397.882 390 414 406.118 414 426V896H0V426Z" fill="#FFFFFF"/>
+  <rect x="187" y="420" width="40" height="4" rx="2" fill="#E5E7EB"/>
+
+  <rect x="24" y="454" width="366" height="52" rx="12" fill="#F8FAFC"/>
+  <rect x="34" y="462" width="36" height="36" rx="18" fill="#E2E8F0"/>
+  <rect x="80" y="471" width="108" height="12" rx="6" fill="#E2E8F0"/>
+  <rect x="80" y="489" width="72" height="10" rx="5" fill="#E2E8F0"/>
+  <rect x="320" y="476" width="54" height="10" rx="5" fill="#E2E8F0"/>
+
+  <rect x="24" y="514" width="366" height="52" rx="12" fill="#F8FAFC"/>
+  <rect x="34" y="522" width="36" height="36" rx="18" fill="#E2E8F0"/>
+  <rect x="80" y="531" width="124" height="12" rx="6" fill="#E2E8F0"/>
+  <rect x="80" y="549" width="68" height="10" rx="5" fill="#E2E8F0"/>
+  <rect x="316" y="536" width="58" height="10" rx="5" fill="#E2E8F0"/>
+
+  <rect x="-120" y="120" width="220" height="720" transform="rotate(20 -120 120)" fill="url(#shimmer)" opacity="0.35"/>
+</svg>

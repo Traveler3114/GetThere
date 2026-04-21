@@ -24,7 +24,7 @@
                     VerticalOptions="Start"
                     BackgroundColor="Transparent"
                     Clicked="OnBackClicked"
-                    Source="{OnAppTheme Light=arrow_left.svg, Dark=arrow_left_white.svg}"
+                    Source="arrow_left_white.png"
                     HeightRequest="32"
                     Padding="0"
                     WidthRequest="32">

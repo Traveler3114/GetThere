@@ -50,7 +50,7 @@
                 <!-- Loading state -->
                 <Grid x:Name="LoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
                     <!-- Skeleton SVG -->
-                    <Image Source="loading_shop.svg" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
+                    <Image Source="loading_shop.png" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
                     
                     <!-- Shimmer Sweep -->
                     <Grid IsClippedToBounds="True" InputTransparent="True">
