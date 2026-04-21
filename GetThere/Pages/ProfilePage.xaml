@@ -111,7 +111,7 @@
                                 </Grid.ColumnDefinitions>
 
                                 <VerticalStackLayout Grid.Column="0" Grid.ColumnSpan="2" Spacing="12" HorizontalOptions="Center" VerticalOptions="Center" Padding="0,0,56,0">
-                                    <Label Text="CURRENT BALANCE" FontSize="11" FontAttributes="Bold" TextColor="White" Opacity="0.72" HorizontalOptions="Center" LetterSpacing="0.6" />
+                                    <Label Text="CURRENT BALANCE" FontSize="11" FontAttributes="Bold" TextColor="White" Opacity="0.72" HorizontalOptions="Center" CharacterSpacing="0.6" />
 
                                     <Label x:Name="BalanceLabelOnCard" FontAttributes="Bold" MinimumWidthRequest="148" MaxWidthRequest="250" HorizontalTextAlignment="Center" LineBreakMode="NoWrap" FontSize="34" Text="€0,00" TextColor="White" VerticalOptions="Center" />
 
