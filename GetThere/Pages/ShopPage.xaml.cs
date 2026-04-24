@@ -108,7 +108,8 @@ public partial class ShopPage : ContentPage
         try
         {
             int? countryId = _prefs.HasSelection ? _prefs.GetSelectedCountryId() : null;
-            var operators = await _shopService.GetTicketableOperatorsAsync(countryId) ?? [];
+            var result = await _shopService.GetTicketableOperatorsAsync(countryId);
+            var operators = result.Success && result.Data is not null ? result.Data : [];
 
             if (!operators.Any())
             {

@@ -301,12 +301,12 @@ public partial class ProfilePage : ContentPage
 
         try
         {
-            var countries = await _countryService.GetCountriesAsync();
-            if (countries == null) return;
+            var countriesResult = await _countryService.GetCountriesAsync();
+            if (!countriesResult.Success || countriesResult.Data is null) return;
 
             var currentId = _prefs.GetSelectedCountryId();
 
-            foreach (var country in countries)
+            foreach (var country in countriesResult.Data)
             {
                 var isSelected = country.Id == currentId;
                 

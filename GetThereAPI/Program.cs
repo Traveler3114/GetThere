@@ -1,6 +1,8 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereAPI.Infrastructure;
 using GetThereAPI.Managers;
+using GetThereAPI.Parsers.Mobility;
 using GetThereAPI.Transit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -15,11 +17,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// ── Database ──────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ── Identity ──────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
     options.Password.RequiredLength = 8;
@@ -34,32 +34,45 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 builder.Services.AddHttpClient();
 builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
 
-// ── Transit provider stack ──────────────────────────────────────────────────
 builder.Services.AddScoped<OtpClient>();
 builder.Services.AddScoped<ITransitProvider, OtpTransitProvider>();
 builder.Services.AddScoped<ITransitRouter, TransitRouter>();
 builder.Services.AddScoped<TransitOrchestrator>();
 
-// ── Singletons (in-memory cache — must NOT be scoped) ─────────────────────
-builder.Services.AddSingleton<MobilityManager>();
+builder.Services.AddSingleton<NextbikeParser>();
+builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.NEXTBIKE_API,
+    (sp, _) => sp.GetRequiredService<NextbikeParser>());
+// Preserve current behavior: non-Nextbike formats still fall back to NextbikeParser
+// until dedicated parser implementations are introduced.
+builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.GBFS,
+    (sp, _) => sp.GetRequiredService<NextbikeParser>());
+builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.BOLT_API,
+    (sp, _) => sp.GetRequiredService<NextbikeParser>());
+builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.REST,
+    (sp, _) => sp.GetRequiredService<NextbikeParser>());
+builder.Services.AddSingleton<MobilityParserFactory>();
 
-// Starts background polling loops when the server starts
+builder.Services.AddSingleton<MobilityManager>();
+builder.Services.AddSingleton<IBikeStationCache>(sp => sp.GetRequiredService<MobilityManager>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MobilityManager>());
 
-// ── All other managers (scoped — auto-registered by reflection) ───────────
+builder.Services.AddSingleton<IIconFileStore, WebRootIconFileStore>();
+builder.Services.AddScoped<MockTicketPurchaseService>();
+builder.Services.AddScoped<TicketableCatalogueService>();
+builder.Services.AddScoped<TransitDataService>();
+
 var managerTypes = Assembly.GetExecutingAssembly()
     .GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers"
                 && t.IsClass
                 && !t.IsAbstract
-                && t != typeof(MobilityManager));   // already registered as singleton
+                && t != typeof(MobilityManager));
 
 foreach (var managerType in managerTypes)
 {
     builder.Services.AddScoped(managerType);
 }
 
-// ── JWT Authentication ────────────────────────────────────────────────────
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -81,10 +94,6 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// ── CORS — allows the MAUI WebView to fetch map icons from this API ────────
-// WebView2 (Windows) and Android WebView have unpredictable or null Origins,
-// so we allow any origin specifically for the image assets endpoint.
-// All other endpoints are protected by JWT so this is safe.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("MapAssets", policy =>
@@ -93,9 +102,7 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader());
 });
 
-// ─────────────────────────────────────────────────────────────────────────
 var app = builder.Build();
-// ─────────────────────────────────────────────────────────────────────────
 
 using (var scope = app.Services.CreateScope())
 {
@@ -103,9 +110,6 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
-// ── Non-blocking background initialization ───────────────────────────────
-// We fire and forget these tasks so the server starts listening INSTANTLY.
-// Data will populate in the background over the first few seconds.
 _ = Task.Run(async () =>
 {
     using var scope = app.Services.CreateScope();
@@ -114,7 +118,6 @@ _ = Task.Run(async () =>
 
     try
     {
-        // Pre-fetch bike stations
         var mobilityManager = scope.ServiceProvider.GetRequiredService<MobilityManager>();
         await mobilityManager.InitialiseAsync();
 
@@ -126,7 +129,6 @@ _ = Task.Run(async () =>
     }
 });
 
-// ── Middleware pipeline ───────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -137,10 +139,8 @@ app.UseCors("MapAssets");
 app.UseStaticFiles();
 
 app.UseHttpsRedirection();
-app.UseAuthentication();   // "Who are you?"    — validates the JWT
-app.UseAuthorization();    // "Are you allowed?" — checks [Authorize] attributes
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-// https://localhost:7230/scalar/v1

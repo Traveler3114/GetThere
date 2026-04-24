@@ -16,6 +16,20 @@ public class PaymentManager
         _context = context;
     }
 
+
+    public async Task<List<PaymentProviderDto>> GetActiveProvidersAsync()
+    {
+        return await _context.PaymentProviders
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Id)
+            .Select(p => new PaymentProviderDto
+            {
+                Id = p.Id,
+                Name = p.Name
+            })
+            .ToListAsync();
+    }
+
     public async Task<OperationResult<WalletDto>> TopUpWalletAsync(string userId, TopUpDto request)
     {
         var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);

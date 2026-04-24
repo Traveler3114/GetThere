@@ -1,10 +1,8 @@
-using GetThereAPI.Data;
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
 
@@ -16,28 +14,17 @@ namespace GetThereAPI.Controllers;
 public class PaymentController : ControllerBase
 {
     private readonly PaymentManager _paymentManager;
-    private readonly AppDbContext _context;
 
-    public PaymentController(PaymentManager paymentManager, AppDbContext context)
+    public PaymentController(PaymentManager paymentManager)
     {
         _paymentManager = paymentManager;
-        _context = context;
     }
 
     // GET /payment/providers
     [HttpGet("providers")]
     public async Task<ActionResult<OperationResult<IEnumerable<PaymentProviderDto>>>> GetProviders()
     {
-        var providers = await _context.PaymentProviders
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.Id)
-            .Select(p => new PaymentProviderDto
-            {
-                Id = p.Id,
-                Name = p.Name   // just the name — icon is mapped client-side
-            })
-            .ToListAsync();
-
+        var providers = await _paymentManager.GetActiveProvidersAsync();
         return Ok(OperationResult<IEnumerable<PaymentProviderDto>>.Ok(providers));
     }
 

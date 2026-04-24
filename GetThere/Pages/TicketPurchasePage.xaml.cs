@@ -109,7 +109,8 @@ public partial class TicketPurchasePage : ContentPage
 
         try
         {
-            var options = await _shopService.GetTicketOptionsAsync(_operator!.Id) ?? [];
+            var optionsResult = await _shopService.GetTicketOptionsAsync(_operator!.Id);
+            var options = optionsResult.Success && optionsResult.Data is not null ? optionsResult.Data : [];
 
             if (!options.Any())
             {
@@ -307,7 +308,7 @@ public partial class TicketPurchasePage : ContentPage
         try
         {
             var result = await _shopService.PurchaseTicketAsync(_operator!.Id, option.OptionId, quantity);
-            if (result?.Success == true && result.Data is not null)
+            if (result.Success && result.Data is not null)
             {
                 _store.Add(result.Data);
                 var confirmPage = new MockTicketConfirmationPage(result.Data);
@@ -315,7 +316,7 @@ public partial class TicketPurchasePage : ContentPage
             }
             else
             {
-                await DisplayAlertAsync("Error", result?.Message ?? "Purchase failed.", "OK");
+                await DisplayAlertAsync("Error", result.Message, "OK");
             }
         }
         catch (Exception ex)

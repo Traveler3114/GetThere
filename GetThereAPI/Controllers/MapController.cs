@@ -1,10 +1,8 @@
 using System.Text.Json;
-using GetThereAPI.Data;
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Dtos;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Controllers;
 
@@ -22,53 +20,39 @@ namespace GetThereAPI.Controllers;
 [Route("[controller]")]
 public class MapController : ControllerBase
 {
-    private readonly OperatorManager  _operators;
-    private readonly MobilityManager  _mobility;
-    private readonly AppDbContext     _db;
+    private readonly OperatorManager _operators;
+    private readonly TransitDataService _transitData;
 
-    public MapController(OperatorManager operators, MobilityManager mobility, AppDbContext db)
+    public MapController(OperatorManager operators, TransitDataService transitData)
     {
         _operators = operators;
-        _mobility  = mobility;
-        _db        = db;
+        _transitData = transitData;
     }
 
-    // GET /map/features
     [HttpGet("features")]
     public async Task<ActionResult<OperationResult<List<MapFeatureDto>>>> GetFeatures(
         [FromQuery] int? countryId = null)
     {
         var features = new List<MapFeatureDto>();
-        string? countryName = null;
 
-        if (countryId.HasValue)
-        {
-            countryName = await _db.Countries
-                .Where(c => c.Id == countryId.Value)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync();
-        }
-
-        // ── Transit stops ────────────────────────────────────────────────────
-        foreach (var stop in await _operators.GetAllStopsAsync(countryId))
+        foreach (var stop in await _transitData.GetAllStopsAsync(countryId))
         {
             features.Add(new MapFeatureDto
             {
                 Type = "Stop",
-                Lat  = stop.Lat,
-                Lon  = stop.Lon,
+                Lat = stop.Lat,
+                Lon = stop.Lon,
                 Data = JsonSerializer.SerializeToElement(stop)
             });
         }
 
-        // ── Bike stations ────────────────────────────────────────────────────
-        foreach (var station in _mobility.GetAllStations(countryName))
+        foreach (var station in await _operators.GetBikeStationsAsync(countryId))
         {
             features.Add(new MapFeatureDto
             {
                 Type = "BikeStation",
-                Lat  = station.Lat,
-                Lon  = station.Lon,
+                Lat = station.Lat,
+                Lon = station.Lon,
                 Data = JsonSerializer.SerializeToElement(station)
             });
         }
@@ -76,24 +60,11 @@ public class MapController : ControllerBase
         return Ok(OperationResult<List<MapFeatureDto>>.Ok(features));
     }
 
-    // GET /map/bike-stations
-    // GET /map/bike-stations?countryId=1
     [HttpGet("bike-stations")]
     public async Task<ActionResult<OperationResult<List<BikeStationDto>>>> GetBikeStations(
         [FromQuery] int? countryId = null)
     {
-        string? countryName = null;
-        if (countryId.HasValue)
-        {
-            countryName = await _db.Countries
-                .Where(c => c.Id == countryId.Value)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync();
-
-            if (countryName is null)
-                return Ok(OperationResult<List<BikeStationDto>>.Ok([]));
-        }
-
-        return Ok(OperationResult<List<BikeStationDto>>.Ok(_mobility.GetAllStations(countryName)));
+        var stations = await _operators.GetBikeStationsAsync(countryId);
+        return Ok(OperationResult<List<BikeStationDto>>.Ok(stations));
     }
 }
