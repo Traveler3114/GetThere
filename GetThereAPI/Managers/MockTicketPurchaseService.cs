@@ -9,6 +9,7 @@ namespace GetThereAPI.Managers;
 
 public class MockTicketPurchaseService
 {
+    private const int DefaultValidityMinutes = 1440;
     private readonly AppDbContext _db;
 
     private static readonly Dictionary<int, (string OperatorName, List<MockTicketOptionDto> Options)> Catalogue = new()
@@ -110,7 +111,7 @@ public class MockTicketPurchaseService
         wallet.LastUpdated = DateTime.UtcNow;
 
         var validFrom = DateTime.UtcNow;
-        var mins = ValidMinutes.TryGetValue(body.OptionId, out var m) && m > 0 ? m : 1440;
+        var mins = ValidMinutes.TryGetValue(body.OptionId, out var m) && m > 0 ? m : DefaultValidityMinutes;
         var validUntil = validFrom.AddMinutes(mins * quantity);
         var ticketId = Guid.NewGuid().ToString();
 

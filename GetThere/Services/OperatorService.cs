@@ -21,7 +21,7 @@ public class OperatorService
         try
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<OperatorDto>>>("operator");
-            return result ?? OperationResult<List<OperatorDto>>.Fail("Could not load operators.");
+            return result ?? OperationResult<List<OperatorDto>>.Fail("No response received from API when loading operators.");
         }
         catch (Exception ex)
         {
@@ -37,7 +37,7 @@ public class OperatorService
                 ? $"operator/stops?countryId={countryId.Value}"
                 : "operator/stops";
             var result = await _http.GetFromJsonAsync<OperationResult<List<StopDto>>>(url);
-            return result ?? OperationResult<List<StopDto>>.Fail("Could not load stops.");
+            return result ?? OperationResult<List<StopDto>>.Fail("No response received from API when loading stops.");
         }
         catch (Exception ex)
         {
@@ -53,7 +53,7 @@ public class OperatorService
                 ? $"operator/routes?countryId={countryId.Value}"
                 : "operator/routes";
             var result = await _http.GetFromJsonAsync<OperationResult<List<RouteDto>>>(url);
-            return result ?? OperationResult<List<RouteDto>>.Fail("Could not load routes.");
+            return result ?? OperationResult<List<RouteDto>>.Fail("No response received from API when loading routes.");
         }
         catch (Exception ex)
         {
@@ -69,7 +69,7 @@ public class OperatorService
                 ? $"map/bike-stations?countryId={countryId.Value}"
                 : "map/bike-stations";
             var result = await _http.GetFromJsonAsync<OperationResult<List<BikeStationDto>>>(url);
-            return result ?? OperationResult<List<BikeStationDto>>.Fail("Could not load bike stations.");
+            return result ?? OperationResult<List<BikeStationDto>>.Fail("No response received from API when loading bike stations.");
         }
         catch (Exception ex)
         {
@@ -83,7 +83,7 @@ public class OperatorService
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<TransportTypeDto>>>(
                 "operator/transport-types");
-            return result ?? OperationResult<List<TransportTypeDto>>.Fail("Could not load transport types.");
+            return result ?? OperationResult<List<TransportTypeDto>>.Fail("No response received from API when loading transport types.");
         }
         catch (Exception ex)
         {
@@ -99,7 +99,7 @@ public class OperatorService
                 ? $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule?countryId={countryId.Value}"
                 : $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule";
             var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleDto>>(url);
-            return result ?? OperationResult<StopScheduleDto>.Fail("Could not load stop schedule.");
+            return result ?? OperationResult<StopScheduleDto>.Fail("No response received from API when loading stop schedule.");
         }
         catch (Exception ex)
         {

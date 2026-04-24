@@ -42,6 +42,8 @@ builder.Services.AddScoped<TransitOrchestrator>();
 builder.Services.AddSingleton<NextbikeParser>();
 builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.NEXTBIKE_API,
     (sp, _) => sp.GetRequiredService<NextbikeParser>());
+// Preserve current behavior: non-Nextbike formats still fall back to NextbikeParser
+// until dedicated parser implementations are introduced.
 builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.GBFS,
     (sp, _) => sp.GetRequiredService<NextbikeParser>());
 builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.BOLT_API,

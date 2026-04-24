@@ -15,7 +15,7 @@ public class CountryService
         try
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<CountryDto>>>("countries");
-            return result ?? OperationResult<List<CountryDto>>.Fail("Could not load countries.");
+            return result ?? OperationResult<List<CountryDto>>.Fail("No response received from API when loading countries.");
         }
         catch (Exception ex)
         {

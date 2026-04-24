@@ -18,7 +18,7 @@ public class ShopService
                 ? $"operator/ticketable?countryId={countryId.Value}"
                 : "operator/ticketable";
             var result = await _http.GetFromJsonAsync<OperationResult<List<TicketableOperatorDto>>>(url);
-            return result ?? OperationResult<List<TicketableOperatorDto>>.Fail("Could not load ticketable operators.");
+            return result ?? OperationResult<List<TicketableOperatorDto>>.Fail("No response received from API when loading ticketable operators.");
         }
         catch (Exception ex)
         {
@@ -32,7 +32,7 @@ public class ShopService
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<MockTicketOptionDto>>>(
                 $"mock-tickets/{operatorId}/options");
-            return result ?? OperationResult<List<MockTicketOptionDto>>.Fail("Could not load ticket options.");
+            return result ?? OperationResult<List<MockTicketOptionDto>>.Fail("No response received from API when loading ticket options.");
         }
         catch (Exception ex)
         {
@@ -51,7 +51,7 @@ public class ShopService
                 return OperationResult<MockTicketResultDto>.Fail("Please log in to purchase tickets.");
 
             var result = await response.Content.ReadFromJsonAsync<OperationResult<MockTicketResultDto>>();
-            return result ?? OperationResult<MockTicketResultDto>.Fail("Purchase failed.");
+            return result ?? OperationResult<MockTicketResultDto>.Fail("No response received from API for purchase request.");
         }
         catch (Exception ex)
         {

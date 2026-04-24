@@ -39,6 +39,7 @@ public class TicketableCatalogueService
         {
             Id = 3, Name = "Bajs", Type = "BIKE", Color = "#FF6B00",
             Description = "Nextbike city bike sharing service.",
+            // City/Country start empty and are filled dynamically from station coverage when country filtering is applied.
             City = "", Country = "", IsMock = true,
         },
         new TicketableOperatorDto
