@@ -152,7 +152,8 @@ public partial class MapPage : ContentPage
     {
         try
         {
-            var types = await _operatorService.GetTransportTypesAsync() ?? [];
+            var typesResult = await _operatorService.GetTransportTypesAsync();
+            var types = typesResult.Success && typesResult.Data is not null ? typesResult.Data : [];
 
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("<script>");
@@ -265,25 +266,25 @@ public partial class MapPage : ContentPage
             await Task.WhenAll(stopsTask, routesTask, stationsTask);
 
             var stops = await stopsTask;
-            if (stops is not null)
+            if (stops.Success && stops.Data is not null)
             {
                 await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderStops", stops));
+                    await CallJsAsync("renderStops", stops.Data));
             }
 
             var routes = await routesTask;
-            if (routes is not null)
+            if (routes.Success && routes.Data is not null)
             {
                 await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderRoutes", routes));
+                    await CallJsAsync("renderRoutes", routes.Data));
             }
 
             var stations = await stationsTask;
-            if (stations is not null)
+            if (stations.Success && stations.Data is not null)
             {
-                Trace.WriteLine($"[MapPage] Bike stations loaded: {stations.Count}");
+                Trace.WriteLine($"[MapPage] Bike stations loaded: {stations.Data.Count}");
                 await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderBikeStations", stations));
+                    await CallJsAsync("renderBikeStations", stations.Data));
             }
         }
         catch (Exception ex)
@@ -386,7 +387,9 @@ public partial class MapPage : ContentPage
 
         await MainThread.InvokeOnMainThreadAsync(async () =>
             await CallJsAsync("renderStopSchedule",
-                schedule ?? (object)new { stopId, groups = Array.Empty<object>() }));
+                schedule.Success && schedule.Data is not null
+                    ? schedule.Data
+                    : (object)new { stopId, groups = Array.Empty<object>() }));
     }
 
     // ── JS bridge ─────────────────────────────────────────────────────────

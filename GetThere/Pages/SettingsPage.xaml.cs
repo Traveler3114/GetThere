@@ -49,7 +49,8 @@ public partial class SettingsPage : ContentPage
         CountryLoader.IsVisible = CountryLoader.IsRunning = true;
         try
         {
-            _countries = await _countryService.GetCountriesAsync() ?? [];
+            var result = await _countryService.GetCountriesAsync();
+            _countries = result.Success && result.Data is not null ? result.Data : [];
             CountryPicker.ItemsSource = _countries.Select(c => c.Name).ToList();
 
             // Pre-select current preference if any

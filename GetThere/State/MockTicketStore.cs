@@ -5,7 +5,7 @@ namespace GetThere.State;
 /// <summary>
 /// In-memory store for mock tickets purchased during the current app session.
 /// This is a singleton so tickets are visible anywhere in the app without
-/// requiring network calls, and without needing the user to be logged in.
+/// requiring repeated API calls during the current session.
 /// </summary>
 public class MockTicketStore
 {

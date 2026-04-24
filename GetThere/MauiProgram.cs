@@ -15,13 +15,10 @@ namespace GetThere
         private static string GetApiBaseUrl()
         {
 #if ANDROID
-            // default Android emulator
             return "https://10.0.2.2:7230/";
 #elif IOS || MACCATALYST
-            // iOS simulator and Mac Catalyst can hit localhost directly
             return "https://localhost:7230/";
 #else
-            // Windows, desktop builds, etc.
             return "https://localhost:7230/";
 #endif
         }
@@ -41,11 +38,9 @@ namespace GetThere
 
             var baseUrl = GetApiBaseUrl();
 
-            // ── SSL CERTIFICATE BYPASS (Dev only) ──
             var handler = new HttpClientHandler();
             handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
 
-            // AuthService
             builder.Services.AddHttpClient("AuthService", client =>
             {
                 client.BaseAddress = new Uri(baseUrl);
@@ -57,38 +52,82 @@ namespace GetThere
                 return new AuthService(factory.CreateClient("AuthService"));
             });
 
-            // Authenticated Handler
             builder.Services.AddTransient<AuthenticatedHttpHandler>();
+
+            builder.Services.AddHttpClient("CountryService", client =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+            })
+            .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+            builder.Services.AddTransient<CountryService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                return new CountryService(factory.CreateClient("CountryService"));
+            });
+
+            builder.Services.AddHttpClient("OperatorService", client =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+            })
+            .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+            builder.Services.AddTransient<OperatorService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                return new OperatorService(factory.CreateClient("OperatorService"));
+            });
+
+            builder.Services.AddHttpClient("PaymentService", client =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+            })
+            .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+            builder.Services.AddTransient<PaymentService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                return new PaymentService(factory.CreateClient("PaymentService"));
+            });
+
+            builder.Services.AddHttpClient("ShopService", client =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+            })
+            .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+            builder.Services.AddTransient<ShopService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                return new ShopService(factory.CreateClient("ShopService"));
+            });
+
+            builder.Services.AddHttpClient("TicketService", client =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+            })
+            .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+            builder.Services.AddTransient<TicketService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                return new TicketService(factory.CreateClient("TicketService"));
+            });
+
+            builder.Services.AddHttpClient("WalletService", client =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+            })
+            .AddHttpMessageHandler<AuthenticatedHttpHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+            builder.Services.AddTransient<WalletService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                return new WalletService(factory.CreateClient("WalletService"));
+            });
 
             var assembly = Assembly.GetExecutingAssembly();
 
-            // All other services
-            var serviceTypes = assembly
-                .GetTypes()
-                .Where(t => t.Namespace == "GetThere.Services"
-                         && t.IsClass
-                         && !t.IsAbstract
-                         && t != typeof(AuthService)
-                         && t != typeof(AuthenticatedHttpHandler));
-
-            foreach (var serviceType in serviceTypes)
-            {
-                builder.Services.AddHttpClient(serviceType.Name, client =>
-                {
-                    client.BaseAddress = new Uri(baseUrl);
-                })
-                .AddHttpMessageHandler<AuthenticatedHttpHandler>()
-                .ConfigurePrimaryHttpMessageHandler(() => handler);
-
-                builder.Services.AddTransient(serviceType, sp =>
-                {
-                    var factory = sp.GetRequiredService<IHttpClientFactory>();
-                    var httpClient = factory.CreateClient(serviceType.Name);
-                    return Activator.CreateInstance(serviceType, httpClient)!;
-                });
-            }
-
-            // Pages
             var pageTypes = assembly
                 .GetTypes()
                 .Where(t => t.Namespace == "GetThere.Pages"
@@ -105,11 +144,9 @@ namespace GetThere
             builder.Logging.AddDebug();
 #endif
 
-            // Shells
             builder.Services.AddSingleton<AppShell>();
             builder.Services.AddSingleton<LoginShell>();
 
-            // State services (no HttpClient dependency)
             builder.Services.AddSingleton<CountryPreferenceService>();
             builder.Services.AddSingleton<MockTicketStore>();
 
