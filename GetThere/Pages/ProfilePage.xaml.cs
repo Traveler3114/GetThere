@@ -210,7 +210,7 @@ public partial class ProfilePage : ContentPage
         WalletTabView.Opacity = 1;
 
         // Animate indicator back to start
-        TabIndicator.TranslateTo(0, 0, 250, Easing.CubicInOut);
+        TabIndicator.TranslateToAsync(0, 0, 250, Easing.CubicInOut);
         
         WalletTabBtn.TextColor = Color.FromArgb("#512BD4");
         AccountTabBtn.TextColor = Color.FromArgb("#64748B");
@@ -227,7 +227,7 @@ public partial class ProfilePage : ContentPage
 
         // Calculate distance to move (half of the grid width)
         double targetX = TabGrid.Width / 2;
-        TabIndicator.TranslateTo(targetX, 0, 250, Easing.CubicInOut);
+        TabIndicator.TranslateToAsync(targetX, 0, 250, Easing.CubicInOut);
 
         WalletTabBtn.TextColor = Color.FromArgb("#64748B");
         AccountTabBtn.TextColor = Color.FromArgb("#512BD4");
@@ -337,7 +337,7 @@ public partial class ProfilePage : ContentPage
                     {
                         _prefs.SetSelectedCountry(country.Id, country.Name);
                         SubSettingsView.IsVisible = false;
-                        await DisplayAlert("Success", $"Region updated to {country.Name}", "OK");
+                        await DisplayAlertAsync("Success", $"Region updated to {country.Name}", "OK");
                     })
                 });
 
@@ -346,7 +346,7 @@ public partial class ProfilePage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", "Could not load regions: " + ex.Message, "OK");
+            await DisplayAlertAsync("Error", "Could not load regions: " + ex.Message, "OK");
         }
         finally
         {
@@ -395,11 +395,11 @@ public partial class ProfilePage : ContentPage
         {
             if (string.IsNullOrWhiteSpace(newPwd.Text) || newPwd.Text != confirmPwd.Text)
             {
-                await DisplayAlert("Error", "Passwords do not match.", "OK");
+                await DisplayAlertAsync("Error", "Passwords do not match.", "OK");
                 return;
             }
             // Mock success
-            await DisplayAlert("Success", "Password updated successfully.", "OK");
+            await DisplayAlertAsync("Success", "Password updated successfully.", "OK");
             SubSettingsView.IsVisible = false;
         };
 
@@ -415,25 +415,25 @@ public partial class ProfilePage : ContentPage
 
     private async void OnAvatarClicked(object sender, EventArgs e)
     {
-        var action = await DisplayActionSheet("Profile Photo", "Cancel", null, "Take Photo", "Upload Image");
+        var action = await DisplayActionSheetAsync("Profile Photo", "Cancel", null, "Take Photo", "Upload Image");
         
         if (action == "Take Photo" || action == "Upload Image")
         {
-            await DisplayAlert("Photo", "Camera/Gallery integration would go here.", "OK");
+            await DisplayAlertAsync("Photo", "Camera/Gallery integration would go here.", "OK");
         }
     }
 
     private async void OnPrivacyClicked(object? sender, EventArgs e) => 
-        await DisplayAlert("Privacy", "Your data is encrypted and secure.", "OK");
+        await DisplayAlertAsync("Privacy", "Your data is encrypted and secure.", "OK");
 
     private async void OnPaymentMethodsClicked(object? sender, EventArgs e) => 
-        await DisplayAlert("Payments", "Manage your credit cards and digital wallets in the next update.", "OK");
+        await DisplayAlertAsync("Payments", "Manage your credit cards and digital wallets in the next update.", "OK");
 
     private async void OnHelpCenterClicked(object? sender, EventArgs e) => 
-        await DisplayAlert("Support", "Visit our help center at support.getthere.com", "OK");
+        await DisplayAlertAsync("Support", "Visit our help center at support.getthere.com", "OK");
 
     private async void OnAboutClicked(object? sender, EventArgs e) => 
-        await DisplayAlert("About", "GetThere v1.0\nProfessional Mobility Platform", "OK");
+        await DisplayAlertAsync("About", "GetThere v1.0\nProfessional Mobility Platform", "OK");
     private void StartLoadingAnimations()
     {
         WalletLoadingState.IsVisible = !_isAccountTabSelected;
@@ -452,7 +452,7 @@ public partial class ProfilePage : ContentPage
             while (!token.IsCancellationRequested)
             {
                 MainThread.BeginInvokeOnMainThread(() => shimmer.TranslationX = -500);
-                await shimmer.TranslateTo(1000, 0, 1500, Easing.CubicInOut);
+                await shimmer.TranslateToAsync(1000, 0, 1500, Easing.CubicInOut);
                 await Task.Delay(300, token);
             }
         }, token);

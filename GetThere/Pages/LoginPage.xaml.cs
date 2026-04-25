@@ -92,7 +92,7 @@ public partial class LoginPage : ContentPage
                             travelWidth = 350;
 
                         ShimmerBox.TranslationX = -shimmerWidth;
-                        await ShimmerBox.TranslateTo(travelWidth + shimmerWidth, 0, 1200, Easing.Linear);
+                        await ShimmerBox.TranslateToAsync(travelWidth + shimmerWidth, 0, 1200, Easing.Linear);
                     });
 
                     await Task.Delay(120, token);

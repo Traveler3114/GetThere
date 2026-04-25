@@ -146,7 +146,7 @@ public partial class ShopPage : ContentPage
             while (!token.IsCancellationRequested)
             {
                 MainThread.BeginInvokeOnMainThread(() => ShimmerBox.TranslationX = -500);
-                await ShimmerBox.TranslateTo(1000, 0, 1500, Easing.CubicInOut);
+                await ShimmerBox.TranslateToAsync(1000, 0, 1500, Easing.CubicInOut);
                 await Task.Delay(300, token);
             }
         }, token);
