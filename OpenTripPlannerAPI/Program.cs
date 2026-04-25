@@ -56,16 +56,11 @@ Console.WriteLine("""
    Realtime API    : http://localhost:5000/rt/{feedId}
    Status page     : http://localhost:5000/status
 
-ℹ️  OTP will auto-start in a separate terminal window after first scraper cycle.
+ℹ️  OTP will auto-start in a separate terminal window immediately.
 
 """);
 
 await app.StartAsync();
-
-var readySignal = app.Services.GetRequiredService<GtfsReadySignal>();
-Console.WriteLine("⏳ Waiting for first scrape cycle to complete...");
-await readySignal.WaitAsync();
-Console.WriteLine("✅ First scrape cycle complete.");
 
 if (ShouldAutoStartOtp(app.Configuration))
 {
