@@ -14,7 +14,18 @@ public partial class LoginPage : ContentPage
     {
         InitializeComponent();
         _authService = authService;
+        ApplyThemeImages();
+        Application.Current!.RequestedThemeChanged += OnRequestedThemeChanged;
         SizeChanged += OnPageSizeChanged;
+    }
+
+    private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs e)
+        => ApplyThemeImages();
+
+    private void ApplyThemeImages()
+    {
+        var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+        LogoImage.Source = isDark ? "logo_white.svg" : "logo.svg";
     }
 
     private void OnPageSizeChanged(object? sender, EventArgs e)

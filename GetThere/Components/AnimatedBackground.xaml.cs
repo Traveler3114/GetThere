@@ -41,10 +41,10 @@ public partial class AnimatedBackground : ContentView
         
         if (!_initialized)
         {
-            _blueVx = 40f;
-            _blueVy = 40f;
-            _purpleVx = -40f; // Start moving LEFT
-            _purpleVy = -40f; // Start moving UP
+            _blueVx = 54f;
+            _blueVy = 54f;
+            _purpleVx = -54f; // Start moving LEFT
+            _purpleVy = -54f; // Start moving UP
         }
 
         Loaded += (s, e) => StartAnimation();
@@ -123,11 +123,11 @@ public partial class AnimatedBackground : ContentView
 
         var isDarkTheme = Application.Current?.RequestedTheme == AppTheme.Dark;
 
-        var blueAlpha = isDarkTheme ? 0.25f : 0.45f;
-        var purpleAlpha = isDarkTheme ? 0.25f : 0.45f;
+        var blueAlpha = isDarkTheme ? 0.42f : 0.45f;
+        var purpleAlpha = isDarkTheme ? 0.40f : 0.45f;
 
-        var blueRadius = 750f;
-        var purpleRadius = 750f;
+        var blueRadius = isDarkTheme ? 800f : 750f;
+        var purpleRadius = isDarkTheme ? 800f : 750f;
 
         // Combine autonomous position with external XOffset/YOffset (pan)
         // We use XOffset/10 to make the pan subtler
@@ -143,7 +143,12 @@ public partial class AnimatedBackground : ContentView
             paint.Shader = SKShader.CreateRadialGradient(
                 new SKPoint(finalBlueX, finalBlueY),
                 blueRadius,
-                new SKColor[] { new SKColor(0, 100, 255, (byte)(255 * blueAlpha)), SKColors.Transparent },
+                new SKColor[] 
+                {
+                    new SKColor(74, 132, 255, (byte)(255 * blueAlpha)),
+                    isDarkTheme ? new SKColor(74, 132, 255, (byte)(255 * (blueAlpha * 0.22f))) : SKColors.Transparent,
+                    SKColors.Transparent
+                },
                 null,
                 SKShaderTileMode.Clamp);
             canvas.DrawCircle(finalBlueX, finalBlueY, blueRadius, paint);
@@ -152,7 +157,12 @@ public partial class AnimatedBackground : ContentView
             paint.Shader = SKShader.CreateRadialGradient(
                 new SKPoint(finalPurpleX, finalPurpleY),
                 purpleRadius,
-                new SKColor[] { new SKColor(180, 0, 255, (byte)(255 * purpleAlpha)), SKColors.Transparent },
+                new SKColor[] 
+                {
+                    new SKColor(123, 63, 255, (byte)(255 * purpleAlpha)),
+                    isDarkTheme ? new SKColor(123, 63, 255, (byte)(255 * (purpleAlpha * 0.22f))) : SKColors.Transparent,
+                    SKColors.Transparent
+                },
                 null,
                 SKShaderTileMode.Clamp);
             canvas.DrawCircle(finalPurpleX, finalPurpleY, purpleRadius, paint);

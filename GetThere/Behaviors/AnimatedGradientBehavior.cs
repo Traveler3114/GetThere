@@ -9,7 +9,7 @@ namespace GetThere.Behaviors
     public class AnimatedGradientBehavior : Behavior<VisualElement>
     {
         public string CircleId { get; set; } = "DefaultCircle";
-        public double Speed { get; set; } = 2.5; 
+        public double Speed { get; set; } = 3.4; 
         public double StartXPercent { get; set; } = 0.5; 
         public double StartYPercent { get; set; } = 0.5; 
         public double MinYPercent { get; set; } = 0.0; 

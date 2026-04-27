@@ -33,6 +33,37 @@ public partial class ProfilePage : ContentPage
         _authService = authService;
         _countryService = countryService;
         _prefs = prefs;
+        ApplyThemeIcons();
+        Application.Current!.RequestedThemeChanged += OnRequestedThemeChanged;
+    }
+
+    private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs e)
+        => ApplyThemeIcons();
+
+    private void ApplyThemeIcons()
+    {
+        var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+        var profileIcon = isDark ? "profile_white.svg" : "profile.svg";
+        var ticketIcon = isDark ? "ticket_white.svg" : "ticket.svg";
+        var mapIcon = isDark ? "map_white.svg" : "map.svg";
+        var settingsIcon = isDark ? "settings_white.svg" : "settings.svg";
+        var arrowIcon = isDark ? "arrow_right_white.svg" : "arrow_right.svg";
+        var logoutIcon = isDark ? "log_off_white.svg" : "log_off.svg";
+
+        PrivacyIcon.Source = profileIcon;
+        PaymentMethodsIcon.Source = ticketIcon;
+        LanguageRegionIcon.Source = mapIcon;
+        ChangePasswordIcon.Source = settingsIcon;
+        HelpCenterIcon.Source = settingsIcon;
+        AboutIcon.Source = profileIcon;
+        LogoutIcon.Source = logoutIcon;
+
+        PrivacyArrowIcon.Source = arrowIcon;
+        PaymentMethodsArrowIcon.Source = arrowIcon;
+        LanguageRegionArrowIcon.Source = arrowIcon;
+        ChangePasswordArrowIcon.Source = arrowIcon;
+        HelpCenterArrowIcon.Source = arrowIcon;
+        AboutArrowIcon.Source = arrowIcon;
     }
 
     protected override async void OnAppearing()
