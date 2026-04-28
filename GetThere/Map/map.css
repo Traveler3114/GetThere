@@ -586,3 +586,108 @@ html, body, #map {
         opacity: 0.3;
     }
 }
+
+/* -- Dark Mode ------------------------------------------------ */
+@media (prefers-color-scheme: dark) {
+    #locate-btn {
+        background: #1f2937;
+        color: #60a5fa;
+    }
+    .bottom-panel {
+        background: #111827;
+        box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+    }
+    .panel-header {
+        border-bottom: 1px solid #334155;
+    }
+    #sheet-stop-name, #bike-sheet-name, #trip-panel-headsign {
+        color: #f8fafc;
+    }
+    #sheet-stop-id, #sheet-date, #trip-panel-subtitle {
+        color: #94a3b8;
+    }
+    .panel-close {
+        color: #94a3b8;
+    }
+    .panel-close:hover {
+        color: #f8fafc;
+    }
+    .bike-stat-row {
+        color: #f8fafc;
+    }
+    .bike-stat-label {
+        color: #94a3b8;
+    }
+    .bike-availability-bar {
+        background: #334155;
+    }
+    .sched-empty, .sched-loading, #trip-panel-loading {
+        color: #94a3b8;
+    }
+    .spinner {
+        border-color: #334155;
+        border-top-color: #60a5fa;
+    }
+    .route-group {
+        border-color: #334155;
+    }
+    .route-group-header {
+        background: #1f2937;
+    }
+    .route-group-header:active {
+        background: #334155;
+    }
+    .route-headsign {
+        color: #f8fafc;
+    }
+    .route-count {
+        color: #94a3b8;
+    }
+    .route-times {
+        background: #111827;
+        border-top-color: #334155;
+    }
+    .time-chip {
+        background: #334155;
+        color: #f8fafc;
+    }
+    .time-chip.next {
+        background: #3b82f6;
+        color: #ffffff;
+    }
+    .trip-stop-name {
+        color: #f8fafc;
+    }
+    .trip-stop.current .trip-stop-name {
+        color: #60a5fa;
+    }
+    .trip-stop.passed .trip-stop-name {
+        color: #64748b;
+    }
+    .ts-only {
+        color: #f8fafc;
+    }
+    .trip-stop.passed .ts-only {
+        color: #64748b;
+    }
+    .trip-stop.current .ts-only {
+        color: #60a5fa;
+    }
+    .trip-stop-dot {
+        background: #334155;
+        border-color: #111827;
+        box-shadow: 0 0 0 2px #334155;
+    }
+    .trip-stop.current .trip-stop-dot {
+        background: #3b82f6;
+        border-color: #111827;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.3);
+    }
+    .trip-stop.passed .trip-stop-dot {
+        background: #166534;
+        box-shadow: 0 0 0 2px #166534;
+    }
+    .trip-stop::before {
+        background: #334155;
+    }
+}

@@ -36,7 +36,7 @@
                     <Border.Shadow>
                         <Shadow Brush="Black" Opacity="0.2" Offset="3,3" Radius="10" />
                     </Border.Shadow>
-                    <Image Source="{AppThemeBinding Light=logo.png, Dark=logo_white.png}" Margin="10" Aspect="AspectFit" Opacity="1" />
+                    <Image x:Name="LogoImage" Source="logo.svg" Margin="10" Aspect="AspectFit" Opacity="1" />
                 </Border>
             </VerticalStackLayout>
         </Border>

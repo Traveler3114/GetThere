@@ -1,16 +1,50 @@
-<svg width="414" height="896" viewBox="0 0 414 896" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="414" y2="896" gradientUnits="userSpaceOnUse"><stop stop-color="#0F172A"/><stop offset="1" stop-color="#111827"/></linearGradient></defs>
-  <rect width="414" height="896" fill="url(#bg)"/>
-  <circle cx="54" cy="46" r="30" fill="#1F2937"/><rect x="100" y="28" width="84" height="16" rx="8" fill="#334155"/><rect x="100" y="52" width="58" height="10" rx="5" fill="#334155"/>
-  <rect x="24" y="82" width="366" height="50" rx="25" fill="#1F2937"/><rect x="211" y="86" width="175" height="42" rx="21" fill="#111827" stroke="#374151"/><rect x="85" y="100" width="60" height="12" rx="6" fill="#475569"/><rect x="267" y="100" width="64" height="12" rx="6" fill="#475569"/>
-  <rect x="20" y="160" width="150" height="16" rx="8" fill="#334155"/><rect x="20" y="180" width="374" height="106" rx="14" fill="#111827"/><rect x="36" y="210" width="74" height="10" rx="5" fill="#334155"/><rect x="36" y="228" width="98" height="14" rx="7" fill="#475569"/><rect x="36" y="258" width="96" height="10" rx="5" fill="#334155"/><rect x="36" y="276" width="138" height="14" rx="7" fill="#475569"/>
-  <rect x="20" y="310" width="174" height="16" rx="8" fill="#334155"/><rect x="20" y="330" width="374" height="184" rx="14" fill="#111827"/>
-  <circle cx="44" cy="361" r="10" fill="#475569"/><rect x="68" y="355" width="122" height="12" rx="6" fill="#475569"/><circle cx="370" cy="361" r="14" fill="#334155"/><rect x="40" y="378" width="334" height="1" fill="#374151"/>
-  <circle cx="44" cy="409" r="10" fill="#475569"/><rect x="68" y="403" width="146" height="12" rx="6" fill="#475569"/><circle cx="370" cy="409" r="14" fill="#334155"/><rect x="40" y="426" width="334" height="1" fill="#374151"/>
-  <circle cx="44" cy="457" r="10" fill="#475569"/><rect x="68" y="451" width="148" height="12" rx="6" fill="#475569"/><circle cx="370" cy="457" r="14" fill="#334155"/><rect x="40" y="474" width="334" height="1" fill="#374151"/>
-  <circle cx="44" cy="505" r="10" fill="#475569"/><rect x="68" y="499" width="142" height="12" rx="6" fill="#475569"/><circle cx="370" cy="505" r="14" fill="#334155"/>
-  <rect x="20" y="538" width="150" height="16" rx="8" fill="#334155"/><rect x="20" y="558" width="374" height="146" rx="20" fill="#111827"/>
-  <circle cx="44" cy="591" r="10" fill="#475569"/><rect x="68" y="585" width="128" height="12" rx="6" fill="#475569"/><circle cx="370" cy="591" r="14" fill="#334155"/><rect x="40" y="608" width="334" height="1" fill="#374151"/>
-  <circle cx="44" cy="639" r="10" fill="#475569" fill-opacity="0.85"/><rect x="68" y="633" width="134" height="12" rx="6" fill="#475569"/><circle cx="370" cy="639" r="14" fill="#334155"/><rect x="40" y="656" width="334" height="1" fill="#374151"/>
-  <circle cx="44" cy="687" r="10" fill="#7F1D1D"/><rect x="68" y="681" width="86" height="12" rx="6" fill="#7F1D1D"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 27.3.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 414 896" style="enable-background:new 0 0 414 896;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#1F2937;}
+	.st1{fill:none;stroke:#394859;stroke-miterlimit:10;}
+	.st2{fill:#334155;}
+	.st3{fill:#748593;}
+	.st4{fill:#F0D6D6;}
+	.st5{fill:#111827;}
+</style>
+<rect class="st0" width="414" height="896"/>
+<path class="st1" d="M35,243h346c7.7,0,14,6.3,14,14v78c0,7.7-6.3,14-14,14H35c-7.7,0-14-6.3-14-14v-78C21,249.3,27.3,243,35,243z"
+	/>
+<path class="st2" d="M59.3,258.5h64c2.8,0,5,2.2,5,5l0,0c0,2.8-2.2,5-5,5h-64c-2.8,0-5-2.2-5-5l0,0
+	C54.3,260.7,56.5,258.5,59.3,258.5z"/>
+<path class="st2" d="M60,279.2h84c3.9,0,7,3.1,7,7l0,0c0,3.9-3.1,7-7,7H60c-3.9,0-7-3.1-7-7l0,0C53,282.4,56.1,279.2,60,279.2z"/>
+<path class="st2" d="M59,304h86c2.8,0,5,2.2,5,5l0,0c0,2.8-2.2,5-5,5H59c-2.8,0-5-2.2-5-5l0,0C54,306.2,56.2,304,59,304z"/>
+<path class="st2" d="M61,321.7h124c3.9,0,7,3.1,7,7l0,0c0,3.9-3.1,7-7,7H61c-3.9,0-7-3.1-7-7l0,0C54,324.8,57.1,321.7,61,321.7z"/>
+<path class="st1" d="M35,393h346c7.7,0,14,6.3,14,14v156c0,7.7-6.3,14-14,14H35c-7.7,0-14-6.3-14-14V407C21,399.3,27.3,393,35,393z"
+	/>
+<circle class="st2" cx="57" cy="413" r="10"/>
+<path class="st2" d="M87,407h110c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,409.7,83.7,407,87,407z"/>
+<rect x="53" y="430" class="st3" width="334" height="1"/>
+<circle class="st2" cx="57" cy="461" r="10"/>
+<path class="st2" d="M87,455h134c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,457.7,83.7,455,87,455z"/>
+<rect x="53" y="478" class="st3" width="334" height="1"/>
+<circle class="st2" cx="57" cy="509" r="10"/>
+<path class="st2" d="M87,503h136c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,505.7,83.7,503,87,503z"/>
+<rect x="53" y="526" class="st3" width="334" height="1"/>
+<circle class="st2" cx="57" cy="557" r="10"/>
+<path class="st2" d="M87,551h130c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,553.7,83.7,551,87,551z"/>
+<path class="st1" d="M41,621h334c11,0,20,9,20,20v106c0,11-9,20-20,20H41c-11,0-20-9-20-20V641C21,630,30,621,41,621z"/>
+<circle class="st2" cx="57" cy="649" r="10"/>
+<path class="st2" d="M87,643h116c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,645.7,83.7,643,87,643z"/>
+<rect x="39" y="667" class="st3" width="334" height="1"/>
+<circle class="st2" cx="57" cy="697" r="10"/>
+<path class="st2" d="M87,691h122c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,693.7,83.7,691,87,691z"/>
+<rect x="39" y="715" class="st3" width="334" height="1"/>
+<circle class="st4" cx="57" cy="747" r="10"/>
+<path class="st4" d="M87,741h74c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6H87c-3.3,0-6-2.7-6-6l0,0C81,743.7,83.7,741,87,741z"/>
+<circle class="st2" cx="134" cy="104" r="30"/>
+<path class="st2" d="M189,86h92c5,0,9,4,9,9l0,0c0,5-4,9-9,9h-92c-5,0-9-4-9-9l0,0C180,90,184.1,86,189,86z"/>
+<path class="st2" d="M186,110h62c3.3,0,6,2.7,6,6l0,0c0,3.3-2.7,6-6,6h-62c-3.3,0-6-2.7-6-6l0,0C180,112.7,182.7,110,186,110z"/>
+<path class="st2" d="M50,157.5h316c13.8,0,25,11.2,25,25l0,0c0,13.8-11.2,25-25,25H50c-13.8,0-25-11.2-25-25l0,0
+	C25,168.7,36.2,157.5,50,157.5z"/>
+<path class="st5" d="M234,161.5h133c11.6,0,21,9.4,21,21l0,0c0,11.6-9.4,21-21,21H234c-11.6,0-21-9.4-21-21l0,0
+	C213,170.9,222.4,161.5,234,161.5z"/>
 </svg>
