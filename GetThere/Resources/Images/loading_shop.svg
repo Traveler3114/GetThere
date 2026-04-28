@@ -1,9 +1,14 @@
-<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="390" height="844" fill="#F8F9FA"/>
-  <rect x="24" y="60" width="120" height="32" rx="8" fill="#E5E7EB"/>
-  <rect x="24" y="110" width="80" height="24" rx="12" fill="#E5E7EB"/>
-  <rect x="24" y="160" width="342" height="100" rx="16" fill="#E5E7EB"/>
-  <rect x="24" y="274" width="342" height="100" rx="16" fill="#E5E7EB"/>
-  <rect x="24" y="388" width="342" height="100" rx="16" fill="#E5E7EB"/>
-  <text x="195" y="800" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#9CA3AF" font-weight="bold">LOADING...</text>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 27.3.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 390 844" style="enable-background:new 0 0 390 844;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#E5E7EB;}
+</style>
+<path class="st0" d="M39.3,46h297.3c8.5,0,15.3,5.1,15.3,11.4v48.3c0,6.3-6.9,11.4-15.3,11.4H39.3c-8.5,0-15.3-5.1-15.3-11.4V57.4
+	C24,51.1,30.9,46,39.3,46z"/>
+<path class="st0" d="M39.3,135h297.3c8.5,0,15.3,5.1,15.3,11.4v48.3c0,6.3-6.9,11.4-15.3,11.4H39.3c-8.5,0-15.3-5.1-15.3-11.4v-48.3
+	C24,140.1,30.9,135,39.3,135z"/>
+<path class="st0" d="M39.3,224h297.3c8.5,0,15.3,5.1,15.3,11.4v48.3c0,6.3-6.9,11.4-15.3,11.4H39.3c-8.5,0-15.3-5.1-15.3-11.4v-48.3
+	C24,229.1,30.9,224,39.3,224z"/>
 </svg>
