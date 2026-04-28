@@ -48,7 +48,6 @@ public partial class ProfilePage : ContentPage
         var mapIcon = isDark ? "map_white.svg" : "map.svg";
         var settingsIcon = isDark ? "settings_white.svg" : "settings.svg";
         var arrowIcon = isDark ? "arrow_right_white.svg" : "arrow_right.svg";
-        var logoutIcon = isDark ? "log_off_white.svg" : "log_off.svg";
 
         PrivacyIcon.Source = profileIcon;
         PaymentMethodsIcon.Source = ticketIcon;
@@ -56,7 +55,6 @@ public partial class ProfilePage : ContentPage
         ChangePasswordIcon.Source = settingsIcon;
         HelpCenterIcon.Source = settingsIcon;
         AboutIcon.Source = profileIcon;
-        LogoutIcon.Source = logoutIcon;
 
         PrivacyArrowIcon.Source = arrowIcon;
         PaymentMethodsArrowIcon.Source = arrowIcon;
