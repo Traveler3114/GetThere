@@ -7,6 +7,9 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using CommunityToolkit.Maui;
 using System.Net.Http.Json;
+#if ANDROID
+using Android.OS;
+#endif
 
 namespace GetThere
 {
@@ -15,13 +18,33 @@ namespace GetThere
         private static string GetApiBaseUrl()
         {
 #if ANDROID
-            return "https://10.0.2.2:7230/";
+            return IsAndroidEmulator()
+                ? "https://10.0.2.2:7230/"
+                : "https://localhost:7230/";
 #elif IOS || MACCATALYST
             return "https://localhost:7230/";
 #else
             return "https://localhost:7230/";
 #endif
         }
+
+#if ANDROID
+        private static bool IsAndroidEmulator()
+        {
+            var fingerprint = Build.Fingerprint ?? string.Empty;
+            var model = Build.Model ?? string.Empty;
+            var manufacturer = Build.Manufacturer ?? string.Empty;
+            var product = Build.Product ?? string.Empty;
+
+            return fingerprint.Contains("generic", StringComparison.OrdinalIgnoreCase)
+                || fingerprint.Contains("emulator", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("sdk", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("emulator", StringComparison.OrdinalIgnoreCase)
+                || manufacturer.Contains("genymotion", StringComparison.OrdinalIgnoreCase)
+                || product.Contains("sdk", StringComparison.OrdinalIgnoreCase)
+                || product.Contains("emulator", StringComparison.OrdinalIgnoreCase);
+        }
+#endif
 
         public static MauiApp CreateMauiApp()
         {
