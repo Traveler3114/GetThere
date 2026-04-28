@@ -15,15 +15,41 @@ public class PaymentService
 
     public async Task<OperationResult<IEnumerable<PaymentProviderDto>>> GetProvidersAsync()
     {
-        var response = await _httpClient.GetAsync("payment/providers");
-        return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<PaymentProviderDto>>>()
-            ?? OperationResult<IEnumerable<PaymentProviderDto>>.Fail("Unexpected error occurred.");
+        try
+        {
+            var response = await _httpClient.GetAsync("payment/providers");
+            var result = await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<PaymentProviderDto>>>();
+
+            if (result != null)
+                return result;
+
+            return OperationResult<IEnumerable<PaymentProviderDto>>.Fail(response.IsSuccessStatusCode
+                ? "No payment providers were returned."
+                : $"Could not load payment providers ({(int)response.StatusCode}).");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<IEnumerable<PaymentProviderDto>>.Fail($"Could not load payment providers: {ex.Message}");
+        }
     }
 
     public async Task<OperationResult<WalletDto>> TopUpAsync(TopUpDto dto)
     {
-        var response = await _httpClient.PostAsJsonAsync("payment/topup", dto);
-        return await response.Content.ReadFromJsonAsync<OperationResult<WalletDto>>()
-            ?? OperationResult<WalletDto>.Fail("Unexpected error occurred.");
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("payment/topup", dto);
+            var result = await response.Content.ReadFromJsonAsync<OperationResult<WalletDto>>();
+
+            if (result != null)
+                return result;
+
+            return OperationResult<WalletDto>.Fail(response.IsSuccessStatusCode
+                ? "Top up completed but no wallet payload was returned."
+                : $"Top up failed ({(int)response.StatusCode}).");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<WalletDto>.Fail($"Top up failed: {ex.Message}");
+        }
     }
 }

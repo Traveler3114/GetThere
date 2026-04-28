@@ -212,10 +212,22 @@ public partial class ProfilePage : ContentPage
                             await DisplayAlertAsync("Success", $"€{amount:F2} added!", "OK");
                             await LoadHistoryAsync();
                         }
+                        else
+                        {
+                            await DisplayAlertAsync("Top Up Failed", string.IsNullOrWhiteSpace(success.Message) ? "Top up could not be completed." : success.Message, "OK");
+                        }
                     }
+                }
+                else
+                {
+                    await DisplayAlertAsync("Provider Error", string.IsNullOrWhiteSpace(provResult.Message) ? "No payment providers are available." : provResult.Message, "OK");
                 }
             }
             catch (Exception ex) { await DisplayAlertAsync("Error", ex.Message, "OK"); }
+        }
+        else
+        {
+            await DisplayAlertAsync("Invalid Amount", "Enter an amount greater than zero.", "OK");
         }
     }
 
