@@ -281,38 +281,13 @@
                 </ScrollView>
 
                 <!-- Loading overlays -->
-                <Grid x:Name="WalletLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" InputTransparent="False" ZIndex="1000">
+                <Grid x:Name="WalletLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" InputTransparent="False" ZIndex="1000" Padding="0,10,0,0">
                     <Image Source="{AppThemeBinding Light=loading_profile.svg, Dark=loading_profile_dark.svg}" Aspect="AspectFill" InputTransparent="True" Opacity="1" />
-                    
-                    <Grid IsClippedToBounds="True" InputTransparent="True">
-                        <BoxView x:Name="WalletLoadingShimmer" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
-                            <BoxView.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="Transparent" Offset="0" />
-                                    <GradientStop Color="#FFFFFF" Offset="0.5" />
-                                    <GradientStop Color="Transparent" Offset="1" />
-                                </LinearGradientBrush>
-                            </BoxView.Background>
-                            <BoxView.Rotation>20</BoxView.Rotation>
-                        </BoxView>
-                    </Grid>
                 </Grid>
 
-                <Grid x:Name="AccountLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" InputTransparent="False" ZIndex="1000">
+                <Grid x:Name="AccountLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" InputTransparent="False" ZIndex="1000" Padding="0,10,0,0">
                     <Image Source="{AppThemeBinding Light=loading_profile_account.svg, Dark=loading_profile_account_dark.svg}" Aspect="AspectFill" InputTransparent="True" Opacity="1" />
 
-                    <Grid IsClippedToBounds="True" InputTransparent="True">
-                        <BoxView x:Name="AccountLoadingShimmer" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
-                            <BoxView.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="Transparent" Offset="0" />
-                                    <GradientStop Color="#FFFFFF" Offset="0.5" />
-                                    <GradientStop Color="Transparent" Offset="1" />
-                                </LinearGradientBrush>
-                            </BoxView.Background>
-                            <BoxView.Rotation>20</BoxView.Rotation>
-                        </BoxView>
-                    </Grid>
                 </Grid>
             </Grid>
         </Grid>
