@@ -64,10 +64,15 @@ namespace GetThere
             var handler = new HttpClientHandler();
             handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
 
+            builder.Services.AddSingleton<LocalMobileBackendStore>();
+            builder.Services.AddTransient<LocalMobileApiHandler>();
+
             builder.Services.AddHttpClient("AuthService", client =>
             {
                 client.BaseAddress = new Uri(baseUrl);
-            }).ConfigurePrimaryHttpMessageHandler(() => handler);
+            })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
 
             builder.Services.AddTransient<AuthService>(sp =>
             {
@@ -81,6 +86,7 @@ namespace GetThere
             {
                 client.BaseAddress = new Uri(baseUrl);
             })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => handler);
             builder.Services.AddTransient<CountryService>(sp =>
@@ -93,6 +99,7 @@ namespace GetThere
             {
                 client.BaseAddress = new Uri(baseUrl);
             })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => handler);
             builder.Services.AddTransient<OperatorService>(sp =>
@@ -105,6 +112,7 @@ namespace GetThere
             {
                 client.BaseAddress = new Uri(baseUrl);
             })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => handler);
             builder.Services.AddTransient<PaymentService>(sp =>
@@ -117,6 +125,7 @@ namespace GetThere
             {
                 client.BaseAddress = new Uri(baseUrl);
             })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => handler);
             builder.Services.AddTransient<ShopService>(sp =>
@@ -129,6 +138,7 @@ namespace GetThere
             {
                 client.BaseAddress = new Uri(baseUrl);
             })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => handler);
             builder.Services.AddTransient<TicketService>(sp =>
@@ -141,6 +151,7 @@ namespace GetThere
             {
                 client.BaseAddress = new Uri(baseUrl);
             })
+            .AddHttpMessageHandler<LocalMobileApiHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => handler);
             builder.Services.AddTransient<WalletService>(sp =>

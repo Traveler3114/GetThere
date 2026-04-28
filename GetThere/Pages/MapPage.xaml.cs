@@ -48,13 +48,14 @@ public partial class MapPage : ContentPage
             var html = await htmlReader.ReadToEndAsync();
 
             var apiBase = _operatorService.GetApiBaseUrl().TrimEnd('/');
+            var isOffline = string.IsNullOrWhiteSpace(apiBase) || apiBase.Contains("localhost", StringComparison.OrdinalIgnoreCase);
 
             // 1. Inline map.css
             html = await InlineCssAsync(html);
 
             // 2. Inject API base URL
             html = html.Replace("</head>",
-                $"<script>window._API_BASE = '{apiBase}';</script></head>",
+                $"<script>window._API_BASE = '{apiBase}'; window._LOCAL_FALLBACK = {(isOffline ? "true" : "false")};</script></head>",
                 StringComparison.OrdinalIgnoreCase);
 
             // 3. Inject map style JSON as window._MAP_STYLE
@@ -173,7 +174,18 @@ public partial class MapPage : ContentPage
             {
                 try
                 {
-                    var bytes = await http.GetByteArrayAsync($"{apiBase}/images/{file}");
+                    byte[] bytes;
+                    try
+                    {
+                        bytes = await http.GetByteArrayAsync($"{apiBase}/images/{file}");
+                    }
+                    catch
+                    {
+                        using var iconStream = await FileSystem.OpenAppPackageFileAsync(file);
+                        using var ms = new MemoryStream();
+                        await iconStream.CopyToAsync(ms);
+                        bytes = ms.ToArray();
+                    }
                     var b64 = Convert.ToBase64String(bytes);
                     sb.AppendLine($"window._ICON_DATA['{file}'] = 'data:image/png;base64,{b64}';");
                     Trace.WriteLine($"[MapPage] Icon injected: {file} ({bytes.Length} bytes)");
