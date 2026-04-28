@@ -77,6 +77,22 @@ public class OperatorService
         }
     }
 
+    public async Task<OperationResult<List<VehicleDto>>> GetVehiclesAsync(int? countryId = null)
+    {
+        try
+        {
+            var url = countryId.HasValue
+                ? $"map/vehicles?countryId={countryId.Value}"
+                : "map/vehicles";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<VehicleDto>>>(url);
+            return result ?? OperationResult<List<VehicleDto>>.Fail("No response received from API when loading vehicles.");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<List<VehicleDto>>.Fail($"Could not load vehicles: {ex.Message}");
+        }
+    }
+
     public async Task<OperationResult<List<TransportTypeDto>>> GetTransportTypesAsync()
     {
         try

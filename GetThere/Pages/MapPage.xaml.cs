@@ -12,6 +12,7 @@ public partial class MapPage : ContentPage
     private readonly CountryPreferenceService _countryPrefs;
 
     private System.Timers.Timer? _jsMessageTimer;
+    private System.Timers.Timer? _vehiclesTimer;
 
     private readonly TaskCompletionSource _navigatedTcs = new();
     private bool _isWebViewReady = false;
@@ -218,14 +219,17 @@ public partial class MapPage : ContentPage
         await WaitForMapReadyAsync();
         _isWebViewReady = true;
         await LoadStaticDataAsync();
+        await LoadVehiclesAsync();
         await GetLocationAsync();
         StartJsMessagePolling();
+        StartVehiclePolling();
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         StopJsMessagePolling();
+        StopVehiclePolling();
     }
 
     // ── Map ready handshake ───────────────────────────────────────────────
@@ -302,6 +306,40 @@ public partial class MapPage : ContentPage
         catch (Exception ex)
         {
             Trace.WriteLine($"[MapPage] LoadStaticData error: {ex.Message}");
+        }
+    }
+
+    private void StartVehiclePolling()
+    {
+        _vehiclesTimer = new System.Timers.Timer(5000);
+        _vehiclesTimer.Elapsed += async (_, _) => await LoadVehiclesAsync();
+        _vehiclesTimer.AutoReset = true;
+        _vehiclesTimer.Start();
+    }
+
+    private void StopVehiclePolling()
+    {
+        _vehiclesTimer?.Stop();
+        _vehiclesTimer?.Dispose();
+        _vehiclesTimer = null;
+    }
+
+    private async Task LoadVehiclesAsync()
+    {
+        try
+        {
+            int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
+            var result = await _operatorService.GetVehiclesAsync(countryId);
+
+            if (result.Success && result.Data is not null)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderVehicles", result.Data));
+            }
+        }
+        catch
+        {
+            // Silent: local API fallback may still not be ready while the WebView is starting.
         }
     }
 

@@ -122,13 +122,34 @@ public sealed class LocalMobileBackendStore
             ? new List<StopDto>
             {
                 new() { StopId = "lpp-center", Name = "Ljubljana Center", Lat = 46.0569, Lon = 14.5058, RouteType = 3 },
-                new() { StopId = "lpp-station", Name = "Main Station", Lat = 46.0583, Lon = 14.5102, RouteType = 3 }
+                new() { StopId = "lpp-station", Name = "Main Station", Lat = 46.0583, Lon = 14.5102, RouteType = 3 },
+                new() { StopId = "lpp-tivoli", Name = "Tivoli", Lat = 46.0551, Lon = 14.4974, RouteType = 3 },
+                new() { StopId = "lpp-drama", Name = "Drama", Lat = 46.0509, Lon = 14.5038, RouteType = 3 },
+                new() { StopId = "lpp-bavarski", Name = "Bavarski Dvor", Lat = 46.0562, Lon = 14.5027, RouteType = 3 },
+                new() { StopId = "lpp-bezigrad", Name = "Bezigrad", Lat = 46.0686, Lon = 14.5108, RouteType = 3 }
             }
             : new List<StopDto>
             {
                 new() { StopId = "zet-ban", Name = "Ban Jelacic Square", Lat = 45.8131, Lon = 15.9775, RouteType = 0 },
                 new() { StopId = "zet-main", Name = "Main Station", Lat = 45.8058, Lon = 15.9794, RouteType = 0 },
-                new() { StopId = "zet-savski", Name = "Savski Most", Lat = 45.7865, Lon = 15.9575, RouteType = 3 }
+                new() { StopId = "zet-savski", Name = "Savski Most", Lat = 45.7865, Lon = 15.9575, RouteType = 3 },
+                new() { StopId = "zet-crnomerec", Name = "Crnomerec", Lat = 45.8187, Lon = 15.9382, RouteType = 0 },
+                new() { StopId = "zet-kvaternik", Name = "Kvaternikov trg", Lat = 45.8149, Lon = 16.0054, RouteType = 0 },
+                new() { StopId = "zet-zitnjak", Name = "Zitnjak", Lat = 45.7995, Lon = 16.0564, RouteType = 3 },
+                new() { StopId = "zet-dubrava", Name = "Dubrava", Lat = 45.8334, Lon = 16.0827, RouteType = 0 },
+                new() { StopId = "zet-precko", Name = "Precko", Lat = 45.7916, Lon = 15.9049, RouteType = 3 },
+                new() { StopId = "zet-jarun", Name = "Jarun", Lat = 45.7847, Lon = 15.9181, RouteType = 3 },
+                new() { StopId = "zet-borongaj", Name = "Borongaj", Lat = 45.8040, Lon = 16.0300, RouteType = 0 },
+                new() { StopId = "zet-maksimir", Name = "Maksimir", Lat = 45.8245, Lon = 16.0158, RouteType = 0 },
+                new() { StopId = "zet-vukovarska", Name = "Vukovarska", Lat = 45.8009, Lon = 15.9718, RouteType = 3 },
+                new() { StopId = "zet-zapadni", Name = "Zapadni kolodvor", Lat = 45.8079, Lon = 15.9618, RouteType = 0 },
+                new() { StopId = "zet-mihaljevac", Name = "Mihaljevac", Lat = 45.8487, Lon = 15.9697, RouteType = 0 },
+                new() { StopId = "zet-cibona", Name = "Cibona", Lat = 45.8068, Lon = 15.9594, RouteType = 0 },
+                new() { StopId = "zet-sopot", Name = "Sopot", Lat = 45.7788, Lon = 15.9838, RouteType = 3 },
+                new() { StopId = "hzpp-zg-main", Name = "Zagreb Glavni kolodvor", Lat = 45.8053, Lon = 15.9788, RouteType = 2 },
+                new() { StopId = "hzpp-maksimir", Name = "Maksimir Station", Lat = 45.8180, Lon = 16.0150, RouteType = 2 },
+                new() { StopId = "hzpp-sesvete", Name = "Sesvete", Lat = 45.8317, Lon = 16.1081, RouteType = 2 },
+                new() { StopId = "hzpp-zapresic", Name = "Zapresic", Lat = 45.8562, Lon = 15.8071, RouteType = 2 }
             }).ToList());
 
     public OperationResult<List<RouteDto>> GetRoutes(int? countryId) => OperationResult<List<RouteDto>>.Ok(
@@ -143,6 +164,24 @@ public sealed class LocalMobileBackendStore
                     Color = "E30613",
                     RouteType = 3,
                     Shape = [ [14.5058,46.0569], [14.5080,46.0572], [14.5102,46.0583] ]
+                },
+                new()
+                {
+                    RouteId = "lpp-1",
+                    ShortName = "1",
+                    LongName = "Tivoli - Bezigrad",
+                    Color = "2563EB",
+                    RouteType = 3,
+                    Shape = [ [14.4974,46.0551], [14.5027,46.0562], [14.5108,46.0686] ]
+                },
+                new()
+                {
+                    RouteId = "lpp-2",
+                    ShortName = "2",
+                    LongName = "Drama - Main Station",
+                    Color = "16A34A",
+                    RouteType = 3,
+                    Shape = [ [14.5038,46.0509], [14.5058,46.0569], [14.5102,46.0583] ]
                 }
             }
             : new List<RouteDto>
@@ -164,19 +203,328 @@ public sealed class LocalMobileBackendStore
                     Color = "126400",
                     RouteType = 3,
                     Shape = [ [15.9575,45.7865], [15.9590,45.7895], [15.9614,45.7924] ]
+                },
+                new()
+                {
+                    RouteId = "zet-11",
+                    ShortName = "11",
+                    LongName = "Crnomerec - Dubrava",
+                    Color = "7C3AED",
+                    RouteType = 0,
+                    Shape = [ [15.9382,45.8187], [15.9775,45.8131], [16.0054,45.8149], [16.0827,45.8334] ]
+                },
+                new()
+                {
+                    RouteId = "zet-17",
+                    ShortName = "17",
+                    LongName = "Precko - Borongaj",
+                    Color = "DC2626",
+                    RouteType = 0,
+                    Shape = [ [15.9049,45.7916], [15.9575,45.7865], [15.9775,45.8131], [16.0300,45.8040] ]
+                },
+                new()
+                {
+                    RouteId = "zet-220",
+                    ShortName = "220",
+                    LongName = "Main Station - Zitnjak",
+                    Color = "F97316",
+                    RouteType = 3,
+                    Shape = [ [15.9794,45.8058], [16.0104,45.8044], [16.0564,45.7995] ]
+                },
+                new()
+                {
+                    RouteId = "zet-109b",
+                    ShortName = "109",
+                    LongName = "Jarun - Savski Most",
+                    Color = "0EA5A4",
+                    RouteType = 3,
+                    Shape = [ [15.9181,45.7847], [15.9362,45.7849], [15.9575,45.7865] ]
+                },
+                new()
+                {
+                    RouteId = "zet-4",
+                    ShortName = "4",
+                    LongName = "Savski Most - Dubrava",
+                    Color = "2563EB",
+                    RouteType = 0,
+                    Shape = [ [15.9575,45.7865], [15.9775,45.8131], [16.0054,45.8149], [16.0827,45.8334] ]
+                },
+                new()
+                {
+                    RouteId = "zet-14",
+                    ShortName = "14",
+                    LongName = "Mihaljevac - Zapresic Terminal",
+                    Color = "9333EA",
+                    RouteType = 0,
+                    Shape = [ [15.9697,45.8487], [15.9775,45.8131], [15.9618,45.8079], [15.9382,45.8187] ]
+                },
+                new()
+                {
+                    RouteId = "zet-31",
+                    ShortName = "31",
+                    LongName = "Crnomerec - Cibona",
+                    Color = "0F766E",
+                    RouteType = 3,
+                    Shape = [ [15.9382,45.8187], [15.9505,45.8124], [15.9594,45.8068] ]
+                },
+                new()
+                {
+                    RouteId = "zet-268",
+                    ShortName = "268",
+                    LongName = "Main Station - Sopot",
+                    Color = "EA580C",
+                    RouteType = 3,
+                    Shape = [ [15.9794,45.8058], [15.9812,45.7955], [15.9838,45.7788] ]
+                },
+                new()
+                {
+                    RouteId = "hzpp-zg-sesvete",
+                    ShortName = "R1",
+                    LongName = "Zagreb Glavni - Sesvete",
+                    Color = "FF6B00",
+                    RouteType = 2,
+                    Shape = [ [15.9788,45.8053], [16.0150,45.8180], [16.1081,45.8317] ]
+                },
+                new()
+                {
+                    RouteId = "hzpp-zg-zapresic",
+                    ShortName = "R2",
+                    LongName = "Zagreb Glavni - Zapresic",
+                    Color = "F59E0B",
+                    RouteType = 2,
+                    Shape = [ [15.9788,45.8053], [15.9618,45.8079], [15.8071,45.8562] ]
                 }
             }).ToList());
+
+    public OperationResult<List<VehicleDto>> GetVehicles(int? countryId)
+    {
+        var now = DateTime.UtcNow;
+        var phase = (now.Second + now.Millisecond / 1000.0) / 60.0;
+
+        if (countryId == 2)
+        {
+            return OperationResult<List<VehicleDto>>.Ok(
+            [
+                new VehicleDto
+                {
+                    VehicleId = "lpp-bus-1",
+                    TripId = "lpp-trip-1",
+                    RouteId = "lpp-6",
+                    RouteShortName = "6",
+                    RouteType = 3,
+                    Lat = 46.0569 + (0.0014 * phase),
+                    Lon = 14.5058 + (0.0044 * phase),
+                    Bearing = 74,
+                    IsRealtime = true,
+                    BlockId = "lpp-block"
+                },
+                new VehicleDto
+                {
+                    VehicleId = "lpp-bus-2",
+                    TripId = "lpp-trip-2",
+                    RouteId = "lpp-1",
+                    RouteShortName = "1",
+                    RouteType = 3,
+                    Lat = 46.0551 + (0.0135 * phase),
+                    Lon = 14.4974 + (0.0134 * phase),
+                    Bearing = 36,
+                    IsRealtime = true,
+                    BlockId = "lpp-block-1"
+                },
+                new VehicleDto
+                {
+                    VehicleId = "lpp-bus-3",
+                    TripId = "lpp-trip-3",
+                    RouteId = "lpp-2",
+                    RouteShortName = "2",
+                    RouteType = 3,
+                    Lat = 46.0509 + (0.0074 * phase),
+                    Lon = 14.5038 + (0.0064 * phase),
+                    Bearing = 58,
+                    IsRealtime = true,
+                    BlockId = "lpp-block-2"
+                }
+            ]);
+        }
+
+        return OperationResult<List<VehicleDto>>.Ok(
+        [
+            new VehicleDto
+            {
+                VehicleId = "zet-tram-6",
+                TripId = "zet-trip-6",
+                RouteId = "zet-6",
+                RouteShortName = "6",
+                RouteType = 0,
+                Lat = 45.8131 - (0.0073 * phase),
+                Lon = 15.9775 + (0.0019 * phase),
+                Bearing = 168,
+                IsRealtime = true,
+                BlockId = "tram-block"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-tram-11",
+                TripId = "zet-trip-11",
+                RouteId = "zet-11",
+                RouteShortName = "11",
+                RouteType = 0,
+                Lat = 45.8187 + (0.0147 * phase),
+                Lon = 15.9382 + (0.1445 * phase),
+                Bearing = 82,
+                IsRealtime = true,
+                BlockId = "tram-block-11"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-tram-17",
+                TripId = "zet-trip-17",
+                RouteId = "zet-17",
+                RouteShortName = "17",
+                RouteType = 0,
+                Lat = 45.7916 + (0.0124 * phase),
+                Lon = 15.9049 + (0.1251 * phase),
+                Bearing = 68,
+                IsRealtime = true,
+                BlockId = "tram-block-17"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-bus-109",
+                TripId = "zet-trip-109",
+                RouteId = "zet-109",
+                RouteShortName = "109",
+                RouteType = 3,
+                Lat = 45.7865 + (0.0059 * phase),
+                Lon = 15.9575 + (0.0039 * phase),
+                Bearing = 35,
+                IsRealtime = true,
+                BlockId = "bus-block"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-bus-220",
+                TripId = "zet-trip-220",
+                RouteId = "zet-220",
+                RouteShortName = "220",
+                RouteType = 3,
+                Lat = 45.8058 - (0.0063 * phase),
+                Lon = 15.9794 + (0.0770 * phase),
+                Bearing = 96,
+                IsRealtime = true,
+                BlockId = "bus-block-220"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-bus-109b",
+                TripId = "zet-trip-109b",
+                RouteId = "zet-109b",
+                RouteShortName = "109",
+                RouteType = 3,
+                Lat = 45.7847 + (0.0018 * phase),
+                Lon = 15.9181 + (0.0394 * phase),
+                Bearing = 88,
+                IsRealtime = true,
+                BlockId = "bus-block-109b"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-tram-4",
+                TripId = "zet-trip-4",
+                RouteId = "zet-4",
+                RouteShortName = "4",
+                RouteType = 0,
+                Lat = 45.7865 + (0.0469 * phase),
+                Lon = 15.9575 + (0.1252 * phase),
+                Bearing = 59,
+                IsRealtime = true,
+                BlockId = "tram-block-4"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-tram-14",
+                TripId = "zet-trip-14",
+                RouteId = "zet-14",
+                RouteShortName = "14",
+                RouteType = 0,
+                Lat = 45.8487 - (0.0363 * phase),
+                Lon = 15.9697 - (0.0315 * phase),
+                Bearing = 202,
+                IsRealtime = true,
+                BlockId = "tram-block-14"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-bus-31",
+                TripId = "zet-trip-31",
+                RouteId = "zet-31",
+                RouteShortName = "31",
+                RouteType = 3,
+                Lat = 45.8187 - (0.0119 * phase),
+                Lon = 15.9382 + (0.0212 * phase),
+                Bearing = 122,
+                IsRealtime = true,
+                BlockId = "bus-block-31"
+            },
+            new VehicleDto
+            {
+                VehicleId = "zet-bus-268",
+                TripId = "zet-trip-268",
+                RouteId = "zet-268",
+                RouteShortName = "268",
+                RouteType = 3,
+                Lat = 45.8058 - (0.0270 * phase),
+                Lon = 15.9794 + (0.0044 * phase),
+                Bearing = 172,
+                IsRealtime = true,
+                BlockId = "bus-block-268"
+            },
+            new VehicleDto
+            {
+                VehicleId = "hzpp-r1-1",
+                TripId = "hzpp-trip-r1-1",
+                RouteId = "hzpp-zg-sesvete",
+                RouteShortName = "R1",
+                RouteType = 2,
+                Lat = 45.8053 + (0.0264 * phase),
+                Lon = 15.9788 + (0.1293 * phase),
+                Bearing = 74,
+                IsRealtime = true,
+                BlockId = "rail-block-r1"
+            },
+            new VehicleDto
+            {
+                VehicleId = "hzpp-r2-1",
+                TripId = "hzpp-trip-r2-1",
+                RouteId = "hzpp-zg-zapresic",
+                RouteShortName = "R2",
+                RouteType = 2,
+                Lat = 45.8053 + (0.0509 * phase),
+                Lon = 15.9788 - (0.1717 * phase),
+                Bearing = 292,
+                IsRealtime = true,
+                BlockId = "rail-block-r2"
+            }
+        ]);
+    }
 
     public OperationResult<List<BikeStationDto>> GetBikeStations(int? countryId) => OperationResult<List<BikeStationDto>>.Ok(
         (countryId == 2
             ? new List<BikeStationDto>
             {
-                new() { StationId = "bike-lj-1", Name = "Tivoli", Lat = 46.0562, Lon = 14.4968, AvailableBikes = 6, Capacity = 12, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Slovenia" }
+                new() { StationId = "bike-lj-1", Name = "Tivoli", Lat = 46.0562, Lon = 14.4968, AvailableBikes = 6, Capacity = 12, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Slovenia" },
+                new() { StationId = "bike-lj-2", Name = "Kongresni trg", Lat = 46.0504, Lon = 14.5046, AvailableBikes = 9, Capacity = 16, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Slovenia" },
+                new() { StationId = "bike-lj-3", Name = "BTC", Lat = 46.0655, Lon = 14.5381, AvailableBikes = 4, Capacity = 14, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Slovenia" }
             }
             : new List<BikeStationDto>
             {
                 new() { StationId = "bike-zg-1", Name = "Zrinjevac", Lat = 45.8105, Lon = 15.9790, AvailableBikes = 8, Capacity = 14, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" },
-                new() { StationId = "bike-zg-2", Name = "Mimara", Lat = 45.8074, Lon = 15.9688, AvailableBikes = 5, Capacity = 12, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" }
+                new() { StationId = "bike-zg-2", Name = "Mimara", Lat = 45.8074, Lon = 15.9688, AvailableBikes = 5, Capacity = 12, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" },
+                new() { StationId = "bike-zg-3", Name = "Jarun Lake", Lat = 45.7831, Lon = 15.9211, AvailableBikes = 11, Capacity = 18, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" },
+                new() { StationId = "bike-zg-4", Name = "Maksimir", Lat = 45.8266, Lon = 16.0162, AvailableBikes = 7, Capacity = 14, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" },
+                new() { StationId = "bike-zg-5", Name = "Savski Most", Lat = 45.7862, Lon = 15.9579, AvailableBikes = 6, Capacity = 12, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" },
+                new() { StationId = "bike-zg-6", Name = "Main Station", Lat = 45.8063, Lon = 15.9798, AvailableBikes = 10, Capacity = 16, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" },
+                new() { StationId = "bike-zg-7", Name = "Bundek", Lat = 45.7901, Lon = 15.9914, AvailableBikes = 4, Capacity = 10, ProviderId = 1, ProviderName = "Bajs / Nextbike", CountryName = "Croatia" }
             }).ToList());
 
     public OperationResult<StopScheduleDto> GetStopSchedule(string stopId) => OperationResult<StopScheduleDto>.Ok(
@@ -196,14 +544,55 @@ public sealed class LocalMobileBackendStore
             [
                 new DepartureGroupDto
                 {
-                    RouteId = stopId.StartsWith("lpp") ? "lpp-6" : "zet-6",
-                    ShortName = "6",
-                    Headsign = stopId.StartsWith("lpp") ? "Station" : "Main Station",
+                    RouteId = stopId switch
+                    {
+                        "lpp-tivoli" or "lpp-bezigrad" => "lpp-1",
+                        "lpp-drama" or "lpp-center" or "lpp-station" or "lpp-bavarski" => "lpp-6",
+                        "zet-crnomerec" or "zet-kvaternik" or "zet-dubrava" => "zet-11",
+                        "zet-precko" or "zet-jarun" or "zet-savski" => "zet-109b",
+                        "zet-zitnjak" => "zet-220",
+                        _ => stopId.StartsWith("lpp") ? "lpp-6" : "zet-6"
+                    },
+                    ShortName = stopId switch
+                    {
+                        "lpp-tivoli" or "lpp-bezigrad" => "1",
+                        "lpp-drama" or "lpp-center" or "lpp-station" or "lpp-bavarski" => "6",
+                        "zet-crnomerec" or "zet-kvaternik" or "zet-dubrava" => "11",
+                        "zet-precko" or "zet-jarun" or "zet-savski" => "109",
+                        "zet-zitnjak" => "220",
+                        _ => "6"
+                    },
+                    Headsign = stopId switch
+                    {
+                        "lpp-tivoli" => "Bezigrad",
+                        "lpp-bezigrad" => "Tivoli",
+                        "lpp-drama" or "lpp-center" or "lpp-bavarski" => "Main Station",
+                        "lpp-station" => "Center",
+                        "zet-crnomerec" => "Dubrava",
+                        "zet-kvaternik" => "Crnomerec",
+                        "zet-dubrava" => "Crnomerec",
+                        "zet-precko" or "zet-jarun" => "Savski Most",
+                        "zet-zitnjak" => "Main Station",
+                        "zet-savski" => "Jarun",
+                        _ => stopId.StartsWith("lpp") ? "Station" : "Main Station"
+                    },
                     Departures =
                     [
                         new DepartureDto { TripId = "t1", ScheduledTime = DateTime.Now.AddMinutes(3).ToString("HH:mm"), EstimatedTime = DateTime.Now.AddMinutes(4).ToString("HH:mm"), DelayMinutes = 1, IsRealtime = true },
                         new DepartureDto { TripId = "t2", ScheduledTime = DateTime.Now.AddMinutes(12).ToString("HH:mm"), EstimatedTime = DateTime.Now.AddMinutes(12).ToString("HH:mm"), DelayMinutes = 0, IsRealtime = false },
                         new DepartureDto { TripId = "t3", ScheduledTime = DateTime.Now.AddMinutes(19).ToString("HH:mm"), EstimatedTime = DateTime.Now.AddMinutes(21).ToString("HH:mm"), DelayMinutes = 2, IsRealtime = true }
+                    ]
+                },
+                new DepartureGroupDto
+                {
+                    RouteId = stopId.StartsWith("lpp") ? "lpp-2" : "zet-109",
+                    ShortName = stopId.StartsWith("lpp") ? "2" : "109",
+                    Headsign = stopId.StartsWith("lpp") ? "Center" : "Savski Most",
+                    Departures =
+                    [
+                        new DepartureDto { TripId = "t4", ScheduledTime = DateTime.Now.AddMinutes(6).ToString("HH:mm"), EstimatedTime = DateTime.Now.AddMinutes(7).ToString("HH:mm"), DelayMinutes = 1, IsRealtime = true },
+                        new DepartureDto { TripId = "t5", ScheduledTime = DateTime.Now.AddMinutes(18).ToString("HH:mm"), EstimatedTime = null, DelayMinutes = null, IsRealtime = false },
+                        new DepartureDto { TripId = "t6", ScheduledTime = DateTime.Now.AddMinutes(29).ToString("HH:mm"), EstimatedTime = DateTime.Now.AddMinutes(31).ToString("HH:mm"), DelayMinutes = 2, IsRealtime = true }
                     ]
                 }
             ]
@@ -520,6 +909,9 @@ public sealed class LocalMobileApiHandler : DelegatingHandler
 
         if (request.Method == HttpMethod.Get && path == "map/bike-stations")
             return Ok(_store.GetBikeStations(ParseCountryId(query)));
+
+        if (request.Method == HttpMethod.Get && path == "map/vehicles")
+            return Ok(_store.GetVehicles(ParseCountryId(query)));
 
         if (request.Method == HttpMethod.Get && path.StartsWith("operator/stops/") && path.EndsWith("/schedule"))
         {
