@@ -34,7 +34,17 @@ public class PaymentManager
     {
         var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
         if (wallet == null)
-            return OperationResult<WalletDto>.Fail("Wallet not found.");
+        {
+            wallet = new Wallet
+            {
+                UserId = userId,
+                Balance = 0m,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _context.Wallets.Add(wallet);
+            await _context.SaveChangesAsync();
+        }
 
         if (request.Amount <= 0)
             return OperationResult<WalletDto>.Fail("Amount must be greater than zero.");

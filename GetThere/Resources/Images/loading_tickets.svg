@@ -1,26 +1,36 @@
-<svg width="342" height="600" viewBox="0 0 342 600" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- row 1 -->
-  <rect x="0" y="0" width="342" height="80" rx="14" fill="#F1F5F9" />
-  <circle cx="40" cy="40" r="22" fill="#E2E8F0" />
-  <rect x="80" y="20" width="160" height="16" rx="4" fill="#E2E8F0" />
-  <rect x="80" y="46" width="90" height="12" rx="4" fill="#E2E8F0" />
-  <rect x="260" y="26" width="60" height="28" rx="8" fill="#E2E8F0" />
-  <!-- row 2 -->
-  <rect x="0" y="95" width="342" height="80" rx="14" fill="#F1F5F9" />
-  <circle cx="40" cy="135" r="22" fill="#E2E8F0" />
-  <rect x="80" y="115" width="180" height="16" rx="4" fill="#E2E8F0" />
-  <rect x="80" y="141" width="100" height="12" rx="4" fill="#E2E8F0" />
-  <rect x="260" y="121" width="60" height="28" rx="8" fill="#E2E8F0" />
-  <!-- row 3 -->
-  <rect x="0" y="190" width="342" height="80" rx="14" fill="#F1F5F9" />
-  <circle cx="40" cy="230" r="22" fill="#E2E8F0" />
-  <rect x="80" y="210" width="120" height="16" rx="4" fill="#E2E8F0" />
-  <rect x="80" y="236" width="80" height="12" rx="4" fill="#E2E8F0" />
-  <rect x="260" y="216" width="60" height="28" rx="8" fill="#E2E8F0" />
-  <!-- row 4 -->
-  <rect x="0" y="285" width="342" height="80" rx="14" fill="#F1F5F9" />
-  <circle cx="40" cy="325" r="22" fill="#E2E8F0" />
-  <rect x="80" y="305" width="140" height="16" rx="4" fill="#E2E8F0" />
-  <rect x="80" y="331" width="90" height="12" rx="4" fill="#E2E8F0" />
-  <rect x="260" y="311" width="60" height="28" rx="8" fill="#E2E8F0" />
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 27.3.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 342 600" style="enable-background:new 0 0 342 600;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#F1F5F9;}
+	.st1{fill:#E2E8F0;}
+</style>
+<path class="st0" d="M14,27.5h314c7.7,0,14,6.3,14,14v52c0,7.7-6.3,14-14,14H14c-7.7,0-14-6.3-14-14v-52C0,33.8,6.3,27.5,14,27.5z"
+	/>
+<circle class="st1" cx="40" cy="67.5" r="22"/>
+<path class="st1" d="M84,47.5h152c2.2,0,4,1.8,4,4v8c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-8C80,49.3,81.8,47.5,84,47.5z"/>
+<path class="st1" d="M84,73.5h82c2.2,0,4,1.8,4,4v4c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-4C80,75.3,81.8,73.5,84,73.5z"/>
+<path class="st1" d="M268,53.5h44c4.4,0,8,3.6,8,8v12c0,4.4-3.6,8-8,8h-44c-4.4,0-8-3.6-8-8v-12C260,57.1,263.6,53.5,268,53.5z"/>
+<path class="st0" d="M14,122.5h314c7.7,0,14,6.3,14,14v52c0,7.7-6.3,14-14,14H14c-7.7,0-14-6.3-14-14v-52
+	C0,128.8,6.3,122.5,14,122.5z"/>
+<circle class="st1" cx="40" cy="162.5" r="22"/>
+<path class="st1" d="M84,142.5h172c2.2,0,4,1.8,4,4v8c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-8C80,144.3,81.8,142.5,84,142.5z"/>
+<path class="st1" d="M84,168.5h92c2.2,0,4,1.8,4,4v4c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-4C80,170.3,81.8,168.5,84,168.5z"/>
+<path class="st1" d="M268,148.5h44c4.4,0,8,3.6,8,8v12c0,4.4-3.6,8-8,8h-44c-4.4,0-8-3.6-8-8v-12C260,152.1,263.6,148.5,268,148.5z"
+	/>
+<path class="st0" d="M14,217.5h314c7.7,0,14,6.3,14,14v52c0,7.7-6.3,14-14,14H14c-7.7,0-14-6.3-14-14v-52
+	C0,223.8,6.3,217.5,14,217.5z"/>
+<circle class="st1" cx="40" cy="257.5" r="22"/>
+<path class="st1" d="M84,237.5h112c2.2,0,4,1.8,4,4v8c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-8C80,239.3,81.8,237.5,84,237.5z"/>
+<path class="st1" d="M84,263.5h72c2.2,0,4,1.8,4,4v4c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-4C80,265.3,81.8,263.5,84,263.5z"/>
+<path class="st1" d="M268,243.5h44c4.4,0,8,3.6,8,8v12c0,4.4-3.6,8-8,8h-44c-4.4,0-8-3.6-8-8v-12C260,247.1,263.6,243.5,268,243.5z"
+	/>
+<path class="st0" d="M14,312.5h314c7.7,0,14,6.3,14,14v52c0,7.7-6.3,14-14,14H14c-7.7,0-14-6.3-14-14v-52
+	C0,318.8,6.3,312.5,14,312.5z"/>
+<circle class="st1" cx="40" cy="352.5" r="22"/>
+<path class="st1" d="M84,332.5h132c2.2,0,4,1.8,4,4v8c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-8C80,334.3,81.8,332.5,84,332.5z"/>
+<path class="st1" d="M84,358.5h82c2.2,0,4,1.8,4,4v4c0,2.2-1.8,4-4,4H84c-2.2,0-4-1.8-4-4v-4C80,360.3,81.8,358.5,84,358.5z"/>
+<path class="st1" d="M268,338.5h44c4.4,0,8,3.6,8,8v12c0,4.4-3.6,8-8,8h-44c-4.4,0-8-3.6-8-8v-12C260,342.1,263.6,338.5,268,338.5z"
+	/>
 </svg>

@@ -23,7 +23,6 @@ public partial class ProfilePage : ContentPage
     private string _currentBalanceText = "€0,00";
     private bool _isLoading;
     private bool _isAccountTabSelected;
-    private CancellationTokenSource? _loadingCts;
 
     public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService, CountryService countryService, CountryPreferenceService prefs)
     {
@@ -213,10 +212,22 @@ public partial class ProfilePage : ContentPage
                             await DisplayAlertAsync("Success", $"€{amount:F2} added!", "OK");
                             await LoadHistoryAsync();
                         }
+                        else
+                        {
+                            await DisplayAlertAsync("Top Up Failed", string.IsNullOrWhiteSpace(success.Message) ? "Top up could not be completed." : success.Message, "OK");
+                        }
                     }
+                }
+                else
+                {
+                    await DisplayAlertAsync("Provider Error", string.IsNullOrWhiteSpace(provResult.Message) ? "No payment providers are available." : provResult.Message, "OK");
                 }
             }
             catch (Exception ex) { await DisplayAlertAsync("Error", ex.Message, "OK"); }
+        }
+        else
+        {
+            await DisplayAlertAsync("Invalid Amount", "Enter an amount greater than zero.", "OK");
         }
     }
 
@@ -471,21 +482,6 @@ public partial class ProfilePage : ContentPage
         TabSwitcherContainer.IsVisible = false;
         WalletTabView.IsVisible = false;
         AccountTabView.IsVisible = false;
-
-        _loadingCts = new CancellationTokenSource();
-        var token = _loadingCts.Token;
-        var shimmer = _isAccountTabSelected ? AccountLoadingShimmer : WalletLoadingShimmer;
-
-        _ = Task.Run(async () =>
-        {
-            while (!token.IsCancellationRequested)
-            {
-                MainThread.BeginInvokeOnMainThread(() => shimmer.TranslationX = -500);
-                await shimmer.TranslateToAsync(1000, 0, 1500, Easing.CubicInOut);
-                await Task.Delay(300, token);
-            }
-        }, token);
-
     }
 
 
@@ -493,7 +489,6 @@ public partial class ProfilePage : ContentPage
 
     private void StopLoadingAnimations()
     {
-        _loadingCts?.Cancel();
         WalletLoadingState.IsVisible = false;
         AccountLoadingState.IsVisible = false;
         UserHeader.IsVisible = true;
