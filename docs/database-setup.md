@@ -68,7 +68,7 @@ dotnet ef database update
 
 ## Adding a New Table — Full Process
 
-1. Create a new model class in `GetThereAPI/Models/`
+1. Create a new model class in `GetThereAPI/Entities/`
 2. Add `DbSet<YourModel>` to `AppDbContext.cs`
 3. Stop the API (`Shift + F5`)
 4. Run migrations (`dotnet ef migrations add` + `dotnet ef database update`)

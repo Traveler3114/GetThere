@@ -33,7 +33,10 @@ It is:
   - `ITransitRouter -> TransitRouter`
   - `TransitOrchestrator`
 - `MobilityManager` as singleton + hosted background service.
-- Reflection-based auto-registration for all managers in namespace except `MobilityManager` (already singleton).
+- `MobilityParserFactory` as singleton; individual `IMobilityParser` keyed singletons (`NEXTBIKE_API`, `GBFS`, `BOLT_API`, `REST`).
+- Explicitly registered scoped services: `MockTicketPurchaseService`, `TicketableCatalogueService`, `TransitDataService`.
+- Infrastructure: `IIconFileStore -> WebRootIconFileStore` (singleton).
+- Reflection-based auto-registration for all managers in namespace except those above.
 - JWT bearer authentication.
 - CORS policy `MapAssets` allowing all origins/methods/headers (for map image fetch scenarios from MAUI WebView).
 
@@ -135,13 +138,27 @@ Primary context: `Data/AppDbContext.cs`
 
 ---
 
-## 7) Manager layer responsibilities
+## 7) Manager and service layer responsibilities
 
 ### OperatorManager
 - Lists operators.
-- Produces ticketable operator list (including mobility-aware country filtering).
-- Delegates stops/routes/schedules/health checks to transit orchestrator.
-- Produces OTP feed metadata used by OpenTripPlannerAPI.
+- Builds OTP feed metadata (`OtpOperatorFeedDto`) used by OpenTripPlannerAPI.
+- Delegates bike station reads to `MobilityManager` via `IBikeStationCache`.
+- Provides transport type list filtered to icon files that actually exist on disk.
+
+### TransitDataService
+- Thin orchestration layer for OTP-backed transit queries.
+- Delegates to `TransitOrchestrator` for stops, routes, schedules, and health checks.
+- Filters stops/routes to per-country feed prefixes (derived from `TransitOperator` DB rows) when `countryId` is supplied.
+
+### TicketableCatalogueService
+- Returns the list of operators available for mock ticket purchase.
+- Applies country/city filtering for both transit and mobility (bike) operators.
+- Enriches entries with logo URLs from the DB.
+
+### MockTicketPurchaseService
+- Holds the hardcoded mock ticket catalogue (options and pricing).
+- Executes atomic purchase flow: validates wallet balance, deducts balance, persists ticket and wallet transaction in a single DB transaction.
 
 ### MobilityManager
 - Background service polling all configured mobility providers every 2 minutes.

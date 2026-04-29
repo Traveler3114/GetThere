@@ -43,11 +43,11 @@ Resources/          # Fonts, images, styles, colors, app icon, splash
 
 ```
 Controllers/        # REST controllers (AuthController, OperatorController, MapController, etc.)
-Managers/           # Business logic (OperatorManager, RealtimeManager, StaticDataManager, etc.)
+Managers/           # Business logic (OperatorManager, TransitDataService, MobilityManager, etc.)
 Parsers/
-  Realtime/         # GTFS-RT parsers (GtfsRtProtoParser, GtfsRtJsonParser, SiriParser, RestJsonParser)
-  Static/           # GTFS static parsers (GtfsStaticParser, IStaticDataParser)
   Mobility/         # Bike share parsers (NextbikeParser, IMobilityParser)
+Infrastructure/     # Support services (IIconFileStore, WebRootIconFileStore)
+Transit/            # OTP transit abstraction (ITransitProvider, OtpTransitProvider, TransitOrchestrator, etc.)
 Entities/           # EF Core entity classes
 Data/               # AppDbContext
 Migrations/         # EF Core migrations
@@ -76,7 +76,7 @@ Always use this wrapper — never return raw data or plain HTTP status codes alo
 Services in `GetThere.Services` namespace are auto-registered by reflection in `MauiProgram.cs`. To add a new service, simply create a class in that namespace with a constructor taking `HttpClient`. The `AuthenticatedHttpHandler` middleware automatically attaches the JWT token to all requests except `AuthService`.
 
 ### Manager Registration (API)
-Managers in `GetThereAPI.Managers` namespace are auto-registered as scoped services by reflection in `Program.cs`. Exceptions: `StaticDataManager`, `RealtimeManager`, and `MobilityManager` are singletons (they hold in-memory caches) and registered manually as both singleton and hosted service.
+Managers in `GetThereAPI.Managers` namespace are auto-registered as scoped services by reflection in `Program.cs`. Exceptions registered explicitly: `MobilityManager` (singleton + hosted service), `MockTicketPurchaseService`, `TicketableCatalogueService`, `TransitDataService`, and the infrastructure service `IIconFileStore/WebRootIconFileStore`.
 
 ### Parser Factory Pattern
 Each feed type (realtime, static, mobility) has a factory (`RealtimeParserFactory`, `StaticParserFactory`, `MobilityParserFactory`) that resolves the correct parser from a string stored in the database (`TransitOperator.RealtimeFeedFormat`, etc.). To add a new feed format:
@@ -85,11 +85,9 @@ Each feed type (realtime, static, mobility) has a factory (`RealtimeParserFactor
 3. No other changes needed
 
 ### In-Memory Caching
-- `StaticDataManager` — caches GTFS stops, routes, and trip maps loaded from ZIP files
-- `RealtimeManager` — caches live vehicle positions, updated every 10 seconds
 - `MobilityManager` — caches bike station lists, updated every 2 minutes
 
-These singletons are pre-populated on startup via `InitialiseAsync()` called from a background `Task.Run` in `Program.cs` so the server starts accepting requests immediately.
+This singleton is pre-populated on startup via `InitialiseAsync()` called from a background `Task.Run` in `Program.cs` so the server starts accepting requests immediately. Transit data (stops, routes, schedules) is served live via OTP GraphQL and is not cached in-process.
 
 ### Country Filtering
 The app stores a selected country ID in `CountryPreferenceService` (MAUI `Preferences`). Most API endpoints accept an optional `?countryId=` query parameter to scope results. When no country is selected, all data is returned.
@@ -177,9 +175,8 @@ SSL certificate validation is bypassed in development (`ServerCertificateCustomV
 | GET | `/operator/ticketable` | No | Operators available for ticket purchase |
 | GET | `/operator/stops` | No | All stops (optional `?countryId=`) |
 | GET | `/operator/routes` | No | All routes (optional `?countryId=`) |
-| GET | `/operator/vehicles` | No | Live vehicles (optional `?countryId=`) |
+| GET | `/operator/health` | No | Transit provider health check |
 | GET | `/operator/stops/{id}/schedule` | No | Today's departures for a stop |
-| GET | `/operator/trips/{id}` | No | Trip stop sequence with delays |
 | GET | `/operator/transport-types` | No | Transport type icons and colors |
 | GET | `/map/features` | No | All map features (stops + vehicles + bikes) |
 | GET | `/map/bike-stations` | No | Bike stations (optional `?countryId=`) |
@@ -271,7 +268,7 @@ Insert a row into `TransitOperators` with the correct `GtfsFeedUrl`, `RealtimeFe
 
 ## Known Limitations & TODOs
 
-- Mock ticket catalogue (`MockTicketController.cs`) is hardcoded — needs a real ticketing API integration
+- Mock ticket catalogue (`MockTicketPurchaseService.cs`) is hardcoded — needs a real ticketing API integration
 - `TicketApiBaseUrl` and `TicketApiKey` on `TransitOperator` entities are empty strings — not yet used
 - LPP (Ljubljana) is in the mock ticket catalogue but its `TransitOperator` DB ID changed between migrations — verify mapping in `MockTicketController.DbTransitOperatorIds`
 - SSL certificate bypass must be removed and proper certificates configured for production
