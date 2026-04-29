@@ -44,9 +44,8 @@ Host URL is set in startup to `http://0.0.0.0:5000`.
 1. Build app and map controllers.
 2. Load/generate OTP config via `DbBackedOtpConfigLoader.LoadAndGenerateAsync()` from SQL Server (DB-only).
 3. Start app host.
-4. Wait for first scrape cycle readiness (`GtfsReadySignal`).
-5. Optionally auto-start OTP Java process in separate terminal based on config.
-6. Wait for shutdown.
+4. Optionally auto-start OTP Java process in a separate terminal immediately (controlled by `Otp:AutoStart`; defaults to `true`).
+5. Wait for shutdown.
 
 ---
 
