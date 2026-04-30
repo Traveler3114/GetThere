@@ -1,0 +1,15 @@
+Ovo je kratka prezentacija dizajna aplikacije GetThere.
+
+GetThere je zamišljen kao jedinstvena aplikacija za mobilnost, odnosno za wallet, kupnju karata, pregled karata i mapu. Glavni cilj dizajna bio je napraviti jedno pregledno i dosljedno sučelje koje korisnik može lako razumjeti bez obzira na to nalazi li se u profilu, shopu, ticketima ili mapi.
+
+Prvi važan dio je vizualni identitet brenda. On je definiran kroz logo, tipografiju i boje. U dizajnu dominiraju plavi i ljubičasti tonovi koji asociraju na kretanje, tehnologiju i povezivanje, dok se zelena koristi kao akcent za aktivna stanja, potvrde i pozitivne akcije. Tipografija je podijeljena hijerarhijski: naslovi su izraženiji i elegantniji, a ostatak sučelja koristi čistu sans-serif tipografiju radi čitljivosti na mobilnim uređajima.
+
+Drugi važan dio je light i dark tema. Struktura zaslona ostaje ista u obje teme, a mijenjaju se kontrast, površine i naglasci. Time korisnik ne mora ponovno učiti aplikaciju kada promijeni temu sustava. Usporedba login i register zaslona dobro pokazuje da je hijerarhija sadržaja ista, ali je prikaz prilagođen čitljivosti i osjećaju korištenja u svakoj temi.
+
+Kod glavnih zaslona aplikacije fokus je na dosljednosti komponenti. Profil je podijeljen na Wallet i Account kako bi se financijski i korisnički dio jasno odvojili. Shop koristi velike kartice operatora kako bi korisnik brzo prepoznao što kupuje. Tickets ekran je organiziran prema stanjima karata, kako bi aktivne, iskorištene i istekle karte bile lako razumljive već na prvi pogled.
+
+Sljedeća važna stavka su dimenzije elemenata, razmaci i pozicioniranje. Dizajn koristi isti ritam razmaka kroz cijelu aplikaciju. Naslovi, kartice, input polja, gumbi i badgevi poravnati su po istim osima. Touch targeti su dovoljno veliki za mobilno korištenje, a zaobljeni kutovi i konzistentni padding stvaraju osjećaj reda i povezanosti svih ekrana. Loading stanja su također dizajnirana tako da prate stvarni raspored finalnih zaslona, a ne da budu generična.
+
+Što se tiče UX-a, fokus je bio na tome da korisnik može brzo doći do cilja. To znači da tok kupnje karata mora biti jednostavan, da wallet i tickets moraju biti pregledni, a da korisnik u svakom trenutku zna gdje se nalazi i što može sljedeće napraviti. Dobar UX ovdje ne znači samo lijep izgled, nego i osjećaj jasnoće, brzine i povjerenja tijekom korištenja.
+
+Zaključno, GetThere dizajn je napravljen kao jedinstven vizualni sustav koji povezuje sve glavne funkcije aplikacije. Njegove najveće prednosti su dosljednost, čitljivost, prilagodba svijetloj i tamnoj temi te pregledan raspored elemenata. Cilj cijelog rješenja bio je stvoriti sučelje koje djeluje moderno, strukturirano i jednostavno za korištenje.
