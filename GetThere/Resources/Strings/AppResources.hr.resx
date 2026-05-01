@@ -174,9 +174,12 @@
   <data name="Settings_Country" xml:space="preserve"><value>Država</value></data>
   <data name="Settings_CountrySubtitle" xml:space="preserve"><value>Odaberite svoju državu za prikaz relevantnih operatera i usluga.</value></data>
   <data name="Settings_CountrySaved" xml:space="preserve"><value>Spremljeno: {0} ✓</value></data>
+  <data name="Settings_CurrentCountry" xml:space="preserve"><value>Trenutno: {0}</value></data>
   <data name="Settings_Language" xml:space="preserve"><value>Jezik</value></data>
   <data name="Settings_LanguageSubtitle" xml:space="preserve"><value>Odaberite željeni jezik aplikacije.</value></data>
   <data name="Settings_LanguageSaved" xml:space="preserve"><value>Jezik spremljen ✓</value></data>
+  <data name="Settings_LanguageEnglish" xml:space="preserve"><value>Engleski</value></data>
+  <data name="Settings_LanguageCroatian" xml:space="preserve"><value>Hrvatski</value></data>
   <data name="Settings_About" xml:space="preserve"><value>O aplikaciji</value></data>
   <data name="Settings_AboutText" xml:space="preserve"><value>GetThere — aplikacija za javni prijevoz i mobilnost.</value></data>
   <data name="Settings_MockDisclaimer" xml:space="preserve"><value>Kupnje testnih karata su samo za demonstraciju i nisu valjane za putovanje.</value></data>
@@ -194,4 +197,40 @@
   <data name="Error_CouldNotLoadProfile" xml:space="preserve"><value>Nije moguće učitati profil: </value></data>
   <data name="Error_CouldNotLoadWallet" xml:space="preserve"><value>Nije moguće učitati novčanik: </value></data>
   <data name="Error_CouldNotLoadHistory" xml:space="preserve"><value>Nije moguće učitati povijest: </value></data>
+  <data name="Error_CouldNotLoadRegions" xml:space="preserve"><value>Nije moguće učitati regije: </value></data>
+
+  <!-- Oznake filtera / sekcija karata (dinamički) -->
+  <data name="Tickets_ActiveFilter" xml:space="preserve"><value>Aktivne ▾</value></data>
+  <data name="Tickets_ExpiredFilter" xml:space="preserve"><value>Istekle ▾</value></data>
+  <data name="Tickets_UsedFilter" xml:space="preserve"><value>Iskorištene ▾</value></data>
+  <data name="Tickets_ActiveSection" xml:space="preserve"><value>Aktivne karte</value></data>
+  <data name="Tickets_ExpiredSection" xml:space="preserve"><value>Istekle karte</value></data>
+  <data name="Tickets_UsedSection" xml:space="preserve"><value>Iskorištene karte</value></data>
+  <data name="Tickets_NoActiveItems" xml:space="preserve"><value>Nema aktivnih karata</value></data>
+  <data name="Tickets_NoExpiredItems" xml:space="preserve"><value>Nema isteklih karata</value></data>
+  <data name="Tickets_NoUsedItems" xml:space="preserve"><value>Nema iskorištenih karata</value></data>
+
+  <!-- Pod-postavke profila (jezik/regija, promjena lozinke) -->
+  <data name="Profile_SubSettings_RegionUpdated" xml:space="preserve"><value>Regija ažurirana na {0}</value></data>
+  <data name="Profile_SubSettings_Success" xml:space="preserve"><value>Uspjeh</value></data>
+  <data name="Profile_SubSettings_PasswordDesc" xml:space="preserve"><value>Postavite jaku lozinku za zaštitu računa.</value></data>
+  <data name="Profile_SubSettings_CurrentPassword" xml:space="preserve"><value>Trenutna lozinka</value></data>
+  <data name="Profile_SubSettings_NewPassword" xml:space="preserve"><value>Nova lozinka</value></data>
+  <data name="Profile_SubSettings_ConfirmNewPassword" xml:space="preserve"><value>Potvrdi novu lozinku</value></data>
+  <data name="Profile_SubSettings_UpdateButton" xml:space="preserve"><value>Ažuriraj lozinku</value></data>
+  <data name="Profile_SubSettings_PasswordMismatch" xml:space="preserve"><value>Lozinke se ne podudaraju.</value></data>
+  <data name="Profile_SubSettings_PasswordSuccess" xml:space="preserve"><value>Lozinka je uspješno ažurirana.</value></data>
+
+  <!-- Dopuna novčanika -->
+  <data name="Profile_TopUp_Title" xml:space="preserve"><value>Dopuna</value></data>
+  <data name="Profile_TopUp_AmountLabel" xml:space="preserve"><value>Iznos (€):</value></data>
+  <data name="Profile_TopUp_Next" xml:space="preserve"><value>Dalje</value></data>
+  <data name="Profile_TopUp_Provider" xml:space="preserve"><value>Pružatelj</value></data>
+  <data name="Profile_TopUp_Added" xml:space="preserve"><value>Dodano €{0:F2}!</value></data>
+  <data name="Profile_TopUp_FailedTitle" xml:space="preserve"><value>Dopuna nije uspjela</value></data>
+  <data name="Profile_TopUp_Failed" xml:space="preserve"><value>Dopuna nije mogla biti dovršena.</value></data>
+  <data name="Profile_TopUp_ProviderErrorTitle" xml:space="preserve"><value>Greška pružatelja</value></data>
+  <data name="Profile_TopUp_NoProviders" xml:space="preserve"><value>Nema dostupnih pružatelja plaćanja.</value></data>
+  <data name="Profile_TopUp_InvalidAmountTitle" xml:space="preserve"><value>Neispravni iznos</value></data>
+  <data name="Profile_TopUp_InvalidAmount" xml:space="preserve"><value>Unesite iznos veći od nule.</value></data>
 </root>

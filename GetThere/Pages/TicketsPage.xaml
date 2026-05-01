@@ -87,7 +87,7 @@
                 <Border x:Name="FilterBadge" Grid.Column="1" Padding="15,8" BackgroundColor="{AppThemeBinding Light=#D1FAE5, Dark=#064E3B}" StrokeThickness="0">
                     <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
                     <Border.Shadow><Shadow Brush="Black" Opacity="0.1" Offset="0,4" Radius="8" /></Border.Shadow>
-                    <Label x:Name="FilterBtnLabel" Text="Active ▾" TextColor="{AppThemeBinding Light=#065F46, Dark=#A7F3D0}" FontAttributes="Bold" FontSize="14">
+                    <Label x:Name="FilterBtnLabel" Text="{loc:Translate Key=Tickets_ActiveFilter}" TextColor="{AppThemeBinding Light=#065F46, Dark=#A7F3D0}" FontAttributes="Bold" FontSize="14">
                         <Label.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnShowFilterOptions" />
                         </Label.GestureRecognizers>
@@ -114,7 +114,7 @@
                             <VerticalStackLayout x:Name="MockTicketsRows" Spacing="0" />
                         </VerticalStackLayout>
                         
-                        <Label x:Name="CurrentFilterSectionLabel" Text="Active Tickets" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" Margin="0,10,0,0" />
+                        <Label x:Name="CurrentFilterSectionLabel" Text="{loc:Translate Key=Tickets_ActiveSection}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" Margin="0,10,0,0" />
                         
                         <!-- Loading state -->
                         <Grid x:Name="LoadingState" IsVisible="False" VerticalOptions="FillAndExpand">

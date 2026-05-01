@@ -1,15 +1,17 @@
 #nullable enable
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;
+using System.Globalization;
 
 namespace GetThere.Pages;
 
 /// <summary>
-/// Settings page — lets the user pick their country.
+/// Settings page — lets the user pick their country and app language.
 /// The selection is persisted via <see cref="CountryPreferenceService"/>
-/// and used to filter operators and services throughout the app.
+/// and <see cref="LocalizationService"/> and used throughout the app.
 /// </summary>
 public partial class SettingsPage : ContentPage
 {
@@ -18,6 +20,12 @@ public partial class SettingsPage : ContentPage
     private readonly AuthService _authService;
     private List<CountryDto> _countries = [];
 
+    private static readonly (string Code, string Key)[] _languages =
+    [
+        ("en", "Settings_LanguageEnglish"),
+        ("hr", "Settings_LanguageCroatian"),
+    ];
+
     public SettingsPage(CountryService countryService, CountryPreferenceService prefs, AuthService authService)
     {
         InitializeComponent();
@@ -25,6 +33,7 @@ public partial class SettingsPage : ContentPage
         _prefs = prefs;
         _authService = authService;
         SizeChanged += OnPageSizeChanged;
+        PopulateLanguagePicker();
     }
 
     protected override async void OnAppearing()
@@ -44,6 +53,19 @@ public partial class SettingsPage : ContentPage
         PageUtility.ApplyTicketsStyleResponsive(Width, SettingsContent);
     }
 
+    private void PopulateLanguagePicker()
+    {
+        var loc = LocalizationService.Instance;
+        LanguagePicker.ItemsSource = _languages.Select(l => loc[l.Key]).ToList();
+
+        var currentLang = Preferences.Default.Get("app_language",
+            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+
+        var idx = Array.FindIndex(_languages, l => l.Code == currentLang);
+        if (idx < 0) idx = 0;
+        LanguagePicker.SelectedIndex = idx;
+    }
+
     private async Task LoadCountriesAsync()
     {
         CountryLoader.IsVisible = CountryLoader.IsRunning = true;
@@ -53,7 +75,6 @@ public partial class SettingsPage : ContentPage
             _countries = result.Success && result.Data is not null ? result.Data : [];
             CountryPicker.ItemsSource = _countries.Select(c => c.Name).ToList();
 
-            // Pre-select current preference if any
             var currentId = _prefs.GetSelectedCountryId();
             if (currentId != -1)
             {
@@ -61,13 +82,18 @@ public partial class SettingsPage : ContentPage
                 if (idx >= 0)
                     CountryPicker.SelectedIndex = idx;
 
-                CurrentCountryLabel.Text = $"Current: {_prefs.GetSelectedCountryName()}";
+                CurrentCountryLabel.Text = string.Format(
+                    LocalizationService.Instance["Settings_CurrentCountry"],
+                    _prefs.GetSelectedCountryName());
                 CurrentCountryLabel.IsVisible = true;
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load countries: " + ex.Message, "OK");
+            await DisplayAlertAsync(
+                LocalizationService.Instance["App_Error"],
+                LocalizationService.Instance["Error_CouldNotLoadCountries"] + ex.Message,
+                LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -82,13 +108,33 @@ public partial class SettingsPage : ContentPage
 
         var country = _countries[idx];
         _prefs.SetSelectedCountry(country.Id, country.Name);
-        CurrentCountryLabel.Text = $"Saved: {country.Name} ✓";
+        CurrentCountryLabel.Text = string.Format(
+            LocalizationService.Instance["Settings_CountrySaved"],
+            country.Name);
         CurrentCountryLabel.IsVisible = true;
+    }
+
+    private void OnLanguageSelected(object? sender, EventArgs e)
+    {
+        var idx = LanguagePicker.SelectedIndex;
+        if (idx < 0 || idx >= _languages.Length) return;
+
+        var (code, _) = _languages[idx];
+        var culture = code == "hr" ? new CultureInfo("hr-HR") : new CultureInfo("en-US");
+        LocalizationService.Instance.SetCulture(culture);
+
+        LanguageSavedLabel.Text = LocalizationService.Instance["Settings_LanguageSaved"];
+        LanguageSavedLabel.IsVisible = true;
     }
 
     private async void OnLogoutClicked(object? sender, EventArgs e)
     {
-        var confirmed = await DisplayAlertAsync("Log out", "Do you want to log out?", "Log out", "Cancel");
+        var loc = LocalizationService.Instance;
+        var confirmed = await DisplayAlertAsync(
+            loc["Settings_Logout"],
+            loc["Settings_LogoutConfirm"],
+            loc["Settings_LogoutButton"],
+            loc["App_Cancel"]);
         if (!confirmed) return;
 
         await _authService.Logout();
