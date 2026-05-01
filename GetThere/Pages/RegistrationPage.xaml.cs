@@ -1,6 +1,7 @@
 #nullable enable
 #pragma warning disable CA1416
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThereShared.Dtos;
 
@@ -37,25 +38,25 @@ public partial class RegistrationPage : ContentPage
 
         if (string.IsNullOrWhiteSpace(rdto.FullName))
         {
-            PageUtility.ShowError(ErrorLabel, "Please enter your full name.");
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Register_NameRequired"]);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(rdto.Email) || !PageUtility.IsValidEmail(rdto.Email))
         {
-            PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Register_InvalidEmail"]);
             return;
         }
 
         if (rdto.Password.Length < 8)
         {
-            PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Register_PasswordTooShort"]);
             return;
         }
 
         if (rdto.Password != confirm)
         {
-            PageUtility.ShowError(ErrorLabel, "Passwords do not match.");
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Register_PasswordMismatch"]);
             return;
         }
 
@@ -67,17 +68,17 @@ public partial class RegistrationPage : ContentPage
 
             if (result.Success)
             {
-                await DisplayAlertAsync("Account created", "You can now log in.", "Continue");
+                await DisplayAlertAsync(LocalizationService.Instance["Register_Success"], LocalizationService.Instance["Register_SuccessMessage"], LocalizationService.Instance["App_Ok"]);
                 await Shell.Current.GoToAsync("///login");
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, result.Message ?? "Registration failed.");
+                PageUtility.ShowError(ErrorLabel, result.Message ?? LocalizationService.Instance["Register_Failed"]);
             }
         }
         catch (Exception ex)
         {
-            PageUtility.ShowError(ErrorLabel, "Registration failed. " + ex.Message);
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Register_Failed"] + " " + ex.Message);
         }
         finally
         {
@@ -98,12 +99,16 @@ public partial class RegistrationPage : ContentPage
     private void TogglePass_Tapped(object? sender, TappedEventArgs e)
     {
         PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
-        TogglePassBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
+        TogglePassBtn.Text = PasswordEntry.IsPassword
+            ? LocalizationService.Instance["Login_ShowPassword"]
+            : LocalizationService.Instance["Login_HidePassword"];
     }
 
     private void ToggleConfirm_Tapped(object? sender, TappedEventArgs e)
     {
         ConfirmPasswordEntry.IsPassword = !ConfirmPasswordEntry.IsPassword;
-        ToggleConfirmBtn.Text = ConfirmPasswordEntry.IsPassword ? "Show" : "Hide";
+        ToggleConfirmBtn.Text = ConfirmPasswordEntry.IsPassword
+            ? LocalizationService.Instance["Login_ShowPassword"]
+            : LocalizationService.Instance["Login_HidePassword"];
     }
 }

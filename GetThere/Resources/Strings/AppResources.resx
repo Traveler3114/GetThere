@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- General -->
+  <data name="App_Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="App_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="App_Error" xml:space="preserve"><value>Error</value></data>
+  <data name="App_Loading" xml:space="preserve"><value>Loading…</value></data>
+  <data name="App_Done" xml:space="preserve"><value>Done</value></data>
+  <data name="App_Close" xml:space="preserve"><value>Close</value></data>
+  <data name="App_Yes" xml:space="preserve"><value>Yes</value></data>
+  <data name="App_No" xml:space="preserve"><value>No</value></data>
+  <data name="App_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="App_Back" xml:space="preserve"><value>Back</value></data>
+  <data name="App_Retry" xml:space="preserve"><value>Retry</value></data>
+
+  <!-- Login page -->
+  <data name="Login_Title" xml:space="preserve"><value>Sign In</value></data>
+  <data name="Login_Email" xml:space="preserve"><value>Email</value></data>
+  <data name="Login_EmailPlaceholder" xml:space="preserve"><value>Email</value></data>
+  <data name="Login_Password" xml:space="preserve"><value>Password</value></data>
+  <data name="Login_PasswordPlaceholder" xml:space="preserve"><value>Password</value></data>
+  <data name="Login_ShowPassword" xml:space="preserve"><value>Show</value></data>
+  <data name="Login_HidePassword" xml:space="preserve"><value>Hide</value></data>
+  <data name="Login_Button" xml:space="preserve"><value>Sign In</value></data>
+  <data name="Login_CreateAccount" xml:space="preserve"><value>Create Account</value></data>
+  <data name="Login_InvalidEmail" xml:space="preserve"><value>Please enter a valid email address.</value></data>
+  <data name="Login_PasswordTooShort" xml:space="preserve"><value>Password must be at least 8 characters.</value></data>
+  <data name="Login_Failed" xml:space="preserve"><value>Login failed.</value></data>
+
+  <!-- Registration page -->
+  <data name="Register_Title" xml:space="preserve"><value>Join GetThere</value></data>
+  <data name="Register_Subtitle" xml:space="preserve"><value>Start your journey now</value></data>
+  <data name="Register_FullName" xml:space="preserve"><value>Full Name</value></data>
+  <data name="Register_FullNamePlaceholder" xml:space="preserve"><value>Full Name</value></data>
+  <data name="Register_Email" xml:space="preserve"><value>Email</value></data>
+  <data name="Register_EmailPlaceholder" xml:space="preserve"><value>Email</value></data>
+  <data name="Register_Password" xml:space="preserve"><value>Password</value></data>
+  <data name="Register_PasswordPlaceholder" xml:space="preserve"><value>Password</value></data>
+  <data name="Register_ConfirmPassword" xml:space="preserve"><value>Confirm Password</value></data>
+  <data name="Register_ConfirmPasswordPlaceholder" xml:space="preserve"><value>Confirm Password</value></data>
+  <data name="Register_Button" xml:space="preserve"><value>Create Account</value></data>
+  <data name="Register_AlreadyHaveAccount" xml:space="preserve"><value>Already have an account?</value></data>
+  <data name="Register_SignIn" xml:space="preserve"><value>Sign In</value></data>
+  <data name="Register_NameRequired" xml:space="preserve"><value>Please enter your full name.</value></data>
+  <data name="Register_InvalidEmail" xml:space="preserve"><value>Please enter a valid email address.</value></data>
+  <data name="Register_PasswordTooShort" xml:space="preserve"><value>Password must be at least 8 characters.</value></data>
+  <data name="Register_PasswordMismatch" xml:space="preserve"><value>Passwords do not match.</value></data>
+  <data name="Register_Failed" xml:space="preserve"><value>Registration failed.</value></data>
+  <data name="Register_Success" xml:space="preserve"><value>Account created</value></data>
+  <data name="Register_SuccessMessage" xml:space="preserve"><value>You can now log in.</value></data>
+
+  <!-- Profile page -->
+  <data name="Profile_Title" xml:space="preserve"><value>Profile</value></data>
+  <data name="Profile_Wallet" xml:space="preserve"><value>Wallet</value></data>
+  <data name="Profile_Account" xml:space="preserve"><value>Account</value></data>
+  <data name="Profile_Balance" xml:space="preserve"><value>CURRENT BALANCE</value></data>
+  <data name="Profile_TopUp" xml:space="preserve"><value>Add</value></data>
+  <data name="Profile_TopUpAmount" xml:space="preserve"><value>Amount (€)</value></data>
+  <data name="Profile_RecentActivity" xml:space="preserve"><value>Recent Activity</value></data>
+  <data name="Profile_NoTransactions" xml:space="preserve"><value>No transactions yet</value></data>
+  <data name="Profile_PersonalInfo" xml:space="preserve"><value>Personal Information</value></data>
+  <data name="Profile_FullName" xml:space="preserve"><value>FULL NAME</value></data>
+  <data name="Profile_Email" xml:space="preserve"><value>EMAIL ADDRESS</value></data>
+  <data name="Profile_SettingsSecurity" xml:space="preserve"><value>Settings &amp; Security</value></data>
+  <data name="Profile_AccountPrivacy" xml:space="preserve"><value>Account Privacy</value></data>
+  <data name="Profile_PaymentMethods" xml:space="preserve"><value>Payment Methods</value></data>
+  <data name="Profile_ChangePassword" xml:space="preserve"><value>Change Password</value></data>
+  <data name="Profile_SupportMore" xml:space="preserve"><value>Support &amp; More</value></data>
+  <data name="Profile_HelpCenter" xml:space="preserve"><value>Help Center</value></data>
+  <data name="Profile_About" xml:space="preserve"><value>About GetThere</value></data>
+  <data name="Profile_AboutText" xml:space="preserve"><value>GetThere — public transport &amp; mobility app.</value></data>
+  <data name="Profile_SignOut" xml:space="preserve"><value>Sign Out</value></data>
+  <data name="Profile_SignOutConfirm" xml:space="preserve"><value>Do you want to sign out?</value></data>
+  <data name="Profile_SignOutButton" xml:space="preserve"><value>Sign out</value></data>
+  <data name="Profile_GuestMode" xml:space="preserve"><value>Guest Mode</value></data>
+  <data name="Profile_GuestPrompt" xml:space="preserve"><value>Sign in to see your balance and history.</value></data>
+  <data name="Profile_LoginRegister" xml:space="preserve"><value>Login / Register</value></data>
+  <data name="Profile_Verified" xml:space="preserve"><value>● VERIFIED</value></data>
+  <data name="Profile_LanguageRegion" xml:space="preserve"><value>Language &amp; Region</value></data>
+
+  <!-- Shop page -->
+  <data name="Shop_Title" xml:space="preserve"><value>Shop</value></data>
+  <data name="Shop_AllCountries" xml:space="preserve"><value>All countries</value></data>
+  <data name="Shop_NoOperators" xml:space="preserve"><value>No operators available for ticket purchase.</value></data>
+  <data name="Shop_MockDisclaimer" xml:space="preserve"><value>⚠ MOCK TICKETS — NOT VALID FOR TRAVEL ⚠</value></data>
+
+  <!-- Ticket purchase page -->
+  <data name="TicketPurchase_MockDisclaimer" xml:space="preserve"><value>⚠ MOCK TICKETS — NOT VALID FOR TRAVEL ⚠</value></data>
+  <data name="TicketPurchase_NoOptions" xml:space="preserve"><value>No ticket options available.</value></data>
+  <data name="TicketPurchase_BuyButton" xml:space="preserve"><value>Buy Tickets</value></data>
+  <data name="TicketPurchase_Quantity" xml:space="preserve"><value>Qty</value></data>
+
+  <!-- Tickets page -->
+  <data name="Tickets_Title" xml:space="preserve"><value>My Tickets</value></data>
+  <data name="Tickets_Active" xml:space="preserve"><value>Active</value></data>
+  <data name="Tickets_Expired" xml:space="preserve"><value>Expired</value></data>
+  <data name="Tickets_Used" xml:space="preserve"><value>Used</value></data>
+  <data name="Tickets_NoItems" xml:space="preserve"><value>No items found</value></data>
+  <data name="Tickets_MockLabel" xml:space="preserve"><value>Session Tickets (Mock)</value></data>
+  <data name="Tickets_MockDisclaimer" xml:space="preserve"><value>⚠️ MOCK TICKETS — NOT VALID FOR TRAVEL</value></data>
+  <data name="Tickets_SessionTickets" xml:space="preserve"><value>Session Tickets</value></data>
+  <data name="Tickets_Filter" xml:space="preserve"><value>Active ▾</value></data>
+
+  <!-- Ticket confirmation page -->
+  <data name="Confirm_Title" xml:space="preserve"><value>Ticket Confirmed</value></data>
+  <data name="Confirm_MockBanner" xml:space="preserve"><value>⛔  MOCK TICKET — NOT VALID FOR TRAVEL  ⛔</value></data>
+  <data name="Confirm_ValidFrom" xml:space="preserve"><value>VALID FROM</value></data>
+  <data name="Confirm_ValidUntil" xml:space="preserve"><value>VALID UNTIL</value></data>
+  <data name="Confirm_QrMock" xml:space="preserve"><value>QR CODE (MOCK)</value></data>
+  <data name="Confirm_Done" xml:space="preserve"><value>Done</value></data>
+  <data name="Confirm_Close" xml:space="preserve"><value>Close</value></data>
+
+  <!-- Settings page -->
+  <data name="Settings_Title" xml:space="preserve"><value>Settings</value></data>
+  <data name="Settings_Country" xml:space="preserve"><value>Country</value></data>
+  <data name="Settings_CountrySubtitle" xml:space="preserve"><value>Select your country to see relevant operators and services.</value></data>
+  <data name="Settings_CountrySaved" xml:space="preserve"><value>Saved: {0} ✓</value></data>
+  <data name="Settings_Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Settings_LanguageSubtitle" xml:space="preserve"><value>Select your preferred app language.</value></data>
+  <data name="Settings_LanguageSaved" xml:space="preserve"><value>Language saved ✓</value></data>
+  <data name="Settings_About" xml:space="preserve"><value>About</value></data>
+  <data name="Settings_AboutText" xml:space="preserve"><value>GetThere — public transport &amp; mobility app.</value></data>
+  <data name="Settings_MockDisclaimer" xml:space="preserve"><value>Mock ticket purchases are for demonstration only and are not valid for travel.</value></data>
+  <data name="Settings_Logout" xml:space="preserve"><value>Log out</value></data>
+  <data name="Settings_LogoutConfirm" xml:space="preserve"><value>Do you want to log out?</value></data>
+  <data name="Settings_LogoutButton" xml:space="preserve"><value>Log out</value></data>
+
+  <!-- Errors -->
+  <data name="Error_NetworkFailed" xml:space="preserve"><value>Network request failed. Please try again.</value></data>
+  <data name="Error_LoadFailed" xml:space="preserve"><value>Failed to load data. Please try again.</value></data>
+  <data name="Error_PurchaseFailed" xml:space="preserve"><value>Purchase failed. Please try again.</value></data>
+  <data name="Error_CouldNotLoadCountries" xml:space="preserve"><value>Could not load countries: </value></data>
+  <data name="Error_CouldNotLoadOptions" xml:space="preserve"><value>Could not load ticket options: </value></data>
+  <data name="Error_CouldNotLoadOperators" xml:space="preserve"><value>Could not load operators: </value></data>
+  <data name="Error_CouldNotLoadProfile" xml:space="preserve"><value>Could not load profile: </value></data>
+  <data name="Error_CouldNotLoadWallet" xml:space="preserve"><value>Could not load wallet: </value></data>
+  <data name="Error_CouldNotLoadHistory" xml:space="preserve"><value>Could not load history: </value></data>
+</root>

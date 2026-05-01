@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using SkiaSharp;
@@ -25,6 +26,8 @@ namespace GetThere
 
         public static MauiApp CreateMauiApp()
         {
+            LocalizationService.Initialize();
+
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
@@ -149,6 +152,7 @@ namespace GetThere
 
             builder.Services.AddSingleton<CountryPreferenceService>();
             builder.Services.AddSingleton<MockTicketStore>();
+            builder.Services.AddSingleton(LocalizationService.Instance);
 
             return builder.Build();
         }

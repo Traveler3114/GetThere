@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:loc="clr-namespace:GetThere.Localization"
     BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
@@ -45,7 +46,7 @@
                          x:Name="PageSubtitleLabel"
                          FontSize="14"
                          HorizontalTextAlignment="Center"
-                         Text="Choose a ticket for this operator"
+                         Text="{loc:Translate Key=TicketPurchase_BuyButton}"
                          TextColor="{AppThemeBinding Light=#E5E7EB, Dark=#CBD5E1}" />
                 </VerticalStackLayout>
             </Grid>
@@ -71,7 +72,7 @@
                         <Label FontAttributes="Bold"
                                FontSize="13"
                                HorizontalTextAlignment="Center"
-                               Text="⚠ MOCK TICKETS — NOT VALID FOR TRAVEL ⚠"
+                               Text="{loc:Translate Key=TicketPurchase_MockDisclaimer}"
                                TextColor="{AppThemeBinding Light=#9A6B00, Dark=#FCD34D}" />
                     </Border>
 
@@ -88,7 +89,7 @@
                         <Label
                             FontSize="15"
                             HorizontalOptions="Center"
-                            Text="No ticket options available."
+                            Text="{loc:Translate Key=TicketPurchase_NoOptions}"
                              TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>

@@ -1,5 +1,6 @@
 #nullable enable
 using GetThere.Helpers;
+using GetThere.Localization;
 using System;
 using GetThere.Services;
 using GetThere.State;
@@ -121,7 +122,7 @@ public partial class ProfilePage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load profile: " + ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Error_CouldNotLoadProfile"] + ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -233,7 +234,7 @@ public partial class ProfilePage : ContentPage
 
     private async void OnLogoutClicked(object? sender, EventArgs e)
     {
-        if (await DisplayAlertAsync("Logout", "Are you sure?", "Yes", "No"))
+        if (await DisplayAlertAsync(LocalizationService.Instance["Profile_SignOut"], LocalizationService.Instance["Profile_SignOutConfirm"], LocalizationService.Instance["Profile_SignOutButton"], LocalizationService.Instance["App_Cancel"]))
         {
             await _authService.Logout();
             App.GoToLogin();

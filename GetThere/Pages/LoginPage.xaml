@@ -4,8 +4,9 @@
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:components="clr-namespace:GetThere.Components"
              xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+             xmlns:loc="clr-namespace:GetThere.Localization"
              x:Class="GetThere.Pages.LoginPage"
-             Title="Sign In"
+             Title="{loc:Translate Key=Login_Title}"
               BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
              Shell.NavBarIsVisible="False">
 
@@ -53,20 +54,20 @@
                     <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#334155}" HorizontalOptions="Center" Margin="0,0,0,15" />
 
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="Email" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                        <Label Text="{loc:Translate Key=Login_Email}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                         <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="50">
                             <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Entry x:Name="EmailEntry" Placeholder="Email" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" Keyboard="Email" HeightRequest="50" VerticalOptions="Center" />
+                            <Entry x:Name="EmailEntry" Placeholder="{loc:Translate Key=Login_EmailPlaceholder}" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" Keyboard="Email" HeightRequest="50" VerticalOptions="Center" />
                         </Border>
                     </VerticalStackLayout>
 
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="Password" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                        <Label Text="{loc:Translate Key=Login_Password}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                         <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="50">
                             <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
                             <Grid ColumnDefinitions="*, auto">
-                                <Entry x:Name="PasswordEntry" Placeholder="Password" IsPassword="True" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" HeightRequest="50" VerticalOptions="Center" />
-                                <Label x:Name="TogglePasswordBtn" Grid.Column="1" Text="Show" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" VerticalOptions="Center">
+                                <Entry x:Name="PasswordEntry" Placeholder="{loc:Translate Key=Login_PasswordPlaceholder}" IsPassword="True" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" HeightRequest="50" VerticalOptions="Center" />
+                                <Label x:Name="TogglePasswordBtn" Grid.Column="1" Text="{loc:Translate Key=Login_ShowPassword}" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" VerticalOptions="Center">
                                     <Label.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
                                     </Label.GestureRecognizers>
@@ -87,7 +88,7 @@
                         </HorizontalStackLayout>
 
                         <Grid Margin="0,20,0,0">
-                        <Button x:Name="LoginButton" Text="Sign In" Clicked="LoginButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold">
+                        <Button x:Name="LoginButton" Text="{loc:Translate Key=Login_Button}" Clicked="LoginButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold">
                             <Button.Shadow>
                                 <Shadow Brush="Black" Opacity="0.25" Offset="4,4" Radius="4" />
                             </Button.Shadow>
@@ -110,7 +111,7 @@
                         </Border>
                     </Grid>
 
-                    <Label Text="Create Account" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" FontAttributes="Bold" HorizontalOptions="Center" Margin="0,5">
+                    <Label Text="{loc:Translate Key=Login_CreateAccount}" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" FontAttributes="Bold" HorizontalOptions="Center" Margin="0,5">
                         <Label.GestureRecognizers><TapGestureRecognizer Tapped="RegisterButton_Clicked" /></Label.GestureRecognizers>
                     </Label>
 
