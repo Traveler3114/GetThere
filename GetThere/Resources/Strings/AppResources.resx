@@ -211,6 +211,9 @@
   <data name="Tickets_NoUsedItems" xml:space="preserve"><value>No used tickets</value></data>
 
   <!-- Profile sub-settings (language/region, change password) -->
+  <data name="Profile_SubSettings_Region" xml:space="preserve"><value>Region</value></data>
+  <data name="Profile_SubSettings_SaveButton" xml:space="preserve"><value>Save</value></data>
+  <data name="Profile_SubSettings_SavedMessage" xml:space="preserve"><value>Language and region saved.</value></data>
   <data name="Profile_SubSettings_RegionUpdated" xml:space="preserve"><value>Region updated to {0}</value></data>
   <data name="Profile_SubSettings_Success" xml:space="preserve"><value>Success</value></data>
   <data name="Profile_SubSettings_PasswordDesc" xml:space="preserve"><value>Set a strong password to protect your account.</value></data>

@@ -211,6 +211,9 @@
   <data name="Tickets_NoUsedItems" xml:space="preserve"><value>Nema iskorištenih karata</value></data>
 
   <!-- Pod-postavke profila (jezik/regija, promjena lozinke) -->
+  <data name="Profile_SubSettings_Region" xml:space="preserve"><value>Regija</value></data>
+  <data name="Profile_SubSettings_SaveButton" xml:space="preserve"><value>Spremi</value></data>
+  <data name="Profile_SubSettings_SavedMessage" xml:space="preserve"><value>Jezik i regija su spremljeni.</value></data>
   <data name="Profile_SubSettings_RegionUpdated" xml:space="preserve"><value>Regija ažurirana na {0}</value></data>
   <data name="Profile_SubSettings_Success" xml:space="preserve"><value>Uspjeh</value></data>
   <data name="Profile_SubSettings_PasswordDesc" xml:space="preserve"><value>Postavite jaku lozinku za zaštitu računa.</value></data>

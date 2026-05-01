@@ -369,48 +369,100 @@ public partial class ProfilePage : ContentPage
             var countriesResult = await _countryService.GetCountriesAsync();
             if (!countriesResult.Success || countriesResult.Data is null) return;
 
-            var currentId = _prefs.GetSelectedCountryId();
+            var countries = countriesResult.Data;
+            var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+            var textColor = isDark ? Colors.White : Colors.Black;
+            var pickerBg = isDark ? Color.FromArgb("#1F2937") : Colors.White;
 
-            foreach (var country in countriesResult.Data)
+            // ── Language ──
+            SubSettingsContent.Add(new Label
             {
-                var isSelected = country.Id == currentId;
-                
-                var row = new Grid { ColumnDefinitions = new ColumnDefinitionCollection { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, Padding = 20 };
-                var label = new Label { Text = country.Name, FontSize = 16, VerticalOptions = LayoutOptions.Center, TextColor = Colors.Black };
-                if (isSelected) label.FontAttributes = FontAttributes.Bold;
+                Text = loc["Settings_Language"],
+                FontSize = 15,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = textColor,
+                Margin = new Thickness(4, 0, 0, 8)
+            });
 
-                row.Add(label);
-                if (isSelected)
+            var languages = new[] { ("en", "Settings_LanguageEnglish"), ("hr", "Settings_LanguageCroatian") };
+            var currentLang = Preferences.Default.Get("app_language", CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+            var langPicker = new Picker
+            {
+                Title = loc["Settings_Language"],
+                FontSize = 16,
+                TextColor = textColor,
+                BackgroundColor = pickerBg,
+                ItemsSource = languages.Select(l => loc[l.Item2]).ToList()
+            };
+            var langIdx = Array.FindIndex(languages, l => l.Item1 == currentLang);
+            langPicker.SelectedIndex = langIdx >= 0 ? langIdx : 0;
+            SubSettingsContent.Add(langPicker);
+
+            SubSettingsContent.Add(new BoxView { HeightRequest = 24, Color = Colors.Transparent });
+
+            // ── Region ──
+            SubSettingsContent.Add(new Label
+            {
+                Text = loc["Profile_SubSettings_Region"],
+                FontSize = 15,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = textColor,
+                Margin = new Thickness(4, 0, 0, 8)
+            });
+
+            var regionPicker = new Picker
+            {
+                Title = loc["Settings_Country"],
+                FontSize = 16,
+                TextColor = textColor,
+                BackgroundColor = pickerBg,
+                ItemsSource = countries.Select(c => c.Name).ToList()
+            };
+            var currentId = _prefs.GetSelectedCountryId();
+            var countryIdx = countries.FindIndex(c => c.Id == currentId);
+            regionPicker.SelectedIndex = countryIdx >= 0 ? countryIdx : 0;
+            SubSettingsContent.Add(regionPicker);
+
+            SubSettingsContent.Add(new BoxView { HeightRequest = 32, Color = Colors.Transparent });
+
+            // ── Save button ──
+            var saveBtn = new Button
+            {
+                Text = loc["Profile_SubSettings_SaveButton"],
+                FontAttributes = FontAttributes.Bold,
+                FontSize = 15,
+                TextColor = Colors.White,
+                BackgroundColor = Color.FromArgb("#0EA5A4"),
+                CornerRadius = 16,
+                HeightRequest = 50,
+                HorizontalOptions = LayoutOptions.Fill
+            };
+
+            saveBtn.Clicked += async (_, _) =>
+            {
+                var lIdx = langPicker.SelectedIndex;
+                if (lIdx >= 0)
                 {
-                    row.Add(new Label { Text = "✓", TextColor = Color.FromArgb("#10B981"), FontSize = 18, FontAttributes = FontAttributes.Bold, HorizontalOptions = LayoutOptions.End }, 1);
+                    var (code, _) = languages[lIdx];
+                    var culture = code == "hr" ? new CultureInfo("hr-HR") : new CultureInfo("en-US");
+                    LocalizationService.Instance.SetCulture(culture);
                 }
 
-                var border = new Border
+                var rIdx = regionPicker.SelectedIndex;
+                if (rIdx >= 0 && rIdx < countries.Count)
                 {
-                    Margin = new Thickness(0, 0, 0, 12),
-                    Padding = 0,
-                    BackgroundColor = isSelected ? Color.FromArgb("#F0FDFA") : Colors.White,
-                    StrokeThickness = isSelected ? 2 : 0,
-                    Stroke = Color.FromArgb("#10B981"),
-                    StrokeShape = new RoundRectangle { CornerRadius = 16 },
-                    Content = row
-                };
+                    var country = countries[rIdx];
+                    _prefs.SetSelectedCountry(country.Id, country.Name);
+                }
 
-                border.GestureRecognizers.Add(new TapGestureRecognizer
-                {
-                    Command = new Command(async () =>
-                    {
-                        _prefs.SetSelectedCountry(country.Id, country.Name);
-                        SubSettingsView.IsVisible = false;
-                        await DisplayAlertAsync(
-                            LocalizationService.Instance["Profile_SubSettings_Success"],
-                            string.Format(LocalizationService.Instance["Profile_SubSettings_RegionUpdated"], country.Name),
-                            LocalizationService.Instance["App_Ok"]);
-                    })
-                });
+                SubSettingsView.IsVisible = false;
+                await DisplayAlertAsync(
+                    LocalizationService.Instance["Profile_SubSettings_Success"],
+                    LocalizationService.Instance["Profile_SubSettings_SavedMessage"],
+                    LocalizationService.Instance["App_Ok"]);
+            };
 
-                SubSettingsContent.Add(border);
-            }
+            SubSettingsContent.Add(saveBtn);
         }
         catch (Exception ex)
         {
