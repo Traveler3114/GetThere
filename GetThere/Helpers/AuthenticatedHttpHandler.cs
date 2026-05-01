@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using GetThere.Localization;
 using GetThere.Services;
 
 namespace GetThere.Helpers;
@@ -26,6 +27,10 @@ public class AuthenticatedHttpHandler : DelegatingHandler
         // It becomes: Authorization: Bearer eyJhbGci....
         if (!string.IsNullOrEmpty(token))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        request.Headers.AcceptLanguage.Clear();
+        request.Headers.AcceptLanguage.Add(
+            new StringWithQualityHeaderValue(LocalizationService.Instance.CurrentCulture.TwoLetterISOLanguageName));
 
         // Continue sending the request as normal
         var response = await base.SendAsync(request, cancellationToken);

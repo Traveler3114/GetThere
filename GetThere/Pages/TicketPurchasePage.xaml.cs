@@ -1,5 +1,6 @@
 #nullable enable
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Dtos;
@@ -123,7 +124,10 @@ public partial class TicketPurchasePage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load options: " + ex.Message, "OK");
+            await DisplayAlertAsync(
+                LocalizationService.Instance["App_Error"],
+                LocalizationService.Instance["Error_CouldNotLoadOptions"] + ex.Message,
+                LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -316,12 +320,18 @@ public partial class TicketPurchasePage : ContentPage
             }
             else
             {
-                await DisplayAlertAsync("Error", result.Message, "OK");
+                await DisplayAlertAsync(
+                    LocalizationService.Instance["App_Error"],
+                    result.Message,
+                    LocalizationService.Instance["App_Ok"]);
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", ex.Message, "OK");
+            await DisplayAlertAsync(
+                LocalizationService.Instance["App_Error"],
+                ex.Message,
+                LocalizationService.Instance["App_Ok"]);
         }
         finally
         {

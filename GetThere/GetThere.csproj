@@ -66,6 +66,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<EmbeddedResource Include="Resources\Strings\AppResources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LogicalName>GetThere.Resources.Strings.AppResources.resources</LogicalName>
+		</EmbeddedResource>
+		<EmbeddedResource Include="Resources\Strings\AppResources.hr.resx">
+			<DependentUpon>AppResources.resx</DependentUpon>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Maui" Version="14.0.1" />
 		<PackageReference Include="Google.Protobuf" Version="3.34.0" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />

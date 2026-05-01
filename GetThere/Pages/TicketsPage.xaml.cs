@@ -1,5 +1,6 @@
 using GetThereShared.Dtos;
 using GetThereShared.Enums;
+using GetThere.Localization;
 using GetThere.Services;
 #pragma warning disable CA1416
 using System.Diagnostics;
@@ -198,7 +199,10 @@ public partial class TicketsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", ex.Message, "OK");
+            await DisplayAlertAsync(
+                LocalizationService.Instance["App_Error"],
+                ex.Message,
+                LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -288,9 +292,29 @@ public partial class TicketsPage : ContentPage
         
         TicketsRows.IsVisible = filtered.Count > 0;
         TicketsEmptyState.IsVisible = filtered.Count == 0;
-        TicketsEmptyLabel.Text = $"No {_activeFilter.ToString().ToLower()} tickets";
-        CurrentFilterSectionLabel.Text = $"{_activeFilter} Tickets";
-        FilterBtnLabel.Text = $"{_activeFilter} ▾";
+
+        var loc = LocalizationService.Instance;
+        TicketsEmptyLabel.Text = _activeFilter switch
+        {
+            TicketStatus.Active   => loc["Tickets_NoActiveItems"],
+            TicketStatus.Expired  => loc["Tickets_NoExpiredItems"],
+            TicketStatus.Used     => loc["Tickets_NoUsedItems"],
+            _                     => loc["Tickets_NoItems"],
+        };
+        CurrentFilterSectionLabel.Text = _activeFilter switch
+        {
+            TicketStatus.Active   => loc["Tickets_ActiveSection"],
+            TicketStatus.Expired  => loc["Tickets_ExpiredSection"],
+            TicketStatus.Used     => loc["Tickets_UsedSection"],
+            _                     => _activeFilter.ToString(),
+        };
+        FilterBtnLabel.Text = _activeFilter switch
+        {
+            TicketStatus.Active   => loc["Tickets_ActiveFilter"],
+            TicketStatus.Expired  => loc["Tickets_ExpiredFilter"],
+            TicketStatus.Used     => loc["Tickets_UsedFilter"],
+            _                     => $"{_activeFilter} ▾",
+        };
 
         // Update Header Badge Color
         var (bg, fg) = _activeFilter switch

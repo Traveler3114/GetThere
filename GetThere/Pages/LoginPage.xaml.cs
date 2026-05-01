@@ -1,5 +1,6 @@
 using System;
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThereShared.Dtos;
 
@@ -36,7 +37,9 @@ public partial class LoginPage : ContentPage
     private void TogglePassword_Clicked(object? sender, TappedEventArgs e)
     {
         PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
-        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? "Show" : "Hide";
+        TogglePasswordBtn.Text = PasswordEntry.IsPassword
+            ? LocalizationService.Instance["Login_ShowPassword"]
+            : LocalizationService.Instance["Login_HidePassword"];
     }
 
     private async void LoginButton_Clicked(object? sender, EventArgs e)
@@ -51,13 +54,13 @@ public partial class LoginPage : ContentPage
 
         if (string.IsNullOrWhiteSpace(loginData.Email) || !PageUtility.IsValidEmail(loginData.Email))
         {
-            PageUtility.ShowError(ErrorLabel, "Please enter a valid email address.");
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Login_InvalidEmail"]);
             return;
         }
 
         if (loginData.Password.Length < 8)
         {
-            PageUtility.ShowError(ErrorLabel, "Password must be at least 8 characters.");
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Login_PasswordTooShort"]);
             return;
         }
 
@@ -70,11 +73,11 @@ public partial class LoginPage : ContentPage
             if (result.Success)
                 App.GoToApp();
             else
-                PageUtility.ShowError(ErrorLabel, result.Message ?? "Login failed.");
+                PageUtility.ShowError(ErrorLabel, result.Message ?? LocalizationService.Instance["Login_Failed"]);
         }
         catch (Exception ex)
         {
-            PageUtility.ShowError(ErrorLabel, "Login failed. " + ex.Message);
+            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Login_Failed"] + " " + ex.Message);
         }
         finally
         {
