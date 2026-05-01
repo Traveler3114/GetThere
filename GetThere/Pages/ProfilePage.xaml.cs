@@ -256,7 +256,8 @@ public partial class ProfilePage : ContentPage
 
     private async void OnLogoutClicked(object? sender, EventArgs e)
     {
-        if (await DisplayAlertAsync(LocalizationService.Instance["Profile_SignOut"], LocalizationService.Instance["Profile_SignOutConfirm"], LocalizationService.Instance["Profile_SignOutButton"], LocalizationService.Instance["App_Cancel"]))
+        var loc = LocalizationService.Instance;
+        if (await DisplayAlertAsync(loc["Profile_SignOut"], loc["Profile_SignOutConfirm"], loc["Profile_SignOutButton"], loc["App_Cancel"]))
         {
             await _authService.Logout();
             App.GoToLogin();
@@ -391,7 +392,7 @@ public partial class ProfilePage : ContentPage
                     BackgroundColor = isSelected ? Color.FromArgb("#F0FDFA") : Colors.White,
                     StrokeThickness = isSelected ? 2 : 0,
                     Stroke = Color.FromArgb("#10B981"),
-                    StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 16 },
+                    StrokeShape = new RoundRectangle { CornerRadius = 16 },
                     Content = row
                 };
 
