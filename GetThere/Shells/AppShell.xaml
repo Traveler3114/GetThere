@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:pages="clr-namespace:GetThere.Pages"
     xmlns:local="clr-namespace:GetThere"
+    xmlns:loc="clr-namespace:GetThere.Localization"
     Title="GetThere"
     Shell.NavBarIsVisible="False"
     Shell.TabBarBackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
@@ -14,25 +15,25 @@
 
     <TabBar>
         <ShellContent 
-            Title="Profile" 
+            Title="{loc:Translate Key=Tab_Profile}" 
             Icon="{AppThemeBinding Light=profile.png, Dark=profile_white.png}" 
             ContentTemplate="{DataTemplate pages:ProfilePage}" 
             Route="profile" />
         
         <ShellContent 
-            Title="Map" 
+            Title="{loc:Translate Key=Tab_Map}" 
             Icon="{AppThemeBinding Light=map.png, Dark=map_white.png}" 
             ContentTemplate="{DataTemplate pages:MapPage}" 
             Route="map" />
         
         <ShellContent 
-            Title="Shop" 
+            Title="{loc:Translate Key=Tab_Shop}" 
             Icon="{AppThemeBinding Light=shop_bag.png, Dark=shop_bag_white.png}" 
             ContentTemplate="{DataTemplate pages:ShopPage}" 
             Route="shop" />
         
         <ShellContent 
-            Title="Tickets" 
+            Title="{loc:Translate Key=Tab_Tickets}" 
             Icon="{AppThemeBinding Light=ticket.png, Dark=ticket_white.png}" 
             ContentTemplate="{DataTemplate pages:TicketsPage}" 
             Route="tickets" />

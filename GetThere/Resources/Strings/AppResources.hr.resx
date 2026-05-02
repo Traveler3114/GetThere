@@ -60,6 +60,11 @@
   </resheader>
 
   <!-- Općenito -->
+  <data name="Tab_Profile" xml:space="preserve"><value>Profil</value></data>
+  <data name="Tab_Map" xml:space="preserve"><value>Karta</value></data>
+  <data name="Tab_Shop" xml:space="preserve"><value>Trgovina</value></data>
+  <data name="Tab_Tickets" xml:space="preserve"><value>Karte</value></data>
+
   <data name="App_Ok" xml:space="preserve"><value>U redu</value></data>
   <data name="App_Cancel" xml:space="preserve"><value>Odustani</value></data>
   <data name="App_Error" xml:space="preserve"><value>Greška</value></data>
