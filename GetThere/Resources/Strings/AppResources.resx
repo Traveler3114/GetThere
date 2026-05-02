@@ -60,6 +60,11 @@
   </resheader>
 
   <!-- General -->
+  <data name="Tab_Profile" xml:space="preserve"><value>Profile</value></data>
+  <data name="Tab_Map" xml:space="preserve"><value>Map</value></data>
+  <data name="Tab_Shop" xml:space="preserve"><value>Shop</value></data>
+  <data name="Tab_Tickets" xml:space="preserve"><value>Tickets</value></data>
+
   <data name="App_Ok" xml:space="preserve"><value>OK</value></data>
   <data name="App_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="App_Error" xml:space="preserve"><value>Error</value></data>
