@@ -148,6 +148,8 @@ public partial class MapPage : ContentPage
 
     // Fetches transport types from the API, injects window._TRANSPORT_TYPES
     // and pre-fetches each icon as base64 into window._ICON_DATA.
+    // Fetches transport types from the API, injects window._TRANSPORT_TYPES
+    // and pre-fetches each icon as base64 into window._ICON_DATA.
     private async Task<string> InjectTransportTypesAsync(string html, string apiBase)
     {
         try
@@ -165,7 +167,11 @@ public partial class MapPage : ContentPage
 
             // Pre-fetch each icon as base64 to avoid CORS issues in WebView
             sb.AppendLine("window._ICON_DATA = {};");
-            using var http = new HttpClient();
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) => true
+            };
+            using var http = new HttpClient(handler);
 
             // Deduplicate — multiple types can share the same icon file (e.g. tram + trolleybus)
             var uniqueFiles = types.Select(t => t.IconFile).Distinct();
