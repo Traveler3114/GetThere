@@ -54,15 +54,15 @@ namespace GetThereAPI.Controllers;
 
         // POST /auth/login
         [HttpPost("login")]
-        public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, [FromQuery] bool rememberMe = false, CancellationToken ct = default)
+        public async Task<ActionResult<OperationResult<LoginResponse>>> Login(LoginRequest request, [FromQuery] bool rememberMe = false, CancellationToken ct = default)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
             if (user == null)
-                return Unauthorized();
+                return Unauthorized(OperationResult<LoginResponse>.Fail("Invalid credentials."));
 
             var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, false);
             if (!result.Succeeded)
-                return Unauthorized();
+                return Unauthorized(OperationResult<LoginResponse>.Fail("Invalid credentials."));
 
             var accessToken = _tokenManager.CreateToken(user);
             var rawRefreshToken = _tokenManager.GenerateRefreshToken();
@@ -88,19 +88,19 @@ namespace GetThereAPI.Controllers;
                 Token = accessToken
             };
 
-            return Ok(new LoginResponse
+            return Ok(OperationResult<LoginResponse>.Ok(new LoginResponse
             {
                 User = userDto,
                 AccessToken = accessToken,
                 RefreshToken = rawRefreshToken
-            });
+            }));
         }
 
         [HttpPost("refresh")]
-        public async Task<ActionResult<RefreshTokenResponse>> Refresh(RefreshTokenRequest request, CancellationToken ct = default)
+        public async Task<ActionResult<OperationResult<RefreshTokenResponse>>> Refresh(RefreshTokenRequest request, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
-                return Unauthorized();
+                return Unauthorized(OperationResult<RefreshTokenResponse>.Fail("Invalid refresh token."));
 
             var incomingTokenHash = _tokenManager.HashToken(request.RefreshToken);
             var existingRefreshToken = await _dbContext.RefreshTokens
@@ -108,7 +108,7 @@ namespace GetThereAPI.Controllers;
                 .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
             if (existingRefreshToken == null || !existingRefreshToken.IsActive)
-                return Unauthorized();
+                return Unauthorized(OperationResult<RefreshTokenResponse>.Fail("Refresh token is invalid or expired."));
 
             existingRefreshToken.RevokedAt = DateTime.UtcNow;
 
@@ -133,11 +133,11 @@ namespace GetThereAPI.Controllers;
 
             var newAccessToken = _tokenManager.CreateToken(existingRefreshToken.User);
 
-            return Ok(new RefreshTokenResponse
+            return Ok(OperationResult<RefreshTokenResponse>.Ok(new RefreshTokenResponse
             {
                 AccessToken = newAccessToken,
                 RefreshToken = newRawRefreshToken
-            });
+            }));
         }
 
         [Authorize]

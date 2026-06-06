@@ -4,7 +4,9 @@ using GetThereAPI.Infrastructure;
 using GetThereAPI.Managers;
 using GetThereAPI.Parsers.Mobility;
 using GetThereAPI.Transit;
+using GetThereShared.Common;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -134,6 +136,31 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var error = context.Features.Get<IExceptionHandlerFeature>();
+        var isDev = app.Environment.IsDevelopment();
+
+        if (error != null)
+        {
+            logger.LogError(error.Error, "Unhandled exception on {Method} {Path}",
+                context.Request.Method, context.Request.Path);
+        }
+
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = 500;
+
+        var message = isDev && error?.Error != null
+            ? $"Unexpected error ({error.Error.GetType().Name}): {error.Error.Message}"
+            : "An unexpected error occurred. Please try again later.";
+
+        await context.Response.WriteAsJsonAsync(OperationResult<string>.Fail(message));
+    });
+});
 
 app.UseCors("MapAssets");
 app.UseStaticFiles();

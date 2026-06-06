@@ -28,6 +28,7 @@ GetThere/
 
 GetThereAPI/
 ├── Program.cs          # Startup, DI, middleware, global error handler
+├── Common/             # SqlHelper (database error utilities)
 ├── Controllers/        # REST API endpoints (thin — forward to managers)
 ├── Managers/           # All business logic
 ├── Mapping/            # Static DTO mappers
@@ -115,10 +116,14 @@ Order: `System.*` → `Microsoft.*` → third-party → project (`GetThereAPI.*`
 - MAUI services don't use `CancellationToken` (HTTP timeouts handle cancellation)
 
 ### Error handling
-- **Global exception handler** in `Program.cs` catches and logs all unhandled exceptions
-- **Transaction catch blocks**: catch → rollback → rethrow (never swallow)
+- **Global exception handler** in `Program.cs` catches and logs all unhandled exceptions, returns `500` with `OperationResult<string>.Fail`
+- **Transaction catch blocks**: `catch { await dbTx.RollbackAsync(ct); throw; }` — never swallow
 - **Controllers never catch exceptions** — let them bubble to the global handler
 - **Never silently swallow exceptions** — if you catch, you must log or rethrow
+- **SqlHelper** (`GetThereAPI/Common/SqlHelper.cs`) for database error utilities:
+  - `GetUserFriendlyMessage(SqlException)` → human-readable message
+  - `IsUniqueConstraintViolation(SqlException)` → detect duplicate key violations
+  - `IsDeadlock(SqlException)` → detect deadlock for potential retry
 
 ### DTO / Contract naming
 | Element | Convention | Example |

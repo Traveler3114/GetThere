@@ -94,77 +94,85 @@ public class MockTicketPurchaseService
 
         await using var dbTx = await _db.Database.BeginTransactionAsync(ct);
 
-        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
-        if (wallet is null)
+        try
         {
-            await dbTx.RollbackAsync(ct);
-            return OperationResult<TicketPurchaseResponse>.Fail("Wallet not found.");
-        }
-
-        if (wallet.Balance < totalCost)
-        {
-            await dbTx.RollbackAsync(ct);
-            return OperationResult<TicketPurchaseResponse>.Fail(
-                $"Insufficient balance. Required: €{totalCost:F2}, available: €{wallet.Balance:F2}.");
-        }
-
-        wallet.Balance -= totalCost;
-        wallet.LastUpdated = DateTime.UtcNow;
-
-        var validFrom = DateTime.UtcNow;
-        var mins = ValidMinutes.TryGetValue(body.OptionId, out var m) && m > 0 ? m : DefaultValidityMinutes;
-        var validUntil = validFrom.AddMinutes(mins * quantity);
-        var ticketId = Guid.NewGuid().ToString();
-
-        var result = new TicketPurchaseResponse
-        {
-            TicketId = ticketId,
-            OperatorName = entry.OperatorName,
-            TicketName = option.Name,
-            Price = totalCost,
-            ValidFrom = validFrom.ToString("O"),
-            ValidUntil = validUntil.ToString("O"),
-            QrCodeData = ticketId,
-            IsMock = true,
-        };
-
-        Ticket? savedTicket = null;
-        if (DbTransitOperatorIds.TryGetValue(operatorId, out var dbOpId))
-        {
-            savedTicket = new Ticket
+            var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
+            if (wallet is null)
             {
-                TicketType = option.Name,
-                PurchasedAt = validFrom,
-                ValidFrom = validFrom,
-                ValidUntil = validUntil,
-                PricePaid = totalCost,
-                Format = TicketFormat.QrCode,
-                Payload = ticketId,
-                DisplayInstructions = "MOCK TICKET — NOT VALID FOR TRAVEL",
-                Status = TicketStatus.Active,
-                TicketDefinitionId = body.OptionId,
-                UserId = userId,
-                TransitOperatorId = dbOpId,
+                await dbTx.RollbackAsync(ct);
+                return OperationResult<TicketPurchaseResponse>.Fail("Wallet not found.");
+            }
+
+            if (wallet.Balance < totalCost)
+            {
+                await dbTx.RollbackAsync(ct);
+                return OperationResult<TicketPurchaseResponse>.Fail(
+                    $"Insufficient balance. Required: €{totalCost:F2}, available: €{wallet.Balance:F2}.");
+            }
+
+            wallet.Balance -= totalCost;
+            wallet.LastUpdated = DateTime.UtcNow;
+
+            var validFrom = DateTime.UtcNow;
+            var mins = ValidMinutes.TryGetValue(body.OptionId, out var m) && m > 0 ? m : DefaultValidityMinutes;
+            var validUntil = validFrom.AddMinutes(mins * quantity);
+            var ticketId = Guid.NewGuid().ToString();
+
+            var result = new TicketPurchaseResponse
+            {
+                TicketId = ticketId,
+                OperatorName = entry.OperatorName,
+                TicketName = option.Name,
+                Price = totalCost,
+                ValidFrom = validFrom.ToString("O"),
+                ValidUntil = validUntil.ToString("O"),
+                QrCodeData = ticketId,
+                IsMock = true,
             };
-            _db.Tickets.Add(savedTicket);
+
+            Ticket? savedTicket = null;
+            if (DbTransitOperatorIds.TryGetValue(operatorId, out var dbOpId))
+            {
+                savedTicket = new Ticket
+                {
+                    TicketType = option.Name,
+                    PurchasedAt = validFrom,
+                    ValidFrom = validFrom,
+                    ValidUntil = validUntil,
+                    PricePaid = totalCost,
+                    Format = TicketFormat.QrCode,
+                    Payload = ticketId,
+                    DisplayInstructions = "MOCK TICKET — NOT VALID FOR TRAVEL",
+                    Status = TicketStatus.Active,
+                    TicketDefinitionId = body.OptionId,
+                    UserId = userId,
+                    TransitOperatorId = dbOpId,
+                };
+                _db.Tickets.Add(savedTicket);
+            }
+
+            var tx = new WalletTransaction
+            {
+                WalletId = wallet.Id,
+                Type = WalletTransactionType.TicketPurchase,
+                Amount = totalCost,
+                Timestamp = DateTime.UtcNow,
+                Description = $"{entry.OperatorName} — {option.Name}" + (quantity > 1 ? $" ×{quantity}" : ""),
+            };
+            if (savedTicket is not null)
+                tx.Ticket = savedTicket;
+
+            _db.WalletTransactions.Add(tx);
+
+            await _db.SaveChangesAsync(ct);
+            await dbTx.CommitAsync(ct);
+
+            return OperationResult<TicketPurchaseResponse>.Ok(result, "Mock ticket purchased.");
         }
-
-        var tx = new WalletTransaction
+        catch
         {
-            WalletId = wallet.Id,
-            Type = WalletTransactionType.TicketPurchase,
-            Amount = totalCost,
-            Timestamp = DateTime.UtcNow,
-            Description = $"{entry.OperatorName} — {option.Name}" + (quantity > 1 ? $" ×{quantity}" : ""),
-        };
-        if (savedTicket is not null)
-            tx.Ticket = savedTicket;
-
-        _db.WalletTransactions.Add(tx);
-
-        await _db.SaveChangesAsync(ct);
-        await dbTx.CommitAsync(ct);
-
-        return OperationResult<TicketPurchaseResponse>.Ok(result, "Mock ticket purchased.");
+            await dbTx.RollbackAsync(ct);
+            throw;
+        }
     }
 }
