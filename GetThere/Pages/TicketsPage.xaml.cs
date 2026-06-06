@@ -1,4 +1,4 @@
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereShared.Enums;
 using GetThere.Services;
 #pragma warning disable CA1416
@@ -13,7 +13,7 @@ public partial class TicketsPage : ContentPage
 {
     private readonly TicketService _ticketService;
     private readonly MockTicketStore _mockStore;
-    private List<TicketDto> _allTickets = [];
+    private List<TicketResponse> _allTickets = [];
     private TicketStatus _activeFilter = TicketStatus.Active;
 
     private bool? _lastIsMobile;

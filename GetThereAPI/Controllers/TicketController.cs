@@ -1,13 +1,12 @@
 ﻿using GetThereAPI.Managers;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
 
-namespace GetThereAPI.Controllers
-{
+namespace GetThereAPI.Controllers;
     [ApiController]
     [Route("[controller]")]
     [Authorize]
@@ -21,14 +20,13 @@ namespace GetThereAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<OperationResult<IEnumerable<TicketDto>>>> GetTickets()
+        public async Task<ActionResult<OperationResult<IEnumerable<TicketResponse>>>> GetTickets(CancellationToken ct = default)
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
             if (userId == null)
-                return Unauthorized(OperationResult<IEnumerable<TicketDto>>.Fail("User ID claim missing or not authenticated."));
+                return Unauthorized(OperationResult<IEnumerable<TicketResponse>>.Fail("User ID claim missing or not authenticated."));
 
-            var result = await _ticketManager.GetTicketsAsync(userId);
+            var result = await _ticketManager.GetTicketsAsync(userId, ct);
             return Ok(result);
         }
     }
-}

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereAPI.Entities;
 
 namespace GetThereAPI.Parsers.Mobility;
@@ -17,7 +17,7 @@ public class NextbikeParser : IMobilityParser
         PropertyNameCaseInsensitive = true
     };
 
-    public async Task<List<BikeStationDto>> ParseStationsAsync(
+    public async Task<List<BikeStationResponse>> ParseStationsAsync(
         MobilityProvider provider, HttpClient http)
     {
         var url = BuildUrl(provider);
@@ -35,7 +35,7 @@ public class NextbikeParser : IMobilityParser
         if (root?.Countries is null)
             return [];
 
-        var stations = new List<BikeStationDto>();
+        var stations = new List<BikeStationResponse>();
 
         foreach (var country in root.Countries)
         {
@@ -56,7 +56,7 @@ public class NextbikeParser : IMobilityParser
 
                 foreach (var place in city.Places)
                 {
-                    stations.Add(new BikeStationDto
+                    stations.Add(new BikeStationResponse
                     {
                         StationId      = place.Uid.ToString(),
                         Name           = place.Name ?? "",

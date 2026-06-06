@@ -4,8 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
-namespace GetThereAPI.Data
-{
+namespace GetThereAPI.Data;
     public class AppDbContext : IdentityDbContext<AppUser>
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
@@ -180,4 +179,3 @@ namespace GetThereAPI.Data
                 .UsingEntity(j => j.ToTable("MobilityProviderCity"));
         }
     }
-}

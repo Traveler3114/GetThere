@@ -1,7 +1,7 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
@@ -15,7 +15,7 @@ public class WalletManager
         _context = context;
     }
 
-    public async Task CreateWalletForUserAsync(string userId)
+    public async Task CreateWalletForUserAsync(string userId, CancellationToken ct = default)
     {
         var wallet = new Wallet
         {
@@ -24,34 +24,34 @@ public class WalletManager
             LastUpdated = DateTime.UtcNow
         };
         _context.Wallets.Add(wallet);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(ct);
     }
 
-    public async Task<OperationResult<WalletDto>> GetWalletAsync(string userId)
+    public async Task<OperationResult<WalletResponse>> GetWalletAsync(string userId, CancellationToken ct = default)
     {
-        var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
         if (wallet == null)
-            return OperationResult<WalletDto>.Fail("Wallet not found.");
+            return OperationResult<WalletResponse>.Fail("Wallet not found.");
 
-        var dto = new WalletDto
+        var dto = new WalletResponse
         {
             Id = wallet.Id,
             Balance = wallet.Balance,
             LastUpdated = wallet.LastUpdated
         };
-        return OperationResult<WalletDto>.Ok(dto);
+        return OperationResult<WalletResponse>.Ok(dto);
     }
 
-    public async Task<OperationResult<IEnumerable<WalletTransactionDto>>> GetTransactionsAsync(string userId)
+    public async Task<OperationResult<IEnumerable<WalletTransactionResponse>>> GetTransactionsAsync(string userId, CancellationToken ct = default)
     {
-        var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
         if (wallet == null)
-            return OperationResult<IEnumerable<WalletTransactionDto>>.Fail("Wallet not found.");
+            return OperationResult<IEnumerable<WalletTransactionResponse>>.Fail("Wallet not found.");
 
         var transactions = await _context.WalletTransactions
             .Where(t => t.WalletId == wallet.Id)
             .OrderByDescending(t => t.Timestamp)
-            .Select(t => new WalletTransactionDto
+            .Select(t => new WalletTransactionResponse
             {
                 Id = t.Id,
                 Type = t.Type,
@@ -61,8 +61,8 @@ public class WalletManager
                 WalletId = t.WalletId,
                 TicketId = t.TicketId
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
-        return OperationResult<IEnumerable<WalletTransactionDto>>.Ok(transactions);
+        return OperationResult<IEnumerable<WalletTransactionResponse>>.Ok(transactions);
     }
 }

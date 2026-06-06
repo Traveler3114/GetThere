@@ -2,7 +2,7 @@ using System;
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -160,7 +160,7 @@ public partial class ShopPage : ContentPage
         LoadingState.IsVisible = false;
     }
 
-    private Border BuildOperatorCard(TicketableOperatorDto op)
+    private Border BuildOperatorCard(TicketableOperatorResponse op)
     {
         var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
         var nameInitial = op.Name.Length > 0 ? op.Name[0].ToString() : "?";
@@ -259,7 +259,7 @@ public partial class ShopPage : ContentPage
         return card;
     }
 
-    private async void OnOperatorTapped(TicketableOperatorDto op)
+    private async void OnOperatorTapped(TicketableOperatorResponse op)
     {
         var page = new TicketPurchasePage(_shopService, _mockStore, _prefs);
         page.Prepare(op);

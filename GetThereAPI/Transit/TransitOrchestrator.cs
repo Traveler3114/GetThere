@@ -1,4 +1,4 @@
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Transit;
 
@@ -13,19 +13,19 @@ public class TransitOrchestrator
         _provider = provider;
     }
 
-    public async Task<List<StopDto>> GetStopsAsync(int? countryId, CancellationToken ct = default)
+    public async Task<List<StopResponse>> GetStopsAsync(int? countryId, CancellationToken ct = default)
     {
         var instanceKey = await _router.ResolveInstanceKeyAsync(countryId, ct);
         return await _provider.GetStopsAsync(instanceKey, ct);
     }
 
-    public async Task<List<RouteDto>> GetRoutesAsync(int? countryId, CancellationToken ct = default)
+    public async Task<List<RouteResponse>> GetRoutesAsync(int? countryId, CancellationToken ct = default)
     {
         var instanceKey = await _router.ResolveInstanceKeyAsync(countryId, ct);
         return await _provider.GetRoutesAsync(instanceKey, ct);
     }
 
-    public async Task<StopScheduleDto?> GetStopScheduleAsync(
+    public async Task<StopScheduleResponse?> GetStopScheduleAsync(
         int? countryId,
         string stopId,
         CancellationToken ct = default)

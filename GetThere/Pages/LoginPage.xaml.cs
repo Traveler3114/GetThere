@@ -1,7 +1,7 @@
 using System;
 using GetThere.Helpers;
 using GetThere.Services;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -43,7 +43,7 @@ public partial class LoginPage : ContentPage
     {
         PageUtility.HideError(ErrorLabel);
 
-        var loginData = new LoginDto
+        var loginData = new LoginRequest
         {
             Email = EmailEntry.Text?.Trim() ?? string.Empty,
             Password = PasswordEntry.Text ?? string.Empty

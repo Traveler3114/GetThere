@@ -1,5 +1,4 @@
-﻿namespace GetThereShared.Enums
-{
+﻿namespace GetThereShared.Enums;
     public enum PaymentStatus
     {
         Pending,
@@ -7,4 +6,3 @@
         Failed,
         Refunded
     }
-}

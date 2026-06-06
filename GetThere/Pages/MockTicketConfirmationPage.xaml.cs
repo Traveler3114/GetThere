@@ -1,6 +1,6 @@
 #nullable enable
 using GetThere.Helpers;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -12,7 +12,7 @@ namespace GetThere.Pages;
 /// </summary>
 public partial class MockTicketConfirmationPage : ContentPage
 {
-    public MockTicketConfirmationPage(MockTicketResultDto ticket)
+    public MockTicketConfirmationPage(TicketPurchaseResponse ticket)
     {
         InitializeComponent();
         SizeChanged += OnPageSizeChanged;
@@ -24,7 +24,7 @@ public partial class MockTicketConfirmationPage : ContentPage
         PageUtility.ApplyTicketsStyleResponsive(Width, ConfirmationContent);
     }
 
-    private void BindTicket(MockTicketResultDto ticket)
+    private void BindTicket(TicketPurchaseResponse ticket)
     {
         OperatorLabel.Text   = ticket.OperatorName;
         TicketNameLabel.Text = ticket.TicketName;

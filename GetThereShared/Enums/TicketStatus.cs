@@ -1,5 +1,4 @@
-﻿namespace GetThereShared.Enums
-{
+﻿namespace GetThereShared.Enums;
     public enum TicketStatus
     {
         Active,
@@ -7,4 +6,3 @@
         Used,
         Cancelled
     }
-}

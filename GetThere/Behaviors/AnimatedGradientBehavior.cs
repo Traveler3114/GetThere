@@ -4,8 +4,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using System;
 
-namespace GetThere.Behaviors
-{
+namespace GetThere.Behaviors;
     public class AnimatedGradientBehavior : Behavior<VisualElement>
     {
         public string CircleId { get; set; } = "DefaultCircle";
@@ -102,4 +101,3 @@ namespace GetThere.Behaviors
         public double VY { get; set; }
         public bool Initialized { get; set; }
     }
-}

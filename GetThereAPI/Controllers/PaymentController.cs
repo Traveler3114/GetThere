@@ -1,6 +1,6 @@
 using GetThereAPI.Managers;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -22,21 +22,21 @@ public class PaymentController : ControllerBase
 
     // GET /payment/providers
     [HttpGet("providers")]
-    public async Task<ActionResult<OperationResult<IEnumerable<PaymentProviderDto>>>> GetProviders()
+    public async Task<ActionResult<OperationResult<IEnumerable<PaymentProviderResponse>>>> GetProviders(CancellationToken ct = default)
     {
-        var providers = await _paymentManager.GetActiveProvidersAsync();
-        return Ok(OperationResult<IEnumerable<PaymentProviderDto>>.Ok(providers));
+        var providers = await _paymentManager.GetActiveProvidersAsync(ct);
+        return Ok(OperationResult<IEnumerable<PaymentProviderResponse>>.Ok(providers));
     }
 
     // POST /payment/topup
     [HttpPost("topup")]
-    public async Task<ActionResult<OperationResult<WalletDto>>> TopUp(TopUpDto request)
+    public async Task<ActionResult<OperationResult<WalletResponse>>> TopUp(TopUpRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (userId == null)
-            return Unauthorized(OperationResult<WalletDto>.Fail("User ID claim missing or not authenticated."));
+            return Unauthorized(OperationResult<WalletResponse>.Fail("User ID claim missing or not authenticated."));
 
-        var result = await _paymentManager.TopUpWalletAsync(userId, request);
+        var result = await _paymentManager.TopUpWalletAsync(userId, request, ct);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 }

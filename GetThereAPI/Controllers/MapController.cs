@@ -1,7 +1,7 @@
 using System.Text.Json;
 using GetThereAPI.Managers;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GetThereAPI.Controllers;
@@ -10,7 +10,7 @@ namespace GetThereAPI.Controllers;
 /// Unified map endpoint.
 ///
 /// GET /map/features  → all map features (stops, bike stations …)
-///                      each wrapped in a <see cref="MapFeatureDto"/> envelope.
+///                      each wrapped in a <see cref="MapFeatureResponse"/> envelope.
 ///
 /// The client only ever calls this one endpoint, reads the Type discriminator,
 /// and renders the appropriate marker.  Adding new mobility modes (scooters,
@@ -30,14 +30,15 @@ public class MapController : ControllerBase
     }
 
     [HttpGet("features")]
-    public async Task<ActionResult<OperationResult<List<MapFeatureDto>>>> GetFeatures(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<MapFeatureResponse>>>> GetFeatures(
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var features = new List<MapFeatureDto>();
+        var features = new List<MapFeatureResponse>();
 
-        foreach (var stop in await _transitData.GetAllStopsAsync(countryId))
+        foreach (var stop in await _transitData.GetAllStopsAsync(countryId, ct))
         {
-            features.Add(new MapFeatureDto
+            features.Add(new MapFeatureResponse
             {
                 Type = "Stop",
                 Lat = stop.Lat,
@@ -46,9 +47,9 @@ public class MapController : ControllerBase
             });
         }
 
-        foreach (var station in await _operators.GetBikeStationsAsync(countryId))
+        foreach (var station in await _operators.GetBikeStationsAsync(countryId, ct))
         {
-            features.Add(new MapFeatureDto
+            features.Add(new MapFeatureResponse
             {
                 Type = "BikeStation",
                 Lat = station.Lat,
@@ -57,14 +58,15 @@ public class MapController : ControllerBase
             });
         }
 
-        return Ok(OperationResult<List<MapFeatureDto>>.Ok(features));
+        return Ok(OperationResult<List<MapFeatureResponse>>.Ok(features));
     }
 
     [HttpGet("bike-stations")]
-    public async Task<ActionResult<OperationResult<List<BikeStationDto>>>> GetBikeStations(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<BikeStationResponse>>>> GetBikeStations(
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var stations = await _operators.GetBikeStationsAsync(countryId);
-        return Ok(OperationResult<List<BikeStationDto>>.Ok(stations));
+        var stations = await _operators.GetBikeStationsAsync(countryId, ct);
+        return Ok(OperationResult<List<BikeStationResponse>>.Ok(stations));
     }
 }

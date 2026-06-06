@@ -1,8 +1,7 @@
 using System.Windows.Input;
 using GetThere.Pages;
 
-namespace GetThere
-{
+namespace GetThere;
     public partial class LoginShell : Shell
     {
         public ICommand GoToLoginCommand { get; }
@@ -17,4 +16,3 @@ namespace GetThere
             BindingContext = this;
         }
     }
-}

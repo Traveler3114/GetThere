@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Transit;
 
@@ -14,7 +14,7 @@ public class OtpTransitProvider : ITransitProvider
         _otpClient = otpClient;
     }
 
-    public async Task<List<StopDto>> GetStopsAsync(string instanceKey, CancellationToken ct = default)
+    public async Task<List<StopResponse>> GetStopsAsync(string instanceKey, CancellationToken ct = default)
     {
         const string queryWithRoutes = """
             query Stops {
@@ -51,7 +51,7 @@ public class OtpTransitProvider : ITransitProvider
             return [];
         }
 
-        var stops = new List<StopDto>();
+        var stops = new List<StopResponse>();
         foreach (var item in stopsNode.EnumerateArray())
         {
             var stopId = GetString(item, "gtfsId");
@@ -62,7 +62,7 @@ public class OtpTransitProvider : ITransitProvider
             if (string.IsNullOrWhiteSpace(stopId) || string.IsNullOrWhiteSpace(name))
                 continue;
 
-            stops.Add(new StopDto
+            stops.Add(new StopResponse
             {
                 StopId = stopId,
                 Name = name,
@@ -75,7 +75,7 @@ public class OtpTransitProvider : ITransitProvider
         return stops;
     }
 
-    public async Task<List<RouteDto>> GetRoutesAsync(string instanceKey, CancellationToken ct = default)
+    public async Task<List<RouteResponse>> GetRoutesAsync(string instanceKey, CancellationToken ct = default)
     {
         const string query = """
             query Routes {
@@ -98,7 +98,7 @@ public class OtpTransitProvider : ITransitProvider
             return [];
         }
 
-        var routes = new List<RouteDto>();
+        var routes = new List<RouteResponse>();
         foreach (var item in routesNode.EnumerateArray())
         {
             var routeId = GetString(item, "gtfsId");
@@ -109,7 +109,7 @@ public class OtpTransitProvider : ITransitProvider
             var longName = GetString(item, "longName");
             var mode = GetString(item, "mode");
 
-            routes.Add(new RouteDto
+            routes.Add(new RouteResponse
             {
                 RouteId = routeId,
                 ShortName = ResolveDisplayName(shortName, longName, routeId),
@@ -123,7 +123,7 @@ public class OtpTransitProvider : ITransitProvider
         return routes;
     }
 
-    public async Task<StopScheduleDto?> GetStopScheduleAsync(
+    public async Task<StopScheduleResponse?> GetStopScheduleAsync(
         string instanceKey,
         string stopId,
         CancellationToken ct = default)
@@ -169,7 +169,7 @@ public class OtpTransitProvider : ITransitProvider
             return null;
         }
 
-        var result = new StopScheduleDto
+        var result = new StopScheduleResponse
         {
             StopId = GetString(stopNode, "gtfsId"),
             StopName = GetString(stopNode, "name"),
@@ -187,7 +187,7 @@ public class OtpTransitProvider : ITransitProvider
             return result;
         }
 
-        var grouped = new Dictionary<string, DepartureGroupDto>(StringComparer.Ordinal);
+        var grouped = new Dictionary<string, DepartureGroupResponse>(StringComparer.Ordinal);
 
         foreach (var item in timesNode.EnumerateArray())
         {
@@ -217,7 +217,7 @@ public class OtpTransitProvider : ITransitProvider
             var groupKey = $"{routeId}|{headsign}";
             if (!grouped.TryGetValue(groupKey, out var group))
             {
-                group = new DepartureGroupDto
+                group = new DepartureGroupResponse
                 {
                     RouteId = routeId,
                     ShortName = displayName,
@@ -245,7 +245,7 @@ public class OtpTransitProvider : ITransitProvider
                 delayMinutes = (int)Math.Round((realtimeDeparture.Value - scheduledDeparture) / 60.0);
             }
 
-            group.Departures.Add(new DepartureDto
+            group.Departures.Add(new DepartureResponse
             {
                 TripId = tripId,
                 ScheduledTime = scheduled,

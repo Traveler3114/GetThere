@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace GetThereAPI.Entities
-{
+namespace GetThereAPI.Entities;
     public class Wallet
     {
         public int Id { get; set; }
@@ -14,4 +13,3 @@ namespace GetThereAPI.Entities
         public string UserId { get; set; } = string.Empty;
         public AppUser User { get; set; } = null!;
     }
-}

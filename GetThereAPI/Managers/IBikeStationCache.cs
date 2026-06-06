@@ -1,10 +1,10 @@
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Managers;
 
 public interface IBikeStationCache
 {
-    List<BikeStationDto> GetAllStations();
-    List<BikeStationDto> GetAllStations(string? countryName);
+    List<BikeStationResponse> GetAllStations();
+    List<BikeStationResponse> GetAllStations(string? countryName);
     bool HasStationsInCountry(int providerId, string countryName);
 }

@@ -1,8 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using GetThereShared.Enums;
 
-namespace GetThereAPI.Entities
-{
+namespace GetThereAPI.Entities;
     public class Payment
     {
         public int Id { get; set; }
@@ -20,4 +19,3 @@ namespace GetThereAPI.Entities
         public PaymentProvider? PaymentProvider { get; set; }
         public string? ProviderTransactionId { get; set; }
     }
-}

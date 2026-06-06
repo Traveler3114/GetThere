@@ -1,6 +1,6 @@
 using GetThereAPI.Data;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,13 +25,13 @@ public class CountryController : ControllerBase
     /// <summary>Returns all countries available in the system.</summary>
     // GET /countries
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<CountryDto>>>> GetAll()
+    public async Task<ActionResult<OperationResult<List<CountryResponse>>>> GetAll(CancellationToken ct = default)
     {
         var countries = await _db.Countries
             .OrderBy(c => c.Name)
-            .Select(c => new CountryDto { Id = c.Id, Name = c.Name })
-            .ToListAsync();
+            .Select(c => new CountryResponse { Id = c.Id, Name = c.Name })
+            .ToListAsync(ct);
 
-        return Ok(OperationResult<List<CountryDto>>.Ok(countries));
+        return Ok(OperationResult<List<CountryResponse>>.Ok(countries));
     }
 }

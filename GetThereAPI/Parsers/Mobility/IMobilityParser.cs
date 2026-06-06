@@ -1,4 +1,4 @@
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereAPI.Entities;
 
 namespace GetThereAPI.Parsers.Mobility;
@@ -15,5 +15,5 @@ public interface IMobilityParser
     /// </summary>
     /// <param name="provider">The provider entity containing ApiBaseUrl, ApiKey, AdapterConfig etc.</param>
     /// <param name="http">A shared <see cref="HttpClient"/> the parser may use for HTTP calls.</param>
-    Task<List<BikeStationDto>> ParseStationsAsync(MobilityProvider provider, HttpClient http);
+    Task<List<BikeStationResponse>> ParseStationsAsync(MobilityProvider provider, HttpClient http);
 }

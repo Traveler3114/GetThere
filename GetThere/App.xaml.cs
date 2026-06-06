@@ -4,8 +4,7 @@ using GetThere.Services;
 
 [assembly: XamlCompilation(XamlCompilationOptions.Compile)]
 
-namespace GetThere
-{
+namespace GetThere;
     public partial class App : Application
     {
         private readonly IServiceProvider _serviceProvider;
@@ -63,4 +62,3 @@ namespace GetThere
             }
         }
     }
-}

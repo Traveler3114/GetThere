@@ -1,6 +1,6 @@
-﻿namespace GetThereShared.Dtos;
+namespace GetThereShared.Contracts;
 
-public class OtpOperatorFeedDto
+public class OperatorFeedResponse
 {
     public int OperatorId { get; set; }
     public string OperatorName { get; set; } = string.Empty;

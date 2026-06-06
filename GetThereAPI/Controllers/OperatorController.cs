@@ -1,6 +1,6 @@
 using GetThereAPI.Managers;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -36,55 +36,61 @@ public class OperatorController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<OperatorDto>>>> GetAll(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<OperatorResponse>>>> GetAll(
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var operators = await _manager.GetAllOperatorsAsync(countryId);
-        return Ok(OperationResult<List<OperatorDto>>.Ok(operators));
+        var operators = await _manager.GetAllOperatorsAsync(countryId, ct);
+        return Ok(OperationResult<List<OperatorResponse>>.Ok(operators));
     }
 
     [HttpGet("ticketable")]
-    public async Task<ActionResult<OperationResult<List<TicketableOperatorDto>>>> GetTicketable(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<TicketableOperatorResponse>>>> GetTicketable(
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var operators = await _ticketable.GetTicketableOperatorsAsync(countryId);
-        return Ok(OperationResult<List<TicketableOperatorDto>>.Ok(operators));
+        var operators = await _ticketable.GetTicketableOperatorsAsync(countryId, ct);
+        return Ok(OperationResult<List<TicketableOperatorResponse>>.Ok(operators));
     }
 
     [HttpGet("stops")]
-    public async Task<ActionResult<OperationResult<List<StopDto>>>> GetStops(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<StopResponse>>>> GetStops(
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var stops = await _transitData.GetAllStopsAsync(countryId);
-        return Ok(OperationResult<List<StopDto>>.Ok(stops));
+        var stops = await _transitData.GetAllStopsAsync(countryId, ct);
+        return Ok(OperationResult<List<StopResponse>>.Ok(stops));
     }
 
     [HttpGet("routes")]
-    public async Task<ActionResult<OperationResult<List<RouteDto>>>> GetRoutes(
-        [FromQuery] int? countryId = null)
+    public async Task<ActionResult<OperationResult<List<RouteResponse>>>> GetRoutes(
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var routes = await _transitData.GetAllRoutesAsync(countryId);
-        return Ok(OperationResult<List<RouteDto>>.Ok(routes));
+        var routes = await _transitData.GetAllRoutesAsync(countryId, ct);
+        return Ok(OperationResult<List<RouteResponse>>.Ok(routes));
     }
 
     [HttpGet("stops/{stopId}/schedule")]
-    public async Task<ActionResult<OperationResult<StopScheduleDto>>> GetStopSchedule(
+    public async Task<ActionResult<OperationResult<StopScheduleResponse>>> GetStopSchedule(
         string stopId,
-        [FromQuery] int? countryId = null)
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var schedule = await _transitData.GetStopScheduleAsync(stopId, countryId);
+        var schedule = await _transitData.GetStopScheduleAsync(stopId, countryId, ct);
         if (schedule is null)
-            return NotFound(OperationResult<StopScheduleDto>.Fail(
+            return NotFound(OperationResult<StopScheduleResponse>.Fail(
                 $"Stop '{stopId}' not found"));
 
-        return Ok(OperationResult<StopScheduleDto>.Ok(schedule));
+        return Ok(OperationResult<StopScheduleResponse>.Ok(schedule));
     }
 
     [HttpGet("health")]
     public async Task<ActionResult<OperationResult<object>>> GetTransitHealth(
-        [FromQuery] int? countryId = null)
+        [FromQuery] int? countryId = null,
+        CancellationToken ct = default)
     {
-        var ok = await _transitData.IsTransitHealthyAsync(countryId);
+        var ok = await _transitData.IsTransitHealthyAsync(countryId, ct);
         if (!ok)
             return StatusCode(StatusCodes.Status503ServiceUnavailable,
                 OperationResult<object>.Fail("Transit provider is unavailable"));
@@ -93,9 +99,9 @@ public class OperatorController : ControllerBase
     }
 
     [HttpGet("transport-types")]
-    public async Task<ActionResult<OperationResult<List<TransportTypeDto>>>> GetTransportTypes()
+    public async Task<ActionResult<OperationResult<List<TransportTypeResponse>>>> GetTransportTypes(CancellationToken ct = default)
     {
-        var types = await _manager.GetTransportTypesAsync();
-        return Ok(OperationResult<List<TransportTypeDto>>.Ok(types));
+        var types = await _manager.GetTransportTypesAsync(ct);
+        return Ok(OperationResult<List<TransportTypeResponse>>.Ok(types));
     }
 }

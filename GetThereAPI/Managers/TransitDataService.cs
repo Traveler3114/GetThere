@@ -1,6 +1,6 @@
 using GetThereAPI.Data;
 using GetThereAPI.Transit;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
@@ -18,7 +18,7 @@ public class TransitDataService
 
     private static string BuildOtpFeedId(int operatorId) => $"op{operatorId}";
 
-    public async Task<List<StopDto>> GetAllStopsAsync(int? countryId = null, CancellationToken ct = default)
+    public async Task<List<StopResponse>> GetAllStopsAsync(int? countryId = null, CancellationToken ct = default)
     {
         var stops = await _transit.GetStopsAsync(countryId, ct);
 
@@ -35,7 +35,7 @@ public class TransitDataService
             .ToList();
     }
 
-    public async Task<List<RouteDto>> GetAllRoutesAsync(int? countryId = null, CancellationToken ct = default)
+    public async Task<List<RouteResponse>> GetAllRoutesAsync(int? countryId = null, CancellationToken ct = default)
     {
         var routes = await _transit.GetRoutesAsync(countryId, ct);
 
@@ -52,7 +52,7 @@ public class TransitDataService
             .ToList();
     }
 
-    public Task<StopScheduleDto?> GetStopScheduleAsync(
+    public Task<StopScheduleResponse?> GetStopScheduleAsync(
         string stopId,
         int? countryId = null,
         CancellationToken ct = default)

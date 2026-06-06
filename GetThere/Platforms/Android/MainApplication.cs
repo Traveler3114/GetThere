@@ -1,8 +1,7 @@
 ﻿using Android.App;
 using Android.Runtime;
 
-namespace GetThere
-{
+namespace GetThere;
     [Application]
     public class MainApplication : MauiApplication
     {
@@ -13,4 +12,3 @@ namespace GetThere
 
         protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
     }
-}

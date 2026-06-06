@@ -8,8 +8,7 @@ using SkiaSharp.Views.Maui.Controls.Hosting;
 using CommunityToolkit.Maui;
 using System.Net.Http.Json;
 
-namespace GetThere
-{
+namespace GetThere;
     public static class MauiProgram
     {
         private static string GetApiBaseUrl()
@@ -153,4 +152,3 @@ namespace GetThere
             return builder.Build();
         }
     }
-}

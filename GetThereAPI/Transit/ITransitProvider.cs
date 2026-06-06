@@ -1,12 +1,12 @@
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Transit;
 
 public interface ITransitProvider
 {
-    Task<List<StopDto>> GetStopsAsync(string instanceKey, CancellationToken ct = default);
-    Task<List<RouteDto>> GetRoutesAsync(string instanceKey, CancellationToken ct = default);
-    Task<StopScheduleDto?> GetStopScheduleAsync(
+    Task<List<StopResponse>> GetStopsAsync(string instanceKey, CancellationToken ct = default);
+    Task<List<RouteResponse>> GetRoutesAsync(string instanceKey, CancellationToken ct = default);
+    Task<StopScheduleResponse?> GetStopScheduleAsync(
         string instanceKey,
         string stopId,
         CancellationToken ct = default);

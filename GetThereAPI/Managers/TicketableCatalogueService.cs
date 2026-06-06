@@ -1,5 +1,5 @@
 using GetThereAPI.Data;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
@@ -21,28 +21,28 @@ public class TicketableCatalogueService
         [4] = 3,
     };
 
-    private static readonly List<TicketableOperatorDto> TicketableList =
+    private static readonly List<TicketableOperatorResponse> TicketableList =
     [
-        new TicketableOperatorDto
+        new TicketableOperatorResponse
         {
             Id = 1, Name = "ZET", Type = "TRANSIT", Color = "#1264AB",
             Description = "Zagreb's tram and bus network.",
             City = "Zagreb", Country = "Croatia", IsMock = true,
         },
-        new TicketableOperatorDto
+        new TicketableOperatorResponse
         {
             Id = 2, Name = "HZPP", Type = "TRAIN", Color = "#6a1b9a",
             Description = "Croatian national railway — trains across Croatia.",
             City = "Zagreb", Country = "Croatia", IsMock = true,
         },
-        new TicketableOperatorDto
+        new TicketableOperatorResponse
         {
             Id = 3, Name = "Bajs", Type = "BIKE", Color = "#FF6B00",
             Description = "Nextbike city bike sharing service.",
             // City/Country start empty and are filled dynamically from station coverage when country filtering is applied.
             City = "", Country = "", IsMock = true,
         },
-        new TicketableOperatorDto
+        new TicketableOperatorResponse
         {
             Id = 4, Name = "LPP", Type = "TRANSIT", Color = "#E30613",
             Description = "Ljubljana's city bus network.",
@@ -56,12 +56,12 @@ public class TicketableCatalogueService
         _mobility = mobility;
     }
 
-    public async Task<List<TicketableOperatorDto>> GetTicketableOperatorsAsync(int? countryId)
+    public async Task<List<TicketableOperatorResponse>> GetTicketableOperatorsAsync(int? countryId, CancellationToken ct = default)
     {
         var dbOps = await _db.TransitOperators
             .Where(o => TicketableToDbTransitId.Values.Contains(o.Id))
             .Select(o => new { o.Id, o.LogoUrl })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var logoMap = dbOps.ToDictionary(o => o.Id, o => o.LogoUrl);
 
@@ -71,13 +71,13 @@ public class TicketableCatalogueService
             countryName = await _db.Countries
                 .Where(c => c.Id == countryId.Value)
                 .Select(c => c.Name)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             if (countryName is null)
                 return [];
         }
 
-        var result = new List<TicketableOperatorDto>();
+        var result = new List<TicketableOperatorResponse>();
 
         foreach (var t in TicketableList)
         {
@@ -89,7 +89,7 @@ public class TicketableCatalogueService
                     continue;
                 }
 
-                result.Add(new TicketableOperatorDto
+                result.Add(new TicketableOperatorResponse
                 {
                     Id = t.Id,
                     Name = t.Name,
@@ -108,7 +108,7 @@ public class TicketableCatalogueService
                 continue;
 
             TicketableToDbTransitId.TryGetValue(t.Id, out var dbId);
-            result.Add(new TicketableOperatorDto
+            result.Add(new TicketableOperatorResponse
             {
                 Id = t.Id,
                 Name = t.Name,

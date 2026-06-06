@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using GetThereAPI.Data;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereAPI.Entities;
 using GetThereAPI.Parsers.Mobility;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +22,7 @@ public class MobilityManager : BackgroundService, IBikeStationCache
     private readonly MobilityParserFactory _parserFactory;
     private readonly ILogger<MobilityManager> _logger;
 
-    private readonly ConcurrentDictionary<int, List<BikeStationDto>> _stations = new();
+    private readonly ConcurrentDictionary<int, List<BikeStationResponse>> _stations = new();
 
     public MobilityManager(
         IServiceScopeFactory scopeFactory,
@@ -36,10 +36,10 @@ public class MobilityManager : BackgroundService, IBikeStationCache
         _logger = logger;
     }
 
-    public List<BikeStationDto> GetAllStations()
+    public List<BikeStationResponse> GetAllStations()
         => _stations.Values.SelectMany(s => s).ToList();
 
-    public List<BikeStationDto> GetAllStations(string? countryName)
+    public List<BikeStationResponse> GetAllStations(string? countryName)
     {
         var all = _stations.Values.SelectMany(s => s);
         if (string.IsNullOrEmpty(countryName))
@@ -49,7 +49,7 @@ public class MobilityManager : BackgroundService, IBikeStationCache
             .ToList();
     }
 
-    public List<BikeStationDto> GetStations(int providerId)
+    public List<BikeStationResponse> GetStations(int providerId)
         => _stations.TryGetValue(providerId, out var list) ? list : [];
 
     public bool HasStationsInCountry(int providerId, string countryName)

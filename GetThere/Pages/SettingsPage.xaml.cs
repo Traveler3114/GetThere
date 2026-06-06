@@ -2,7 +2,7 @@
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -16,7 +16,7 @@ public partial class SettingsPage : ContentPage
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
     private readonly AuthService _authService;
-    private List<CountryDto> _countries = [];
+    private List<CountryResponse> _countries = [];
 
     public SettingsPage(CountryService countryService, CountryPreferenceService prefs, AuthService authService)
     {

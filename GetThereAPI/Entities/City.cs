@@ -1,5 +1,4 @@
-﻿namespace GetThereAPI.Entities
-{
+﻿namespace GetThereAPI.Entities;
     public class City
     {
         public int Id { get; set; }
@@ -14,4 +13,3 @@
         // Navigation: mobility providers operating in this city
         public ICollection<MobilityProvider> MobilityProviders { get; set; } = new List<MobilityProvider>();
     }
-}

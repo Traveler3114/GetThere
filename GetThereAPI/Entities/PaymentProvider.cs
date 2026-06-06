@@ -1,5 +1,4 @@
-﻿namespace GetThereAPI.Entities
-{
+﻿namespace GetThereAPI.Entities;
     public class PaymentProvider
     {
         public int Id { get; set; }
@@ -10,4 +9,3 @@
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
-}

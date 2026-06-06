@@ -2,7 +2,7 @@
 #pragma warning disable CA1416
 using GetThere.Helpers;
 using GetThere.Services;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -26,7 +26,7 @@ public partial class RegistrationPage : ContentPage
     {
         PageUtility.HideError(ErrorLabel);
 
-        var rdto = new RegisterDto
+        var rdto = new RegisterRequest
         {
             FullName = FullNameEntry.Text?.Trim() ?? string.Empty,
             Email = EmailEntry.Text?.Trim() ?? string.Empty,

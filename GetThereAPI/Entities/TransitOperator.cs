@@ -1,5 +1,4 @@
-namespace GetThereAPI.Entities
-{
+namespace GetThereAPI.Entities;
     public class TransitOperator
     {
         public int Id { get; set; }
@@ -31,4 +30,3 @@ namespace GetThereAPI.Entities
         // Navigation: Transport types this operator runs (tram, bus, train etc.)
         public ICollection<TransportType> TransportTypes { get; set; } = new List<TransportType>();
     }
-}

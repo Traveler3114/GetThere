@@ -1,5 +1,4 @@
-﻿namespace GetThereShared.Enums
-{
+﻿namespace GetThereShared.Enums;
     public enum TicketFormat
     {
         QrCode,
@@ -10,4 +9,3 @@
         Nfc,
         Sms
     }
-}

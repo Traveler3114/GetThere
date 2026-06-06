@@ -2,7 +2,7 @@
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -16,7 +16,7 @@ public partial class TicketPurchasePage : ContentPage
     private readonly MockTicketStore _store;
     private readonly CountryPreferenceService _prefs;
     private int _initialCountryId;
-    private TicketableOperatorDto? _operator;
+    private TicketableOperatorResponse? _operator;
 
     public TicketPurchasePage(ShopService shopService, MockTicketStore store, CountryPreferenceService prefs)
     {
@@ -29,7 +29,7 @@ public partial class TicketPurchasePage : ContentPage
     }
 
     /// <summary>Sets the operator context before the page appears.</summary>
-    public TicketPurchasePage Prepare(TicketableOperatorDto op)
+    public TicketPurchasePage Prepare(TicketableOperatorResponse op)
     {
         _operator = op;
         PageTitleLabel.Text = $"{op.Name} Shop";
@@ -131,7 +131,7 @@ public partial class TicketPurchasePage : ContentPage
         }
     }
 
-    private View BuildOptionCard(MockTicketOptionDto option)
+    private View BuildOptionCard(TicketOptionResponse option)
     {
         var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
         var accentColor = Color.FromArgb("#009688");
@@ -302,7 +302,7 @@ public partial class TicketPurchasePage : ContentPage
         return card;
     }
 
-    private async Task OnBuyClicked(MockTicketOptionDto option, int quantity, Button buyBtn)
+    private async Task OnBuyClicked(TicketOptionResponse option, int quantity, Button buyBtn)
     {
         buyBtn.IsEnabled = false;
         try

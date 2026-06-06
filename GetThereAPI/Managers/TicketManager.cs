@@ -1,7 +1,7 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereShared.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,12 +16,12 @@ public class TicketManager
         _context = context;
     }
 
-    public async Task<OperationResult<IEnumerable<TicketDto>>> GetTicketsAsync(string userId)
+    public async Task<OperationResult<IEnumerable<TicketResponse>>> GetTicketsAsync(string userId, CancellationToken ct = default)
     {
         var tickets = await _context.Tickets
             .Where(t => t.UserId == userId)
             .OrderByDescending(t => t.PurchasedAt)
-            .Select(t => new TicketDto
+            .Select(t => new TicketResponse
             {
                 Id = t.Id,
                 UserId = t.UserId,
@@ -34,8 +34,8 @@ public class TicketManager
                 DisplayInstructions = t.DisplayInstructions,
                 Status = t.Status
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
-        return OperationResult<IEnumerable<TicketDto>>.Ok(tickets);
+        return OperationResult<IEnumerable<TicketResponse>>.Ok(tickets);
     }
 }

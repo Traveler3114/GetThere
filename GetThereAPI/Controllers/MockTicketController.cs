@@ -1,6 +1,6 @@
 using GetThereAPI.Managers;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
@@ -33,7 +33,7 @@ public class MockTicketController : ControllerBase
     }
 
     [HttpGet("{operatorId:int}/options")]
-    public ActionResult<OperationResult<List<MockTicketOptionDto>>> GetOptions(int operatorId)
+    public ActionResult<OperationResult<List<TicketOptionResponse>>> GetOptions(int operatorId)
     {
         var result = _purchaseService.GetOptions(operatorId);
         return result.Success ? Ok(result) : NotFound(result);
@@ -41,19 +41,20 @@ public class MockTicketController : ControllerBase
 
     [Authorize]
     [HttpPost("{operatorId:int}/purchase")]
-    public async Task<ActionResult<OperationResult<MockTicketResultDto>>> Purchase(
+    public async Task<ActionResult<OperationResult<TicketPurchaseResponse>>> Purchase(
         int operatorId,
-        [FromBody] MockTicketPurchaseRequest body)
+        [FromBody] PurchaseTicketRequest body,
+        CancellationToken ct = default)
     {
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (string.IsNullOrEmpty(userId))
-            return Unauthorized(OperationResult<MockTicketResultDto>.Fail("User not authenticated."));
+            return Unauthorized(OperationResult<TicketPurchaseResponse>.Fail("User not authenticated."));
 
-        var result = await _purchaseService.PurchaseAsync(userId, operatorId, body);
+        var result = await _purchaseService.PurchaseAsync(userId, operatorId, body, ct);
         return result.Success ? Ok(result) : MapPurchaseFailure(result);
     }
 
-    private ActionResult<OperationResult<MockTicketResultDto>> MapPurchaseFailure(OperationResult<MockTicketResultDto> result)
+    private ActionResult<OperationResult<TicketPurchaseResponse>> MapPurchaseFailure(OperationResult<TicketPurchaseResponse> result)
         => result.Message.Contains("not found in mock catalogue", StringComparison.OrdinalIgnoreCase)
             ? NotFound(result)
             : BadRequest(result);

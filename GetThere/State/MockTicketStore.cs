@@ -1,4 +1,4 @@
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 
 namespace GetThere.State;
 
@@ -9,14 +9,14 @@ namespace GetThere.State;
 /// </summary>
 public class MockTicketStore
 {
-    private readonly List<MockTicketResultDto> _tickets = [];
+    private readonly List<TicketPurchaseResponse> _tickets = [];
 
     /// <summary>All mock tickets purchased in this session, newest first.</summary>
-    public IReadOnlyList<MockTicketResultDto> Tickets
+    public IReadOnlyList<TicketPurchaseResponse> Tickets
         => [.. _tickets.OrderByDescending(t => t.ValidFrom)];
 
     /// <summary>Adds a newly purchased mock ticket to the session store.</summary>
-    public void Add(MockTicketResultDto ticket)
+    public void Add(TicketPurchaseResponse ticket)
         => _tickets.Add(ticket);
 
     /// <summary>Removes all tickets from the session store.</summary>

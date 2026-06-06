@@ -4,12 +4,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using GetThereAPI.Entities;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereAPI.Managers; // WalletManager and TokenManager live here
 using Microsoft.EntityFrameworkCore;
 
-namespace GetThereAPI.Controllers
-{
+namespace GetThereAPI.Controllers;
     [ApiController]
     [Route("[controller]")]
     public class AuthController : ControllerBase
@@ -36,7 +35,7 @@ namespace GetThereAPI.Controllers
 
         // POST /auth/register
         [HttpPost("register")]
-        public async Task<ActionResult<OperationResult>> Register(RegisterDto request)
+        public async Task<ActionResult<OperationResult>> Register(RegisterRequest request, CancellationToken ct = default)
         {
             var existingUser = await _userManager.FindByEmailAsync(request.Email);
             if (existingUser != null)
@@ -48,14 +47,14 @@ namespace GetThereAPI.Controllers
             if (!result.Succeeded)
                 return BadRequest(OperationResult.Fail(string.Join(", ", result.Errors.Select(e => e.Description))));
 
-            await _walletManager.CreateWalletForUserAsync(user.Id);
+            await _walletManager.CreateWalletForUserAsync(user.Id, ct);
 
             return Ok(OperationResult.Ok("User registered successfully"));
         }
 
         // POST /auth/login
         [HttpPost("login")]
-        public async Task<ActionResult<LoginResponseDto>> Login(LoginDto request, [FromQuery] bool rememberMe = false)
+        public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, [FromQuery] bool rememberMe = false, CancellationToken ct = default)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
             if (user == null)
@@ -79,9 +78,9 @@ namespace GetThereAPI.Controllers
             };
 
             _dbContext.RefreshTokens.Add(refreshToken);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(ct);
 
-            var userDto = new UserDto
+            var userDto = new UserResponse
             {
                 Id = user.Id,
                 Email = user.Email!,
@@ -89,7 +88,7 @@ namespace GetThereAPI.Controllers
                 Token = accessToken
             };
 
-            return Ok(new LoginResponseDto
+            return Ok(new LoginResponse
             {
                 User = userDto,
                 AccessToken = accessToken,
@@ -98,7 +97,7 @@ namespace GetThereAPI.Controllers
         }
 
         [HttpPost("refresh")]
-        public async Task<ActionResult<RefreshTokenResponseDto>> Refresh(RefreshTokenRequestDto request)
+        public async Task<ActionResult<RefreshTokenResponse>> Refresh(RefreshTokenRequest request, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
                 return Unauthorized();
@@ -106,7 +105,7 @@ namespace GetThereAPI.Controllers
             var incomingTokenHash = _tokenManager.HashToken(request.RefreshToken);
             var existingRefreshToken = await _dbContext.RefreshTokens
                 .Include(rt => rt.User)
-                .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash);
+                .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
             if (existingRefreshToken == null || !existingRefreshToken.IsActive)
                 return Unauthorized();
@@ -130,11 +129,11 @@ namespace GetThereAPI.Controllers
             existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
 
             _dbContext.RefreshTokens.Add(newRefreshTokenEntity);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(ct);
 
             var newAccessToken = _tokenManager.CreateToken(existingRefreshToken.User);
 
-            return Ok(new RefreshTokenResponseDto
+            return Ok(new RefreshTokenResponse
             {
                 AccessToken = newAccessToken,
                 RefreshToken = newRawRefreshToken
@@ -143,22 +142,21 @@ namespace GetThereAPI.Controllers
 
         [Authorize]
         [HttpPost("logout")]
-        public async Task<ActionResult<OperationResult>> Logout(RefreshTokenRequestDto request)
+        public async Task<ActionResult<OperationResult>> Logout(RefreshTokenRequest request, CancellationToken ct = default)
         {
             if (!string.IsNullOrWhiteSpace(request.RefreshToken))
             {
                 var tokenHash = _tokenManager.HashToken(request.RefreshToken);
                 var existingRefreshToken = await _dbContext.RefreshTokens
-                    .FirstOrDefaultAsync(rt => rt.Token == tokenHash);
+                    .FirstOrDefaultAsync(rt => rt.Token == tokenHash, ct);
 
                 if (existingRefreshToken != null && !existingRefreshToken.RevokedAt.HasValue)
                 {
                     existingRefreshToken.RevokedAt = DateTime.UtcNow;
-                    await _dbContext.SaveChangesAsync();
+                    await _dbContext.SaveChangesAsync(ct);
                 }
             }
 
             return Ok(OperationResult.Ok("Logged out"));
         }
     }
-}

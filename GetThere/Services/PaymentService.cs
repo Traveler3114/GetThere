@@ -1,5 +1,5 @@
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using System.Net.Http.Json;
 
 namespace GetThere.Services;
@@ -13,43 +13,43 @@ public class PaymentService
         _httpClient = httpClient;
     }
 
-    public async Task<OperationResult<IEnumerable<PaymentProviderDto>>> GetProvidersAsync()
+    public async Task<OperationResult<IEnumerable<PaymentProviderResponse>>> GetProvidersAsync()
     {
         try
         {
             var response = await _httpClient.GetAsync("payment/providers");
-            var result = await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<PaymentProviderDto>>>();
+            var result = await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<PaymentProviderResponse>>>();
 
             if (result != null)
                 return result;
 
-            return OperationResult<IEnumerable<PaymentProviderDto>>.Fail(response.IsSuccessStatusCode
+            return OperationResult<IEnumerable<PaymentProviderResponse>>.Fail(response.IsSuccessStatusCode
                 ? "No payment providers were returned."
                 : $"Could not load payment providers ({(int)response.StatusCode}).");
         }
         catch (Exception ex)
         {
-            return OperationResult<IEnumerable<PaymentProviderDto>>.Fail($"Could not load payment providers: {ex.Message}");
+            return OperationResult<IEnumerable<PaymentProviderResponse>>.Fail($"Could not load payment providers: {ex.Message}");
         }
     }
 
-    public async Task<OperationResult<WalletDto>> TopUpAsync(TopUpDto dto)
+    public async Task<OperationResult<WalletResponse>> TopUpAsync(TopUpRequest dto)
     {
         try
         {
             var response = await _httpClient.PostAsJsonAsync("payment/topup", dto);
-            var result = await response.Content.ReadFromJsonAsync<OperationResult<WalletDto>>();
+            var result = await response.Content.ReadFromJsonAsync<OperationResult<WalletResponse>>();
 
             if (result != null)
                 return result;
 
-            return OperationResult<WalletDto>.Fail(response.IsSuccessStatusCode
+            return OperationResult<WalletResponse>.Fail(response.IsSuccessStatusCode
                 ? "Top up completed but no wallet payload was returned."
                 : $"Top up failed ({(int)response.StatusCode}).");
         }
         catch (Exception ex)
         {
-            return OperationResult<WalletDto>.Fail($"Top up failed: {ex.Message}");
+            return OperationResult<WalletResponse>.Fail($"Top up failed: {ex.Message}");
         }
     }
 }

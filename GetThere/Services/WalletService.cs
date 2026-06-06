@@ -1,5 +1,5 @@
 ﻿using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using System.Net.Http.Json;
 
 namespace GetThere.Services;
@@ -13,17 +13,17 @@ public class WalletService
         _httpClient = httpClient;
     }
 
-    public async Task<OperationResult<WalletDto>> GetWalletAsync()
+    public async Task<OperationResult<WalletResponse>> GetWalletAsync()
     {
         var response = await _httpClient.GetAsync("wallet");
-        return await response.Content.ReadFromJsonAsync<OperationResult<WalletDto>>()
-            ?? OperationResult<WalletDto>.Fail("Unexpected error occurred.");
+        return await response.Content.ReadFromJsonAsync<OperationResult<WalletResponse>>()
+            ?? OperationResult<WalletResponse>.Fail("Unexpected error occurred.");
     }
 
-    public async Task<OperationResult<IEnumerable<WalletTransactionDto>>> GetTransactionsAsync()
+    public async Task<OperationResult<IEnumerable<WalletTransactionResponse>>> GetTransactionsAsync()
     {
         var response = await _httpClient.GetAsync("wallet/transactions");
-        return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<WalletTransactionDto>>>()
-            ?? OperationResult<IEnumerable<WalletTransactionDto>>.Fail("Unexpected error occurred.");
+        return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<WalletTransactionResponse>>>()
+            ?? OperationResult<IEnumerable<WalletTransactionResponse>>.Fail("Unexpected error occurred.");
     }
 }

@@ -5,7 +5,7 @@ using GetThere.Services;
 using GetThere.State;
 using GetThere.Components;
 using Microsoft.Maui.Controls.Shapes;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using System.Globalization;
 
 namespace GetThere.Pages;
@@ -205,7 +205,7 @@ public partial class ProfilePage : ContentPage
                     if (chosen != null && chosen != "Cancel")
                     {
                         var provider = providers.First(p => p.Name == chosen);
-                        var success = await _paymentService.TopUpAsync(new TopUpDto { Amount = amount, PaymentProviderId = provider.Id });
+                        var success = await _paymentService.TopUpAsync(new TopUpRequest { Amount = amount, PaymentProviderId = provider.Id });
                         if (success.Success)
                         {
                             await LoadWalletAsync();

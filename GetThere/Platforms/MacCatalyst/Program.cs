@@ -1,8 +1,7 @@
 ﻿using ObjCRuntime;
 using UIKit;
 
-namespace GetThere
-{
+namespace GetThere;
     public class Program
     {
         // This is the main entry point of the application.
@@ -13,4 +12,3 @@ namespace GetThere
             UIApplication.Main(args, null, typeof(AppDelegate));
         }
     }
-}

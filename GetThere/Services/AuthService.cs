@@ -1,5 +1,5 @@
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -19,22 +19,22 @@ public class AuthService
         _httpClient = httpClient;
     }
 
-    public async Task<OperationResult<UserDto>> LoginAsync(LoginDto dto, bool rememberMe = false)
+    public async Task<OperationResult<UserResponse>> LoginAsync(LoginRequest dto, bool rememberMe = false)
     {
         var response = await _httpClient.PostAsJsonAsync($"auth/login?rememberMe={rememberMe.ToString().ToLowerInvariant()}", dto);
         if (!response.IsSuccessStatusCode)
-            return OperationResult<UserDto>.Fail("Invalid credentials");
+            return OperationResult<UserResponse>.Fail("Invalid credentials");
 
-        var result = await response.Content.ReadFromJsonAsync<LoginResponseDto>();
+        var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
         if (result == null || string.IsNullOrWhiteSpace(result.AccessToken) || string.IsNullOrWhiteSpace(result.RefreshToken))
-            return OperationResult<UserDto>.Fail("Unexpected error occurred.");
+            return OperationResult<UserResponse>.Fail("Unexpected error occurred.");
 
         await SecureStorage.SetAsync(TokenKey, result.AccessToken);
         await SecureStorage.SetAsync(RefreshTokenKey, result.RefreshToken);
         Preferences.Default.Set(RememberMeKey, rememberMe);
 
-        return OperationResult<UserDto>.Ok(
-            new UserDto
+        return OperationResult<UserResponse>.Ok(
+            new UserResponse
             {
                 Id = result.User.Id,
                 Email = result.User.Email,
@@ -44,7 +44,7 @@ public class AuthService
             "Login successful");
     }
 
-    public async Task<OperationResult> RegisterAsync(RegisterDto dto)
+    public async Task<OperationResult> RegisterAsync(RegisterRequest dto)
     {
         var response = await _httpClient.PostAsJsonAsync("auth/register", dto);
         return await response.Content.ReadFromJsonAsync<OperationResult>()
@@ -62,7 +62,7 @@ public class AuthService
             if (string.IsNullOrWhiteSpace(currentRefreshToken))
                 return false;
 
-            var response = await _httpClient.PostAsJsonAsync("auth/refresh", new RefreshTokenRequestDto
+            var response = await _httpClient.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest
             {
                 RefreshToken = currentRefreshToken
             });
@@ -70,7 +70,7 @@ public class AuthService
             if (!response.IsSuccessStatusCode)
                 return false;
 
-            var refreshResponse = await response.Content.ReadFromJsonAsync<RefreshTokenResponseDto>();
+            var refreshResponse = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>();
             if (refreshResponse == null
                 || string.IsNullOrWhiteSpace(refreshResponse.AccessToken)
                 || string.IsNullOrWhiteSpace(refreshResponse.RefreshToken))
@@ -148,7 +148,7 @@ public class AuthService
         {
             var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "auth/logout")
             {
-                Content = JsonContent.Create(new RefreshTokenRequestDto
+                Content = JsonContent.Create(new RefreshTokenRequest
                 {
                     RefreshToken = refreshToken
                 })

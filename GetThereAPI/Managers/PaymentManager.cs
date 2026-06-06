@@ -1,7 +1,7 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereShared.Common;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using GetThereShared.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,22 +17,22 @@ public class PaymentManager
     }
 
 
-    public async Task<List<PaymentProviderDto>> GetActiveProvidersAsync()
+    public async Task<List<PaymentProviderResponse>> GetActiveProvidersAsync(CancellationToken ct = default)
     {
         return await _context.PaymentProviders
             .Where(p => p.IsActive)
             .OrderBy(p => p.Id)
-            .Select(p => new PaymentProviderDto
+            .Select(p => new PaymentProviderResponse
             {
                 Id = p.Id,
                 Name = p.Name
             })
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    public async Task<OperationResult<WalletDto>> TopUpWalletAsync(string userId, TopUpDto request)
+    public async Task<OperationResult<WalletResponse>> TopUpWalletAsync(string userId, TopUpRequest request, CancellationToken ct = default)
     {
-        var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+        var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
         if (wallet == null)
         {
             wallet = new Wallet
@@ -43,11 +43,11 @@ public class PaymentManager
             };
 
             _context.Wallets.Add(wallet);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(ct);
         }
 
         if (request.Amount <= 0)
-            return OperationResult<WalletDto>.Fail("Amount must be greater than zero.");
+            return OperationResult<WalletResponse>.Fail("Amount must be greater than zero.");
 
         var payment = new Payment
         {
@@ -73,14 +73,14 @@ public class PaymentManager
             Description = "Manual top-up"
         });
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(ct);
 
-        var dto = new WalletDto
+        var dto = new WalletResponse
         {
             Id = wallet.Id,
             Balance = wallet.Balance,
             LastUpdated = wallet.LastUpdated
         };
-        return OperationResult<WalletDto>.Ok(dto, "Wallet topped up successfully.");
+        return OperationResult<WalletResponse>.Ok(dto, "Wallet topped up successfully.");
     }
 }

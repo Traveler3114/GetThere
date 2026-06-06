@@ -1,6 +1,6 @@
 using GetThereAPI.Data;
 using GetThereAPI.Infrastructure;
-using GetThereShared.Dtos;
+using GetThereShared.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
@@ -23,22 +23,22 @@ public class OperatorManager
 
     private static string BuildOtpFeedId(int operatorId) => $"op{operatorId}";
 
-    public async Task<List<TransportTypeDto>> GetTransportTypesAsync()
+    public async Task<List<TransportTypeResponse>> GetTransportTypesAsync(CancellationToken ct = default)
     {
         var all = await _db.TransportTypes
-            .Select(t => new TransportTypeDto
+            .Select(t => new TransportTypeResponse
             {
                 GtfsRouteType = t.GtfsRouteType,
                 Name = t.Name,
                 IconFile = t.IconFile,
                 Color = t.Color,
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         return all.Where(t => _iconFileStore.Exists(t.IconFile)).ToList();
     }
 
-    public async Task<List<OperatorDto>> GetAllOperatorsAsync(int? countryId = null)
+    public async Task<List<OperatorResponse>> GetAllOperatorsAsync(int? countryId = null, CancellationToken ct = default)
     {
         var query = _db.TransitOperators
             .Include(o => o.Country)
@@ -50,7 +50,7 @@ public class OperatorManager
 
         return await query
             .OrderBy(o => o.Name)
-            .Select(o => new OperatorDto
+            .Select(o => new OperatorResponse
             {
                 Id = o.Id,
                 Name = o.Name,
@@ -58,25 +58,25 @@ public class OperatorManager
                 City = o.City != null ? o.City.Name : null,
                 Country = o.Country.Name,
             })
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    public async Task<List<BikeStationDto>> GetBikeStationsAsync(int? countryId)
+    public async Task<List<BikeStationResponse>> GetBikeStationsAsync(int? countryId, CancellationToken ct = default)
     {
-        var countryName = await GetCountryNameAsync(countryId);
+        var countryName = await GetCountryNameAsync(countryId, ct);
         if (countryId.HasValue && countryName is null)
             return [];
 
         return _mobility.GetAllStations(countryName);
     }
 
-    public async Task<List<OtpOperatorFeedDto>> GetOtpFeedOperatorsAsync()
+    public async Task<List<OperatorFeedResponse>> GetOtpFeedOperatorsAsync(CancellationToken ct = default)
     {
         return await _db.TransitOperators
             .Include(o => o.Country)
             .OrderBy(o => o.Country.Name)
             .ThenBy(o => o.Name)
-            .Select(o => new OtpOperatorFeedDto
+            .Select(o => new OperatorFeedResponse
             {
                 OperatorId = o.Id,
                 OperatorName = o.Name,
@@ -86,10 +86,10 @@ public class OperatorManager
                 StaticGtfsUrl = o.GtfsFeedUrl,
                 GtfsRealtimeUrl = o.GtfsRealtimeFeedUrl
             })
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    private async Task<string?> GetCountryNameAsync(int? countryId)
+    private async Task<string?> GetCountryNameAsync(int? countryId, CancellationToken ct = default)
     {
         if (!countryId.HasValue)
             return null;
@@ -97,6 +97,6 @@ public class OperatorManager
         return await _db.Countries
             .Where(c => c.Id == countryId.Value)
             .Select(c => c.Name)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
     }
 }

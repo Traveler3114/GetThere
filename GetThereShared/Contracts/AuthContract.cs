@@ -1,20 +1,20 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace GetThereShared.Dtos;
+namespace GetThereShared.Contracts;
 
-public class LoginDto
+public record LoginRequest
 {
     [Required, EmailAddress]
-    public string Email    { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 
     [Required]
     public string Password { get; set; } = string.Empty;
 }
 
-public class RegisterDto
+public record RegisterRequest
 {
     [Required, EmailAddress]
-    public string Email    { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 
     [Required, MinLength(8)]
     public string Password { get; set; } = string.Empty;
@@ -22,29 +22,27 @@ public class RegisterDto
     public string? FullName { get; set; }
 }
 
-public class UserDto
+public class UserResponse
 {
-    public string  Id       { get; set; } = string.Empty;
-    public string  Email    { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
     public string? FullName { get; set; }
-
-    /// <summary>JWT — included in login/register response only.</summary>
-    public string? Token    { get; set; }
+    public string? Token { get; set; }
 }
 
-public class LoginResponseDto
+public class LoginResponse
 {
-    public UserDto User { get; set; } = new();
+    public UserResponse User { get; set; } = new();
     public string AccessToken { get; set; } = string.Empty;
     public string RefreshToken { get; set; } = string.Empty;
 }
 
-public class RefreshTokenRequestDto
+public record RefreshTokenRequest
 {
     public string RefreshToken { get; set; } = string.Empty;
 }
 
-public class RefreshTokenResponseDto
+public class RefreshTokenResponse
 {
     public string AccessToken { get; set; } = string.Empty;
     public string RefreshToken { get; set; } = string.Empty;
