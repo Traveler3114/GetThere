@@ -8,8 +8,8 @@
         public Country Country { get; set; } = null!;
 
         // Navigation: All transit operators in this city
-        public ICollection<TransitOperator> TransitOperators { get; set; } = new List<TransitOperator>();
+        public ICollection<TransitOperator> TransitOperators { get; set; } = [];
 
         // Navigation: mobility providers operating in this city
-        public ICollection<MobilityProvider> MobilityProviders { get; set; } = new List<MobilityProvider>();
+        public ICollection<MobilityProvider> MobilityProviders { get; set; } = [];
     }

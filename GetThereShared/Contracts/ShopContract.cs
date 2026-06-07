@@ -1,3 +1,5 @@
+using GetThereShared.Enums;
+
 namespace GetThereShared.Contracts;
 
 public class TicketableOperatorResponse
@@ -5,7 +7,7 @@ public class TicketableOperatorResponse
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
-    public string Type { get; set; } = string.Empty;
+    public OperatorType Type { get; set; }
     public string Color { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;

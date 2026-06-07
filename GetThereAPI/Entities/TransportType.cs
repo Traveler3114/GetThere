@@ -9,5 +9,5 @@ public class TransportType
     public string Color { get; set; } = string.Empty;
 
     // Navigation
-    public ICollection<TransitOperator> Operators { get; set; } = new List<TransitOperator>();
+    public ICollection<TransitOperator> Operators { get; set; } = [];
 }

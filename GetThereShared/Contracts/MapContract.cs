@@ -1,5 +1,7 @@
 using System.Text.Json;
 
+using GetThereShared.Enums;
+
 namespace GetThereShared.Contracts;
 
 public class StopResponse
@@ -37,7 +39,7 @@ public class RouteResponse
 
 public class MapFeatureResponse
 {
-    public string Type { get; set; } = "";
+    public MapFeatureType Type { get; set; }
     public double Lat { get; set; }
     public double Lon { get; set; }
     public JsonElement Data { get; set; }

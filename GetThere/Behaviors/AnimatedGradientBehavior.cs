@@ -1,8 +1,10 @@
 #nullable enable
 #pragma warning disable CA1416
+
+using System;
+
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
-using System;
 
 namespace GetThere.Behaviors;
     public class AnimatedGradientBehavior : Behavior<VisualElement>
@@ -41,7 +43,7 @@ namespace GetThere.Behaviors;
 
         private bool OnTimerTick(VisualElement bindable)
         {
-            if (bindable == null || _state == null || bindable.Parent is not VisualElement parent) return false;
+            if (bindable is null || _state is null || bindable.Parent is not VisualElement parent) return false;
             if (parent.Width <= 0 || parent.Height <= 0) return true;
 
             // Initialize position once across any page if not yet initialized

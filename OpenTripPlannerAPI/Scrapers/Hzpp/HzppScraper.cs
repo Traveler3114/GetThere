@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
+
 using OpenTripPlannerAPI.Core;
 using OpenTripPlannerAPI.Scrapers.Base;
 using OpenTripPlannerAPI.Services;
@@ -67,7 +68,7 @@ public partial class HzppScraper : ScraperBase
         var total = activeTrains.Count;
         var processed = 0;
         var withUpdates = 0;
-        var updatesMap = new Dictionary<string, List<StopTimeUpdateData>>();
+        Dictionary<string, List<StopTimeUpdateData>> updatesMap = [];
 
         foreach (var tnum in activeTrains)
         {
@@ -146,7 +147,7 @@ public partial class HzppScraper : ScraperBase
                 }
             }
 
-            if (htmlContent == null)
+            if (htmlContent is null)
             {
                 _logger.LogDebug("Train {Train}: no HTML chunk found", trainNumber);
                 return null;
@@ -210,14 +211,14 @@ public partial class HzppScraper : ScraperBase
             }
         }
 
-        var updates = new List<StopTimeUpdateData>();
+        List<StopTimeUpdateData> updates = [];
         foreach (var st in stList)
         {
-            if (currentSeq != null && st.StopSequence < currentSeq && !train.Finished)
+            if (currentSeq is not null && st.StopSequence < currentSeq && !train.Finished)
                 continue;
 
             var scheduledDepartureSec = st.DepartureSec >= 0 ? st.DepartureSec : st.ArrivalSec;
-            if (currentSeq == null && scheduledDepartureSec <= nowSec)
+            if (currentSeq is null && scheduledDepartureSec <= nowSec)
                 continue;
 
             updates.Add(new StopTimeUpdateData

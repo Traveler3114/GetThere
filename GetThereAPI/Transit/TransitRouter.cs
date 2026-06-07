@@ -1,6 +1,7 @@
-using GetThereAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+
+using GetThereAPI.Data;
 
 namespace GetThereAPI.Transit;
 

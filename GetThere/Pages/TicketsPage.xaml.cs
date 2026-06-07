@@ -1,11 +1,12 @@
+using System.Diagnostics;
+
+using Microsoft.Maui.Controls;
+
+using GetThere.Helpers;
+using GetThere.Services;
+using GetThere.State;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
-using GetThere.Services;
-#pragma warning disable CA1416
-using System.Diagnostics;
-using GetThere.Helpers;
-using GetThere.State;
-using Microsoft.Maui.Controls;
 
 namespace GetThere.Pages;
 
@@ -48,7 +49,7 @@ public partial class TicketsPage : ContentPage
     private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
     {
         var scrollView = sender as ScrollView;
-        if (scrollView == null) return;
+        if (scrollView is null) return;
 
         double scrollY = e.ScrollY;
         const double maxScroll = 120.0;
@@ -190,7 +191,7 @@ public partial class TicketsPage : ContentPage
         try
         {
             var result = await _ticketService.GetTicketsAsync();
-            if (result.Success && result.Data != null)
+            if (result.Success && result.Data is not null)
             {
                 _allTickets = result.Data.ToList();
                 ApplyFilter();

@@ -1,4 +1,5 @@
 #nullable enable
+
 using GetThere.Helpers;
 using GetThereShared.Contracts;
 

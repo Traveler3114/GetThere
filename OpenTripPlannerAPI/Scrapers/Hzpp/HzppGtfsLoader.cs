@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO.Compression;
+
 using CsvHelper;
 using CsvHelper.Configuration;
 
@@ -153,7 +154,7 @@ public sealed class HzppGtfsLoader
 
     private void LoadCalendar(ZipArchive zip, GtfsData data)
     {
-        if (zip.GetEntry("calendar.txt") == null)
+        if (zip.GetEntry("calendar.txt") is null)
         {
             _logger.LogWarning("calendar.txt not found — all trips treated as active");
             return;

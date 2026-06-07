@@ -1,8 +1,10 @@
+using Microsoft.EntityFrameworkCore;
+
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereAPI.Mapping;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 
@@ -30,39 +32,24 @@ public class WalletManager
     public async Task<OperationResult<WalletResponse>> GetWalletAsync(string userId, CancellationToken ct = default)
     {
         var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
-        if (wallet == null)
+        if (wallet is null)
             return OperationResult<WalletResponse>.Fail("Wallet not found.");
 
-        var dto = new WalletResponse
-        {
-            Id = wallet.Id,
-            Balance = wallet.Balance,
-            LastUpdated = wallet.LastUpdated
-        };
-        return OperationResult<WalletResponse>.Ok(dto);
+        return OperationResult<WalletResponse>.Ok(WalletMapper.ToResponse(wallet));
     }
 
     public async Task<OperationResult<IEnumerable<WalletTransactionResponse>>> GetTransactionsAsync(string userId, CancellationToken ct = default)
     {
         var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
-        if (wallet == null)
+        if (wallet is null)
             return OperationResult<IEnumerable<WalletTransactionResponse>>.Fail("Wallet not found.");
 
         var transactions = await _context.WalletTransactions
             .Where(t => t.WalletId == wallet.Id)
             .OrderByDescending(t => t.Timestamp)
-            .Select(t => new WalletTransactionResponse
-            {
-                Id = t.Id,
-                Type = t.Type,
-                Amount = t.Amount,
-                Timestamp = t.Timestamp,
-                Description = t.Description,
-                WalletId = t.WalletId,
-                TicketId = t.TicketId
-            })
             .ToListAsync(ct);
 
-        return OperationResult<IEnumerable<WalletTransactionResponse>>.Ok(transactions);
+        return OperationResult<IEnumerable<WalletTransactionResponse>>.Ok(
+            transactions.Select(WalletMapper.ToResponse).ToList());
     }
 }

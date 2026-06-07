@@ -1,9 +1,10 @@
-using GetThereShared.Common;
-using GetThereShared.Contracts;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+
+using GetThereShared.Common;
+using GetThereShared.Contracts;
 
 namespace GetThere.Services;
 
@@ -26,7 +27,7 @@ public class AuthService
             return OperationResult<UserResponse>.Fail("Invalid credentials");
 
         var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-        if (result == null || string.IsNullOrWhiteSpace(result.AccessToken) || string.IsNullOrWhiteSpace(result.RefreshToken))
+        if (result is null || string.IsNullOrWhiteSpace(result.AccessToken) || string.IsNullOrWhiteSpace(result.RefreshToken))
             return OperationResult<UserResponse>.Fail("Unexpected error occurred.");
 
         await SecureStorage.SetAsync(TokenKey, result.AccessToken);
@@ -71,7 +72,7 @@ public class AuthService
                 return false;
 
             var refreshResponse = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>();
-            if (refreshResponse == null
+            if (refreshResponse is null
                 || string.IsNullOrWhiteSpace(refreshResponse.AccessToken)
                 || string.IsNullOrWhiteSpace(refreshResponse.RefreshToken))
             {

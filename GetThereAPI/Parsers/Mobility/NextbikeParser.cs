@@ -1,7 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GetThereShared.Contracts;
+
 using GetThereAPI.Entities;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Parsers.Mobility;
 
@@ -35,7 +36,7 @@ public class NextbikeParser : IMobilityParser
         if (root?.Countries is null)
             return [];
 
-        var stations = new List<BikeStationResponse>();
+        List<BikeStationResponse> stations = [];
 
         foreach (var country in root.Countries)
         {

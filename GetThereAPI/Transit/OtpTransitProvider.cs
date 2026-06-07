@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Transit;
@@ -51,7 +52,7 @@ public class OtpTransitProvider : ITransitProvider
             return [];
         }
 
-        var stops = new List<StopResponse>();
+        List<StopResponse> stops = [];
         foreach (var item in stopsNode.EnumerateArray())
         {
             var stopId = GetString(item, "gtfsId");
@@ -98,7 +99,7 @@ public class OtpTransitProvider : ITransitProvider
             return [];
         }
 
-        var routes = new List<RouteResponse>();
+        List<RouteResponse> routes = [];
         foreach (var item in routesNode.EnumerateArray())
         {
             var routeId = GetString(item, "gtfsId");
@@ -423,7 +424,7 @@ public class OtpTransitProvider : ITransitProvider
             return 3;
         }
 
-        var routeTypes = new List<int>();
+        List<int> routeTypes = [];
         foreach (var route in routesNode.EnumerateArray())
         {
             var mode = GetString(route, "mode");

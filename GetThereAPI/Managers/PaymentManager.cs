@@ -1,9 +1,11 @@
+using Microsoft.EntityFrameworkCore;
+
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereAPI.Mapping;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
-using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 
@@ -19,21 +21,18 @@ public class PaymentManager
 
     public async Task<List<PaymentProviderResponse>> GetActiveProvidersAsync(CancellationToken ct = default)
     {
-        return await _context.PaymentProviders
+        var providers = await _context.PaymentProviders
             .Where(p => p.IsActive)
             .OrderBy(p => p.Id)
-            .Select(p => new PaymentProviderResponse
-            {
-                Id = p.Id,
-                Name = p.Name
-            })
             .ToListAsync(ct);
+
+        return providers.Select(PaymentMapper.ToResponse).ToList();
     }
 
     public async Task<OperationResult<WalletResponse>> TopUpWalletAsync(string userId, TopUpRequest request, CancellationToken ct = default)
     {
         var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
-        if (wallet == null)
+        if (wallet is null)
         {
             wallet = new Wallet
             {
@@ -75,12 +74,6 @@ public class PaymentManager
 
         await _context.SaveChangesAsync(ct);
 
-        var dto = new WalletResponse
-        {
-            Id = wallet.Id,
-            Balance = wallet.Balance,
-            LastUpdated = wallet.LastUpdated
-        };
-        return OperationResult<WalletResponse>.Ok(dto, "Wallet topped up successfully.");
+        return OperationResult<WalletResponse>.Ok(WalletMapper.ToResponse(wallet), "Wallet topped up successfully.");
     }
 }

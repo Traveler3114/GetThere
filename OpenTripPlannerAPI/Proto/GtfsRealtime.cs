@@ -1,6 +1,6 @@
-﻿// Hand-written GTFS-RT protobuf message classes.
+// Hand-written GTFS-RT protobuf message classes.
 // Replaces code that would normally be generated from gtfs-realtime.proto.
-// Uses Google.Protobuf directly — no Grpc.Tools / protoc required.
+// Uses Google.Protobuf directly � no Grpc.Tools / protoc required.
 
 using Google.Protobuf;
 using Google.Protobuf.Collections;
@@ -52,7 +52,7 @@ public sealed class FeedMessage : IMessage<FeedMessage>
         CodedOutputStream.ComputeMessageSize(Header) + 2 +
         Entity.Sum(e => CodedOutputStream.ComputeMessageSize(e) + 1);
 
-    public bool Equals(FeedMessage? other) => other != null;
+    public bool Equals(FeedMessage? other) => other is not null;
 
     public byte[] ToByteArray()
     {
@@ -126,7 +126,7 @@ public sealed class FeedHeader : IMessage<FeedHeader>
         return size;
     }
 
-    public bool Equals(FeedHeader? other) => other != null;
+    public bool Equals(FeedHeader? other) => other is not null;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@ public sealed class FeedEntity : IMessage<FeedEntity>
     {
         if (other.Id.Length > 0) Id = other.Id;
         IsDeleted = other.IsDeleted;
-        if (other.TripUpdate != null) { TripUpdate ??= new TripUpdate(); TripUpdate.MergeFrom(other.TripUpdate); }
+        if (other.TripUpdate is not null) { TripUpdate ??= new TripUpdate(); TripUpdate.MergeFrom(other.TripUpdate); }
     }
 
     public void MergeFrom(CodedInputStream input)
@@ -169,7 +169,7 @@ public sealed class FeedEntity : IMessage<FeedEntity>
     {
         if (Id.Length > 0) { output.WriteTag(1, WireFormat.WireType.LengthDelimited); output.WriteString(Id); }
         if (IsDeleted) { output.WriteTag(2, WireFormat.WireType.Varint); output.WriteBool(IsDeleted); }
-        if (TripUpdate != null) { output.WriteTag(3, WireFormat.WireType.LengthDelimited); output.WriteMessage(TripUpdate); }
+        if (TripUpdate is not null) { output.WriteTag(3, WireFormat.WireType.LengthDelimited); output.WriteMessage(TripUpdate); }
     }
 
     public int CalculateSize()
@@ -177,11 +177,11 @@ public sealed class FeedEntity : IMessage<FeedEntity>
         int size = 0;
         if (Id.Length > 0) size += 1 + CodedOutputStream.ComputeStringSize(Id);
         if (IsDeleted) size += 2;
-        if (TripUpdate != null) size += 1 + CodedOutputStream.ComputeMessageSize(TripUpdate);
+        if (TripUpdate is not null) size += 1 + CodedOutputStream.ComputeMessageSize(TripUpdate);
         return size;
     }
 
-    public bool Equals(FeedEntity? other) => other != null;
+    public bool Equals(FeedEntity? other) => other is not null;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,8 +219,8 @@ public sealed class TripUpdate : IMessage<TripUpdate>
             {
                 StopSequence = other.StopSequence;
                 if (other.StopId.Length > 0) StopId = other.StopId;
-                if (other.Arrival != null) { Arrival ??= new(); Arrival.MergeFrom(other.Arrival); }
-                if (other.Departure != null) { Departure ??= new(); Departure.MergeFrom(other.Departure); }
+                if (other.Arrival is not null) { Arrival ??= new(); Arrival.MergeFrom(other.Arrival); }
+                if (other.Departure is not null) { Departure ??= new(); Departure.MergeFrom(other.Departure); }
             }
 
             public void MergeFrom(CodedInputStream input)
@@ -242,8 +242,8 @@ public sealed class TripUpdate : IMessage<TripUpdate>
             public void WriteTo(CodedOutputStream output)
             {
                 if (StopSequence != 0) { output.WriteTag(1, WireFormat.WireType.Varint); output.WriteUInt32(StopSequence); }
-                if (Arrival != null) { output.WriteTag(2, WireFormat.WireType.LengthDelimited); output.WriteMessage(Arrival); }
-                if (Departure != null) { output.WriteTag(3, WireFormat.WireType.LengthDelimited); output.WriteMessage(Departure); }
+                if (Arrival is not null) { output.WriteTag(2, WireFormat.WireType.LengthDelimited); output.WriteMessage(Arrival); }
+                if (Departure is not null) { output.WriteTag(3, WireFormat.WireType.LengthDelimited); output.WriteMessage(Departure); }
                 if (StopId.Length > 0) { output.WriteTag(4, WireFormat.WireType.LengthDelimited); output.WriteString(StopId); }
             }
 
@@ -251,13 +251,13 @@ public sealed class TripUpdate : IMessage<TripUpdate>
             {
                 int size = 0;
                 if (StopSequence != 0) size += 1 + CodedOutputStream.ComputeUInt32Size(StopSequence);
-                if (Arrival != null) size += 1 + CodedOutputStream.ComputeMessageSize(Arrival);
-                if (Departure != null) size += 1 + CodedOutputStream.ComputeMessageSize(Departure);
+                if (Arrival is not null) size += 1 + CodedOutputStream.ComputeMessageSize(Arrival);
+                if (Departure is not null) size += 1 + CodedOutputStream.ComputeMessageSize(Departure);
                 if (StopId.Length > 0) size += 1 + CodedOutputStream.ComputeStringSize(StopId);
                 return size;
             }
 
-            public bool Equals(StopTimeUpdate? other) => other != null;
+            public bool Equals(StopTimeUpdate? other) => other is not null;
         }
 
         public sealed class StopTimeEvent : IMessage<StopTimeEvent>
@@ -289,7 +289,7 @@ public sealed class TripUpdate : IMessage<TripUpdate>
             }
 
             public int CalculateSize() => Delay != 0 ? 1 + CodedOutputStream.ComputeInt32Size(Delay) : 0;
-            public bool Equals(StopTimeEvent? other) => other != null;
+            public bool Equals(StopTimeEvent? other) => other is not null;
         }
     }
 
@@ -326,7 +326,7 @@ public sealed class TripUpdate : IMessage<TripUpdate>
         1 + CodedOutputStream.ComputeMessageSize(Trip) +
         StopTimeUpdate.Sum(s => 1 + CodedOutputStream.ComputeMessageSize(s));
 
-    public bool Equals(TripUpdate? other) => other != null;
+    public bool Equals(TripUpdate? other) => other is not null;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,5 +381,5 @@ public sealed class TripDescriptor : IMessage<TripDescriptor>
         return size;
     }
 
-    public bool Equals(TripDescriptor? other) => other != null;
+    public bool Equals(TripDescriptor? other) => other is not null;
 }

@@ -1,8 +1,10 @@
-using GetThereAPI.Data;
-using GetThereShared.Common;
-using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+using GetThereAPI.Data;
+using GetThereAPI.Mapping;
+using GetThereShared.Common;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Controllers;
 
@@ -29,9 +31,8 @@ public class CountryController : ControllerBase
     {
         var countries = await _db.Countries
             .OrderBy(c => c.Name)
-            .Select(c => new CountryResponse { Id = c.Id, Name = c.Name })
             .ToListAsync(ct);
 
-        return Ok(OperationResult<List<CountryResponse>>.Ok(countries));
+        return Ok(OperationResult<List<CountryResponse>>.Ok(countries.Select(CountryMapper.ToResponse).ToList()));
     }
 }

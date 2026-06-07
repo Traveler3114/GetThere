@@ -1,8 +1,9 @@
-﻿using GetThereAPI.Entities;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+using GetThereAPI.Entities;
 
 namespace GetThereAPI.Data;
     public class AppDbContext : IdentityDbContext<AppUser>

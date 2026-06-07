@@ -1,7 +1,9 @@
 #nullable enable
+
+using System.Diagnostics;
+
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
-using System.Diagnostics;
 
 namespace GetThere.Components;
 

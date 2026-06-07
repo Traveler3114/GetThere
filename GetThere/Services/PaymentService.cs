@@ -1,6 +1,7 @@
+using System.Net.Http.Json;
+
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using System.Net.Http.Json;
 
 namespace GetThere.Services;
 
@@ -20,7 +21,7 @@ public class PaymentService
             var response = await _httpClient.GetAsync("payment/providers");
             var result = await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<PaymentProviderResponse>>>();
 
-            if (result != null)
+            if (result is not null)
                 return result;
 
             return OperationResult<IEnumerable<PaymentProviderResponse>>.Fail(response.IsSuccessStatusCode
@@ -40,7 +41,7 @@ public class PaymentService
             var response = await _httpClient.PostAsJsonAsync("payment/topup", dto);
             var result = await response.Content.ReadFromJsonAsync<OperationResult<WalletResponse>>();
 
-            if (result != null)
+            if (result is not null)
                 return result;
 
             return OperationResult<WalletResponse>.Fail(response.IsSuccessStatusCode

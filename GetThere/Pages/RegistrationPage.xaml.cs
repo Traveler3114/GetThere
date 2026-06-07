@@ -1,5 +1,6 @@
 #nullable enable
 #pragma warning disable CA1416
+
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThereShared.Contracts;

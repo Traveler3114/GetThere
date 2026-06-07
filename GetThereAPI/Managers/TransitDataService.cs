@@ -1,7 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 using GetThereAPI.Data;
 using GetThereAPI.Transit;
 using GetThereShared.Contracts;
-using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 
@@ -68,7 +69,7 @@ public class TransitDataService
             .Select(o => new { o.Id, o.Name })
             .ToListAsync(ct);
 
-        var prefixes = new List<string>();
+        List<string> prefixes = [];
         foreach (var op in operators)
         {
             if (!string.IsNullOrWhiteSpace(op.Name))

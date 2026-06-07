@@ -1,5 +1,5 @@
-using GetThereShared.Contracts;
 using GetThereAPI.Entities;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Parsers.Mobility;
 

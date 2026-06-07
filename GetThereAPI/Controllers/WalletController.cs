@@ -1,10 +1,12 @@
-﻿using GetThereAPI.Managers;
-using GetThereShared.Common;
-using GetThereShared.Contracts;
+using System.Security.Claims;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.JsonWebTokens;
-using System.Security.Claims;
+
+using GetThereAPI.Managers;
+using GetThereShared.Common;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Controllers;
     [ApiController]
@@ -23,7 +25,7 @@ namespace GetThereAPI.Controllers;
         public async Task<ActionResult<OperationResult<WalletResponse>>> GetWallet(CancellationToken ct = default)
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-            if (userId == null)
+            if (userId is null)
                 return Unauthorized(OperationResult<WalletResponse>.Fail("User ID claim missing or not authenticated."));
 
             var result = await _walletManager.GetWalletAsync(userId, ct);
@@ -34,7 +36,7 @@ namespace GetThereAPI.Controllers;
         public async Task<ActionResult<OperationResult<IEnumerable<WalletTransactionResponse>>>> GetTransactions(CancellationToken ct = default)
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-            if (userId == null)
+            if (userId is null)
                 return Unauthorized(OperationResult<IEnumerable<WalletTransactionResponse>>.Fail("User ID claim missing or not authenticated."));
 
             var result = await _walletManager.GetTransactionsAsync(userId, ct);

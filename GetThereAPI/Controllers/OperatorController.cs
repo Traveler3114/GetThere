@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 
 namespace GetThereAPI.Controllers;
 

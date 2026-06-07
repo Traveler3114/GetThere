@@ -1,6 +1,7 @@
+using System.Globalization;
+
 using GetThere.Components;
 using GetThereShared.Enums;
-using System.Globalization;
 
 namespace GetThere.Helpers;
 
@@ -28,7 +29,7 @@ public static class PageUtility
     {
         indicator.IsVisible = isBusy;
         indicator.IsRunning = isBusy;
-        if (button != null)
+        if (button is not null)
             button.IsEnabled = !isBusy;
     }
 

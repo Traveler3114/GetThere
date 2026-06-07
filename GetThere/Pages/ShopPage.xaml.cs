@@ -1,4 +1,5 @@
 using System;
+
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
@@ -49,7 +50,7 @@ public partial class ShopPage : ContentPage
     private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
     {
         var scrollView = sender as ScrollView;
-        if (scrollView == null) return;
+        if (scrollView is null) return;
 
         double scrollY = e.ScrollY;
         const double maxScroll = 120.0;

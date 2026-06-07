@@ -1,6 +1,7 @@
+using System.Net.Http.Json;
+
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using System.Net.Http.Json;
 
 namespace GetThere.Services;
 

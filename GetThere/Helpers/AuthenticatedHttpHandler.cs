@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+
 using GetThere.Services;
 
 namespace GetThere.Helpers;
@@ -45,7 +46,7 @@ public class AuthenticatedHttpHandler : DelegatingHandler
         }
 
         byte[]? requestBodyBytes = null;
-        if (request.Content != null)
+        if (request.Content is not null)
             requestBodyBytes = await request.Content.ReadAsByteArrayAsync(cancellationToken);
 
         var clonedRequest = new HttpRequestMessage(request.Method, request.RequestUri)
@@ -54,7 +55,7 @@ public class AuthenticatedHttpHandler : DelegatingHandler
             VersionPolicy = request.VersionPolicy
         };
 
-        if (requestBodyBytes != null)
+        if (requestBodyBytes is not null)
         {
             clonedRequest.Content = new ByteArrayContent(requestBodyBytes);
             foreach (var header in request.Content!.Headers)

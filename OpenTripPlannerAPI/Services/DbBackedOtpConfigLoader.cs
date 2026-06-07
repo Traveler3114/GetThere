@@ -1,6 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using OpenTripPlannerAPI.Data;
 using System.Text.Json;
+
+using Microsoft.EntityFrameworkCore;
+
+using OpenTripPlannerAPI.Data;
 
 namespace OpenTripPlannerAPI.Services;
 
@@ -96,7 +98,7 @@ public sealed class DbBackedOtpConfigLoader
             transitModelTimeZone = _configuration["OperatorSource:TransitModelTimeZone"] ?? "Europe/Zagreb"
         };
 
-        var updaters = new List<OtpRouterUpdaterConfig>();
+        List<OtpRouterUpdaterConfig> updaters = [];
         var usesLocalHzppScraper = false;
         string? localHzppStaticGtfsUrl = null;
 
@@ -151,7 +153,7 @@ public sealed class DbBackedOtpConfigLoader
         using var client = _httpClientFactory.CreateClient();
         foreach (var op in operators)
         {
-            var urlsToProbe = new List<string>();
+            List<string> urlsToProbe = [];
             if (!string.IsNullOrWhiteSpace(op.StaticGtfsUrl))
                 urlsToProbe.Add(op.StaticGtfsUrl);
             if (!string.IsNullOrWhiteSpace(op.GtfsRealtimeUrl))

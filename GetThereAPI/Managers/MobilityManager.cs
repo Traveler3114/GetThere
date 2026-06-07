@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
+
+using Microsoft.EntityFrameworkCore;
+
 using GetThereAPI.Data;
-using GetThereShared.Contracts;
 using GetThereAPI.Entities;
 using GetThereAPI.Parsers.Mobility;
-using Microsoft.EntityFrameworkCore;
+using GetThereShared.Contracts;
 
 namespace GetThereAPI.Managers;
 

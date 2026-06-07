@@ -1,12 +1,15 @@
-using Microsoft.Extensions.Logging;
+using System.Net.Http.Json;
 using System.Reflection;
+
+using Microsoft.Extensions.Logging;
+
+using CommunityToolkit.Maui;
+using SkiaSharp;
+using SkiaSharp.Views.Maui.Controls.Hosting;
+
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
-using SkiaSharp;
-using SkiaSharp.Views.Maui.Controls.Hosting;
-using CommunityToolkit.Maui;
-using System.Net.Http.Json;
 
 namespace GetThere;
     public static class MauiProgram

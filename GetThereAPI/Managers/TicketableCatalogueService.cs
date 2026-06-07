@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 using GetThereAPI.Data;
 using GetThereShared.Contracts;
-using Microsoft.EntityFrameworkCore;
+using GetThereShared.Enums;
 
 namespace GetThereAPI.Managers;
 
@@ -25,26 +27,26 @@ public class TicketableCatalogueService
     [
         new TicketableOperatorResponse
         {
-            Id = 1, Name = "ZET", Type = "TRANSIT", Color = "#1264AB",
+            Id = 1, Name = "ZET", Type = OperatorType.Transit, Color = "#1264AB",
             Description = "Zagreb's tram and bus network.",
             City = "Zagreb", Country = "Croatia", IsMock = true,
         },
         new TicketableOperatorResponse
         {
-            Id = 2, Name = "HZPP", Type = "TRAIN", Color = "#6a1b9a",
+            Id = 2, Name = "HZPP", Type = OperatorType.Train, Color = "#6a1b9a",
             Description = "Croatian national railway — trains across Croatia.",
             City = "Zagreb", Country = "Croatia", IsMock = true,
         },
         new TicketableOperatorResponse
         {
-            Id = 3, Name = "Bajs", Type = "BIKE", Color = "#FF6B00",
+            Id = 3, Name = "Bajs", Type = OperatorType.Bike, Color = "#FF6B00",
             Description = "Nextbike city bike sharing service.",
             // City/Country start empty and are filled dynamically from station coverage when country filtering is applied.
             City = "", Country = "", IsMock = true,
         },
         new TicketableOperatorResponse
         {
-            Id = 4, Name = "LPP", Type = "TRANSIT", Color = "#E30613",
+            Id = 4, Name = "LPP", Type = OperatorType.Transit, Color = "#E30613",
             Description = "Ljubljana's city bus network.",
             City = "Ljubljana", Country = "Slovenia", IsMock = true,
         },
@@ -77,7 +79,7 @@ public class TicketableCatalogueService
                 return [];
         }
 
-        var result = new List<TicketableOperatorResponse>();
+        List<TicketableOperatorResponse> result = [];
 
         foreach (var t in TicketableList)
         {

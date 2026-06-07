@@ -1,5 +1,6 @@
-using Microsoft.Maui.Controls.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.Controls.Xaml;
+
 using GetThere.Services;
 
 [assembly: XamlCompilation(XamlCompilationOptions.Compile)]
@@ -50,7 +51,7 @@ namespace GetThere;
 
         public static async void GoToRegistration()
         {
-            if (Shell.Current != null)
+            if (Shell.Current is not null)
             {
                 await Shell.Current.GoToAsync("registration");
             }

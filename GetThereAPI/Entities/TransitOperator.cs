@@ -28,5 +28,5 @@ namespace GetThereAPI.Entities;
 
 
         // Navigation: Transport types this operator runs (tram, bus, train etc.)
-        public ICollection<TransportType> TransportTypes { get; set; } = new List<TransportType>();
+        public ICollection<TransportType> TransportTypes { get; set; } = [];
     }

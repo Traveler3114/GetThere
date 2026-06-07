@@ -1,5 +1,6 @@
-using GetThereAPI.Entities;
 using Microsoft.Extensions.DependencyInjection;
+
+using GetThereAPI.Entities;
 
 namespace GetThereAPI.Parsers.Mobility;
 

@@ -1,11 +1,12 @@
 using GetThereShared.Contracts;
+using GetThereShared.Enums;
 
 namespace GetThereAPI.Mapping;
 
 public static class ShopMapper
 {
     public static TicketableOperatorResponse ToTicketableResponse(
-        int id, string name, string type, string color, string description,
+        int id, string name, OperatorType type, string color, string description,
         string city, string country, bool isMock, string? logoUrl) => new()
     {
         Id = id,

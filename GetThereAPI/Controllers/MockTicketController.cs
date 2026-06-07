@@ -1,10 +1,12 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 
 namespace GetThereAPI.Controllers;
 

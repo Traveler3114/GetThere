@@ -11,7 +11,7 @@ public partial class BreathingBackground : ContentView
     public BreathingBackground()
     {
         InitializeComponent();
-        _circles = new List<Microsoft.Maui.Controls.Shapes.Path> { Circle1, Circle2, Circle3, Circle4, Circle5 };
+        _circles = [Circle1, Circle2, Circle3, Circle4, Circle5];
         SizeChanged += OnBreathingBackgroundSizeChanged;
     }
 

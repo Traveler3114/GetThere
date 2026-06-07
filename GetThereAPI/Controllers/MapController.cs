@@ -1,8 +1,11 @@
 using System.Text.Json;
+
+using Microsoft.AspNetCore.Mvc;
+
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using Microsoft.AspNetCore.Mvc;
+using GetThereShared.Enums;
 
 namespace GetThereAPI.Controllers;
 
@@ -34,13 +37,13 @@ public class MapController : ControllerBase
         [FromQuery] int? countryId = null,
         CancellationToken ct = default)
     {
-        var features = new List<MapFeatureResponse>();
+        List<MapFeatureResponse> features = [];
 
         foreach (var stop in await _transitData.GetAllStopsAsync(countryId, ct))
         {
             features.Add(new MapFeatureResponse
             {
-                Type = "Stop",
+                Type = MapFeatureType.Stop,
                 Lat = stop.Lat,
                 Lon = stop.Lon,
                 Data = JsonSerializer.SerializeToElement(stop)
@@ -51,7 +54,7 @@ public class MapController : ControllerBase
         {
             features.Add(new MapFeatureResponse
             {
-                Type = "BikeStation",
+                Type = MapFeatureType.BikeStation,
                 Lat = station.Lat,
                 Lon = station.Lon,
                 Data = JsonSerializer.SerializeToElement(station)

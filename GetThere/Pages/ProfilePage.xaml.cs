@@ -1,12 +1,15 @@
 #nullable enable
-using GetThere.Helpers;
+
 using System;
+using System.Globalization;
+
+using Microsoft.Maui.Controls.Shapes;
+
+using GetThere.Components;
+using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
-using GetThere.Components;
-using Microsoft.Maui.Controls.Shapes;
 using GetThereShared.Contracts;
-using System.Globalization;
 
 namespace GetThere.Pages;
 
@@ -75,7 +78,7 @@ public partial class ProfilePage : ContentPage
         base.OnNavigatedTo(args);
         
         // Reset sub-settings overlay when re-entering or tapping the same tab
-        if (SubSettingsView != null && SubSettingsView.IsVisible)
+        if (SubSettingsView is not null && SubSettingsView.IsVisible)
         {
             SubSettingsView.IsVisible = false;
         }
@@ -133,7 +136,7 @@ public partial class ProfilePage : ContentPage
     private async Task LoadWalletAsync()
     {
         var result = await _walletService.GetWalletAsync();
-        if (result.Success && result.Data != null)
+        if (result.Success && result.Data is not null)
         {
             _currentBalanceText = $"€{result.Data.Balance.ToString("N2", BalanceCulture)}";
             UpdateBalanceDisplay();
@@ -169,7 +172,7 @@ public partial class ProfilePage : ContentPage
         try
         {
             var result = await _walletService.GetTransactionsAsync();
-            if (result.Success && result.Data != null)
+            if (result.Success && result.Data is not null)
             {
                 var list = result.Data.OrderByDescending(t => t.Timestamp).ToList();
                 BindableLayout.SetItemsSource(HistoryRows, list);
@@ -198,11 +201,11 @@ public partial class ProfilePage : ContentPage
             try
             {
                 var provResult = await _paymentService.GetProvidersAsync();
-                if (provResult.Success && provResult.Data != null && provResult.Data.Any())
+                if (provResult.Success && provResult.Data is not null && provResult.Data.Any())
                 {
                     var providers = provResult.Data.ToList();
                     var chosen = await DisplayActionSheetAsync("Provider", "Cancel", null, providers.Select(p => p.Name).ToArray());
-                    if (chosen != null && chosen != "Cancel")
+                    if (chosen is not null && chosen != "Cancel")
                     {
                         var provider = providers.First(p => p.Name == chosen);
                         var success = await _paymentService.TopUpAsync(new TopUpRequest { Amount = amount, PaymentProviderId = provider.Id });
@@ -276,7 +279,7 @@ public partial class ProfilePage : ContentPage
     private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
     {
         var scrollView = sender as ScrollView;
-        if (scrollView == null) return;
+        if (scrollView is null) return;
 
         double scrollY = e.ScrollY;
         const double maxScroll = 120.0;
@@ -295,7 +298,7 @@ public partial class ProfilePage : ContentPage
         TabSwitcherContainer.TranslationY = -(factor * 5);
         
         // Balance Card (Deep parallax)
-        if (BalanceCardGrid != null && WalletTabView.IsVisible)
+        if (BalanceCardGrid is not null && WalletTabView.IsVisible)
         {
             BalanceCardGrid.TranslationY = -(factor * 20);
             BalanceCardGrid.Opacity = 1.0 - (factor * 0.15);

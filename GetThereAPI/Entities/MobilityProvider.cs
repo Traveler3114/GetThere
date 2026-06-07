@@ -33,6 +33,6 @@ public class MobilityProvider
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public ICollection<Country> Countries { get; set; } = new List<Country>();
-    public ICollection<City>    Cities    { get; set; } = new List<City>();
+    public ICollection<Country> Countries { get; set; } = [];
+    public ICollection<City>    Cities    { get; set; } = [];
 }

@@ -1,8 +1,8 @@
-using GetThere.Services;
-using GetThere.State;
-using GetThereShared.Dtos;
 using System.Diagnostics;
 using System.Text.Json;
+
+using GetThere.Services;
+using GetThere.State;
 
 namespace GetThere.Pages;
 

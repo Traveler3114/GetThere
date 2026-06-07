@@ -1,12 +1,14 @@
-using GetThereAPI.Data;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereAPI.Managers; // WalletManager and TokenManager live here
+using GetThereAPI.Mapping;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using GetThereAPI.Managers; // WalletManager and TokenManager live here
-using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Controllers;
     [ApiController]
@@ -38,7 +40,7 @@ namespace GetThereAPI.Controllers;
         public async Task<ActionResult<OperationResult>> Register(RegisterRequest request, CancellationToken ct = default)
         {
             var existingUser = await _userManager.FindByEmailAsync(request.Email);
-            if (existingUser != null)
+            if (existingUser is not null)
                 return BadRequest(OperationResult.Fail("Email already in use"));
 
             var user = new AppUser { Email = request.Email, UserName = request.Email, FullName = request.FullName };
@@ -57,7 +59,7 @@ namespace GetThereAPI.Controllers;
         public async Task<ActionResult<OperationResult<LoginResponse>>> Login(LoginRequest request, [FromQuery] bool rememberMe = false, CancellationToken ct = default)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
-            if (user == null)
+            if (user is null)
                 return Unauthorized(OperationResult<LoginResponse>.Fail("Invalid credentials."));
 
             var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, false);
@@ -80,13 +82,7 @@ namespace GetThereAPI.Controllers;
             _dbContext.RefreshTokens.Add(refreshToken);
             await _dbContext.SaveChangesAsync(ct);
 
-            var userDto = new UserResponse
-            {
-                Id = user.Id,
-                Email = user.Email!,
-                FullName = user.FullName,
-                Token = accessToken
-            };
+            var userDto = AuthMapper.ToResponse(user, accessToken);
 
             return Ok(OperationResult<LoginResponse>.Ok(new LoginResponse
             {
@@ -107,7 +103,7 @@ namespace GetThereAPI.Controllers;
                 .Include(rt => rt.User)
                 .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
-            if (existingRefreshToken == null || !existingRefreshToken.IsActive)
+            if (existingRefreshToken is null || !existingRefreshToken.IsActive)
                 return Unauthorized(OperationResult<RefreshTokenResponse>.Fail("Refresh token is invalid or expired."));
 
             existingRefreshToken.RevokedAt = DateTime.UtcNow;
@@ -150,7 +146,7 @@ namespace GetThereAPI.Controllers;
                 var existingRefreshToken = await _dbContext.RefreshTokens
                     .FirstOrDefaultAsync(rt => rt.Token == tokenHash, ct);
 
-                if (existingRefreshToken != null && !existingRefreshToken.RevokedAt.HasValue)
+                if (existingRefreshToken is not null && !existingRefreshToken.RevokedAt.HasValue)
                 {
                     existingRefreshToken.RevokedAt = DateTime.UtcNow;
                     await _dbContext.SaveChangesAsync(ct);
