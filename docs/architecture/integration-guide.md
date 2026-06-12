@@ -173,7 +173,7 @@ Recommended process:
 
 ---
 
-## 8) Suggested phased roadmap for “future code done right”
+## 8) Suggested phased roadmap for "future code done right"
 
 ### Phase 1
 - Expand tests for existing auth/wallet/shop/map flows.

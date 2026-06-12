@@ -1,6 +1,6 @@
 # EF Core Migration Guide
 
-##Commands
+## Commands
 ```bash
 dotnet ef database drop
 dotnet ef database update
@@ -51,7 +51,7 @@ Press `F5`
 
 ## Quick Reference
 ```bash
-cd GetThereAPI¸
+cd GetThereAPI
 dotnet ef migrations add YourMigrationName
 dotnet ef database update
 ```
@@ -78,8 +78,6 @@ dotnet ef database update
 
 ## Migrations Folder Over Time
 Each migration is tracked in your code and Git:
-
-
 
 ```
 Migrations/

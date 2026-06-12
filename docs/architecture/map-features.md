@@ -4,7 +4,7 @@
 
 ## **Vision**
 
-Our map isn’t a clone of Google Maps—it’s **built for travelers, commuters, and tourists who want the fastest, most reliable public transport routes** across European cities. Forget business reviews, shop pins, and clutter: our mission is pure mobility and multimodal efficiency.
+Our map isn't a clone of Google Maps—it's **built for travelers, commuters, and tourists who want the fastest, most reliable public transport routes** across European cities. Forget business reviews, shop pins, and clutter: our mission is pure mobility and multimodal efficiency.
 
 ---
 
@@ -111,5 +111,3 @@ Our map isn’t a clone of Google Maps—it’s **built for travelers, commuters
 - One-tap ticket/pass purchase and storage (wallet integration)
 - Multimodal across cities/countries
 - Tourist/local personalization
-
----
