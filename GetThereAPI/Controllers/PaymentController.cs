@@ -36,7 +36,7 @@ public class PaymentController : ControllerBase
     {
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (userId is null)
-            return Unauthorized(OperationResult<WalletResponse>.Fail("User ID claim missing or not authenticated."));
+            return Unauthorized(OperationResult<WalletResponse>.Fail("USER_NOT_AUTHENTICATED", "User ID claim missing or not authenticated."));
 
         var result = await _paymentManager.TopUpWalletAsync(userId, request, ct);
         return result.Success ? Ok(result) : BadRequest(result);

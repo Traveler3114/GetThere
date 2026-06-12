@@ -26,7 +26,7 @@ namespace GetThereAPI.Controllers;
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
             if (userId is null)
-                return Unauthorized(OperationResult<IEnumerable<TicketResponse>>.Fail("User ID claim missing or not authenticated."));
+                return Unauthorized(OperationResult<IEnumerable<TicketResponse>>.Fail("USER_NOT_AUTHENTICATED", "User ID claim missing or not authenticated."));
 
             var result = await _ticketManager.GetTicketsAsync(userId, ct);
             return Ok(result);

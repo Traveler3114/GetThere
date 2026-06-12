@@ -72,7 +72,7 @@ public partial class LoginPage : ContentPage
             if (result.Success)
                 App.GoToApp();
             else
-                PageUtility.ShowError(ErrorLabel, result.Message ?? LocalizationService.Instance["Login_Failed"]);
+                PageUtility.ShowError(ErrorLabel, ApiMessageMapper.Localize(result.Code, result.Message) ?? LocalizationService.Instance["Login_Failed"]);
         }
         catch (Exception ex)
         {

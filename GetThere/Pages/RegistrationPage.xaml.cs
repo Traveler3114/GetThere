@@ -74,7 +74,7 @@ public partial class RegistrationPage : ContentPage
             }
             else
             {
-                PageUtility.ShowError(ErrorLabel, result.Message ?? LocalizationService.Instance["Register_Failed"]);
+                PageUtility.ShowError(ErrorLabel, ApiMessageMapper.Localize(result.Code, result.Message) ?? LocalizationService.Instance["Register_Failed"]);
             }
         }
         catch (Exception ex)

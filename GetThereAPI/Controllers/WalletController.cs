@@ -26,7 +26,7 @@ namespace GetThereAPI.Controllers;
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
             if (userId is null)
-                return Unauthorized(OperationResult<WalletResponse>.Fail("User ID claim missing or not authenticated."));
+                return Unauthorized(OperationResult<WalletResponse>.Fail("USER_NOT_AUTHENTICATED", "User ID claim missing or not authenticated."));
 
             var result = await _walletManager.GetWalletAsync(userId, ct);
             return result.Success ? Ok(result) : NotFound(result);
@@ -37,7 +37,7 @@ namespace GetThereAPI.Controllers;
         {
             var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
             if (userId is null)
-                return Unauthorized(OperationResult<IEnumerable<WalletTransactionResponse>>.Fail("User ID claim missing or not authenticated."));
+                return Unauthorized(OperationResult<IEnumerable<WalletTransactionResponse>>.Fail("USER_NOT_AUTHENTICATED", "User ID claim missing or not authenticated."));
 
             var result = await _walletManager.GetTransactionsAsync(userId, ct);
             return result.Success ? Ok(result) : NotFound(result);

@@ -80,7 +80,7 @@ public class OperatorController : ControllerBase
     {
         var schedule = await _transitData.GetStopScheduleAsync(stopId, countryId, ct);
         if (schedule is null)
-            return NotFound(OperationResult<StopScheduleResponse>.Fail(
+            return NotFound(OperationResult<StopScheduleResponse>.Fail("STOP_NOT_FOUND",
                 $"Stop '{stopId}' not found"));
 
         return Ok(OperationResult<StopScheduleResponse>.Ok(schedule));

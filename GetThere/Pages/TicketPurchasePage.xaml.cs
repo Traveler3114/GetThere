@@ -318,7 +318,7 @@ public partial class TicketPurchasePage : ContentPage
             }
             else
             {
-                await DisplayAlertAsync(LocalizationService.Instance["App_Error"], result.Message, LocalizationService.Instance["App_Ok"]);
+                await DisplayAlertAsync(LocalizationService.Instance["App_Error"], ApiMessageMapper.Localize(result.Code, result.Message), LocalizationService.Instance["App_Ok"]);
             }
         }
         catch (Exception ex)

@@ -218,13 +218,13 @@ public partial class ProfilePage : ContentPage
                         }
                         else
                         {
-                            await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_FailedTitle"], string.IsNullOrWhiteSpace(success.Message) ? LocalizationService.Instance["Profile_TopUp_Failed"] : success.Message, LocalizationService.Instance["App_Ok"]);
+                            await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_FailedTitle"], string.IsNullOrWhiteSpace(success.Message) ? LocalizationService.Instance["Profile_TopUp_Failed"] : ApiMessageMapper.Localize(success.Code, success.Message), LocalizationService.Instance["App_Ok"]);
                         }
                     }
                 }
                 else
                 {
-                    await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_ProviderErrorTitle"], string.IsNullOrWhiteSpace(provResult.Message) ? LocalizationService.Instance["Profile_TopUp_NoProviders"] : provResult.Message, LocalizationService.Instance["App_Ok"]);
+                    await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_ProviderErrorTitle"], string.IsNullOrWhiteSpace(provResult.Message) ? LocalizationService.Instance["Profile_TopUp_NoProviders"] : ApiMessageMapper.Localize(provResult.Code, provResult.Message), LocalizationService.Instance["App_Ok"]);
                 }
             }
             catch (Exception ex) { await DisplayAlertAsync(LocalizationService.Instance["App_Error"], ex.Message, LocalizationService.Instance["App_Ok"]); }
@@ -345,6 +345,47 @@ public partial class ProfilePage : ContentPage
 
         try
         {
+            var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+            var bgColor = isDark ? Color.FromArgb("#111827") : Colors.White;
+            var textColor = isDark ? Colors.White : Colors.Black;
+            var accentBg = isDark ? Color.FromArgb("#134E4A") : Color.FromArgb("#F0FDFA");
+            var accentStroke = Color.FromArgb("#10B981");
+
+            // ── Language section header ──
+            SubSettingsContent.Add(new Label
+            {
+                Text = LocalizationService.Instance["Settings_Language"],
+                FontSize = 18,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = textColor,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
+            var currentLang = LocalizationService.Instance.CurrentCulture.TwoLetterISOLanguageName;
+
+            // English option
+            SubSettingsContent.Add(BuildLanguageOption("en", "English", currentLang == "en", bgColor, textColor, accentBg, accentStroke));
+            // Croatian option
+            SubSettingsContent.Add(BuildLanguageOption("hr", "Hrvatski", currentLang == "hr", bgColor, textColor, accentBg, accentStroke));
+
+            // ── Separator ──
+            SubSettingsContent.Add(new BoxView
+            {
+                HeightRequest = 1,
+                Color = Color.FromArgb("#E5E7EB"),
+                Margin = new Thickness(0, 16, 0, 16)
+            });
+
+            // ── Region section header ──
+            SubSettingsContent.Add(new Label
+            {
+                Text = LocalizationService.Instance["Profile_SubSettings_Region"],
+                FontSize = 18,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = textColor,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
             var countriesResult = await _countryService.GetCountriesAsync();
             if (!countriesResult.Success || countriesResult.Data is null) return;
 
@@ -353,9 +394,9 @@ public partial class ProfilePage : ContentPage
             foreach (var country in countriesResult.Data)
             {
                 var isSelected = country.Id == currentId;
-                
+
                 var row = new Grid { ColumnDefinitions = new ColumnDefinitionCollection { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, Padding = 20 };
-                var label = new Label { Text = country.Name, FontSize = 16, VerticalOptions = LayoutOptions.Center, TextColor = Colors.Black };
+                var label = new Label { Text = country.Name, FontSize = 16, VerticalOptions = LayoutOptions.Center, TextColor = textColor };
                 if (isSelected) label.FontAttributes = FontAttributes.Bold;
 
                 row.Add(label);
@@ -368,9 +409,9 @@ public partial class ProfilePage : ContentPage
                 {
                     Margin = new Thickness(0, 0, 0, 12),
                     Padding = 0,
-                    BackgroundColor = isSelected ? Color.FromArgb("#F0FDFA") : Colors.White,
+                    BackgroundColor = isSelected ? accentBg : bgColor,
                     StrokeThickness = isSelected ? 2 : 0,
-                    Stroke = Color.FromArgb("#10B981"),
+                    Stroke = accentStroke,
                     StrokeShape = new RoundRectangle { CornerRadius = 16 },
                     Content = row
                 };
@@ -396,6 +437,42 @@ public partial class ProfilePage : ContentPage
         {
             SubSettingsLoader.IsVisible = SubSettingsLoader.IsRunning = false;
         }
+    }
+
+    private Border BuildLanguageOption(string langCode, string displayName, bool isSelected, Color bgColor, Color textColor, Color accentBg, Color accentStroke)
+    {
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitionCollection { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, Padding = 20 };
+        var label = new Label { Text = displayName, FontSize = 16, VerticalOptions = LayoutOptions.Center, TextColor = textColor };
+        if (isSelected) label.FontAttributes = FontAttributes.Bold;
+        row.Add(label);
+        if (isSelected)
+        {
+            row.Add(new Label { Text = "✓", TextColor = Color.FromArgb("#10B981"), FontSize = 18, FontAttributes = FontAttributes.Bold, HorizontalOptions = LayoutOptions.End }, 1);
+        }
+
+        var border = new Border
+        {
+            Margin = new Thickness(0, 0, 0, 12),
+            Padding = 0,
+            BackgroundColor = isSelected ? accentBg : bgColor,
+            StrokeThickness = isSelected ? 2 : 0,
+            Stroke = accentStroke,
+            StrokeShape = new RoundRectangle { CornerRadius = 16 },
+            Content = row
+        };
+
+        border.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(() =>
+            {
+                var culture = langCode == "hr" ? new CultureInfo("hr-HR") : new CultureInfo("en-US");
+                LocalizationService.Instance.SetCulture(culture);
+                SubSettingsView.IsVisible = false;
+                App.GoToApp();
+            })
+        });
+
+        return border;
     }
 
     private void OnBackFromSubSettings(object sender, EventArgs e)

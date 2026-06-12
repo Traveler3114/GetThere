@@ -50,7 +50,7 @@ public class MockTicketController : ControllerBase
     {
         var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (string.IsNullOrEmpty(userId))
-            return Unauthorized(OperationResult<TicketPurchaseResponse>.Fail("User not authenticated."));
+            return Unauthorized(OperationResult<TicketPurchaseResponse>.Fail("USER_NOT_AUTHENTICATED", "User not authenticated."));
 
         var result = await _purchaseService.PurchaseAsync(userId, operatorId, body, ct);
         return result.Success ? Ok(result) : MapPurchaseFailure(result);
