@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 
+using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -19,11 +20,11 @@ public class ShopService
                 ? $"operator/ticketable?countryId={countryId.Value}"
                 : "operator/ticketable";
             var result = await _http.GetFromJsonAsync<OperationResult<List<TicketableOperatorResponse>>>(url);
-            return result ?? OperationResult<List<TicketableOperatorResponse>>.Fail("No response received from API when loading ticketable operators.");
+            return result ?? OperationResult<List<TicketableOperatorResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "ticketable operators"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TicketableOperatorResponse>>.Fail($"Could not load ticketable operators: {ex.Message}");
+            return OperationResult<List<TicketableOperatorResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadOperators"] + ex.Message);
         }
     }
 
@@ -33,11 +34,11 @@ public class ShopService
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<TicketOptionResponse>>>(
                 $"mock-tickets/{operatorId}/options");
-            return result ?? OperationResult<List<TicketOptionResponse>>.Fail("No response received from API when loading ticket options.");
+            return result ?? OperationResult<List<TicketOptionResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "ticket options"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TicketOptionResponse>>.Fail($"Could not load ticket options: {ex.Message}");
+            return OperationResult<List<TicketOptionResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadOptions"] + ex.Message);
         }
     }
 
@@ -49,14 +50,14 @@ public class ShopService
             var body = new PurchaseTicketRequest { OptionId = optionId, Quantity = quantity };
             var response = await _http.PostAsJsonAsync($"mock-tickets/{operatorId}/purchase", body);
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                return OperationResult<TicketPurchaseResponse>.Fail("Please log in to purchase tickets.");
+                return OperationResult<TicketPurchaseResponse>.Fail(LocalizationService.Instance["Shop_LoginRequired"]);
 
             var result = await response.Content.ReadFromJsonAsync<OperationResult<TicketPurchaseResponse>>();
-            return result ?? OperationResult<TicketPurchaseResponse>.Fail("No response received from API for purchase request.");
+            return result ?? OperationResult<TicketPurchaseResponse>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "purchase request"));
         }
         catch (Exception ex)
         {
-            return OperationResult<TicketPurchaseResponse>.Fail($"Purchase failed: {ex.Message}");
+            return OperationResult<TicketPurchaseResponse>.Fail(string.Format(LocalizationService.Instance["Shop_PurchaseFailed"], ex.Message));
         }
     }
 }

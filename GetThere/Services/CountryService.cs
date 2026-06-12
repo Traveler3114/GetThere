@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 
+using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -16,11 +17,11 @@ public class CountryService
         try
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<CountryResponse>>>("countries");
-            return result ?? OperationResult<List<CountryResponse>>.Fail("No response received from API when loading countries.");
+            return result ?? OperationResult<List<CountryResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "countries"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<CountryResponse>>.Fail($"Could not load countries: {ex.Message}");
+            return OperationResult<List<CountryResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadCountries"] + ex.Message);
         }
     }
 }

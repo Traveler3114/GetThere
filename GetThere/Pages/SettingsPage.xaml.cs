@@ -1,6 +1,7 @@
 #nullable enable
 
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Contracts;
@@ -62,13 +63,13 @@ public partial class SettingsPage : ContentPage
                 if (idx >= 0)
                     CountryPicker.SelectedIndex = idx;
 
-                CurrentCountryLabel.Text = $"Current: {_prefs.GetSelectedCountryName()}";
+                CurrentCountryLabel.Text = string.Format(LocalizationService.Instance["Settings_CurrentCountry"], _prefs.GetSelectedCountryName());
                 CurrentCountryLabel.IsVisible = true;
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load countries: " + ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Error_CouldNotLoadCountries"] + ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -83,13 +84,13 @@ public partial class SettingsPage : ContentPage
 
         var country = _countries[idx];
         _prefs.SetSelectedCountry(country.Id, country.Name);
-        CurrentCountryLabel.Text = $"Saved: {country.Name} ✓";
+        CurrentCountryLabel.Text = string.Format(LocalizationService.Instance["Settings_CountrySaved"], country.Name);
         CurrentCountryLabel.IsVisible = true;
     }
 
     private async void OnLogoutClicked(object? sender, EventArgs e)
     {
-        var confirmed = await DisplayAlertAsync("Log out", "Do you want to log out?", "Log out", "Cancel");
+        var confirmed = await DisplayAlertAsync(LocalizationService.Instance["Settings_Logout"], LocalizationService.Instance["Settings_LogoutConfirm"], LocalizationService.Instance["Settings_LogoutButton"], LocalizationService.Instance["App_Cancel"]);
         if (!confirmed) return;
 
         await _authService.Logout();

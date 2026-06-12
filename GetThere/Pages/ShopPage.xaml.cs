@@ -1,6 +1,7 @@
 using System;
 
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Contracts;
@@ -91,7 +92,7 @@ public partial class ShopPage : ContentPage
     private void UpdateCountryBadge()
     {
         var name = _prefs.GetSelectedCountryName();
-        CountryBadgeLabel.Text = string.IsNullOrEmpty(name) ? "All countries" : $"🌍 {name}";
+        CountryBadgeLabel.Text = string.IsNullOrEmpty(name) ? LocalizationService.Instance["Shop_AllCountries"] : $"🌍 {name}";
     }
 
     private bool _isLoading;
@@ -126,7 +127,7 @@ public partial class ShopPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load operators: " + ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Error_CouldNotLoadOperators"] + ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {

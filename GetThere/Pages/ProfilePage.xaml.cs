@@ -7,6 +7,7 @@ using Microsoft.Maui.Controls.Shapes;
 
 using GetThere.Components;
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Contracts;
@@ -115,7 +116,7 @@ public partial class ProfilePage : ContentPage
             GuestOverlay.IsVisible = false;
             
             // Populate Identity & Account info
-            UserDisplayNameLabel.Text = string.IsNullOrWhiteSpace(fullName) ? "User" : fullName;
+            UserDisplayNameLabel.Text = string.IsNullOrWhiteSpace(fullName) ? LocalizationService.Instance["Profile_DefaultName"] : fullName;
             AccountFullNameLabel.Text = fullName;
             AccountEmailLabel.Text = email;
 
@@ -124,7 +125,7 @@ public partial class ProfilePage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load profile: " + ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Error_CouldNotLoadProfile"] + ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -153,7 +154,7 @@ public partial class ProfilePage : ContentPage
     private string GetMaskedBalanceText()
     {
         if (string.IsNullOrWhiteSpace(_currentBalanceText))
-            return "EUR •••,••";
+            return LocalizationService.Instance["Profile_MaskedBalance"];
 
         return new string(_currentBalanceText
             .Select(ch => char.IsDigit(ch) ? '•' : ch)
@@ -193,7 +194,7 @@ public partial class ProfilePage : ContentPage
 
     private async void OnTopUpClicked(object? sender, EventArgs e)
     {
-        var input = await DisplayPromptAsync("Top Up", "Amount (€):", "Next", "Cancel", "10.00", -1, Keyboard.Numeric);
+        var input = await DisplayPromptAsync(LocalizationService.Instance["Profile_TopUp_Title"], LocalizationService.Instance["Profile_TopUp_AmountLabel"], LocalizationService.Instance["Profile_TopUp_Next"], LocalizationService.Instance["App_Cancel"], "10.00", -1, Keyboard.Numeric);
         if (string.IsNullOrWhiteSpace(input)) return;
 
         if (decimal.TryParse(input.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
@@ -204,7 +205,7 @@ public partial class ProfilePage : ContentPage
                 if (provResult.Success && provResult.Data is not null && provResult.Data.Any())
                 {
                     var providers = provResult.Data.ToList();
-                    var chosen = await DisplayActionSheetAsync("Provider", "Cancel", null, providers.Select(p => p.Name).ToArray());
+                    var chosen = await DisplayActionSheetAsync(LocalizationService.Instance["Profile_TopUp_Provider"], LocalizationService.Instance["App_Cancel"], null, providers.Select(p => p.Name).ToArray());
                     if (chosen is not null && chosen != "Cancel")
                     {
                         var provider = providers.First(p => p.Name == chosen);
@@ -212,31 +213,31 @@ public partial class ProfilePage : ContentPage
                         if (success.Success)
                         {
                             await LoadWalletAsync();
-                            await DisplayAlertAsync("Success", $"€{amount:F2} added!", "OK");
+                            await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_Success"], string.Format(LocalizationService.Instance["Profile_TopUp_Added"], amount), LocalizationService.Instance["App_Ok"]);
                             await LoadHistoryAsync();
                         }
                         else
                         {
-                            await DisplayAlertAsync("Top Up Failed", string.IsNullOrWhiteSpace(success.Message) ? "Top up could not be completed." : success.Message, "OK");
+                            await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_FailedTitle"], string.IsNullOrWhiteSpace(success.Message) ? LocalizationService.Instance["Profile_TopUp_Failed"] : success.Message, LocalizationService.Instance["App_Ok"]);
                         }
                     }
                 }
                 else
                 {
-                    await DisplayAlertAsync("Provider Error", string.IsNullOrWhiteSpace(provResult.Message) ? "No payment providers are available." : provResult.Message, "OK");
+                    await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_ProviderErrorTitle"], string.IsNullOrWhiteSpace(provResult.Message) ? LocalizationService.Instance["Profile_TopUp_NoProviders"] : provResult.Message, LocalizationService.Instance["App_Ok"]);
                 }
             }
-            catch (Exception ex) { await DisplayAlertAsync("Error", ex.Message, "OK"); }
+            catch (Exception ex) { await DisplayAlertAsync(LocalizationService.Instance["App_Error"], ex.Message, LocalizationService.Instance["App_Ok"]); }
         }
         else
         {
-            await DisplayAlertAsync("Invalid Amount", "Enter an amount greater than zero.", "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_InvalidAmountTitle"], LocalizationService.Instance["Profile_TopUp_InvalidAmount"], LocalizationService.Instance["App_Ok"]);
         }
     }
 
     private async void OnLogoutClicked(object? sender, EventArgs e)
     {
-        if (await DisplayAlertAsync("Logout", "Are you sure?", "Yes", "No"))
+        if (await DisplayAlertAsync(LocalizationService.Instance["Profile_SignOut"], LocalizationService.Instance["Profile_SignOutConfirm"], LocalizationService.Instance["App_Yes"], LocalizationService.Instance["App_No"]))
         {
             await _authService.Logout();
             App.GoToLogin();
@@ -337,7 +338,7 @@ public partial class ProfilePage : ContentPage
 
     private async void OnLanguageRegionClicked(object? sender, EventArgs e)
     {
-        SubSettingsTitle.Text = "Language & Region";
+        SubSettingsTitle.Text = LocalizationService.Instance["Profile_RegionTitle"];
         SubSettingsView.IsVisible = true;
         SubSettingsContent.Clear();
         SubSettingsLoader.IsVisible = SubSettingsLoader.IsRunning = true;
@@ -380,7 +381,7 @@ public partial class ProfilePage : ContentPage
                     {
                         _prefs.SetSelectedCountry(country.Id, country.Name);
                         SubSettingsView.IsVisible = false;
-                        await DisplayAlertAsync("Success", $"Region updated to {country.Name}", "OK");
+                        await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_Success"], string.Format(LocalizationService.Instance["Profile_SubSettings_RegionUpdated"], country.Name), LocalizationService.Instance["App_Ok"]);
                     })
                 });
 
@@ -389,7 +390,7 @@ public partial class ProfilePage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load regions: " + ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Error_CouldNotLoadRegions"] + ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -404,7 +405,7 @@ public partial class ProfilePage : ContentPage
 
     private void OnChangePasswordClicked(object? sender, EventArgs e)
     {
-        SubSettingsTitle.Text = "Change Password";
+        SubSettingsTitle.Text = LocalizationService.Instance["Profile_ChangePassword"];
         SubSettingsView.IsVisible = true;
         SubSettingsContent.Clear();
 
@@ -419,13 +420,13 @@ public partial class ProfilePage : ContentPage
             PlaceholderColor = Color.FromArgb("#94A3B8")
         };
 
-        var currentPwd = createEntry("Current Password");
-        var newPwd = createEntry("New Password");
-        var confirmPwd = createEntry("Confirm New Password");
+        var currentPwd = createEntry(LocalizationService.Instance["Profile_SubSettings_CurrentPassword"]);
+        var newPwd = createEntry(LocalizationService.Instance["Profile_SubSettings_NewPassword"]);
+        var confirmPwd = createEntry(LocalizationService.Instance["Profile_SubSettings_ConfirmNewPassword"]);
 
         var updateBtn = new Button
         {
-            Text = "Update Password",
+            Text = LocalizationService.Instance["Profile_SubSettings_UpdateButton"],
             BackgroundColor = Color.FromArgb("#512BD4"),
             TextColor = Colors.White,
             FontAttributes = FontAttributes.Bold,
@@ -438,45 +439,44 @@ public partial class ProfilePage : ContentPage
         {
             if (string.IsNullOrWhiteSpace(newPwd.Text) || newPwd.Text != confirmPwd.Text)
             {
-                await DisplayAlertAsync("Error", "Passwords do not match.", "OK");
+                await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Profile_SubSettings_PasswordMismatch"], LocalizationService.Instance["App_Ok"]);
                 return;
             }
-            // Mock success
-            await DisplayAlertAsync("Success", "Password updated successfully.", "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_Success"], LocalizationService.Instance["Profile_SubSettings_PasswordSuccess"], LocalizationService.Instance["App_Ok"]);
             SubSettingsView.IsVisible = false;
         };
 
-        SubSettingsContent.Add(new Label { Text = "Set a strong password to protect your account.", FontSize = 14, TextColor = Color.FromArgb("#64748B"), Margin = new Thickness(0,0,0,20) });
-        SubSettingsContent.Add(new Label { Text = "Current Password", FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_PasswordDesc"], FontSize = 14, TextColor = Color.FromArgb("#64748B"), Margin = new Thickness(0,0,0,20) });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_CurrentPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
         SubSettingsContent.Add(currentPwd);
-        SubSettingsContent.Add(new Label { Text = "New Password", FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_NewPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
         SubSettingsContent.Add(newPwd);
-        SubSettingsContent.Add(new Label { Text = "Confirm New Password", FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_ConfirmNewPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
         SubSettingsContent.Add(confirmPwd);
         SubSettingsContent.Add(updateBtn);
     }
 
     private async void OnAvatarClicked(object sender, EventArgs e)
     {
-        var action = await DisplayActionSheetAsync("Profile Photo", "Cancel", null, "Take Photo", "Upload Image");
+        var action = await DisplayActionSheetAsync(LocalizationService.Instance["Profile_PhotoTitle"], LocalizationService.Instance["App_Cancel"], null, LocalizationService.Instance["Profile_PhotoTake"], LocalizationService.Instance["Profile_PhotoUpload"]);
         
-        if (action == "Take Photo" || action == "Upload Image")
+        if (action == LocalizationService.Instance["Profile_PhotoTake"] || action == LocalizationService.Instance["Profile_PhotoUpload"])
         {
-            await DisplayAlertAsync("Photo", "Camera/Gallery integration would go here.", "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["Profile_PhotoTitle"], LocalizationService.Instance["Profile_PhotoResult"], LocalizationService.Instance["App_Ok"]);
         }
     }
 
     private async void OnPrivacyClicked(object? sender, EventArgs e) => 
-        await DisplayAlertAsync("Privacy", "Your data is encrypted and secure.", "OK");
+        await DisplayAlertAsync(LocalizationService.Instance["Profile_PrivacyTitle"], LocalizationService.Instance["Profile_PrivacyMessage"], LocalizationService.Instance["App_Ok"]);
 
     private async void OnPaymentMethodsClicked(object? sender, EventArgs e) => 
-        await DisplayAlertAsync("Payments", "Manage your credit cards and digital wallets in the next update.", "OK");
+        await DisplayAlertAsync(LocalizationService.Instance["Profile_PaymentMethodsTitle"], LocalizationService.Instance["Profile_PaymentMethodsMessage"], LocalizationService.Instance["App_Ok"]);
 
     private async void OnHelpCenterClicked(object? sender, EventArgs e) => 
-        await DisplayAlertAsync("Support", "Visit our help center at support.getthere.com", "OK");
+        await DisplayAlertAsync(LocalizationService.Instance["Profile_SupportTitle"], LocalizationService.Instance["Profile_SupportMessage"], LocalizationService.Instance["App_Ok"]);
 
     private async void OnAboutClicked(object? sender, EventArgs e) => 
-        await DisplayAlertAsync("About", "GetThere v1.0\nProfessional Mobility Platform", "OK");
+        await DisplayAlertAsync(LocalizationService.Instance["Profile_AboutTitle"], LocalizationService.Instance["Profile_AboutMessage"], LocalizationService.Instance["App_Ok"]);
     private void StartLoadingAnimations()
     {
         WalletLoadingState.IsVisible = !_isAccountTabSelected;

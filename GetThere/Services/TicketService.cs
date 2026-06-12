@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 
+using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -14,11 +15,11 @@ public class TicketService
         _httpClient = httpClient;
     }
 
-    // No userId in the URL — the API reads it from the JWT token
+    // No userId in the URL ï¿½ the API reads it from the JWT token
     public async Task<OperationResult<IEnumerable<TicketResponse>>> GetTicketsAsync()
     {
         var response = await _httpClient.GetAsync("ticket");
         return await response.Content.ReadFromJsonAsync<OperationResult<IEnumerable<TicketResponse>>>()
-            ?? OperationResult<IEnumerable<TicketResponse>>.Fail("Unexpected error occurred.");
+            ?? OperationResult<IEnumerable<TicketResponse>>.Fail(LocalizationService.Instance["Auth_UnexpectedError"]);
     }
 }

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Microsoft.Maui.Controls;
 
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Contracts;
@@ -199,7 +200,7 @@ public partial class TicketsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -289,9 +290,27 @@ public partial class TicketsPage : ContentPage
         
         TicketsRows.IsVisible = filtered.Count > 0;
         TicketsEmptyState.IsVisible = filtered.Count == 0;
-        TicketsEmptyLabel.Text = $"No {_activeFilter.ToString().ToLower()} tickets";
-        CurrentFilterSectionLabel.Text = $"{_activeFilter} Tickets";
-        FilterBtnLabel.Text = $"{_activeFilter} ▾";
+        TicketsEmptyLabel.Text = _activeFilter switch
+        {
+            TicketStatus.Active => LocalizationService.Instance["Tickets_NoActiveItems"],
+            TicketStatus.Expired => LocalizationService.Instance["Tickets_NoExpiredItems"],
+            TicketStatus.Used => LocalizationService.Instance["Tickets_NoUsedItems"],
+            _ => LocalizationService.Instance["Tickets_NoActiveItems"],
+        };
+        CurrentFilterSectionLabel.Text = _activeFilter switch
+        {
+            TicketStatus.Active => LocalizationService.Instance["Tickets_ActiveSection"],
+            TicketStatus.Expired => LocalizationService.Instance["Tickets_ExpiredSection"],
+            TicketStatus.Used => LocalizationService.Instance["Tickets_UsedSection"],
+            _ => LocalizationService.Instance["Tickets_ActiveSection"],
+        };
+        FilterBtnLabel.Text = _activeFilter switch
+        {
+            TicketStatus.Active => LocalizationService.Instance["Tickets_ActiveFilter"],
+            TicketStatus.Expired => LocalizationService.Instance["Tickets_ExpiredFilter"],
+            TicketStatus.Used => LocalizationService.Instance["Tickets_UsedFilter"],
+            _ => LocalizationService.Instance["Tickets_ActiveFilter"],
+        };
 
         // Update Header Badge Color
         var (bg, fg) = _activeFilter switch

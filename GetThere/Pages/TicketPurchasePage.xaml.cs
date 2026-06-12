@@ -1,6 +1,7 @@
 #nullable enable
 
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 using GetThereShared.Contracts;
@@ -33,12 +34,12 @@ public partial class TicketPurchasePage : ContentPage
     public TicketPurchasePage Prepare(TicketableOperatorResponse op)
     {
         _operator = op;
-        PageTitleLabel.Text = $"{op.Name} Shop";
+        PageTitleLabel.Text = string.Format(LocalizationService.Instance["TicketPurchase_OperatorShopTitle"], op.Name);
         PageSubtitleLabel.Text = op.Name switch
         {
-            "ZET" => "Buy tickets for Zagreb transit",
-            "HZPP" => "Buy tickets for Croatian Railways",
-            "Bajs" => "Buy tickets for city bikes",
+            "ZET" => LocalizationService.Instance["TicketPurchase_SubtitleZET"],
+            "HZPP" => LocalizationService.Instance["TicketPurchase_SubtitleHZPP"],
+            "Bajs" => LocalizationService.Instance["TicketPurchase_SubtitleBajs"],
             _ => op.Description,
         };
         Title = op.Name;
@@ -124,7 +125,7 @@ public partial class TicketPurchasePage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", "Could not load options: " + ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Error_CouldNotLoadOptions"] + ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {
@@ -317,12 +318,12 @@ public partial class TicketPurchasePage : ContentPage
             }
             else
             {
-                await DisplayAlertAsync("Error", result.Message, "OK");
+                await DisplayAlertAsync(LocalizationService.Instance["App_Error"], result.Message, LocalizationService.Instance["App_Ok"]);
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Error", ex.Message, "OK");
+            await DisplayAlertAsync(LocalizationService.Instance["App_Error"], ex.Message, LocalizationService.Instance["App_Ok"]);
         }
         finally
         {

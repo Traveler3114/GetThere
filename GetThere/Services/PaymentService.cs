@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 
+using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -25,12 +26,12 @@ public class PaymentService
                 return result;
 
             return OperationResult<IEnumerable<PaymentProviderResponse>>.Fail(response.IsSuccessStatusCode
-                ? "No payment providers were returned."
-                : $"Could not load payment providers ({(int)response.StatusCode}).");
+                ? LocalizationService.Instance["Payment_NoProvidersReturned"]
+                : string.Format(LocalizationService.Instance["Payment_LoadFailed"], $"({(int)response.StatusCode})"));
         }
         catch (Exception ex)
         {
-            return OperationResult<IEnumerable<PaymentProviderResponse>>.Fail($"Could not load payment providers: {ex.Message}");
+            return OperationResult<IEnumerable<PaymentProviderResponse>>.Fail(string.Format(LocalizationService.Instance["Payment_LoadFailed"], ex.Message));
         }
     }
 
@@ -45,12 +46,12 @@ public class PaymentService
                 return result;
 
             return OperationResult<WalletResponse>.Fail(response.IsSuccessStatusCode
-                ? "Top up completed but no wallet payload was returned."
-                : $"Top up failed ({(int)response.StatusCode}).");
+                ? LocalizationService.Instance["Payment_TopUpNoPayload"]
+                : string.Format(LocalizationService.Instance["Payment_TopUpFailed"], $"({(int)response.StatusCode})"));
         }
         catch (Exception ex)
         {
-            return OperationResult<WalletResponse>.Fail($"Top up failed: {ex.Message}");
+            return OperationResult<WalletResponse>.Fail(string.Format(LocalizationService.Instance["Payment_TopUpFailed"], ex.Message));
         }
     }
 }

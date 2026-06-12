@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 
+using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -22,11 +23,11 @@ public class OperatorService
         try
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<OperatorResponse>>>("operator");
-            return result ?? OperationResult<List<OperatorResponse>>.Fail("No response received from API when loading operators.");
+            return result ?? OperationResult<List<OperatorResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "operators"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<OperatorResponse>>.Fail($"Could not load operators: {ex.Message}");
+            return OperationResult<List<OperatorResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadOperators"] + ex.Message);
         }
     }
 
@@ -38,11 +39,11 @@ public class OperatorService
                 ? $"operator/stops?countryId={countryId.Value}"
                 : "operator/stops";
             var result = await _http.GetFromJsonAsync<OperationResult<List<StopResponse>>>(url);
-            return result ?? OperationResult<List<StopResponse>>.Fail("No response received from API when loading stops.");
+            return result ?? OperationResult<List<StopResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "stops"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<StopResponse>>.Fail($"Could not load stops: {ex.Message}");
+            return OperationResult<List<StopResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadStops"] + ex.Message);
         }
     }
 
@@ -54,11 +55,11 @@ public class OperatorService
                 ? $"operator/routes?countryId={countryId.Value}"
                 : "operator/routes";
             var result = await _http.GetFromJsonAsync<OperationResult<List<RouteResponse>>>(url);
-            return result ?? OperationResult<List<RouteResponse>>.Fail("No response received from API when loading routes.");
+            return result ?? OperationResult<List<RouteResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "routes"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<RouteResponse>>.Fail($"Could not load routes: {ex.Message}");
+            return OperationResult<List<RouteResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadRoutes"] + ex.Message);
         }
     }
 
@@ -70,11 +71,11 @@ public class OperatorService
                 ? $"map/bike-stations?countryId={countryId.Value}"
                 : "map/bike-stations";
             var result = await _http.GetFromJsonAsync<OperationResult<List<BikeStationResponse>>>(url);
-            return result ?? OperationResult<List<BikeStationResponse>>.Fail("No response received from API when loading bike stations.");
+            return result ?? OperationResult<List<BikeStationResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "bike stations"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<BikeStationResponse>>.Fail($"Could not load bike stations: {ex.Message}");
+            return OperationResult<List<BikeStationResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadBikeStations"] + ex.Message);
         }
     }
 
@@ -84,11 +85,11 @@ public class OperatorService
         {
             var result = await _http.GetFromJsonAsync<OperationResult<List<TransportTypeResponse>>>(
                 "operator/transport-types");
-            return result ?? OperationResult<List<TransportTypeResponse>>.Fail("No response received from API when loading transport types.");
+            return result ?? OperationResult<List<TransportTypeResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "transport types"));
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TransportTypeResponse>>.Fail($"Could not load transport types: {ex.Message}");
+            return OperationResult<List<TransportTypeResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadTransportTypes"] + ex.Message);
         }
     }
 
@@ -100,11 +101,11 @@ public class OperatorService
                 ? $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule?countryId={countryId.Value}"
                 : $"operator/stops/{Uri.EscapeDataString(stopId)}/schedule";
             var result = await _http.GetFromJsonAsync<OperationResult<StopScheduleResponse>>(url);
-            return result ?? OperationResult<StopScheduleResponse>.Fail("No response received from API when loading stop schedule.");
+            return result ?? OperationResult<StopScheduleResponse>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "stop schedule"));
         }
         catch (Exception ex)
         {
-            return OperationResult<StopScheduleResponse>.Fail($"Could not load stop schedule: {ex.Message}");
+            return OperationResult<StopScheduleResponse>.Fail(LocalizationService.Instance["Error_CouldNotLoadSchedule"] + ex.Message);
         }
     }
 }

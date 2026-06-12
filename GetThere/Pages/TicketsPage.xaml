@@ -4,8 +4,9 @@
              xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
              xmlns:helpers="clr-namespace:GetThere.Helpers"
              xmlns:components="clr-namespace:GetThere.Components"
+             xmlns:localization="clr-namespace:GetThere.Localization"
              x:Class="GetThere.Pages.TicketsPage"
-             Title="My Tickets"
+             Title="{localization:Translate Tickets_Title}"
               BackgroundColor="{AppThemeBinding Light=#EDF1F7, Dark=#0F172A}"
              Shell.NavBarIsVisible="False">
 
@@ -81,12 +82,12 @@
         <Grid RowDefinitions="Auto, *">
             <!-- ── HEADER ── -->
             <Grid x:Name="HeaderRow" Grid.Row="0" Margin="24,40,24,10" ColumnDefinitions="*, Auto" MaximumWidthRequest="600" HorizontalOptions="Fill">
-                <Label Grid.Column="0" Text="My Tickets" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
+                <Label Grid.Column="0" Text="{localization:Translate Tickets_Title}" FontSize="32" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
                 
                 <Border x:Name="FilterBadge" Grid.Column="1" Padding="15,8" BackgroundColor="{AppThemeBinding Light=#D1FAE5, Dark=#064E3B}" StrokeThickness="0">
                     <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
                     <Border.Shadow><Shadow Brush="Black" Opacity="0.1" Offset="0,4" Radius="8" /></Border.Shadow>
-                    <Label x:Name="FilterBtnLabel" Text="Active ▾" TextColor="{AppThemeBinding Light=#065F46, Dark=#A7F3D0}" FontAttributes="Bold" FontSize="14">
+                    <Label x:Name="FilterBtnLabel" Text="{localization:Translate Tickets_ActiveFilter}" TextColor="{AppThemeBinding Light=#065F46, Dark=#A7F3D0}" FontAttributes="Bold" FontSize="14">
                         <Label.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnShowFilterOptions" />
                         </Label.GestureRecognizers>
@@ -103,17 +104,17 @@
                         <BoxView x:Name="TopHandle" WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#D8D8D8, Dark=#334155}" HorizontalOptions="Center" />
                         
                         <VerticalStackLayout x:Name="MockTicketsSection" IsVisible="False" Spacing="20">
-                            <Label Text="Session Tickets (Mock)" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" />
+                            <Label Text="{localization:Translate Tickets_SessionTickets}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" />
                             
                             <Border Padding="15,10" BackgroundColor="{AppThemeBinding Light=#FEF3C7, Dark=#3F3520}" StrokeThickness="0">
                                 <Border.StrokeShape><RoundRectangle CornerRadius="10" /></Border.StrokeShape>
-                                <Label Text="⚠️ MOCK TICKETS — NOT VALID FOR TRAVEL" TextColor="{AppThemeBinding Light=#92400E, Dark=#FCD34D}" FontSize="11" HorizontalOptions="Center" FontAttributes="Bold" />
+                                <Label Text="{localization:Translate Tickets_MockDisclaimer}" TextColor="{AppThemeBinding Light=#92400E, Dark=#FCD34D}" FontSize="11" HorizontalOptions="Center" FontAttributes="Bold" />
                             </Border>
 
                             <VerticalStackLayout x:Name="MockTicketsRows" Spacing="0" />
                         </VerticalStackLayout>
                         
-                        <Label x:Name="CurrentFilterSectionLabel" Text="Active Tickets" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" Margin="0,10,0,0" />
+                        <Label x:Name="CurrentFilterSectionLabel" Text="{localization:Translate Tickets_ActiveSection}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" Margin="0,10,0,0" />
                         
                         <!-- Loading state -->
                         <Grid x:Name="LoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
@@ -139,7 +140,7 @@
                         <VerticalStackLayout x:Name="TicketsRows" Spacing="14" BindableLayout.ItemTemplate="{StaticResource TicketRowTemplate}" />
 
                         <VerticalStackLayout x:Name="TicketsEmptyState" IsVisible="False" Spacing="10" Margin="0,50">
-                            <Label x:Name="TicketsEmptyLabel" Text="No items found" FontSize="18" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" HorizontalOptions="Center" FontAttributes="Bold" />
+                            <Label x:Name="TicketsEmptyLabel" Text="{localization:Translate Tickets_NoItems}" FontSize="18" TextColor="{AppThemeBinding Light=#4B5563, Dark=#CBD5E1}" HorizontalOptions="Center" FontAttributes="Bold" />
                         </VerticalStackLayout>
 
                     </VerticalStackLayout>
@@ -182,7 +183,7 @@
                         <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
                         <Grid ColumnDefinitions="*, Auto">
                             <HorizontalStackLayout Spacing="10">
-                                <Label x:Name="ActiveText" Text="Active" FontSize="16" TextColor="{AppThemeBinding Light=#374151, Dark=White}" VerticalOptions="Center" />
+                                <Label x:Name="ActiveText" Text="{localization:Translate Tickets_Active}" FontSize="16" TextColor="{AppThemeBinding Light=#374151, Dark=White}" VerticalOptions="Center" />
                             </HorizontalStackLayout>
                             <Label x:Name="ActiveCheckmark" Grid.Column="1" Text="✓" TextColor="#059669" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False" />
                         </Grid>
@@ -195,7 +196,7 @@
                     <Border x:Name="ExpiredOptionRow" Padding="12,10" StrokeThickness="0" BackgroundColor="Transparent">
                         <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
                         <Grid ColumnDefinitions="*, Auto">
-                            <Label x:Name="ExpiredText" Text="Expired" FontSize="16" TextColor="{AppThemeBinding Light=#374151, Dark=White}" VerticalOptions="Center" />
+                            <Label x:Name="ExpiredText" Text="{localization:Translate Tickets_Expired}" FontSize="16" TextColor="{AppThemeBinding Light=#374151, Dark=White}" VerticalOptions="Center" />
                             <Label x:Name="ExpiredCheckmark" Grid.Column="1" Text="✓" TextColor="#059669" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFilterOptionClicked" CommandParameter="Expired" /></Border.GestureRecognizers>
@@ -207,7 +208,7 @@
                     <Border x:Name="UsedOptionRow" Padding="12,10" StrokeThickness="0" BackgroundColor="Transparent">
                         <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
                         <Grid ColumnDefinitions="*, Auto">
-                            <Label x:Name="UsedText" Text="Used" FontSize="16" TextColor="{AppThemeBinding Light=#374151, Dark=White}" VerticalOptions="Center" />
+                            <Label x:Name="UsedText" Text="{localization:Translate Tickets_Used}" FontSize="16" TextColor="{AppThemeBinding Light=#374151, Dark=White}" VerticalOptions="Center" />
                             <Label x:Name="UsedCheckmark" Grid.Column="1" Text="✓" TextColor="#059669" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnFilterOptionClicked" CommandParameter="Used" /></Border.GestureRecognizers>

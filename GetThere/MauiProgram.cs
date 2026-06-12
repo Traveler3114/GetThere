@@ -8,6 +8,7 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 
 using GetThere.Helpers;
+using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
 
@@ -27,6 +28,8 @@ namespace GetThere;
 
         public static MauiApp CreateMauiApp()
         {
+            LocalizationService.Initialize();
+
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()

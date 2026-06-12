@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:localization="clr-namespace:GetThere.Localization"
     BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
@@ -18,7 +19,7 @@
                          HeightRequest="32" 
                          BackgroundColor="Transparent" 
                          Clicked="OnCloseClicked" />
-            <Label Grid.Column="0" Grid.ColumnSpan="3" HorizontalOptions="Center" Text="Ticket Confirmed" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
+            <Label Grid.Column="0" Grid.ColumnSpan="3" HorizontalOptions="Center" Text="{localization:Translate Confirm_Title}" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
         </Grid>
 
         <ScrollView Grid.Row="1" Padding="24,16,24,100">
@@ -39,7 +40,7 @@
                         FontAttributes="Bold"
                         FontSize="13"
                         HorizontalTextAlignment="Center"
-                        Text="⛔  MOCK TICKET — NOT VALID FOR TRAVEL  ⛔"
+                        Text="{localization:Translate Confirm_MockBanner}"
                         TextColor="{AppThemeBinding Light=#842029, Dark=#FCA5A5}" />
                 </Border>
 
@@ -92,7 +93,7 @@
                                     FontAttributes="Bold"
                                     FontSize="11"
                                     HorizontalTextAlignment="Center"
-                                    Text="QR CODE (MOCK)"
+                                    Text="{localization:Translate Confirm_QrMock}"
                                     TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                                 <BoxView
                                     BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
@@ -125,7 +126,7 @@
                                     <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                                 </Border.Shadow>
                                 <VerticalStackLayout Spacing="2">
-                                    <Label FontSize="11" Text="VALID FROM" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
+                                    <Label FontSize="11" Text="{localization:Translate Confirm_ValidFrom}" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                                     <Label
                                         x:Name="ValidFromLabel"
                                         FontAttributes="Bold"
@@ -145,7 +146,7 @@
                                     <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                                 </Border.Shadow>
                                 <VerticalStackLayout Spacing="2">
-                                    <Label FontSize="11" Text="VALID UNTIL" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
+                                    <Label FontSize="11" Text="{localization:Translate Confirm_ValidUntil}" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                                     <Label
                                         x:Name="ValidUntilLabel"
                                         FontAttributes="Bold"
@@ -173,7 +174,7 @@
                     FontAttributes="Bold"
                     FontSize="16"
                     HeightRequest="56"
-                    Text="Done"
+                    Text="{localization:Translate Confirm_Done}"
                     BackgroundColor="{AppThemeBinding Light=#009688, Dark=#0F766E}"
                     TextColor="White">
                     <Button.Shadow>

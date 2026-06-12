@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- Tabovi / Shell -->
+  <data name="Tab_Profile" xml:space="preserve"><value>Profil</value></data>
+  <data name="Tab_Map" xml:space="preserve"><value>Karta</value></data>
+  <data name="Tab_Shop" xml:space="preserve"><value>Trgovina</value></data>
+  <data name="Tab_Tickets" xml:space="preserve"><value>Karte</value></data>
+
+  <!-- Općenito -->
+  <data name="App_Ok" xml:space="preserve"><value>U redu</value></data>
+  <data name="App_Cancel" xml:space="preserve"><value>Odustani</value></data>
+  <data name="App_Error" xml:space="preserve"><value>Greška</value></data>
+  <data name="App_Loading" xml:space="preserve"><value>Učitavanje…</value></data>
+  <data name="App_Done" xml:space="preserve"><value>Gotovo</value></data>
+  <data name="App_Close" xml:space="preserve"><value>Zatvori</value></data>
+  <data name="App_Yes" xml:space="preserve"><value>Da</value></data>
+  <data name="App_No" xml:space="preserve"><value>Ne</value></data>
+  <data name="App_Save" xml:space="preserve"><value>Spremi</value></data>
+  <data name="App_Back" xml:space="preserve"><value>Natrag</value></data>
+  <data name="App_Continue" xml:space="preserve"><value>Nastavi</value></data>
+  <data name="App_Retry" xml:space="preserve"><value>Pokušaj ponovo</value></data>
+
+  <!-- Stranica za prijavu -->
+  <data name="Login_Title" xml:space="preserve"><value>Prijava</value></data>
+  <data name="Login_EmailLabel" xml:space="preserve"><value>E-pošta</value></data>
+  <data name="Login_EmailPlaceholder" xml:space="preserve"><value>E-pošta</value></data>
+  <data name="Login_PasswordLabel" xml:space="preserve"><value>Lozinka</value></data>
+  <data name="Login_PasswordPlaceholder" xml:space="preserve"><value>Lozinka</value></data>
+  <data name="Login_ShowPassword" xml:space="preserve"><value>Prikaži</value></data>
+  <data name="Login_HidePassword" xml:space="preserve"><value>Sakrij</value></data>
+  <data name="Login_Button" xml:space="preserve"><value>Prijavi se</value></data>
+  <data name="Login_CreateAccount" xml:space="preserve"><value>Stvori račun</value></data>
+  <data name="Login_RememberMe" xml:space="preserve"><value>Zapamti me</value></data>
+  <data name="Login_SigningIn" xml:space="preserve"><value>Prijavljivanje</value></data>
+  <data name="Login_InvalidEmail" xml:space="preserve"><value>Unesite valjanu adresu e-pošte.</value></data>
+  <data name="Login_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 8 znakova.</value></data>
+  <data name="Login_Failed" xml:space="preserve"><value>Prijava nije uspjela.</value></data>
+
+  <!-- Stranica za registraciju -->
+  <data name="Register_Title" xml:space="preserve"><value>Pridruži se GetThere</value></data>
+  <data name="Register_Subtitle" xml:space="preserve"><value>Započni svoje putovanje sada</value></data>
+  <data name="Register_FullNameLabel" xml:space="preserve"><value>Puno ime</value></data>
+  <data name="Register_FullNamePlaceholder" xml:space="preserve"><value>Puno ime</value></data>
+  <data name="Register_EmailLabel" xml:space="preserve"><value>E-pošta</value></data>
+  <data name="Register_EmailPlaceholder" xml:space="preserve"><value>E-pošta</value></data>
+  <data name="Register_PasswordLabel" xml:space="preserve"><value>Lozinka</value></data>
+  <data name="Register_PasswordPlaceholder" xml:space="preserve"><value>Lozinka</value></data>
+  <data name="Register_ConfirmPasswordLabel" xml:space="preserve"><value>Potvrdi lozinku</value></data>
+  <data name="Register_ConfirmPasswordPlaceholder" xml:space="preserve"><value>Potvrdi lozinku</value></data>
+  <data name="Register_Button" xml:space="preserve"><value>Stvori račun</value></data>
+  <data name="Register_AlreadyHaveAccount" xml:space="preserve"><value>Već imaš račun?</value></data>
+  <data name="Register_SignIn" xml:space="preserve"><value>Prijavi se</value></data>
+  <data name="Register_NameRequired" xml:space="preserve"><value>Unesite puno ime.</value></data>
+  <data name="Register_InvalidEmail" xml:space="preserve"><value>Unesite valjanu adresu e-pošte.</value></data>
+  <data name="Register_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 8 znakova.</value></data>
+  <data name="Register_PasswordMismatch" xml:space="preserve"><value>Lozinke se ne podudaraju.</value></data>
+  <data name="Register_Failed" xml:space="preserve"><value>Registracija nije uspjela.</value></data>
+  <data name="Register_Success" xml:space="preserve"><value>Račun stvoren</value></data>
+  <data name="Register_SuccessMessage" xml:space="preserve"><value>Sada se možete prijaviti.</value></data>
+
+  <!-- Stranica profila -->
+  <data name="Profile_Title" xml:space="preserve"><value>Profil</value></data>
+  <data name="Profile_WalletTab" xml:space="preserve"><value>Novčanik</value></data>
+  <data name="Profile_AccountTab" xml:space="preserve"><value>Račun</value></data>
+  <data name="Profile_Balance" xml:space="preserve"><value>TRENUTNI SALDO</value></data>
+  <data name="Profile_HideBalanceHint" xml:space="preserve"><value>Dodirnite oko za skrivanje stanja</value></data>
+  <data name="Profile_TopUp" xml:space="preserve"><value>Dodaj</value></data>
+  <data name="Profile_TopUpAmount" xml:space="preserve"><value>Iznos (€)</value></data>
+  <data name="Profile_RecentActivity" xml:space="preserve"><value>Nedavna aktivnost</value></data>
+  <data name="Profile_NoTransactions" xml:space="preserve"><value>Nema transakcija</value></data>
+  <data name="Profile_PersonalInfo" xml:space="preserve"><value>Osobni podaci</value></data>
+  <data name="Profile_FullName" xml:space="preserve"><value>PUNO IME</value></data>
+  <data name="Profile_Email" xml:space="preserve"><value>ADRESA E-POŠTE</value></data>
+  <data name="Profile_SettingsSecurity" xml:space="preserve"><value>Postavke i sigurnost</value></data>
+  <data name="Profile_AccountPrivacy" xml:space="preserve"><value>Privatnost računa</value></data>
+  <data name="Profile_PaymentMethods" xml:space="preserve"><value>Načini plaćanja</value></data>
+  <data name="Profile_ChangePassword" xml:space="preserve"><value>Promijeni lozinku</value></data>
+  <data name="Profile_SupportMore" xml:space="preserve"><value>Podrška i više</value></data>
+  <data name="Profile_HelpCenter" xml:space="preserve"><value>Centar za pomoć</value></data>
+  <data name="Profile_About" xml:space="preserve"><value>O GetThere</value></data>
+  <data name="Profile_AboutText" xml:space="preserve"><value>GetThere — aplikacija za javni prijevoz i mobilnost.</value></data>
+  <data name="Profile_SignOut" xml:space="preserve"><value>Odjava</value></data>
+  <data name="Profile_SignOutConfirm" xml:space="preserve"><value>Želite li se odjaviti?</value></data>
+  <data name="Profile_SignOutButton" xml:space="preserve"><value>Odjavi se</value></data>
+  <data name="Profile_GuestMode" xml:space="preserve"><value>Gostujući način</value></data>
+  <data name="Profile_GuestPrompt" xml:space="preserve"><value>Prijavite se da vidite stanje i povijest.</value></data>
+  <data name="Profile_LoginRegister" xml:space="preserve"><value>Prijava / Registracija</value></data>
+  <data name="Profile_Verified" xml:space="preserve"><value>● VERIFICIRANO</value></data>
+  <data name="Profile_LanguageRegion" xml:space="preserve"><value>Jezik i regija</value></data>
+  <data name="Profile_DefaultName" xml:space="preserve"><value>Korisnik</value></data>
+  <data name="Profile_MaskedBalance" xml:space="preserve"><value>EUR •••,••</value></data>
+  <data name="Profile_PhotoTitle" xml:space="preserve"><value>Profilna fotografija</value></data>
+  <data name="Profile_PhotoTake" xml:space="preserve"><value>Uslikaj</value></data>
+  <data name="Profile_PhotoUpload" xml:space="preserve"><value>Prenesi sliku</value></data>
+  <data name="Profile_PhotoResult" xml:space="preserve"><value>Integracija kamere/galerije bi se ovdje implementirala.</value></data>
+  <data name="Profile_PrivacyTitle" xml:space="preserve"><value>Privatnost</value></data>
+  <data name="Profile_PrivacyMessage" xml:space="preserve"><value>Vaši podaci su šifrirani i sigurni.</value></data>
+  <data name="Profile_PaymentMethodsTitle" xml:space="preserve"><value>Plaćanja</value></data>
+  <data name="Profile_PaymentMethodsMessage" xml:space="preserve"><value>Upravljajte kreditnim karticama i digitalnim novčanicima u sljedećoj nadogradnji.</value></data>
+  <data name="Profile_SupportTitle" xml:space="preserve"><value>Podrška</value></data>
+  <data name="Profile_SupportMessage" xml:space="preserve"><value>Posjetite naš centar za podršku na support.getthere.com</value></data>
+  <data name="Profile_AboutTitle" xml:space="preserve"><value>O aplikaciji</value></data>
+  <data name="Profile_AboutMessage" xml:space="preserve"><value>GetThere v1.0\nProfesionalna platforma za mobilnost</value></data>
+  <data name="Profile_RegionTitle" xml:space="preserve"><value>Jezik i regija</value></data>
+
+  <!-- Stranica trgovine -->
+  <data name="Shop_Title" xml:space="preserve"><value>Trgovina</value></data>
+  <data name="Shop_AllCountries" xml:space="preserve"><value>Sve države</value></data>
+  <data name="Shop_NoOperators" xml:space="preserve"><value>Nema dostupnih operatera za kupnju karata.</value></data>
+  <data name="Shop_MockDisclaimer" xml:space="preserve"><value>⚠ TESTNE KARTE — NISU VALJANE ZA PUTOVANJE ⚠</value></data>
+
+  <!-- Stranica kupnje karte -->
+  <data name="TicketPurchase_MockDisclaimer" xml:space="preserve"><value>⚠ TESTNE KARTE — NISU VALJANE ZA PUTOVANJE ⚠</value></data>
+  <data name="TicketPurchase_NoOptions" xml:space="preserve"><value>Nema dostupnih opcija karata.</value></data>
+  <data name="TicketPurchase_BuyButton" xml:space="preserve"><value>Kupi karte</value></data>
+  <data name="TicketPurchase_Subtitle" xml:space="preserve"><value>Odaberite kartu za ovog operatera</value></data>
+  <data name="TicketPurchase_Quantity" xml:space="preserve"><value>Kol.</value></data>
+  <data name="TicketPurchase_OperatorShopTitle" xml:space="preserve"><value>{0} Trgovina</value></data>
+  <data name="TicketPurchase_SubtitleZET" xml:space="preserve"><value>Kupite karte za zagrebački prijevoz</value></data>
+  <data name="TicketPurchase_SubtitleHZPP" xml:space="preserve"><value>Kupite karte za Hrvatske željeznice</value></data>
+  <data name="TicketPurchase_SubtitleBajs" xml:space="preserve"><value>Kupite karte za gradske bicikle</value></data>
+
+  <!-- Stranica karata -->
+  <data name="Tickets_Title" xml:space="preserve"><value>Moje karte</value></data>
+  <data name="Tickets_Active" xml:space="preserve"><value>Aktivne</value></data>
+  <data name="Tickets_Expired" xml:space="preserve"><value>Istekle</value></data>
+  <data name="Tickets_Used" xml:space="preserve"><value>Iskorištene</value></data>
+  <data name="Tickets_NoItems" xml:space="preserve"><value>Nema pronađenih stavki</value></data>
+  <data name="Tickets_MockLabel" xml:space="preserve"><value>Karte sesije (Testne)</value></data>
+  <data name="Tickets_MockDisclaimer" xml:space="preserve"><value>⚠️ TESTNE KARTE — NISU VALJANE ZA PUTOVANJE</value></data>
+  <data name="Tickets_SessionTickets" xml:space="preserve"><value>Karte sesije</value></data>
+  <data name="Tickets_Filter" xml:space="preserve"><value>Aktivne ▾</value></data>
+  <data name="Tickets_ActiveFilter" xml:space="preserve"><value>Aktivne ▾</value></data>
+  <data name="Tickets_ExpiredFilter" xml:space="preserve"><value>Istekle ▾</value></data>
+  <data name="Tickets_UsedFilter" xml:space="preserve"><value>Iskorištene ▾</value></data>
+  <data name="Tickets_ActiveSection" xml:space="preserve"><value>Aktivne karte</value></data>
+  <data name="Tickets_ExpiredSection" xml:space="preserve"><value>Istekle karte</value></data>
+  <data name="Tickets_UsedSection" xml:space="preserve"><value>Iskorištene karte</value></data>
+  <data name="Tickets_NoActiveItems" xml:space="preserve"><value>Nema aktivnih karata</value></data>
+  <data name="Tickets_NoExpiredItems" xml:space="preserve"><value>Nema isteklih karata</value></data>
+  <data name="Tickets_NoUsedItems" xml:space="preserve"><value>Nema iskorištenih karata</value></data>
+
+  <!-- Stranica potvrde karte -->
+  <data name="Confirm_Title" xml:space="preserve"><value>Karta potvrđena</value></data>
+  <data name="Confirm_MockBanner" xml:space="preserve"><value>⛔  TESTNA KARTA — NIJE VALJANA ZA PUTOVANJE  ⛔</value></data>
+  <data name="Confirm_ValidFrom" xml:space="preserve"><value>VRIJEDI OD</value></data>
+  <data name="Confirm_ValidUntil" xml:space="preserve"><value>VRIJEDI DO</value></data>
+  <data name="Confirm_QrMock" xml:space="preserve"><value>QR KOD (TESTNI)</value></data>
+  <data name="Confirm_Done" xml:space="preserve"><value>Gotovo</value></data>
+  <data name="Confirm_Close" xml:space="preserve"><value>Zatvori</value></data>
+
+  <!-- Stranica postavki -->
+  <data name="Settings_Title" xml:space="preserve"><value>Postavke</value></data>
+  <data name="Settings_Country" xml:space="preserve"><value>Država</value></data>
+  <data name="Settings_CountrySubtitle" xml:space="preserve"><value>Odaberite svoju državu za prikaz relevantnih operatera i usluga.</value></data>
+  <data name="Settings_CountrySaved" xml:space="preserve"><value>Spremljeno: {0} ✓</value></data>
+  <data name="Settings_CurrentCountry" xml:space="preserve"><value>Trenutno: {0}</value></data>
+  <data name="Settings_Language" xml:space="preserve"><value>Jezik</value></data>
+  <data name="Settings_LanguageSubtitle" xml:space="preserve"><value>Odaberite željeni jezik aplikacije.</value></data>
+  <data name="Settings_LanguageSaved" xml:space="preserve"><value>Jezik spremljen ✓</value></data>
+  <data name="Settings_LanguageEnglish" xml:space="preserve"><value>Engleski</value></data>
+  <data name="Settings_LanguageCroatian" xml:space="preserve"><value>Hrvatski</value></data>
+  <data name="Settings_About" xml:space="preserve"><value>O aplikaciji</value></data>
+  <data name="Settings_AboutText" xml:space="preserve"><value>GetThere — aplikacija za javni prijevoz i mobilnost.</value></data>
+  <data name="Settings_MockDisclaimer" xml:space="preserve"><value>Kupnje testnih karata su samo za demonstraciju i nisu valjane za putovanje.</value></data>
+  <data name="Settings_Logout" xml:space="preserve"><value>Odjava</value></data>
+  <data name="Settings_LogoutConfirm" xml:space="preserve"><value>Želite li se odjaviti?</value></data>
+  <data name="Settings_LogoutButton" xml:space="preserve"><value>Odjavi se</value></data>
+
+  <!-- Pod-postavke profila -->
+  <data name="Profile_SubSettings_Region" xml:space="preserve"><value>Regija</value></data>
+  <data name="Profile_SubSettings_SaveButton" xml:space="preserve"><value>Spremi</value></data>
+  <data name="Profile_SubSettings_SavedMessage" xml:space="preserve"><value>Jezik i regija su spremljeni.</value></data>
+  <data name="Profile_SubSettings_RegionUpdated" xml:space="preserve"><value>Regija ažurirana na {0}</value></data>
+  <data name="Profile_SubSettings_Success" xml:space="preserve"><value>Uspjeh</value></data>
+  <data name="Profile_SubSettings_PasswordDesc" xml:space="preserve"><value>Postavite jaku lozinku za zaštitu računa.</value></data>
+  <data name="Profile_SubSettings_CurrentPassword" xml:space="preserve"><value>Trenutna lozinka</value></data>
+  <data name="Profile_SubSettings_NewPassword" xml:space="preserve"><value>Nova lozinka</value></data>
+  <data name="Profile_SubSettings_ConfirmNewPassword" xml:space="preserve"><value>Potvrdi novu lozinku</value></data>
+  <data name="Profile_SubSettings_UpdateButton" xml:space="preserve"><value>Ažuriraj lozinku</value></data>
+  <data name="Profile_SubSettings_PasswordMismatch" xml:space="preserve"><value>Lozinke se ne podudaraju.</value></data>
+  <data name="Profile_SubSettings_PasswordSuccess" xml:space="preserve"><value>Lozinka je uspješno ažurirana.</value></data>
+
+  <!-- Dopuna novčanika -->
+  <data name="Profile_TopUp_Title" xml:space="preserve"><value>Dopuna</value></data>
+  <data name="Profile_TopUp_AmountLabel" xml:space="preserve"><value>Iznos (€):</value></data>
+  <data name="Profile_TopUp_Next" xml:space="preserve"><value>Dalje</value></data>
+  <data name="Profile_TopUp_Provider" xml:space="preserve"><value>Pružatelj</value></data>
+  <data name="Profile_TopUp_Added" xml:space="preserve"><value>Dodano €{0:F2}!</value></data>
+  <data name="Profile_TopUp_FailedTitle" xml:space="preserve"><value>Dopuna nije uspjela</value></data>
+  <data name="Profile_TopUp_Failed" xml:space="preserve"><value>Dopuna nije mogla biti dovršena.</value></data>
+  <data name="Profile_TopUp_ProviderErrorTitle" xml:space="preserve"><value>Greška pružatelja</value></data>
+  <data name="Profile_TopUp_NoProviders" xml:space="preserve"><value>Nema dostupnih pružatelja plaćanja.</value></data>
+  <data name="Profile_TopUp_InvalidAmountTitle" xml:space="preserve"><value>Neispravni iznos</value></data>
+  <data name="Profile_TopUp_InvalidAmount" xml:space="preserve"><value>Unesite iznos veći od nule.</value></data>
+
+  <!-- API poruke o pogreškama (prikazane u MAUI) -->
+  <data name="Error_EmailAlreadyInUse" xml:space="preserve"><value>E-pošta je već u upotrebi</value></data>
+  <data name="Error_UserRegisteredSuccessfully" xml:space="preserve"><value>Korisnik uspješno registriran</value></data>
+  <data name="Error_InvalidCredentials" xml:space="preserve"><value>Neispravne vjerodajnice.</value></data>
+  <data name="Error_InvalidRefreshToken" xml:space="preserve"><value>Neispravan token za osvježavanje.</value></data>
+  <data name="Error_RefreshTokenExpired" xml:space="preserve"><value>Token za osvježavanje je neispravan ili je istekao.</value></data>
+  <data name="Error_LoggedOut" xml:space="preserve"><value>Odjavljeni ste</value></data>
+  <data name="Error_UserNotAuthenticated" xml:space="preserve"><value>Korisnik nije autentificiran.</value></data>
+  <data name="Error_WalletNotFound" xml:space="preserve"><value>Novčanik nije pronađen.</value></data>
+  <data name="Error_AmountMustBeGreaterThanZero" xml:space="preserve"><value>Iznos mora biti veći od nule.</value></data>
+  <data name="Error_TransitProviderUnavailable" xml:space="preserve"><value>Pružatelj prijevoza nije dostupan</value></data>
+  <data name="Error_NetworkFailed" xml:space="preserve"><value>Mrežni zahtjev nije uspio. Molimo pokušajte ponovo.</value></data>
+  <data name="Error_LoadFailed" xml:space="preserve"><value>Učitavanje podataka nije uspjelo. Molimo pokušajte ponovo.</value></data>
+  <data name="Error_PurchaseFailed" xml:space="preserve"><value>Kupnja nije uspjela. Molimo pokušajte ponovo.</value></data>
+  <data name="Error_CouldNotLoadCountries" xml:space="preserve"><value>Nije moguće učitati države: </value></data>
+  <data name="Error_CouldNotLoadOptions" xml:space="preserve"><value>Nije moguće učitati opcije karata: </value></data>
+  <data name="Error_CouldNotLoadOperators" xml:space="preserve"><value>Nije moguće učitati operatere: </value></data>
+  <data name="Error_CouldNotLoadProfile" xml:space="preserve"><value>Nije moguće učitati profil: </value></data>
+  <data name="Error_CouldNotLoadWallet" xml:space="preserve"><value>Nije moguće učitati novčanik: </value></data>
+  <data name="Error_CouldNotLoadHistory" xml:space="preserve"><value>Nije moguće učitati povijest: </value></data>
+  <data name="Error_CouldNotLoadRegions" xml:space="preserve"><value>Nije moguće učitati regije: </value></data>
+  <data name="Error_CouldNotLoadBikeStations" xml:space="preserve"><value>Nije moguće učitati stanice bicikala: </value></data>
+  <data name="Error_CouldNotLoadStops" xml:space="preserve"><value>Nije moguće učitati stanice: </value></data>
+  <data name="Error_CouldNotLoadRoutes" xml:space="preserve"><value>Nije moguće učitati linije: </value></data>
+  <data name="Error_CouldNotLoadSchedule" xml:space="preserve"><value>Nije moguće učitati raspored: </value></data>
+  <data name="Error_CouldNotLoadTransportTypes" xml:space="preserve"><value>Nije moguće učitati vrste prijevoza: </value></data>
+  <data name="Error_CouldNotLoadImage" xml:space="preserve"><value>Nije moguće učitati sliku: </value></data>
+  <data name="Auth_LoginSuccessful" xml:space="preserve"><value>Prijava uspješna</value></data>
+  <data name="Auth_UnexpectedError" xml:space="preserve"><value>Došlo je do neočekivane pogreške.</value></data>
+  <data name="Shop_LoginRequired" xml:space="preserve"><value>Prijavite se za kupnju karata.</value></data>
+  <data name="Shop_PurchaseFailed" xml:space="preserve"><value>Kupnja nije uspjela: {0}</value></data>
+  <data name="Shop_NoResponse" xml:space="preserve"><value>Neuspjelo učitavanje {0}. Nema odgovora poslužitelja.</value></data>
+  <data name="Payment_LoadFailed" xml:space="preserve"><value>Neuspjelo učitavanje pružatelja plaćanja: {0}</value></data>
+  <data name="Payment_TopUpFailed" xml:space="preserve"><value>Uplata nije uspjela: {0}</value></data>
+  <data name="Payment_NoProvidersReturned" xml:space="preserve"><value>Nijedan pružatelj plaćanja nije vraćen.</value></data>
+  <data name="Payment_TopUpNoPayload" xml:space="preserve"><value>Uplata je dovršena, ali nije vraćen podatak o novčaniku.</value></data>
+</root>

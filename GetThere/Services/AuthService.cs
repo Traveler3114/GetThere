@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
+using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -24,11 +25,11 @@ public class AuthService
     {
         var response = await _httpClient.PostAsJsonAsync($"auth/login?rememberMe={rememberMe.ToString().ToLowerInvariant()}", dto);
         if (!response.IsSuccessStatusCode)
-            return OperationResult<UserResponse>.Fail("Invalid credentials");
+            return OperationResult<UserResponse>.Fail(LocalizationService.Instance["Error_InvalidCredentials"]);
 
         var result = await response.Content.ReadFromJsonAsync<OperationResult<LoginResponse>>();
         if (result?.Data is null || string.IsNullOrWhiteSpace(result.Data.AccessToken) || string.IsNullOrWhiteSpace(result.Data.RefreshToken))
-            return OperationResult<UserResponse>.Fail(result?.Message ?? "Unexpected error occurred.");
+            return OperationResult<UserResponse>.Fail(result?.Message ?? LocalizationService.Instance["Auth_UnexpectedError"]);
 
         await SecureStorage.SetAsync(TokenKey, result.Data.AccessToken);
         await SecureStorage.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
@@ -42,14 +43,14 @@ public class AuthService
                 FullName = result.Data.User.FullName,
                 Token = result.Data.AccessToken
             },
-            "Login successful");
+            LocalizationService.Instance["Auth_LoginSuccessful"]);
     }
 
     public async Task<OperationResult> RegisterAsync(RegisterRequest dto)
     {
         var response = await _httpClient.PostAsJsonAsync("auth/register", dto);
         return await response.Content.ReadFromJsonAsync<OperationResult>()
-            ?? OperationResult.Fail("Unexpected error occurred.");
+            ?? OperationResult.Fail(LocalizationService.Instance["Auth_UnexpectedError"]);
     }
 
     public async Task<string?> GetTokenAsync()

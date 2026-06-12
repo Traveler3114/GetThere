@@ -5,7 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
-    Title="Shop"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    Title="{localization:Translate Shop_Title}"
     BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
@@ -18,7 +19,7 @@
                 FontAttributes="Bold"
                 FontSize="32"
                 HorizontalTextAlignment="Center"
-                Text="Shop"
+                Text="{localization:Translate Shop_Title}"
                 TextColor="{AppThemeBinding Light=Black, Dark=White}" />
         </Grid>
 
@@ -37,7 +38,7 @@
                 <Label
                     x:Name="CountryBadgeLabel"
                     FontSize="13"
-                    Text="All countries"
+                    Text="{localization:Translate Shop_AllCountries}"
                     TextColor="{AppThemeBinding Light=#555, Dark=#CBD5E1}" />
             </Border>
         </Grid>
@@ -74,7 +75,7 @@
                         Margin="0,40"
                         FontSize="16"
                         HorizontalOptions="Center"
-                        Text="No operators available for ticket purchase."
+                        Text="{localization:Translate Shop_NoOperators}"
                         TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
                 </VerticalStackLayout>
 
