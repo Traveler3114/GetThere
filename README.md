@@ -1,112 +1,132 @@
 # GetThere
 
+**Google Maps + Booking.com — for public transportation.** All of it. Trams, buses, trains, ferries, flights, bike share, scooter share, cable cars, coaches. Everything public. No private cars, no taxis.
 
-# Modular Public Transport & Travel App
-
-## Project Overview
-
-The vision is to create the **ultimate "one-stop" app for all urban, regional, and long-distance travel**:  
-- Buy, store, and manage tickets for public transport (trams, buses, trains, city bikes, e-scooters),  
-- private operators (intercity buses, commercial rail, even flights),  
-- access scheduling, journey planning, and maps—**all with a single account and wallet**.
-
-No more juggling dozens of apps: Think of how streaming was once unified—now, your app aims to unify transport, travel, and multimobility.
+One account. Never need another operator app again. Plan journeys, book tickets, all in one place. AI routing later — cheapest, fastest, balanced.
 
 ---
 
-## Core Directions
+## Phase 1 Scope
 
-### 1. Ticketing System
+**Croatia focused, but not Croatia only.** Any operator that touches Croatian soil is included:
 
-- **Universal account and wallet:**  
-  Register once, top up securely, and use the balance for any mode/operator.
+- ÖBB (Zagreb–Vienna) is included
+- FlixBus routes through Croatia are included
+- Croatian infrastructure is modelled fully
+- Outside Croatia, only endpoints matter
 
-- **Modular backend:**  
-  Plugin/adapters let operators (public, private, regional, national, even international) quickly integrate their ticket APIs.  
-  Users buy tickets as guests—no need for local accounts everywhere.
-
-- **Unified ticket storage:**  
-  All ticket formats (QR, barcode, PDF, link, SMS, NFC, etc.), stored and displayed in one wallet, with purchase history and instructions.
+Operators in scope: **ZET**, **HZPP**, **Nextbike**, and any operator whose services cross Croatian borders.
 
 ---
 
-### 2. Scheduling & Journey Planning
+## Map
 
-- Integrated journey planner/map (future):  
-  Uses OTP-backed transit data with provider abstractions for future multimodal expansion.
-- Users can plan complex trips across cities, countries, and operators without switching apps.
+TransitLand inspired, two layers:
 
----
+### Layer 1 — Canonical
+One record per real physical place. **Zagreb Glavni Kolodvor** exists once, regardless of how many operators serve it. This is what the map shows.
 
-### 3. Branding & Localization
+### Layer 2 — Feed Data
+Raw imported GTFS data. HZPP's stop ID and ÖBB's stop ID both point to the same canonical station.
 
-- Dynamic branding:  
-  When users select a location, UI adapts to local branding (logo, colors, city imagery) if available.
-- Location-aware; localized languages and content.
+### Reconciliation System
+Confidence scoring on import:
+- Auto-merge when geographically close **and** name similar
+- Flag for manual review when uncertain
+- **Never block import** waiting for review
 
----
+### Map Filters
+All frontend, no database impact:
+- Show/hide route lines
+- Filter by transport type
+- Show/hide vehicles
+- Show/hide bike stations
 
-## Extensible Features & Roadmap
-
-### Phase 1: Core Public Transit
-- City trams, buses, metro
-- City/regional trains
-- City-owned bikes (e.g. Bajk/Nextbike)
-
-### Phase 2: Urban Mobility Extras
-- E-scooters (city-owned/integrated first, private later)
-
-### Phase 3: Regional & Private Operators
-- Intercity/private buses (e.g. **Flixbus**, BlaBlaBus)
-- Private rail companies, regional and national trains (where API allows)
-- Ferry and maritime transport
-
-### Phase 4: Long-Distance & Air Travel
-- Flight map integration and journey planning (tickets are very complex, but at minimum: show schedules, allow linking out)
-- International train operators
-
-### Future: Unified Travel & Mobility Ecosystem
-- One app for tickets, journey planning, and multimodal travel across cities, countries, and continents.
-- Avoid fragmentation—no more dozens of apps for every schedule or ticket.
-- The "Netflix approach" for transport: Integrate all modes/operators in one place.
+Route lines for long-distance are hidden by default but user can toggle. Shape data is stored when available, drawn or not based on filter state.
 
 ---
 
-## Technical Structure
+## Operator Model
 
-- **Backend:** Modular plugin architecture for rapid integration of new ticketing APIs, mobility modes, and journey planners.
-- **Frontend:** Dynamic UI for ticket management, trip planning, branding, and multimodal display.
-- **API:** Endpoints for wallet actions, ticketing, trip requests, operator onboarding, and feature modules.
+Three concerns, completely separated:
 
----
+| Concern | Purpose |
+|---------|---------|
+| **Core identity** | Who the operator is. Name, country, type. The bridge between everything. |
+| **Transit feed config** | GTFS URLs, realtime feeds, feed IDs. What the map uses. Can exist without ticketing. |
+| **Ticketing config** | Adapter type, credentials, JSON config. Can exist without map data. |
 
-## Operator/Provider Integration
+Both ticketing and map data are linked through the core operator identity.
 
-Cities, public authorities, and commercial operators can:
-- Request and manage integration by providing API access/documentation.
-- Maintain their plugin/adapters for ticketing, journey data, or branding.
-- Expand user reach effortlessly—users can access their services via unified app.
+### Two States Per Operator
 
----
-
-## Planned Roadmap
-
-1. **Modular ticketing platform & wallet** (core public transport)
-2. **Micromobility/bike/scooter integration**
-3. **Journey planner/map module**
-4. **Regional/private bus/train integration (e.g. Flixbus)**
-5. **Air travel & long-distance planning**
-6. **Unified ecosystem for all mobility modes—no fragmentation**
+| State | Requirement |
+|-------|-------------|
+| **Map / routing** | Always works if GTFS exists |
+| **Ticketing** | Only works when operator has given API access |
 
 ---
 
-## Contribution & Contact
+## Ticketing
 
-- Operators and contributors: see [docs](docs/) for integration, plugin development, and roadmap features.
-- For partnerships or technical questions, contact maintainers or file an issue.
+**You are the frontend.** The operator's backend stays completely untouched. GetThere talks to their backend exactly like their own app does.
+
+### Adapter System
+
+Every operator has an adapter implementing the same interface:
+
+| Method | Purpose |
+|--------|---------|
+| `GetOptions()` | What tickets does this operator sell |
+| `GetInputs()` | What extra info do you need from the user |
+| `Purchase(inputs)` | Here is payment and info, give me a ticket |
+| `GetStatus()` | Check ticket validity |
+
+### Adapter Examples
+
+| Operator | Adapter Behavior |
+|----------|-----------------|
+| **ZET** | No extra inputs. Returns QR code. Time-activated on vehicle scan. |
+| **HZPP** | Needs origin, destination, date. Returns QR code tied to specific journey. |
+| **Nextbike** | Needs duration. Returns unlock credential. |
+
+### Vendor-Based Integrations
+
+One adapter powers many operators. Example: **Masabi** — one adapter, dozens of operators.
+
+### Map-to-Ticketing Connection
+
+User taps a stop → stop belongs to feed ID → feed ID maps to operator → operator has ticketing config → show buy button. Station context is passed to the Shop page for pre-filling (e.g., HZPP origin station).
 
 ---
 
-## License
+## Database Design Principles
 
-> *Add applicable license information here (open/commercial/etc.)*
+- **Multi-region ready** from day one. No refactoring later.
+- TransitLand inspired, but with a ticketing layer on top.
+- **Reconciliation system** built in from the start — one pin per real place on the map.
+- Shape data stored when available, **optional**.
+- Long-distance routes: stations only modelled in detail. No need for full route shape.
+
+---
+
+## Future Phases
+
+| Phase | Scope |
+|-------|-------|
+| **Phase 1** | Croatia. ZET, HZPP, Nextbike, any operator touching Croatia. Prove the concept. |
+| **Phase 2** | More operators, more transport types, expand coverage. |
+| **Phase 3** | Multi-country expansion, flights, ferries. |
+| **Phase 4** | AI routing. Cheapest, fastest, balanced. Learns user preferences over time. |
+
+---
+
+## What We Have NOT Designed Yet
+
+These are explicitly out of scope for the current design phase:
+
+- The actual database schema
+- The adapter interface in code
+- The reconciliation algorithm
+- The SDK structure
+- The admin review interface

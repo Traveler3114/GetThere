@@ -26,21 +26,21 @@ public class AuthService
         if (!response.IsSuccessStatusCode)
             return OperationResult<UserResponse>.Fail("Invalid credentials");
 
-        var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-        if (result is null || string.IsNullOrWhiteSpace(result.AccessToken) || string.IsNullOrWhiteSpace(result.RefreshToken))
-            return OperationResult<UserResponse>.Fail("Unexpected error occurred.");
+        var result = await response.Content.ReadFromJsonAsync<OperationResult<LoginResponse>>();
+        if (result?.Data is null || string.IsNullOrWhiteSpace(result.Data.AccessToken) || string.IsNullOrWhiteSpace(result.Data.RefreshToken))
+            return OperationResult<UserResponse>.Fail(result?.Message ?? "Unexpected error occurred.");
 
-        await SecureStorage.SetAsync(TokenKey, result.AccessToken);
-        await SecureStorage.SetAsync(RefreshTokenKey, result.RefreshToken);
+        await SecureStorage.SetAsync(TokenKey, result.Data.AccessToken);
+        await SecureStorage.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
         Preferences.Default.Set(RememberMeKey, rememberMe);
 
         return OperationResult<UserResponse>.Ok(
             new UserResponse
             {
-                Id = result.User.Id,
-                Email = result.User.Email,
-                FullName = result.User.FullName,
-                Token = result.AccessToken
+                Id = result.Data.User.Id,
+                Email = result.Data.User.Email,
+                FullName = result.Data.User.FullName,
+                Token = result.Data.AccessToken
             },
             "Login successful");
     }
@@ -71,16 +71,16 @@ public class AuthService
             if (!response.IsSuccessStatusCode)
                 return false;
 
-            var refreshResponse = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>();
-            if (refreshResponse is null
-                || string.IsNullOrWhiteSpace(refreshResponse.AccessToken)
-                || string.IsNullOrWhiteSpace(refreshResponse.RefreshToken))
+            var refreshResponse = await response.Content.ReadFromJsonAsync<OperationResult<RefreshTokenResponse>>();
+            if (refreshResponse?.Data is null
+                || string.IsNullOrWhiteSpace(refreshResponse.Data.AccessToken)
+                || string.IsNullOrWhiteSpace(refreshResponse.Data.RefreshToken))
             {
                 return false;
             }
 
-            await SecureStorage.SetAsync(TokenKey, refreshResponse.AccessToken);
-            await SecureStorage.SetAsync(RefreshTokenKey, refreshResponse.RefreshToken);
+            await SecureStorage.SetAsync(TokenKey, refreshResponse.Data.AccessToken);
+            await SecureStorage.SetAsync(RefreshTokenKey, refreshResponse.Data.RefreshToken);
             return true;
         }
         catch

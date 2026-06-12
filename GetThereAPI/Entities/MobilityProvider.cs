@@ -8,22 +8,13 @@ public enum MobilityType
     MOPED
 }
 
-public enum MobilityFeedFormat
-{
-    NEXTBIKE_API,
-    GBFS,
-    BOLT_API,
-    REST
-}
-
 public class MobilityProvider
 {
     public int    Id           { get; set; }
     public string Name         { get; set; } = string.Empty;
     public string? LogoUrl     { get; set; }
 
-    public MobilityType       Type       { get; set; }
-    public MobilityFeedFormat FeedFormat { get; set; }
+    public MobilityType Type { get; set; }
 
     public string  ApiBaseUrl    { get; set; } = string.Empty;
     public string? ApiKey        { get; set; }

@@ -155,7 +155,6 @@ namespace GetThereAPI.Data;
                     Name = "Bajs / Nextbike",
                     LogoUrl = null,
                     Type = MobilityType.BIKE_STATION,
-                    FeedFormat = MobilityFeedFormat.NEXTBIKE_API,
                     ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
                     ApiKey = null,
                     // No cityUid filter — fetch all Nextbike stations worldwide.
@@ -168,7 +167,7 @@ namespace GetThereAPI.Data;
             // MobilityProvider ↔ Country and MobilityProvider ↔ City relationships are defined
             // here so EF Core generates the join tables, but no seed rows are inserted.
             // Country coverage for mobility providers is determined dynamically at runtime
-            // from the live feed data (see MobilityManager.HasStationsInCountry).
+            // from the live feed data.
             modelBuilder.Entity<MobilityProvider>()
                 .HasMany(mp => mp.Countries)
                 .WithMany(c => c.MobilityProviders)

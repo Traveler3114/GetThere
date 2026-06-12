@@ -197,7 +197,7 @@ public partial class ShopPage : ContentPage
         };
         typeBadge.Content = new Label
         {
-            Text = op.Type,
+            Text = op.Type.ToString(),
             FontSize = 11,
             FontAttributes = FontAttributes.Bold,
             TextColor = Colors.White,

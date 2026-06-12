@@ -2,7 +2,7 @@ using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Infrastructure;
 using GetThereAPI.Managers;
-using GetThereAPI.Parsers.Mobility;
+using GetThereAPI.Services;
 using GetThereAPI.Transit;
 using GetThereShared.Common;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -41,22 +41,12 @@ builder.Services.AddScoped<ITransitProvider, OtpTransitProvider>();
 builder.Services.AddScoped<ITransitRouter, TransitRouter>();
 builder.Services.AddScoped<TransitOrchestrator>();
 
-builder.Services.AddSingleton<NextbikeParser>();
-builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.NEXTBIKE_API,
-    (sp, _) => sp.GetRequiredService<NextbikeParser>());
-// Preserve current behavior: non-Nextbike formats still fall back to NextbikeParser
-// until dedicated parser implementations are introduced.
-builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.GBFS,
-    (sp, _) => sp.GetRequiredService<NextbikeParser>());
-builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.BOLT_API,
-    (sp, _) => sp.GetRequiredService<NextbikeParser>());
-builder.Services.AddKeyedSingleton<IMobilityParser>(MobilityFeedFormat.REST,
-    (sp, _) => sp.GetRequiredService<NextbikeParser>());
-builder.Services.AddSingleton<MobilityParserFactory>();
-
-builder.Services.AddSingleton<MobilityManager>();
-builder.Services.AddSingleton<IBikeStationCache>(sp => sp.GetRequiredService<MobilityManager>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<MobilityManager>());
+builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
+{
+    var baseUrl = builder.Configuration["TransitInfoApi:BaseUrl"] ?? "http://localhost:5000";
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/'));
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddSingleton<IIconFileStore, WebRootIconFileStore>();
 builder.Services.AddScoped<MockTicketPurchaseService>();
@@ -67,8 +57,7 @@ var managerTypes = Assembly.GetExecutingAssembly()
     .GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers"
                 && t.IsClass
-                && !t.IsAbstract
-                && t != typeof(MobilityManager));
+                && !t.IsAbstract);
 
 foreach (var managerType in managerTypes)
 {
@@ -111,25 +100,6 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
 }
-
-_ = Task.Run(async () =>
-{
-    using var scope = app.Services.CreateScope();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("[Startup] Background initialization started...");
-
-    try
-    {
-        var mobilityManager = scope.ServiceProvider.GetRequiredService<MobilityManager>();
-        await mobilityManager.InitialiseAsync();
-
-        logger.LogInformation("[Startup] Background initialization completed successfully.");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "[Startup] Background initialization failed.");
-    }
-});
 
 if (app.Environment.IsDevelopment())
 {

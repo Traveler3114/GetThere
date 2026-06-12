@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using GetThereAPI.Data;
 using GetThereAPI.Infrastructure;
 using GetThereAPI.Mapping;
+using GetThereAPI.Services;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Managers;
@@ -10,16 +11,16 @@ namespace GetThereAPI.Managers;
 public class OperatorManager
 {
     private readonly AppDbContext _db;
-    private readonly IBikeStationCache _mobility;
+    private readonly TransitInfoApiClient _transitInfo;
     private readonly IIconFileStore _iconFileStore;
 
     public OperatorManager(
         AppDbContext db,
-        IBikeStationCache mobility,
+        TransitInfoApiClient transitInfo,
         IIconFileStore iconFileStore)
     {
         _db = db;
-        _mobility = mobility;
+        _transitInfo = transitInfo;
         _iconFileStore = iconFileStore;
     }
 
@@ -57,7 +58,7 @@ public class OperatorManager
         if (countryId.HasValue && countryName is null)
             return [];
 
-        return _mobility.GetAllStations(countryName);
+        return await _transitInfo.GetAllStationsAsync(countryName, ct);
     }
 
     public async Task<List<OperatorFeedResponse>> GetOtpFeedOperatorsAsync(CancellationToken ct = default)

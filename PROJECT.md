@@ -233,6 +233,7 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 ## Key files
 | File | Purpose |
 |------|---------|
+| `README.md` | Project vision, scope, roadmap |
 | `GetThereShared/Common/OperationResult.cs` | API response wrapper |
 | `GetThereShared/Contracts/*.cs` | Request/response DTOs |
 | `GetThereAPI/Program.cs` | Service registration, startup |
@@ -253,7 +254,7 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 
 ## Adding new features
 - New API endpoint: Controller → Manager → Mapper → Contract → MAUI Service
-- New transit operator: insert row in `TransitOperators` with GTFS feed URLs
+- New transit operator: insert row in `Operators` (core identity) + `TransitFeedConfigs` (GTFS feeds) — see `README.md` for the 3-concern operator model
 - New bike provider: implement `IMobilityParser` → add case to `MobilityParserFactory` → insert DB row
 - New GTFS-RT format: implement `IRealtimeParser` → add case to `RealtimeParserFactory`
 - New MAUI page: create in `Pages/` → register route in Shell → DI auto-resolves constructor deps

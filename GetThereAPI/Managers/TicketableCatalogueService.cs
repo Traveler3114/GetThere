@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
 using GetThereAPI.Data;
+using GetThereAPI.Services;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
@@ -9,7 +10,7 @@ namespace GetThereAPI.Managers;
 public class TicketableCatalogueService
 {
     private readonly AppDbContext _db;
-    private readonly IBikeStationCache _mobility;
+    private readonly TransitInfoApiClient _transitInfo;
 
     private static readonly Dictionary<int, int> MobilityProviderIds = new()
     {
@@ -52,10 +53,10 @@ public class TicketableCatalogueService
         },
     ];
 
-    public TicketableCatalogueService(AppDbContext db, IBikeStationCache mobility)
+    public TicketableCatalogueService(AppDbContext db, TransitInfoApiClient transitInfo)
     {
         _db = db;
-        _mobility = mobility;
+        _transitInfo = transitInfo;
     }
 
     public async Task<List<TicketableOperatorResponse>> GetTicketableOperatorsAsync(int? countryId, CancellationToken ct = default)
@@ -86,7 +87,7 @@ public class TicketableCatalogueService
             if (MobilityProviderIds.TryGetValue(t.Id, out var mobilityDbId))
             {
                 if (countryName is not null
-                    && !_mobility.HasStationsInCountry(mobilityDbId, countryName))
+                    && !await _transitInfo.HasStationsInCountryAsync(mobilityDbId, countryName, ct))
                 {
                     continue;
                 }
