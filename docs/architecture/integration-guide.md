@@ -1,17 +1,84 @@
 # GetThere Solution Integration — End-to-End Architecture and Future Development Guide
 
-## 1) Solution composition
+## 1) Two-platform architecture
+
+GetThere is split into two independent platforms with a one-way dependency.
+
+### TransitInfoAPI — The Map Platform
+
+Completely standalone. Own database, own identity. Could be made public one day.
+
+Responsibilities:
+- All operator identity and GlobalId generation
+- GTFS feed management and importing
+- GTFS preprocessing and enrichment
+- Canonical stations (one real-world place = one record)
+- Reconciliation of shared stations across feeds
+- Routes and schedules through OTP
+- Real-time vehicle positions
+- Mobility stations (bikes, scooters)
+- Serving clean reconciled transit data through its own REST API
+
+**Knows nothing about GetThereAPI.** No users, no wallets, no tickets. Pure transit data platform.
+
+### GetThereAPI — The Business Platform
+
+Private always. Your competitive moat.
+
+Responsibilities:
+- User accounts and identity
+- Wallets and payments
+- Ticketing adapter system
+- Operator commercial relationships
+- Ticket purchasing and storage
+- References TransitInfoAPI operators by GlobalId
+- Cannot add ticketing for an operator that doesn't exist in TransitInfoAPI
+
+One-way dependency only: TransitInfoAPI → GetThereAPI.
+
+### The SDK
+
+Built for internal use first, public later.
+
+Responsibilities:
+- Standard interface every ticketing adapter must implement
+- How operators connect their backend to GetThereAPI
+- Internally you write adapters yourself; later operators write their own
+- Enforces that an operator must exist in TransitInfoAPI before ticketing can be added
+
+### The Map-to-Ticketing Connection
+
+One-way flow only:
+1. TransitInfoAPI generates a GlobalId for an operator
+2. GetThereAPI references that GlobalId for ticketing
+3. Never the other way around
+
+When a user taps a station on the map:
+1. TransitInfoAPI knows which operators serve it
+2. GetThereAPI checks if any of those operators have ticketing
+3. If yes → show buy button
+4. If no → show information only
+
+### Two Databases
+
+| Database | Owner | Contents |
+|----------|-------|----------|
+| **TransitDB** | TransitInfoAPI | Operator identity, canonical stations, feeds, reconciliation, mobility data |
+| **AppDB** | GetThereAPI | Users, accounts, wallets, payments, ticketing config. References TransitInfoAPI GlobalIds. |
+
+## 2) Solution composition (current state)
+
 Solution file: `GetThere.slnx`
 
-Projects:
+Current projects:
 1. `GetThere` (MAUI client)
-2. `GetThereAPI` (core backend API)
+2. `GetThereAPI` (core backend API — currently handles both business and transit logic, being split toward the two-platform architecture)
 3. `GetThereShared` (shared contracts)
 4. `OpenTripPlannerAPI` (scraper + GTFS-RT host + OTP config generator)
 
----
+> The codebase is converging toward the two-platform architecture above. Transit logic currently lives in GetThereAPI and will be extracted into TransitInfoAPI over time.
 
-## 2) How projects work together (big-picture)
+## 3) How projects currently work together
 
 ### A) User-facing app features
 `GetThere` -> `GetThereAPI`
@@ -31,16 +98,16 @@ Projects:
 
 ---
 
-## 3) End-to-end runtime flows
+## 4) End-to-end runtime flows
 
-## 3.1 Authentication + secured API flow
+## 4.1 Authentication + secured API flow
 1. User logs in from `GetThere`.
 2. `GetThereAPI` validates credentials and returns JWT.
 3. App stores JWT in secure storage.
 4. `AuthenticatedHttpHandler` injects token for secured calls.
 5. Protected endpoints authorize by JWT claims.
 
-## 3.2 Wallet top-up flow
+## 4.2 Wallet top-up flow
 1. App calls `POST /payment/topup`.
 2. API validates request and user identity.
 3. Payment record created.
@@ -48,7 +115,7 @@ Projects:
 5. Wallet transaction history row inserted.
 6. Updated wallet DTO returned.
 
-## 3.3 Mock ticket purchase flow
+## 4.3 Mock ticket purchase flow
 1. App fetches ticketable operators/options.
 2. User submits purchase request.
 3. API performs atomic transaction:
@@ -58,13 +125,13 @@ Projects:
    - writes wallet transaction.
 4. App receives mock ticket result + can display in ticket confirmation flows.
 
-## 3.4 Transit map static bootstrap
+## 4.4 Transit map static bootstrap
 1. Map page loads HTML/CSS/JS bundle.
 2. Calls backend for transport types, stops, routes, bike stations.
 3. Injects data into map JS render functions.
 4. User interactions request schedule-on-demand per stop.
 
-## 3.5 Realtime scraping/feeding flow
+## 4.5 Realtime scraping/feeding flow
 1. OpenTripPlannerAPI starts and loads DB-backed OTP feed config.
 2. Scraper worker runs first cycle, updates in-memory feed bytes.
 3. Feed endpoints return current protobuf datasets.
@@ -73,7 +140,7 @@ Projects:
 
 ---
 
-## 4) Data and contract boundaries (small-detail view)
+## 5) Data and contract boundaries (small-detail view)
 
 ### Boundary 1: MAUI <-> API
 - Protocol: JSON over HTTP(S)
@@ -94,9 +161,9 @@ Projects:
 
 ---
 
-## 5) Future code strategy — from smallest change to largest change
+## 6) Future code strategy — from smallest change to largest change
 
-## 5.1 Small changes (safe incremental)
+## 6.1 Small changes (safe incremental)
 Examples:
 - add a new field to existing DTO,
 - add one non-breaking endpoint,
@@ -108,7 +175,7 @@ Recommended process:
 3. Update app parsing/usage.
 4. Keep old behavior backward compatible.
 
-## 5.2 Medium changes (feature additions)
+## 6.2 Medium changes (feature additions)
 Examples:
 - new app page + backend domain endpoint,
 - new map feature type,
@@ -122,7 +189,7 @@ Recommended process:
 5. Add UI and loading/error states.
 6. Add tests for feature path.
 
-## 5.3 Large changes (architecture evolution)
+## 6.3 Large changes (architecture evolution)
 Examples:
 - multi-region OTP routing policies,
 - additional transit providers,
@@ -138,7 +205,7 @@ Recommended process:
 
 ---
 
-## 6) Future architecture extension map
+## 7) Future architecture extension map
 
 ### A) Transit
 - Add more OTP instances and country-to-instance routing logic.
@@ -160,7 +227,7 @@ Recommended process:
 
 ---
 
-## 7) Practical coding standards for future contributors
+## 8) Practical coding standards for future contributors
 
 1. **Contract-first**: if payload changes, update `GetThereShared` intentionally.
 2. **Thin controllers**: backend business logic belongs in managers/services.
@@ -173,29 +240,35 @@ Recommended process:
 
 ---
 
-## 8) Suggested phased roadmap for "future code done right"
+## 9) Phased roadmap
 
-### Phase 1
-- Expand tests for existing auth/wallet/shop/map flows.
-- Add validation/guardrails on API input.
+### Phase 1 — Croatia focus
+- TransitInfoAPI setup with ZET, HZPP, Nextbike, any operator touching Croatia
+- GetThereAPI with accounts, wallets, ticketing for available operators
+- Internal SDK — you write all adapters yourself
 
-### Phase 2
-- Implement richer transit routing policy (multi-instance).
-- Introduce cache and timeout policy tuning for OTP calls.
+### Phase 2 — More operators, more countries
+- Expand TransitInfoAPI feeds
+- Add more ticketing adapters
+- SDK still internal
 
-### Phase 3
-- Integrate real ticket providers via adapter interfaces.
-- Keep current mock flow as fallback/test mode.
+### Phase 3 — Open TransitInfoAPI
+- Make the map platform public
+- Other developers can build on top
+- Ticketing stays private in GetThereAPI
 
-### Phase 4
-- Expand mobility providers and unify multimodal planning orchestration.
+### Phase 4 — Public SDK
+- Operators onboard themselves
+- Write their own adapters via self-serve portal
 
-### Phase 5
-- Introduce production-grade observability and SLO monitoring for all services.
+### Phase 5 — AI routing
+- Cheapest, fastest, balanced
+- Cross-operator journey planning
+- Purchase the entire journey in one flow
 
 ---
 
-## 9) Final summary
+## 10) Final summary
 This solution already has a strong modular direction:
 - shared contracts,
 - backend orchestration layers,

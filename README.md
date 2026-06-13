@@ -6,6 +6,61 @@ One account. Never need another operator app again. Plan journeys, book tickets,
 
 ---
 
+## Architecture — Two Platforms
+
+GetThere is split into two independent platforms connected by a one-way dependency:
+
+### TransitInfoAPI — The Map Platform
+Completely standalone. Own database, own identity. Could be made public one day.
+
+- Operator identity & GlobalId generation
+- GTFS feed management, importing & enrichment
+- Canonical stations (one real place = one record)
+- Reconciliation of shared stations across feeds
+- Routes & schedules via OTP
+- Real-time vehicle positions
+- Mobility stations (bikes, scooters)
+- Clean reconciled transit data via its own REST API
+
+**Knows nothing about GetThereAPI.** No users, no wallets, no tickets. Pure transit data.
+
+### GetThereAPI — The Business Platform
+Private always. The competitive moat.
+
+- User accounts & identity
+- Wallets & payments
+- Ticketing adapter system
+- Operator commercial relationships
+- Ticket purchasing & storage
+
+References TransitInfoAPI operators by GlobalId. **Cannot add ticketing for an operator that doesn't exist in TransitInfoAPI.** One-way dependency only.
+
+### The SDK
+Built for internal use first, public later.
+
+- Standard interface every ticketing adapter must implement
+- How operators connect their backend to GetThereAPI
+- Internally you write the adapters; later operators write their own
+- Enforces that an operator must exist in TransitInfoAPI before ticketing can be added
+
+### Map → Ticketing Connection
+One-way flow only: TransitInfoAPI generates a GlobalId → GetThereAPI references it. Never the other way around.
+
+User taps a station on the map:
+1. TransitInfoAPI knows which operators serve it
+2. GetThereAPI checks if any of those operators have ticketing
+3. If yes → show buy button
+4. If no → show information only
+
+### Two Databases
+
+| Database | Owner | Contents |
+|----------|-------|----------|
+| **TransitDB** | TransitInfoAPI | Operator identity, canonical stations, feeds, reconciliation, mobility data |
+| **AppDB** | GetThereAPI | Users, accounts, wallets, payments, ticketing config. References TransitInfoAPI GlobalIds. |
+
+---
+
 ## Phase 1 Scope
 
 **Croatia focused, but not Croatia only.** Any operator that touches Croatian soil is included:
@@ -114,19 +169,8 @@ User taps a stop → stop belongs to feed ID → feed ID maps to operator → op
 
 | Phase | Scope |
 |-------|-------|
-| **Phase 1** | Croatia. ZET, HZPP, Nextbike, any operator touching Croatia. Prove the concept. |
-| **Phase 2** | More operators, more transport types, expand coverage. |
-| **Phase 3** | Multi-country expansion, flights, ferries. |
-| **Phase 4** | AI routing. Cheapest, fastest, balanced. Learns user preferences over time. |
-
----
-
-## What We Have NOT Designed Yet
-
-These are explicitly out of scope for the current design phase:
-
-- The actual database schema
-- The adapter interface in code
-- The reconciliation algorithm
-- The SDK structure
-- The admin review interface
+| **Phase 1** | Croatia focus. TransitInfoAPI setup with ZET, HZPP, Nextbike, any operator touching Croatia. GetThereAPI with accounts, wallets, ticketing for available operators. Internal SDK — you write all adapters yourself. |
+| **Phase 2** | More operators, more countries. Expand TransitInfoAPI feeds. Add more ticketing adapters. SDK still internal. |
+| **Phase 3** | Open TransitInfoAPI. Make the map platform public. Other developers can build on top. Ticketing stays private in GetThereAPI. |
+| **Phase 4** | Public SDK. Operators onboard themselves — write their own adapters via self-serve portal. |
+| **Phase 5** | AI routing. Cheapest, fastest, balanced. Cross-operator journey planning. Purchase the entire journey in one flow. |
