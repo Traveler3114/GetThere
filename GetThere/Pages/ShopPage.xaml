@@ -3,98 +3,29 @@
     x:Class="GetThere.Pages.ShopPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:components="clr-namespace:GetThere.Components"
-    xmlns:localization="clr-namespace:GetThere.Localization"
-    Title="{localization:Translate Shop_Title}"
+    Title="Shop"
     BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="Auto,Auto,*">
-        <components:AnimatedBackground Grid.RowSpan="3" />
+    <Grid>
+        <components:AnimatedBackground />
 
-        <!--  Header  -->
-        <Grid x:Name="PageHeaderGrid" Grid.Row="0" Padding="16,18,16,0">
-            <Label
-                FontAttributes="Bold"
-                FontSize="32"
-                HorizontalTextAlignment="Center"
-                Text="{localization:Translate Shop_Title}"
-                TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-        </Grid>
-
-        <!--  Country badge  -->
-        <Grid Grid.Row="1" HorizontalOptions="Center">
-            <Border
-                x:Name="CountryBadge"
-                Margin="16,10,16,0"
-                Padding="12,6"
-                BackgroundColor="{AppThemeBinding Light=#EBEBF0, Dark=#1F2937}"
-                HorizontalOptions="Start"
-                StrokeThickness="0">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="10" />
-                </Border.StrokeShape>
-                <Label
-                    x:Name="CountryBadgeLabel"
-                    FontSize="13"
-                    Text="{localization:Translate Shop_AllCountries}"
-                    TextColor="{AppThemeBinding Light=#555, Dark=#CBD5E1}" />
-            </Border>
-        </Grid>
-
-        <!--  Operators list  -->
-        <Grid Grid.Row="2" HorizontalOptions="Fill">
-            <ScrollView x:Name="MainScrollView" Scrolled="OnMainScrollViewScrolled" VerticalScrollBarVisibility="Never" Padding="16,8,16,100">
-            <VerticalStackLayout x:Name="ShopContent" HorizontalOptions="Center" MaximumWidthRequest="1200">
-
-                <!-- Loading state -->
-                <Grid x:Name="LoadingState" IsVisible="False" VerticalOptions="FillAndExpand">
-                    <!-- Skeleton SVG -->
-                    <Image Source="{AppThemeBinding Light=loading_shop.svg, Dark=loading_shop_dark.svg}" Aspect="AspectFill" InputTransparent="True" Opacity="0.8" />
-                    
-                    <!-- Shimmer Sweep -->
-                    <Grid IsClippedToBounds="True" InputTransparent="True">
-                        <BoxView x:Name="ShimmerBox" WidthRequest="250" HorizontalOptions="Start" TranslationX="-400" Opacity="0.3">
-                            <BoxView.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="Transparent" Offset="0" />
-                                    <GradientStop Color="#FFFFFF" Offset="0.5" />
-                                    <GradientStop Color="Transparent" Offset="1" />
-                                </LinearGradientBrush>
-                            </BoxView.Background>
-                            <BoxView.Rotation>20</BoxView.Rotation>
-                        </BoxView>
-                    </Grid>
-                </Grid>
-
-                <VerticalStackLayout x:Name="OperatorCards" Spacing="0" />
-
-                <VerticalStackLayout x:Name="EmptyState" IsVisible="False">
-                    <Label
-                        Margin="0,40"
-                        FontSize="16"
-                        HorizontalOptions="Center"
-                        Text="{localization:Translate Shop_NoOperators}"
-                        TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-                </VerticalStackLayout>
-
-            </VerticalStackLayout>
-            </ScrollView>
-
-            <!--  ── CUSTOM SCROLLBAR THUMB ──  -->
-            <Border x:Name="CustomScrollThumb" 
-                    WidthRequest="4" 
-                    HeightRequest="40" 
-                    BackgroundColor="{AppThemeBinding Light=#CBD5E1, Dark=#475569}" 
-                    HorizontalOptions="End" 
-                    VerticalOptions="Start"
-                    Margin="0,0,4,0" 
-                    IsVisible="False"
-                    ZIndex="1000">
-                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="2" /></Border.StrokeShape>
-            </Border>
-
-        </Grid>
+        <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="16" Padding="40">
+            <Label Text="Shop" FontSize="32" FontAttributes="Bold"
+                   HorizontalTextAlignment="Center"
+                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+            <Label Text="Coming Soon"
+                   FontSize="20"
+                   HorizontalTextAlignment="Center"
+                   TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
+            <Label Text="Ticket purchasing will be available once operator SDK adapters are implemented."
+                   FontSize="14"
+                   HorizontalTextAlignment="Center"
+                   TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
+                   MaximumWidthRequest="400" />
+            <!-- TODO: Rebuild with ticketing SDK when adapters are implemented -->
+        </VerticalStackLayout>
     </Grid>
+
 </ContentPage>

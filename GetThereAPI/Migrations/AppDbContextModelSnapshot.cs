@@ -22,36 +22,6 @@ namespace GetThereAPI.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("CityMobilityProvider", b =>
-                {
-                    b.Property<int>("CitiesId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("MobilityProvidersId")
-                        .HasColumnType("int");
-
-                    b.HasKey("CitiesId", "MobilityProvidersId");
-
-                    b.HasIndex("MobilityProvidersId");
-
-                    b.ToTable("MobilityProviderCity", (string)null);
-                });
-
-            modelBuilder.Entity("CountryMobilityProvider", b =>
-                {
-                    b.Property<int>("CountriesId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("MobilityProvidersId")
-                        .HasColumnType("int");
-
-                    b.HasKey("CountriesId", "MobilityProvidersId");
-
-                    b.HasIndex("MobilityProvidersId");
-
-                    b.ToTable("MobilityProviderCountry", (string)null);
-                });
-
             modelBuilder.Entity("GetThereAPI.Entities.AppUser", b =>
                 {
                     b.Property<string>("Id")
@@ -126,7 +96,7 @@ namespace GetThereAPI.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.City", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.AuditLog", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -134,308 +104,72 @@ namespace GetThereAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CountryId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CountryId");
-
-                    b.ToTable("Cities");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CountryId = 1,
-                            Name = "Zagreb"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            CountryId = 2,
-                            Name = "Ljubljana"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CountryId = 3,
-                            Name = "Vienna"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            CountryId = 4,
-                            Name = "Berlin"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            CountryId = 5,
-                            Name = "Paris"
-                        },
-                        new
-                        {
-                            Id = 6,
-                            CountryId = 6,
-                            Name = "Rome"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            CountryId = 7,
-                            Name = "Warsaw"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            CountryId = 8,
-                            Name = "Prague"
-                        },
-                        new
-                        {
-                            Id = 9,
-                            CountryId = 9,
-                            Name = "Budapest"
-                        },
-                        new
-                        {
-                            Id = 10,
-                            CountryId = 10,
-                            Name = "Zurich"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            CountryId = 11,
-                            Name = "Bratislava"
-                        },
-                        new
-                        {
-                            Id = 12,
-                            CountryId = 12,
-                            Name = "Madrid"
-                        });
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.Country", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Countries");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Croatia"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Name = "Slovenia"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Name = "Austria"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Name = "Germany"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Name = "France"
-                        },
-                        new
-                        {
-                            Id = 6,
-                            Name = "Italy"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Name = "Poland"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Name = "Czechia"
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Name = "Hungary"
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Name = "Switzerland"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Name = "Slovakia"
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Name = "Spain"
-                        });
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.MobilityProvider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AdapterConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApiBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApiKey")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("LogoUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("MobilityProviders");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            ApiBaseUrl = "https://nextbike.net/maps/nextbike-live.json",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Bajs / Nextbike",
-                            Type = "BIKE_STATION"
-                        });
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.Payment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(16,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("PaymentProviderId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ProviderTransactionId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("WalletId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PaymentProviderId");
-
-                    b.HasIndex("WalletId");
-
-                    b.ToTable("Payments");
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.PaymentProvider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApiBaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ApiKey")
+                    b.Property<string>("Action")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<bool>("IsActive")
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NewValues")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OldValues")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("GetThereAPI.Entities.Contact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsFavorite")
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("WebhookSecret")
+                    b.Property<string>("Phone")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("PaymentProviders");
+                    b.HasIndex("UserId");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            ApiBaseUrl = "https://mockpay.example.com",
-                            ApiKey = "MOCK_API_KEY",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            IsActive = true,
-                            Name = "MockPay"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            ApiBaseUrl = "https://testpay.example.com",
-                            ApiKey = "TEST_API_KEY",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            IsActive = true,
-                            Name = "TestPay",
-                            WebhookSecret = "SECRET123"
-                        });
+                    b.ToTable("Contacts");
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.RefreshToken", b =>
@@ -463,20 +197,22 @@ namespace GetThereAPI.Migrations
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Token");
 
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens");
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.Ticket", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.TicketInstance", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -484,138 +220,91 @@ namespace GetThereAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("DisplayInstructions")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime?>("ActivationDate")
+                        .HasColumnType("datetime2");
 
-                    b.Property<string>("Format")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
-                    b.Property<string>("Payload")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
 
-                    b.Property<decimal>("PricePaid")
-                        .HasColumnType("decimal(16,2)");
-
-                    b.Property<DateTime>("PurchasedAt")
+                    b.Property<DateTime>("PurchaseDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TicketDefinitionId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TicketType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("TransitOperatorId")
+                    b.Property<int>("TicketTypeId")
                         .HasColumnType("int");
 
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateTime?>("ValidFrom")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ValidUntil")
-                        .HasColumnType("datetime2");
+                    b.Property<int?>("WalletTransactionId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TransitOperatorId");
+                    b.HasIndex("TicketTypeId");
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Tickets");
+                    b.HasIndex("WalletTransactionId");
+
+                    b.ToTable("TicketInstances");
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.TransitOperator", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.TicketType", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CityId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CountryId")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("GtfsFeedUrl")
+                    b.Property<string>("Currency")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("GtfsRealtimeFeedUrl")
+                    b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("LogoUrl")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TicketApiBaseUrl")
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TicketFormat")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TicketApiKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("TransferCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ValidityDays")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CityId");
-
-                    b.HasIndex("CountryId");
-
-                    b.ToTable("TransitOperators");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CityId = 1,
-                            CountryId = 1,
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            GtfsFeedUrl = "https://zet.hr/gtfs-scheduled/latest",
-                            GtfsRealtimeFeedUrl = "https://zet.hr/gtfs-rt-protobuf",
-                            Name = "ZET",
-                            TicketApiBaseUrl = "",
-                            TicketApiKey = ""
-                        },
-                        new
-                        {
-                            Id = 2,
-                            CountryId = 1,
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            GtfsFeedUrl = "https://www.hzpp.hr/GTFS_files.zip",
-                            GtfsRealtimeFeedUrl = "http://127.0.0.1:5000/rt/hzpp",
-                            Name = "HZPP",
-                            TicketApiBaseUrl = "",
-                            TicketApiKey = ""
-                        },
-                        new
-                        {
-                            Id = 3,
-                            CityId = 3,
-                            CountryId = 2,
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            GtfsFeedUrl = "https://data.lpp.si/api/gtfs/feed.zip",
-                            Name = "LPP",
-                            TicketApiBaseUrl = "",
-                            TicketApiKey = ""
-                        });
+                    b.ToTable("TicketTypes");
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.TransportType", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.TicketValidation", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -623,50 +312,67 @@ namespace GetThereAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Color")
-                        .IsRequired()
+                    b.Property<string>("FailureReason")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("GtfsRouteType")
+                    b.Property<bool>("IsValid")
+                        .HasColumnType("bit");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("float");
+
+                    b.Property<int>("TicketInstanceId")
                         .HasColumnType("int");
 
-                    b.Property<string>("IconFile")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime>("ValidatedAt")
+                        .HasColumnType("datetime2");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
+                    b.Property<string>("ValidatedByUserId")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("TransportTypes");
+                    b.HasIndex("TicketInstanceId");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Color = "#1264AB",
-                            GtfsRouteType = 0,
-                            IconFile = "tram.png",
-                            Name = "Tram"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Color = "#126400",
-                            GtfsRouteType = 3,
-                            IconFile = "bus.png",
-                            Name = "Bus"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Color = "#FF6B00",
-                            GtfsRouteType = 2,
-                            IconFile = "train.png",
-                            Name = "Train"
-                        });
+                    b.ToTable("TicketValidations");
+                });
+
+            modelBuilder.Entity("GetThereAPI.Entities.UserSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Language")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MapStyle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("NotificationsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Theme")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("UserSettings");
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Wallet", b =>
@@ -678,9 +384,17 @@ namespace GetThereAPI.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Balance")
-                        .HasColumnType("decimal(16,2)");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateTime>("LastUpdated")
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("UserId")
@@ -689,7 +403,8 @@ namespace GetThereAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique();
 
                     b.ToTable("Wallets");
                 });
@@ -703,16 +418,25 @@ namespace GetThereAPI.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(16,2)");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BalanceBefore")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("TicketId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("Timestamp")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("ReferenceId")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -722,8 +446,6 @@ namespace GetThereAPI.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TicketId");
 
                     b.HasIndex("WalletId");
 
@@ -863,77 +585,25 @@ namespace GetThereAPI.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("TransitOperatorTransportType", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.AuditLog", b =>
                 {
-                    b.Property<int>("OperatorsId")
-                        .HasColumnType("int");
+                    b.HasOne("GetThereAPI.Entities.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Property<int>("TransportTypesId")
-                        .HasColumnType("int");
-
-                    b.HasKey("OperatorsId", "TransportTypesId");
-
-                    b.HasIndex("TransportTypesId");
-
-                    b.ToTable("TransitOperatorTransportType");
+                    b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CityMobilityProvider", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.Contact", b =>
                 {
-                    b.HasOne("GetThereAPI.Entities.City", null)
+                    b.HasOne("GetThereAPI.Entities.AppUser", "User")
                         .WithMany()
-                        .HasForeignKey("CitiesId")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("GetThereAPI.Entities.MobilityProvider", null)
-                        .WithMany()
-                        .HasForeignKey("MobilityProvidersId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CountryMobilityProvider", b =>
-                {
-                    b.HasOne("GetThereAPI.Entities.Country", null)
-                        .WithMany()
-                        .HasForeignKey("CountriesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("GetThereAPI.Entities.MobilityProvider", null)
-                        .WithMany()
-                        .HasForeignKey("MobilityProvidersId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.City", b =>
-                {
-                    b.HasOne("GetThereAPI.Entities.Country", "Country")
-                        .WithMany("Cities")
-                        .HasForeignKey("CountryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Country");
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.Payment", b =>
-                {
-                    b.HasOne("GetThereAPI.Entities.PaymentProvider", "PaymentProvider")
-                        .WithMany()
-                        .HasForeignKey("PaymentProviderId");
-
-                    b.HasOne("GetThereAPI.Entities.Wallet", "Wallet")
-                        .WithMany()
-                        .HasForeignKey("WalletId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PaymentProvider");
-
-                    b.Navigation("Wallet");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.RefreshToken", b =>
@@ -947,12 +617,12 @@ namespace GetThereAPI.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.Ticket", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.TicketInstance", b =>
                 {
-                    b.HasOne("GetThereAPI.Entities.TransitOperator", "TransitOperator")
+                    b.HasOne("GetThereAPI.Entities.TicketType", "TicketType")
                         .WithMany()
-                        .HasForeignKey("TransitOperatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("TicketTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("GetThereAPI.Entities.AppUser", "User")
@@ -961,26 +631,37 @@ namespace GetThereAPI.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("TransitOperator");
+                    b.HasOne("GetThereAPI.Entities.WalletTransaction", "WalletTransaction")
+                        .WithMany()
+                        .HasForeignKey("WalletTransactionId");
+
+                    b.Navigation("TicketType");
 
                     b.Navigation("User");
+
+                    b.Navigation("WalletTransaction");
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.TransitOperator", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.TicketValidation", b =>
                 {
-                    b.HasOne("GetThereAPI.Entities.City", "City")
-                        .WithMany("TransitOperators")
-                        .HasForeignKey("CityId");
-
-                    b.HasOne("GetThereAPI.Entities.Country", "Country")
-                        .WithMany("TransitOperators")
-                        .HasForeignKey("CountryId")
+                    b.HasOne("GetThereAPI.Entities.TicketInstance", "TicketInstance")
+                        .WithMany()
+                        .HasForeignKey("TicketInstanceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("City");
+                    b.Navigation("TicketInstance");
+                });
 
-                    b.Navigation("Country");
+            modelBuilder.Entity("GetThereAPI.Entities.UserSettings", b =>
+                {
+                    b.HasOne("GetThereAPI.Entities.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Wallet", b =>
@@ -996,17 +677,11 @@ namespace GetThereAPI.Migrations
 
             modelBuilder.Entity("GetThereAPI.Entities.WalletTransaction", b =>
                 {
-                    b.HasOne("GetThereAPI.Entities.Ticket", "Ticket")
-                        .WithMany()
-                        .HasForeignKey("TicketId");
-
                     b.HasOne("GetThereAPI.Entities.Wallet", "Wallet")
-                        .WithMany()
+                        .WithMany("Transactions")
                         .HasForeignKey("WalletId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Ticket");
 
                     b.Navigation("Wallet");
                 });
@@ -1062,31 +737,9 @@ namespace GetThereAPI.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TransitOperatorTransportType", b =>
+            modelBuilder.Entity("GetThereAPI.Entities.Wallet", b =>
                 {
-                    b.HasOne("GetThereAPI.Entities.TransitOperator", null)
-                        .WithMany()
-                        .HasForeignKey("OperatorsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("GetThereAPI.Entities.TransportType", null)
-                        .WithMany()
-                        .HasForeignKey("TransportTypesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.City", b =>
-                {
-                    b.Navigation("TransitOperators");
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.Country", b =>
-                {
-                    b.Navigation("Cities");
-
-                    b.Navigation("TransitOperators");
+                    b.Navigation("Transactions");
                 });
 #pragma warning restore 612, 618
         }

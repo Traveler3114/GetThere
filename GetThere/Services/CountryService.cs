@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -8,20 +9,26 @@ namespace GetThere.Services;
 
 public class CountryService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     private readonly HttpClient _http;
 
-    public CountryService(HttpClient http) => _http = http;
+    public CountryService(HttpClient http) { _http = http; }
 
     public async Task<OperationResult<List<CountryResponse>>> GetCountriesAsync()
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<CountryResponse>>>("countries");
-            return result ?? OperationResult<List<CountryResponse>>.Fail(string.Format(LocalizationService.Instance["Shop_NoResponse"], "countries"));
+            var result = await _http.GetFromJsonAsync<OperationResult<List<CountryResponse>>>("countries", JsonOptions);
+            return result ?? OperationResult<List<CountryResponse>>.Fail("Could not load countries");
         }
-        catch (Exception ex)
+        catch
         {
-            return OperationResult<List<CountryResponse>>.Fail(LocalizationService.Instance["Error_CouldNotLoadCountries"] + ex.Message);
+            return OperationResult<List<CountryResponse>>.Fail("Network error loading countries");
         }
     }
 }

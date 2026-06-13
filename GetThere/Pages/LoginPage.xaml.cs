@@ -45,11 +45,9 @@ public partial class LoginPage : ContentPage
     {
         PageUtility.HideError(ErrorLabel);
 
-        var loginData = new LoginRequest
-        {
-            Email = EmailEntry.Text?.Trim() ?? string.Empty,
-            Password = PasswordEntry.Text ?? string.Empty
-        };
+        var loginData = new LoginRequest(
+            EmailEntry.Text?.Trim() ?? string.Empty,
+            PasswordEntry.Text ?? string.Empty);
 
         if (string.IsNullOrWhiteSpace(loginData.Email) || !PageUtility.IsValidEmail(loginData.Email))
         {

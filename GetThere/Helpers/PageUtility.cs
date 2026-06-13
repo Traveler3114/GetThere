@@ -111,7 +111,7 @@ public class TxTypeToIconConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is WalletTransactionType type ? type switch
         {
-            WalletTransactionType.TopUp => "💳",
+            WalletTransactionType.Deposit => "💳",
             WalletTransactionType.TicketPurchase => "🎫",
             WalletTransactionType.Refund => "↩️",
             _ => "💰"

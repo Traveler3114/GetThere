@@ -1,11 +1,10 @@
-﻿namespace GetThereShared.Enums;
-    public enum TicketFormat
-    {
-        QrCode,
-        Barcode,
-        Pdf,
-        BoardingPass,
-        Link,
-        Nfc,
-        Sms
-    }
+namespace GetThereShared.Enums;
+
+public enum TicketFormat
+{
+    Single,
+    Day,
+    Week,
+    Month,
+    Year
+}

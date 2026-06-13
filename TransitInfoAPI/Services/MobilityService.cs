@@ -1,0 +1,156 @@
+using System.Text.Json;
+
+using Microsoft.EntityFrameworkCore;
+
+using TransitInfoAPI.Data;
+using TransitInfoAPI.Entities;
+using TransitInfoAPI.Enums;
+
+namespace TransitInfoAPI.Services;
+
+public class MobilityService
+{
+    private readonly TransitDbContext _db;
+    private readonly IHttpClientFactory _httpFactory;
+    private readonly ILogger<MobilityService> _logger;
+
+    public MobilityService(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityService> logger)
+    {
+        _db = db;
+        _httpFactory = httpFactory;
+        _logger = logger;
+    }
+
+    public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
+    {
+        var query = _db.MobilityStations
+            .Include(ms => ms.MobilityProvider)
+            .Include(ms => ms.Country)
+            .AsQueryable();
+
+        if (lat is not null && lon is not null && radiusKm is not null)
+        {
+            var latRange = radiusKm.Value / 111.0;
+            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            query = query.Where(ms =>
+                ms.Latitude >= lat.Value - latRange &&
+                ms.Latitude <= lat.Value + latRange &&
+                ms.Longitude >= lon.Value - lonRange &&
+                ms.Longitude <= lon.Value + lonRange);
+        }
+
+        return await query.ToListAsync(ct);
+    }
+
+    public async Task PollMobilityProviderAsync(int providerId, CancellationToken ct = default)
+    {
+        var provider = await _db.MobilityProviders
+            .Include(mp => mp.Operator)
+            .FirstOrDefaultAsync(mp => mp.Id == providerId && mp.IsActive, ct);
+
+        if (provider is null) return;
+
+        try
+        {
+            var http = _httpFactory.CreateClient();
+            var url = provider.InternalUrl ?? provider.ExternalUrl;
+
+            if (provider.FeedFormat == FeedFormat.NextbikeAPI)
+            {
+                await PollNextbikeAsync(provider, http, url, ct);
+            }
+            else if (provider.FeedFormat == FeedFormat.GBFS)
+            {
+                await PollGbfsAsync(provider, http, url, ct);
+            }
+
+            _logger.LogInformation("Polled mobility provider {ProviderId} successfully", providerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to poll mobility provider {ProviderId}", providerId);
+        }
+    }
+
+    private async Task PollNextbikeAsync(MobilityProvider provider, HttpClient http, string url, CancellationToken ct)
+    {
+        var response = await http.GetStringAsync(url, ct);
+        var root = JsonSerializer.Deserialize<NextbikeRoot>(response);
+        if (root?.Countries is null) return;
+
+        foreach (var country in root.Countries)
+        {
+            if (country.Cities is null) continue;
+
+            foreach (var city in country.Cities)
+            {
+                if (city.Places is null) continue;
+
+                foreach (var place in city.Places)
+                {
+                    var existing = await _db.MobilityStations
+                        .FirstOrDefaultAsync(ms => ms.StationId == place.Uid.ToString(), ct);
+
+                    if (existing is not null)
+                    {
+                        existing.AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes;
+                        existing.LastUpdated = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        _db.MobilityStations.Add(new MobilityStation
+                        {
+                            MobilityProviderId = provider.Id,
+                            StationId = place.Uid.ToString(),
+                            Name = place.Name ?? string.Empty,
+                            Latitude = place.Lat,
+                            Longitude = place.Lng,
+                            Capacity = place.BikeRacks,
+                            AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes,
+                            CountryId = 1,
+                            LastUpdated = DateTime.UtcNow
+                        });
+                    }
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task PollGbfsAsync(MobilityProvider provider, HttpClient http, string url, CancellationToken ct)
+    {
+        // GBFS polling will be implemented when GBFS providers are added
+        await Task.CompletedTask;
+    }
+
+    private class NextbikeRoot
+    {
+        public List<NextbikeCountry>? Countries { get; set; }
+    }
+
+    private class NextbikeCountry
+    {
+        public List<NextbikeCity>? Cities { get; set; }
+    }
+
+    private class NextbikeCity
+    {
+        public List<NextbikePlace>? Places { get; set; }
+    }
+
+    private class NextbikePlace
+    {
+        public int Uid { get; set; }
+        public string? Name { get; set; }
+        public double Lat { get; set; }
+        public double Lng { get; set; }
+        public int Bikes { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("bikes_available_to_rent")]
+        public int? BikesAvailableToRent { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("bike_racks")]
+        public int BikeRacks { get; set; }
+    }
+}

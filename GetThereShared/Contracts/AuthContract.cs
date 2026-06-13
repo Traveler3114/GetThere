@@ -1,44 +1,15 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace GetThereShared.Contracts;
 
-public record LoginRequest
-{
-    [Required, EmailAddress]
-    public string Email { get; set; } = string.Empty;
+public record RegisterRequest(string Email, string Password, string FullName);
 
-    [Required]
-    public string Password { get; set; } = string.Empty;
-}
+public record LoginRequest(string Email, string Password);
 
-public record RegisterRequest
-{
-    [Required, EmailAddress]
-    public string Email { get; set; } = string.Empty;
-
-    [Required, MinLength(8)]
-    public string Password { get; set; } = string.Empty;
-
-    public string? FullName { get; set; }
-}
-
-public class UserResponse
-{
-    public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string? FullName { get; set; }
-    public string? Token { get; set; }
-}
+public record RefreshTokenRequest(string RefreshToken);
 
 public class LoginResponse
 {
-    public UserResponse User { get; set; } = new();
+    public UserResponse User { get; set; } = null!;
     public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
-}
-
-public record RefreshTokenRequest
-{
     public string RefreshToken { get; set; } = string.Empty;
 }
 
@@ -46,4 +17,12 @@ public class RefreshTokenResponse
 {
     public string AccessToken { get; set; } = string.Empty;
     public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class UserResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? FullName { get; set; }
+    public string Token { get; set; } = string.Empty;
 }

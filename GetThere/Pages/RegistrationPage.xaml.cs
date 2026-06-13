@@ -28,12 +28,10 @@ public partial class RegistrationPage : ContentPage
     {
         PageUtility.HideError(ErrorLabel);
 
-        var rdto = new RegisterRequest
-        {
-            FullName = FullNameEntry.Text?.Trim() ?? string.Empty,
-            Email = EmailEntry.Text?.Trim() ?? string.Empty,
-            Password = PasswordEntry.Text ?? string.Empty,
-        };
+        var rdto = new RegisterRequest(
+            EmailEntry.Text?.Trim() ?? string.Empty,
+            PasswordEntry.Text ?? string.Empty,
+            FullNameEntry.Text?.Trim() ?? string.Empty);
 
         string confirm = ConfirmPasswordEntry.Text ?? string.Empty;
 

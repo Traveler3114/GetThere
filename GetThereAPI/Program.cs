@@ -1,9 +1,6 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
-using GetThereAPI.Infrastructure;
 using GetThereAPI.Managers;
-using GetThereAPI.Services;
-using GetThereAPI.Transit;
 using GetThereShared.Common;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -11,7 +8,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using System.Reflection;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,35 +30,12 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddHttpClient();
-builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
 
-builder.Services.AddScoped<OtpClient>();
-builder.Services.AddScoped<ITransitProvider, OtpTransitProvider>();
-builder.Services.AddScoped<ITransitRouter, TransitRouter>();
-builder.Services.AddScoped<TransitOrchestrator>();
-
-builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
-{
-    var baseUrl = builder.Configuration["TransitInfoApi:BaseUrl"] ?? "http://localhost:5000";
-    client.BaseAddress = new Uri(baseUrl.TrimEnd('/'));
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
-
-builder.Services.AddSingleton<IIconFileStore, WebRootIconFileStore>();
-builder.Services.AddScoped<MockTicketPurchaseService>();
-builder.Services.AddScoped<TicketableCatalogueService>();
-builder.Services.AddScoped<TransitDataService>();
-
-var managerTypes = Assembly.GetExecutingAssembly()
-    .GetTypes()
-    .Where(t => t.Namespace == "GetThereAPI.Managers"
-                && t.IsClass
-                && !t.IsAbstract);
-
-foreach (var managerType in managerTypes)
-{
-    builder.Services.AddScoped(managerType);
-}
+builder.Services.AddScoped<TokenManager>();
+builder.Services.AddScoped<WalletManager>();
+builder.Services.AddScoped<TicketManager>();
+builder.Services.AddScoped<ContactManager>();
+builder.Services.AddScoped<UserSettingsManager>();
 
 builder.Services.AddAuthentication(options =>
 {

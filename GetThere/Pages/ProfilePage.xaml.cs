@@ -17,7 +17,6 @@ namespace GetThere.Pages;
 public partial class ProfilePage : ContentPage
 {
     private readonly WalletService _walletService;
-    private readonly PaymentService _paymentService;
     private readonly AuthService _authService;
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
@@ -28,11 +27,10 @@ public partial class ProfilePage : ContentPage
     private bool _isLoading;
     private bool _isAccountTabSelected;
 
-    public ProfilePage(WalletService walletService, PaymentService paymentService, AuthService authService, CountryService countryService, CountryPreferenceService prefs)
+    public ProfilePage(WalletService walletService, AuthService authService, CountryService countryService, CountryPreferenceService prefs)
     {
         InitializeComponent();
         _walletService = walletService;
-        _paymentService = paymentService;
         _authService = authService;
         _countryService = countryService;
         _prefs = prefs;
@@ -172,10 +170,11 @@ public partial class ProfilePage : ContentPage
 
         try
         {
-            var result = await _walletService.GetTransactionsAsync();
+            var result = await _walletService.GetWalletAsync();
             if (result.Success && result.Data is not null)
             {
-                var list = result.Data.OrderByDescending(t => t.Timestamp).ToList();
+                var list = result.Data.RecentTransactions
+                    .OrderByDescending(t => t.CreatedAt).ToList();
                 BindableLayout.SetItemsSource(HistoryRows, list);
                 NoItemsLabel.IsVisible = !list.Any();
             }
@@ -201,30 +200,16 @@ public partial class ProfilePage : ContentPage
         {
             try
             {
-                var provResult = await _paymentService.GetProvidersAsync();
-                if (provResult.Success && provResult.Data is not null && provResult.Data.Any())
+                var result = await _walletService.TopUpAsync(amount);
+                if (result.Success)
                 {
-                    var providers = provResult.Data.ToList();
-                    var chosen = await DisplayActionSheetAsync(LocalizationService.Instance["Profile_TopUp_Provider"], LocalizationService.Instance["App_Cancel"], null, providers.Select(p => p.Name).ToArray());
-                    if (chosen is not null && chosen != "Cancel")
-                    {
-                        var provider = providers.First(p => p.Name == chosen);
-                        var success = await _paymentService.TopUpAsync(new TopUpRequest { Amount = amount, PaymentProviderId = provider.Id });
-                        if (success.Success)
-                        {
-                            await LoadWalletAsync();
-                            await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_Success"], string.Format(LocalizationService.Instance["Profile_TopUp_Added"], amount), LocalizationService.Instance["App_Ok"]);
-                            await LoadHistoryAsync();
-                        }
-                        else
-                        {
-                            await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_FailedTitle"], string.IsNullOrWhiteSpace(success.Message) ? LocalizationService.Instance["Profile_TopUp_Failed"] : ApiMessageMapper.Localize(success.Code, success.Message), LocalizationService.Instance["App_Ok"]);
-                        }
-                    }
+                    await LoadWalletAsync();
+                    await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_Success"], string.Format(LocalizationService.Instance["Profile_TopUp_Added"], amount), LocalizationService.Instance["App_Ok"]);
+                    await LoadHistoryAsync();
                 }
                 else
                 {
-                    await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_ProviderErrorTitle"], string.IsNullOrWhiteSpace(provResult.Message) ? LocalizationService.Instance["Profile_TopUp_NoProviders"] : ApiMessageMapper.Localize(provResult.Code, provResult.Message), LocalizationService.Instance["App_Ok"]);
+                    await DisplayAlertAsync(LocalizationService.Instance["Profile_TopUp_FailedTitle"], result.Message ?? LocalizationService.Instance["Profile_TopUp_Failed"], LocalizationService.Instance["App_Ok"]);
                 }
             }
             catch (Exception ex) { await DisplayAlertAsync(LocalizationService.Instance["App_Error"], ex.Message, LocalizationService.Instance["App_Ok"]); }

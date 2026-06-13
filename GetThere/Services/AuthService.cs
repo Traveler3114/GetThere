@@ -1,9 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
-using GetThere.Localization;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
@@ -11,157 +10,146 @@ namespace GetThere.Services;
 
 public class AuthService
 {
-    private readonly HttpClient _httpClient;
-    public const string TokenKey = "jwt_token";
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private readonly HttpClient _http;
+    public const string TokenKey = "auth_token";
     public const string RefreshTokenKey = "refresh_token";
-    public const string RememberMeKey = "remember_me";
 
-    public AuthService(HttpClient httpClient)
+    public AuthService(HttpClient http) { _http = http; }
+
+    public async Task<OperationResult> RegisterAsync(RegisterRequest request)
     {
-        _httpClient = httpClient;
+        var response = await _http.PostAsJsonAsync("auth/register", request, JsonOptions);
+        var result = await response.Content.ReadFromJsonAsync<OperationResult>(JsonOptions);
+        return result ?? OperationResult.Fail("Failed to register");
     }
 
-    public async Task<OperationResult<UserResponse>> LoginAsync(LoginRequest dto, bool rememberMe = false)
+    public async Task<OperationResult<LoginResponse>> LoginAsync(LoginRequest request, bool rememberMe)
     {
-        var response = await _httpClient.PostAsJsonAsync($"auth/login?rememberMe={rememberMe.ToString().ToLowerInvariant()}", dto);
-        if (!response.IsSuccessStatusCode)
-            return OperationResult<UserResponse>.Fail(LocalizationService.Instance["Error_InvalidCredentials"]);
+        var url = rememberMe ? "auth/login?rememberMe=true" : "auth/login";
+        var response = await _http.PostAsJsonAsync(url, request, JsonOptions);
+        var result = await response.Content.ReadFromJsonAsync<OperationResult<LoginResponse>>(JsonOptions);
 
-        var result = await response.Content.ReadFromJsonAsync<OperationResult<LoginResponse>>();
-        if (result?.Data is null || string.IsNullOrWhiteSpace(result.Data.AccessToken) || string.IsNullOrWhiteSpace(result.Data.RefreshToken))
-            return OperationResult<UserResponse>.Fail(result?.Message ?? LocalizationService.Instance["Auth_UnexpectedError"]);
+        if (result?.Success == true && result.Data is not null)
+        {
+            await SecureStorage.Default.SetAsync(TokenKey, result.Data.AccessToken);
+            await SecureStorage.Default.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
+            await StoreRememberMeAsync(rememberMe);
+        }
 
-        await SecureStorage.SetAsync(TokenKey, result.Data.AccessToken);
-        await SecureStorage.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
-        Preferences.Default.Set(RememberMeKey, rememberMe);
-
-        return OperationResult<UserResponse>.Ok(
-            new UserResponse
-            {
-                Id = result.Data.User.Id,
-                Email = result.Data.User.Email,
-                FullName = result.Data.User.FullName,
-                Token = result.Data.AccessToken
-            },
-            LocalizationService.Instance["Auth_LoginSuccessful"]);
+        return result ?? OperationResult<LoginResponse>.Fail("Login failed");
     }
-
-    public async Task<OperationResult> RegisterAsync(RegisterRequest dto)
-    {
-        var response = await _httpClient.PostAsJsonAsync("auth/register", dto);
-        return await response.Content.ReadFromJsonAsync<OperationResult>()
-            ?? OperationResult.Fail(LocalizationService.Instance["Auth_UnexpectedError"]);
-    }
-
-    public async Task<string?> GetTokenAsync()
-        => await SecureStorage.GetAsync(TokenKey);
 
     public async Task<bool> TryRefreshTokenAsync()
     {
-        try
+        var refreshToken = await SecureStorage.Default.GetAsync(RefreshTokenKey);
+        if (string.IsNullOrWhiteSpace(refreshToken)) return false;
+
+        var response = await _http.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest(refreshToken), JsonOptions);
+        var result = await response.Content.ReadFromJsonAsync<OperationResult<RefreshTokenResponse>>(JsonOptions);
+
+        if (result?.Success == true && result.Data is not null)
         {
-            var currentRefreshToken = await SecureStorage.GetAsync(RefreshTokenKey);
-            if (string.IsNullOrWhiteSpace(currentRefreshToken))
-                return false;
-
-            var response = await _httpClient.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest
-            {
-                RefreshToken = currentRefreshToken
-            });
-
-            if (!response.IsSuccessStatusCode)
-                return false;
-
-            var refreshResponse = await response.Content.ReadFromJsonAsync<OperationResult<RefreshTokenResponse>>();
-            if (refreshResponse?.Data is null
-                || string.IsNullOrWhiteSpace(refreshResponse.Data.AccessToken)
-                || string.IsNullOrWhiteSpace(refreshResponse.Data.RefreshToken))
-            {
-                return false;
-            }
-
-            await SecureStorage.SetAsync(TokenKey, refreshResponse.Data.AccessToken);
-            await SecureStorage.SetAsync(RefreshTokenKey, refreshResponse.Data.RefreshToken);
+            await SecureStorage.Default.SetAsync(TokenKey, result.Data.AccessToken);
+            await SecureStorage.Default.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
             return true;
         }
-        catch
-        {
-            return false;
-        }
-    }
 
-    public bool GetRememberMe()
-        => Preferences.Default.Get(RememberMeKey, false);
-
-    /// <summary>
-    /// Decodes the JWT payload and returns the claims as a dictionary.
-    /// No signature verification — safe to use client-side for display purposes only.
-    /// </summary>
-    public async Task<Dictionary<string, JsonElement>?> GetTokenClaimsAsync()
-    {
-        var token = await GetTokenAsync();
-        if (string.IsNullOrEmpty(token))
-            return null;
-
-        try
-        {
-            // JWT = header.payload.signature — we only need the payload
-            var payload = token.Split('.')[1];
-
-            // Base64url → Base64 (fix padding and character replacements)
-            payload = payload.Replace('-', '+').Replace('_', '/');
-            payload = (payload.Length % 4) switch
-            {
-                2 => payload + "==",
-                3 => payload + "=",
-                _ => payload
-            };
-
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Convenience helpers so callers don't need to know claim names.
-    /// </summary>
-    public async Task<string?> GetFullNameAsync()
-    {
-        var claims = await GetTokenClaimsAsync();
-        return claims?.GetValueOrDefault("given_name").GetString();
-    }
-
-    public async Task<string?> GetEmailAsync()
-    {
-        var claims = await GetTokenClaimsAsync();
-        return claims?.GetValueOrDefault("email").GetString();
+        return false;
     }
 
     public async Task Logout()
     {
-        var refreshToken = await SecureStorage.GetAsync(RefreshTokenKey);
-        var accessToken = await SecureStorage.GetAsync(TokenKey);
-
-        if (!string.IsNullOrWhiteSpace(refreshToken) && !string.IsNullOrWhiteSpace(accessToken))
+        var refreshToken = await SecureStorage.Default.GetAsync(RefreshTokenKey);
+        if (!string.IsNullOrWhiteSpace(refreshToken))
         {
-            var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "auth/logout")
+            try
             {
-                Content = JsonContent.Create(new RefreshTokenRequest
-                {
-                    RefreshToken = refreshToken
-                })
-            };
-
-            logoutRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            _ = _httpClient.SendAsync(logoutRequest);
+                await _http.PostAsJsonAsync("auth/logout", new RefreshTokenRequest(refreshToken), JsonOptions);
+            }
+            catch { }
         }
 
-        SecureStorage.Remove(TokenKey);
-        SecureStorage.Remove(RefreshTokenKey);
-        Preferences.Default.Remove(RememberMeKey);
+        SecureStorage.Default.Remove(TokenKey);
+        SecureStorage.Default.Remove(RefreshTokenKey);
+        await StoreRememberMeAsync(false);
+    }
+
+    public async Task<string?> GetTokenAsync() => await SecureStorage.Default.GetAsync(TokenKey);
+
+    public async Task<string?> GetFullNameAsync()
+    {
+        try
+        {
+            var token = await GetTokenAsync();
+            if (string.IsNullOrWhiteSpace(token)) return null;
+
+            var handler = new JwtPayloadReader(token);
+            return handler.GetGivenName();
+        }
+        catch { return null; }
+    }
+
+    public async Task<string?> GetEmailAsync()
+    {
+        try
+        {
+            var token = await GetTokenAsync();
+            if (string.IsNullOrWhiteSpace(token)) return null;
+
+            var handler = new JwtPayloadReader(token);
+            return handler.GetEmail();
+        }
+        catch { return null; }
+    }
+
+    public bool IsLoggedIn => SecureStorage.Default.GetAsync(TokenKey).Result is not null;
+
+    public bool GetRememberMe() => Preferences.Default.Get("remember_me", false);
+
+    private async Task StoreRememberMeAsync(bool rememberMe)
+    {
+        if (rememberMe)
+            Preferences.Default.Set("remember_me", true);
+        else
+            Preferences.Default.Remove("remember_me");
+    }
+
+    private class JwtPayloadReader(string token)
+    {
+        private readonly JsonElement _payload = ParsePayload(token);
+
+        private static JsonElement ParsePayload(string jwt)
+        {
+            var parts = jwt.Split('.');
+            if (parts.Length < 2) return default;
+
+            var json = System.Text.Encoding.UTF8.GetString(
+                Convert.FromBase64String(PadBase64(parts[1])));
+
+            return JsonSerializer.Deserialize<JsonElement>(json);
+        }
+
+        private static string PadBase64(string base64)
+        {
+            base64 = base64.Replace('-', '+').Replace('_', '/');
+            switch (base64.Length % 4)
+            {
+                case 2: base64 += "=="; break;
+                case 3: base64 += "="; break;
+            }
+            return base64;
+        }
+
+        public string? GetGivenName() =>
+            _payload.TryGetProperty("given_name", out var name) ? name.GetString() : null;
+
+        public string? GetEmail() =>
+            _payload.TryGetProperty("email", out var email) ? email.GetString() : null;
     }
 }

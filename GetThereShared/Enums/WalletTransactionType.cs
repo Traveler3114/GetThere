@@ -1,7 +1,9 @@
-﻿namespace GetThereShared.Enums;
-    public enum WalletTransactionType
-    {
-        TopUp,
-        TicketPurchase,
-        Refund
-    }
+namespace GetThereShared.Enums;
+
+public enum WalletTransactionType
+{
+    Deposit,
+    Withdrawal,
+    TicketPurchase,
+    Refund
+}
