@@ -20,7 +20,9 @@ public class ReconciliationService
 
     public async Task ReconcileFeedStopsAsync(int feedId, List<(string stopId, string stopName, double lat, double lon)> rawStops, CancellationToken ct = default)
     {
-        var feed = await _db.Feeds.FindAsync(new object[] { feedId }, ct);
+        var feed = await _db.Feeds
+            .Include(f => f.Operator)
+            .FirstOrDefaultAsync(f => f.Id == feedId, ct);
         if (feed is null) return;
 
         var existingStations = await _db.CanonicalStations
@@ -41,7 +43,7 @@ public class ReconciliationService
                     Longitude = raw.lon,
                     StationType = StationType.Stop,
                     IsActive = true,
-                    CountryId = 1,
+                    CountryId = feed.Operator.CountryId,
                     CreatedAt = DateTime.UtcNow
                 };
                 _db.CanonicalStations.Add(newStation);
@@ -195,6 +197,7 @@ public class ReconciliationService
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
+                .ThenInclude(f => f.Operator)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
         if (candidate is null)
             return OperationResult.Fail("Candidate not found.");
@@ -209,7 +212,7 @@ public class ReconciliationService
                 Longitude = candidate.RawStopLon,
                 StationType = StationType.Stop,
                 IsActive = true,
-                CountryId = 1,
+                CountryId = candidate.Feed.Operator.CountryId,
                 CreatedAt = DateTime.UtcNow
             };
 
