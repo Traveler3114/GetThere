@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -99,6 +100,91 @@ public class ReconciliationService
 
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Reconciled {Count} raw stops for feed {FeedId}", rawStops.Count, feedId);
+    }
+
+    public async Task<OperationResult> ApproveCandidateAsync(int id, CancellationToken ct = default)
+    {
+        var candidate = await _db.ReconciliationCandidates
+            .Include(c => c.Feed)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (candidate is null)
+            return OperationResult.Fail("Candidate not found.");
+
+        candidate.Status = ReconciliationStatus.ManuallyApproved;
+        candidate.ReviewedAt = DateTime.UtcNow;
+
+        if (candidate.SuggestedCanonicalStationId.HasValue)
+        {
+            var existing = await _db.CanonicalStationOperators
+                .FirstOrDefaultAsync(cso =>
+                    cso.CanonicalStationId == candidate.SuggestedCanonicalStationId.Value &&
+                    cso.OperatorId == candidate.Feed.OperatorId, ct);
+
+            if (existing is null)
+            {
+                _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                {
+                    CanonicalStationId = candidate.SuggestedCanonicalStationId.Value,
+                    OperatorId = candidate.Feed.OperatorId
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return OperationResult.Ok("Approved.");
+    }
+
+    public async Task<OperationResult> RejectCandidateAsync(int id, bool createNewStation = false, CancellationToken ct = default)
+    {
+        var candidate = await _db.ReconciliationCandidates
+            .Include(c => c.Feed)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (candidate is null)
+            return OperationResult.Fail("Candidate not found.");
+
+        if (createNewStation)
+        {
+            var newStation = new CanonicalStation
+            {
+                GlobalId = $"gt-{candidate.Feed.FeedId}-{candidate.RawStopId.ToLowerInvariant()}",
+                Name = candidate.RawStopName,
+                Latitude = candidate.RawStopLat,
+                Longitude = candidate.RawStopLon,
+                StationType = StationType.Stop,
+                IsActive = true,
+                CountryId = 1,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.CanonicalStations.Add(newStation);
+            await _db.SaveChangesAsync(ct);
+
+            candidate.SuggestedCanonicalStationId = newStation.Id;
+        }
+
+        candidate.Status = ReconciliationStatus.Rejected;
+        candidate.ReviewedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        return OperationResult.Ok("Rejected.");
+    }
+
+    public async Task<OperationResult> ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct = default)
+    {
+        var candidate = await _db.ReconciliationCandidates.FindAsync(new object[] { id }, ct);
+        if (candidate is null)
+            return OperationResult.Fail("Candidate not found.");
+
+        var station = await _db.CanonicalStations.FindAsync(new object[] { canonicalStationId }, ct);
+        if (station is null)
+            return OperationResult.Fail("Station not found.");
+
+        candidate.SuggestedCanonicalStationId = canonicalStationId;
+        candidate.Status = ReconciliationStatus.ManuallyApproved;
+        candidate.ReviewedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+        return OperationResult.Ok("Reassigned.");
     }
 
     private (CanonicalStation Station, decimal Confidence, decimal NameScore, decimal Distance)? FindBestMatch(

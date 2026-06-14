@@ -42,6 +42,7 @@ builder.Services.AddScoped<WalletManager>();
 builder.Services.AddScoped<TicketingManager>();
 builder.Services.AddScoped<UserSettingsManager>();
 builder.Services.AddScoped<ProfileManager>();
+builder.Services.AddScoped<AdminManager>();
 
 builder.Services.AddAuthentication(options =>
 {

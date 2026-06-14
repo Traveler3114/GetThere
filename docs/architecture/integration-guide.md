@@ -72,11 +72,11 @@ Solution file: `GetThere.slnx`
 
 Current projects:
 1. `GetThere` (MAUI client)
-2. `GetThereAPI` (core backend API — currently handles both business and transit logic, being split toward the two-platform architecture)
+2. `GetThereAPI` (business platform — accounts, wallets, ticketing)
 3. `GetThereShared` (shared contracts)
-4. `OpenTripPlannerAPI` (scraper + GTFS-RT host + OTP config generator)
+4. `TransitInfoAPI` (map platform — canonical stations, feeds, OTP integration, reconciliation)
 
-> The codebase is converging toward the two-platform architecture above. Transit logic currently lives in GetThereAPI and will be extracted into TransitInfoAPI over time.
+The two-platform architecture (section 1) is fully realized: `TransitInfoAPI` owns all transit data; `GetThereAPI` owns users, wallets, and ticketing.
 
 ## 3) How projects currently work together
 
@@ -115,15 +115,12 @@ Current projects:
 5. Wallet transaction history row inserted.
 6. Updated wallet DTO returned.
 
-## 4.3 Mock ticket purchase flow
-1. App fetches ticketable operators/options.
-2. User submits purchase request.
-3. API performs atomic transaction:
-   - verifies balance,
-   - deducts balance,
-   - persists ticket (for mapped transit operators),
-   - writes wallet transaction.
-4. App receives mock ticket result + can display in ticket confirmation flows.
+## 4.3 Ticket purchase flow
+1. App fetches ticketable operators/options from `GET /tickets/options`.
+2. User submits purchase request via `POST /tickets/purchase`.
+3. API validates balance, deducts from wallet, delegates to registered `ITicketingAdapter` for external purchase.
+4. On success, ticket is persisted; app receives `TicketResponse`.
+5. If no adapter is registered for the operator, the purchase fails cleanly.
 
 ## 4.4 Transit map static bootstrap
 1. Map page loads HTML/CSS/JS bundle.
@@ -132,11 +129,10 @@ Current projects:
 4. User interactions request schedule-on-demand per stop.
 
 ## 4.5 Realtime scraping/feeding flow
-1. OpenTripPlannerAPI starts and loads DB-backed OTP feed config.
-2. Scraper worker runs first cycle, updates in-memory feed bytes.
-3. Feed endpoints return current protobuf datasets.
-4. Status endpoint reports scrape progress/freshness.
-5. OTP can be auto-started after first scrape cycle completes.
+1. TransitInfoAPI loads DB-backed OTP feed config.
+2. OTP ingests GTFS feeds and serves realtime GTFS-RT data.
+3. TransitInfoAPI exposes feed endpoints returning protobuf datasets.
+4. Status endpoint reports data freshness.
 
 ---
 
@@ -151,13 +147,13 @@ Current projects:
 - Protocol: GraphQL over HTTP
 - Encapsulation point: `OtpClient` + `ITransitProvider`.
 
-### Boundary 3: OpenTripPlannerAPI <-> SQL Server
-- Protocol: EF Core SQL Server read-only queries
+### Boundary 3: TransitInfoAPI <-> SQL Server (TransitDB)
+- Protocol: EF Core SQL Server queries
 - Purpose: obtain operator static/realtime feed URLs and feed IDs.
 
-### Boundary 4: External source <-> OpenTripPlannerAPI
+### Boundary 4: External source <-> TransitInfoAPI / OTP
 - Protocol: HTTP scraping + GTFS ZIP download.
-- Output conversion: GTFS-RT protobuf feed bytes.
+- OTP ingests GTFS feeds directly; TransitInfoAPI manages feed config.
 
 ---
 
@@ -193,7 +189,7 @@ Recommended process:
 Examples:
 - multi-region OTP routing policies,
 - additional transit providers,
-- non-mock ticket provider integrations,
+- new ticketing provider adapters,
 - mobility ecosystem expansion (scooters/mopeds/GBFS variants).
 
 Recommended process:
@@ -216,7 +212,8 @@ Recommended process:
 - Keep caching behavior and provider-based filtering model.
 
 ### C) Ticketing
-- Replace mock purchase with real provider adapters while preserving app-facing contract shape where possible.
+- Implement concrete `ITicketingAdapter` implementations for each operator.
+- Preserve app-facing contract shape across adapter implementations.
 
 ### D) Observability
 - Add unified telemetry/correlation IDs across app requests, API calls, and scraper logs.
@@ -242,15 +239,15 @@ Recommended process:
 
 ## 9) Phased roadmap
 
-### Phase 1 — Croatia focus
-- TransitInfoAPI setup with ZET, HZPP, Nextbike, any operator touching Croatia
-- GetThereAPI with accounts, wallets, ticketing for available operators
-- Internal SDK — you write all adapters yourself
+### Phase 1 (done) — Croatia focus
+- TransitInfoAPI setup with ZET, HZPP, Nextbike
+- GetThereAPI with accounts, wallets, ticketing adapter system
+- Internal SDK interfaces defined (`ITicketingAdapter`, `AdapterRegistry`)
 
-### Phase 2 — More operators, more countries
-- Expand TransitInfoAPI feeds
-- Add more ticketing adapters
-- SDK still internal
+### Phase 2 (current) — More operators, more countries
+- Expand TransitInfoAPI feeds and reconciliation
+- Write concrete `ITicketingAdapter` implementations
+- Add admin UI for user management and audit log
 
 ### Phase 3 — Open TransitInfoAPI
 - Make the map platform public

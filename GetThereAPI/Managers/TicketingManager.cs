@@ -139,22 +139,11 @@ public class TicketingManager
             return OperationResult<TicketResponse>.Fail(purchase.FailureReason);
         }
 
-        purchase.Status = PaymentStatus.Completed;
-        purchase.CompletedAt = DateTime.UtcNow;
-        purchase.ExternalPurchaseId = $"local-{purchase.Id}";
+        purchase.FailureReason = "No ticketing adapter registered for this adapter type.";
+        purchase.Status = PaymentStatus.Failed;
         await _db.SaveChangesAsync(ct);
 
-        var localTicket = new Ticket
-        {
-            PurchaseId = purchase.Id,
-            Format = option.TicketFormat,
-            Data = $"LOCAL:{option.Name}:{purchase.Id}",
-            Status = TicketStatus.Active
-        };
-        _db.Tickets.Add(localTicket);
-        await _db.SaveChangesAsync(ct);
-
-        return OperationResult<TicketResponse>.Ok(MapTicket(localTicket));
+        return OperationResult<TicketResponse>.Fail(purchase.FailureReason);
     }
 
     private static TicketOptionResponse MapOption(TicketOption to) => new()

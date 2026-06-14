@@ -154,8 +154,11 @@ This keeps OTP isolated and avoids coupling business logic to OTP schema.
 
 ## What Remains to Be Done
 
-- Validate production OTP GraphQL field compatibility against target OTP version/feed setup.
-- Add robust pagination/limits for large stop and route datasets if needed per region.
+### Completed since phase 1
+- OTP GraphQL field compatibility validated against current feed setup.
+- Pagination/limits added where needed (station/route queries use `Take`).
+
+### Still pending
 - Add explicit endpoint/contract versioning strategy if public API clients will be external.
 - Optional: add cache invalidation strategy for frontend local stop cache refresh intervals.
 

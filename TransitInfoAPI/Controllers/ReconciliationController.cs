@@ -81,80 +81,21 @@ public class ReconciliationController : ControllerBase
     [HttpPost("{id}/approve")]
     public async Task<ActionResult<OperationResult>> Approve(int id, CancellationToken ct = default)
     {
-        var candidate = await _db.ReconciliationCandidates.FindAsync(new object[] { id }, ct);
-        if (candidate is null) return NotFound(OperationResult.Fail("Candidate not found."));
-
-        candidate.Status = ReconciliationStatus.ManuallyApproved;
-        candidate.ReviewedAt = DateTime.UtcNow;
-
-        if (candidate.SuggestedCanonicalStationId.HasValue)
-        {
-            var existing = await _db.CanonicalStationOperators
-                .FirstOrDefaultAsync(cso =>
-                    cso.CanonicalStationId == candidate.SuggestedCanonicalStationId.Value &&
-                    cso.OperatorId == candidate.Feed.OperatorId, ct);
-
-            if (existing is null)
-            {
-                _db.CanonicalStationOperators.Add(new CanonicalStationOperator
-                {
-                    CanonicalStationId = candidate.SuggestedCanonicalStationId.Value,
-                    OperatorId = candidate.Feed.OperatorId
-                });
-            }
-        }
-
-        await _db.SaveChangesAsync(ct);
-        return Ok(OperationResult.Ok("Approved."));
+        var result = await _reconciliationService.ApproveCandidateAsync(id, ct);
+        return result.Success ? Ok(result) : NotFound(result);
     }
 
     [HttpPost("{id}/reject")]
     public async Task<ActionResult<OperationResult>> Reject(int id, [FromQuery] bool createNewStation = false, CancellationToken ct = default)
     {
-        var candidate = await _db.ReconciliationCandidates.FindAsync(new object[] { id }, ct);
-        if (candidate is null) return NotFound(OperationResult.Fail("Candidate not found."));
-
-        if (createNewStation)
-        {
-            var newStation = new CanonicalStation
-            {
-                GlobalId = $"gt-{candidate.Feed.FeedId}-{candidate.RawStopId.ToLowerInvariant()}",
-                Name = candidate.RawStopName,
-                Latitude = candidate.RawStopLat,
-                Longitude = candidate.RawStopLon,
-                StationType = StationType.Stop,
-                IsActive = true,
-                CountryId = 1,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.CanonicalStations.Add(newStation);
-            await _db.SaveChangesAsync(ct);
-
-            candidate.SuggestedCanonicalStationId = newStation.Id;
-        }
-
-        candidate.Status = ReconciliationStatus.Rejected;
-        candidate.ReviewedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-
-        return Ok(OperationResult.Ok("Rejected."));
+        var result = await _reconciliationService.RejectCandidateAsync(id, createNewStation, ct);
+        return result.Success ? Ok(result) : NotFound(result);
     }
 
     [HttpPost("{id}/reassign")]
     public async Task<ActionResult<OperationResult>> Reassign(int id, [FromQuery] int canonicalStationId, CancellationToken ct = default)
     {
-        var candidate = await _db.ReconciliationCandidates.FindAsync(new object[] { id }, ct);
-        if (candidate is null) return NotFound(OperationResult.Fail("Candidate not found."));
-
-        var station = await _db.CanonicalStations.FindAsync(new object[] { canonicalStationId }, ct);
-        if (station is null) return NotFound(OperationResult.Fail("Station not found."));
-
-        candidate.SuggestedCanonicalStationId = canonicalStationId;
-        candidate.Status = ReconciliationStatus.ManuallyApproved;
-        candidate.ReviewedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(ct);
-        return Ok(OperationResult.Ok("Reassigned."));
+        var result = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
+        return result.Success ? Ok(result) : NotFound(result);
     }
 }

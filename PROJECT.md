@@ -19,7 +19,6 @@ GetThere/
 ├── Components/         # Reusable XAML components
 ├── Behaviors/          # XAML behaviors
 ├── Shells/             # AppShell / LoginShell
-├── State/              # Client-side state (MockTicketStore, CountryPreferenceService)
 ├── Helpers/            # AuthenticatedHttpHandler, PageUtility
 ├── Resources/          # AppIcon, Fonts, Images, Splash, Styles
 ├── Platforms/          # Platform-specific (Android, iOS, MacCatalyst, Windows)
@@ -32,20 +31,34 @@ GetThereAPI/
 ├── Controllers/        # REST API endpoints (thin — forward to managers)
 ├── Managers/           # All business logic
 ├── Mapping/            # Static DTO mappers
+├── Sdk/                # Adapter interfaces (ITicketingAdapter), registry
 ├── Contracts/          # Shared (not here — in GetThereShared.Contracts)
 ├── Data/               # AppDbContext
 ├── Entities/           # EF Core entity classes
 ├── Enums/              # MobilityType, MobilityFeedFormat
 ├── Parsers/Mobility/   # Nextbike adapter, parser factory
 ├── Transit/            # OTP client, provider, router, orchestrator
-├── Infrastructure/     # IIconFileStore, WebRootIconFileStore
 ├── Migrations/         # EF Core migrations
-└── wwwroot/            # Static files (images)
+└── wwwroot/            # Static files, admin pages
 
 GetThereShared/
-├── Common/             # OperationResult<T>
+├── Common/             # OperationResult<T>, PagedResult<T>
 ├── Contracts/          # Request/response DTOs by domain
 └── Enums/              # TicketFormat, TicketStatus, PaymentStatus, WalletTransactionType
+
+TransitInfoAPI/
+├── Program.cs          # Startup, DI, middleware
+├── Common/             # OperationResult
+├── Controllers/        # REST API endpoints (reconciliation, feeds, stations)
+├── Services/           # Business logic (ReconciliationService)
+├── Core/               # Domain logic interfaces/abstractions
+├── Data/               # TransitDbContext
+├── Entities/           # EF Core entity classes (CanonicalStation, Feed, etc.)
+├── Enums/              # StationType, ReconciliationStatus
+├── Models/             # DTOs (ReconciliationDto)
+├── Migrations/         # EF Core migrations
+├── Proto/              # Protobuf definitions
+└── wwwroot/            # Static files
 ```
 
 ## Dependencies
@@ -150,15 +163,16 @@ return int.Parse(claim);
 ## Conventions — Architecture
 
 ### Manager pattern
-- All business logic lives in **Manager** classes — never in controllers
-- Managers inject `AppDbContext` and/or other managers via constructor
+- All business logic lives in **Manager** (GetThereAPI) or **Service** (TransitInfoAPI) classes — never in controllers
+- Managers/Services inject `AppDbContext` and/or other dependencies via constructor
 - Managers are concrete classes (no interfaces, except when needed for DI swapping)
 - Manager naming: `{Domain}Manager` (e.g., `TicketManager`, `WalletManager`)
+- Service naming: `{Domain}Service` (e.g., `ReconciliationService`)
 
 ### Controllers
 - Always annotated: `[ApiController]`, `[Route]`, `[Authorize]` (where needed)
 - Always return `ActionResult<OperationResult<T>>`
-- Thin: receive input → call manager → forward result
+- Thin: receive input → call manager/service → forward result
 - Never contain business logic
 
 ### OperationResult pattern
@@ -183,7 +197,7 @@ return result.Success ? Ok(result) : NotFound(result);
 ### Auto-registration
 - MAUI services in `GetThere.Services` namespace are auto-registered by reflection in `MauiProgram.cs`
 - API managers in `GetThereAPI.Managers` namespace are auto-registered as scoped by reflection in `Program.cs`
-- Exceptions (explicitly registered): `MobilityManager` (singleton + hosted), `MockTicketPurchaseService`, `TicketableCatalogueService`, `TransitDataService`, `IIconFileStore/WebRootIconFileStore`
+- Exceptions (explicitly registered): `MobilityManager` (singleton + hosted), `AdapterRegistry` (singleton)
 
 ## Conventions — Validation
 
@@ -235,26 +249,34 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 |------|---------|
 | `README.md` | Project vision, scope, roadmap |
 | `GetThereShared/Common/OperationResult.cs` | API response wrapper |
+| `GetThereShared/Common/PagedResult.cs` | Paginated list response |
 | `GetThereShared/Contracts/*.cs` | Request/response DTOs |
 | `GetThereAPI/Program.cs` | Service registration, startup |
+| `GetThereAPI/Controllers/TicketingController.cs` | Ticket purchase, options, listing |
+| `GetThereAPI/Managers/TicketingManager.cs` | Ticket business logic (wallet deduction, adapter dispatch) |
+| `GetThereAPI/Sdk/ITicketingAdapter.cs` | Ticketing provider adapter contract |
+| `GetThereAPI/Managers/WalletManager.cs` | Wallet balance, top-up, ensure |
 | `GetThere/MauiProgram.cs` | MAUI DI setup, API base URL per platform |
-| `GetThereAPI/Controllers/MockTicketController.cs` | Mock ticket catalogue |
-| `GetThere/Pages/MapPage.xaml.cs` | WebView map integration |
-| `GetThere/Map/map.html`, `map.js`, `map.css`, `mapstyle.json` | Map bundle |
+| `GetThere/Platforms/Map/map.html` | Map bundle (MapLibre GL JS) |
+| `TransitInfoAPI/Services/ReconciliationService.cs` | Station reconciliation logic |
+| `TransitInfoAPI/Controllers/ReconciliationController.cs` | Reconciliation approve/reject/reassign endpoints |
 
 ## Database
-- Connection string (dev): `Server=localhost;Database=GetThereDB_v2;Trusted_Connection=True;TrustServerCertificate=True`
-- Migrations: `dotnet ef migrations add <Name> --project GetThereAPI`
+- Connection string (dev): `Server=localhost;Database=GetThereDB;Trusted_Connection=True;TrustServerCertificate=True`
+- Migrations (GetThereAPI): `dotnet ef migrations add <Name> --project GetThereAPI`
+- Migrations (TransitInfoAPI): `dotnet ef migrations add <Name> --project TransitInfoAPI`
 - Apply: `dotnet ef database update --project GetThereAPI`
 
 ## Running
-- API: `cd GetThereAPI && dotnet run` → https://localhost:7230
+- GetThereAPI: `cd GetThereAPI && dotnet run` → https://localhost:7230
+- TransitInfoAPI: `cd TransitInfoAPI && dotnet run` → http://localhost:5000
 - Android: `dotnet build -t:Run -f net10.0-android`
 - Windows: `dotnet build -t:Run -f net10.0-windows10.0.19041.0`
 
 ## Adding new features
-- New API endpoint: Controller → Manager → Mapper → Contract → MAUI Service
+- New API endpoint (GetThereAPI): Controller → Manager → Mapper → Contract → MAUI Service
 - New transit operator: insert row in `Operators` (core identity) + `TransitFeedConfigs` (GTFS feeds) — see `README.md` for the 3-concern operator model
+- New ticketing provider: implement `ITicketingAdapter` → register in `AdapterRegistry`
 - New bike provider: implement `IMobilityParser` → add case to `MobilityParserFactory` → insert DB row
 - New GTFS-RT format: implement `IRealtimeParser` → add case to `RealtimeParserFactory`
 - New MAUI page: create in `Pages/` → register route in Shell → DI auto-resolves constructor deps
@@ -262,9 +284,7 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 ## Notes
 - JWT secret is in `appsettings.json` — move to env vars before production
 - SSL validation bypassed in MAUI dev builds — remove before production
-- Mock ticket catalogue in `MockTicketPurchaseService.cs` is hardcoded — needs real ticketing API
-- Seed data includes mock payment keys — remove `HasData` calls before production
-- LPP operator DB ID may have shifted between migrations — verify in `MockTicketController.DbTransitOperatorIds`
+- Seed data includes mock payment keys — review `HasData` calls before production
 - Do not manually edit `AppDbContextModelSnapshot.cs` — auto-generated by EF Core
 
 ## Off-limits areas
