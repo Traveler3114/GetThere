@@ -63,6 +63,20 @@ function renderCurrentTab() {
   else renderMerged();
 }
 
+function fmtDist(m) {
+  if (m < 1000) return m.toFixed(0) + ' m';
+  return (m / 1000).toFixed(2) + ' km';
+}
+function breakdown(item) {
+  const nameWeight = 0.7;
+  const nameContrib = (item.nameSimilarityScore * nameWeight * 100).toFixed(0);
+  const dist = item.distanceMeters;
+  let distContrib;
+  if (dist < 100) distContrib = 30;
+  else if (dist < 500) distContrib = 15;
+  else distContrib = 0;
+  return `Name: ${nameContrib}% + Distance: ${distContrib}%`;
+}
 function renderPending() {
   if (!pendingItems.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> No pending reconciliation items.</div>';
@@ -72,6 +86,7 @@ function renderPending() {
     const score = item.confidenceScore;
     const scorePct = (score * 100).toFixed(0);
     const scoreClass = score >= 0.8 ? 'bg-success' : score >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
+    const hasStation = item.suggestedStationName;
     return `<div class="card mb-3 shadow-sm" id="rec-${item.id}">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
@@ -82,8 +97,20 @@ function renderPending() {
           <span class="badge ${scoreClass} fs-6">${scorePct}%</span>
         </div>
         <div class="row mt-2 g-2">
-          <div class="col-sm-6"><small class="text-muted">Location:</small> <span class="small">${item.rawStopLat.toFixed(4)}, ${item.rawStopLon.toFixed(4)}</span></div>
-          <div class="col-sm-6"><small class="text-muted">Suggested:</small> <span class="small">${esc(item.suggestedStationName||'None')}</span></div>
+          <div class="col-sm-6">
+            <small class="text-muted">Raw location:</small>
+            <span class="small">${item.rawStopLat.toFixed(4)}, ${item.rawStopLon.toFixed(4)}</span>
+          </div>
+          <div class="col-sm-6">
+            <small class="text-muted">Matched to:</small>
+            <span class="small">${hasStation ? esc(item.suggestedStationName) : '<em class="text-muted">New station</em>'}</span>
+            ${item.suggestedStationLat ? `<br><span class="small text-muted">${item.suggestedStationLat.toFixed(4)}, ${item.suggestedStationLon.toFixed(4)}</span>` : ''}
+          </div>
+        </div>
+        <div class="d-flex gap-3 mt-1 small text-muted">
+          <span>Name match: <strong>${(item.nameSimilarityScore*100).toFixed(0)}%</strong></span>
+          <span>Distance: <strong>${fmtDist(item.distanceMeters)}</strong></span>
+          <span>Breakdown: <strong>${breakdown(item)}</strong></span>
         </div>
         <div class="mt-2">
           <button class="btn btn-success btn-sm me-1" onclick="approve(${item.id})"><i class="bi bi-check-lg"></i> Approve</button>
@@ -107,12 +134,14 @@ function renderMerged() {
       <td>${esc(item.rawStopName)}</td>
       <td><code>${esc(item.rawStopId)}</code></td>
       <td>${esc(item.suggestedStationName||'-')}</td>
-      <td><span class="badge ${scoreClass}">${(score*100).toFixed(0)}%</span></td>
+      <td><span class="badge ${scoreClass}" title="${breakdown(item)}">${(score*100).toFixed(0)}%</span></td>
+      <td class="small">${(item.nameSimilarityScore*100).toFixed(0)}%</td>
+      <td class="small">${fmtDist(item.distanceMeters)}</td>
       <td class="small">${item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
       <td><span class="badge badge-automerged">Auto-Merged</span></td>
     </tr>`;
   }).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Raw Stop</th><th>Raw ID</th><th>Matched To</th><th>Score</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${mergedItems.length} item(s)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Raw Stop</th><th>Raw ID</th><th>Matched To</th><th>Score</th><th>Name</th><th>Distance</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${mergedItems.length} item(s)</small>`;
 }
 
 async function approve(id) {

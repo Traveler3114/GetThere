@@ -1,3 +1,5 @@
+using System.IO.Compression;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,11 +64,84 @@ public class FeedImportService
         var outputPath = Path.Combine(outputDir, "gtfs.zip");
         await File.WriteAllBytesAsync(outputPath, bytes, ct);
 
+        // Flatten nested GTFS zip (some providers put files in a subfolder)
+        await FlattenGtfsZipAsync(outputPath, ct);
+
         feed.LastFetched = DateTime.UtcNow;
         feed.LastSuccessful = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Imported GTFS static for feed {FeedId} ({Size} bytes)", feed.FeedId, bytes.Length);
+    }
+
+    private static readonly HashSet<string> DedupFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "agency.txt", "stops.txt", "routes.txt", "pathways.txt", "levels.txt", "calendar.txt"
+    };
+
+    private static async Task FlattenGtfsZipAsync(string zipPath, CancellationToken ct)
+    {
+        bool needsFlatten;
+        string? prefix;
+
+        using (var original = ZipFile.OpenRead(zipPath))
+        {
+            needsFlatten = !original.Entries.Any(e => e.FullName.Equals("agency.txt", StringComparison.OrdinalIgnoreCase));
+
+            prefix = null;
+            if (needsFlatten)
+            {
+                prefix = original.Entries
+                    .Select(e => Path.GetDirectoryName(e.FullName))
+                    .Where(d => !string.IsNullOrEmpty(d))
+                    .GroupBy(d => d)
+                    .OrderByDescending(g => g.Count())
+                    .FirstOrDefault()?.Key;
+                if (string.IsNullOrEmpty(prefix))
+                    needsFlatten = false;
+            }
+
+            var tempPath = zipPath + ".tmp";
+            using (var temp = ZipFile.Open(tempPath, ZipArchiveMode.Create))
+            {
+                foreach (var entry in original.Entries)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (entry.Length == 0) continue;
+                    var name = needsFlatten
+                        ? entry.FullName.Substring(prefix!.Length + 1)
+                        : entry.FullName;
+
+                    if (DedupFiles.Contains(Path.GetFileName(name)))
+                    {
+                        var newEntry = temp.CreateEntry(name, CompressionLevel.Optimal);
+                        using var dst = newEntry.Open();
+                        using var src = entry.Open();
+                        using var reader = new StreamReader(src);
+                        using var writer = new StreamWriter(dst);
+                        var seen = new HashSet<string>();
+                        string? line;
+                        while ((line = reader.ReadLine()) is not null)
+                        {
+                            var firstCol = line.Split(',')[0].Trim('"');
+                            if (seen.Add(firstCol))
+                                await writer.WriteLineAsync(line);
+                        }
+                    }
+                    else
+                    {
+                        var newEntry = temp.CreateEntry(name, CompressionLevel.Optimal);
+                        using var src = entry.Open();
+                        using var dst = newEntry.Open();
+                        await src.CopyToAsync(dst, ct);
+                    }
+                }
+            }
+        }
+
+        // original is disposed here, safe to delete
+        File.Delete(zipPath);
+        File.Move(zipPath + ".tmp", zipPath);
     }
 
     public async Task<List<Feed>> GetFeedsDueForImportAsync(CancellationToken ct = default)

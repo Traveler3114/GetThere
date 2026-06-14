@@ -73,11 +73,18 @@ public class OtpManagerService
             transitFeeds = operators
                 .SelectMany(o => o.Feeds
                     .Where(f => f.IsActive && f.FeedType == FeedType.GTFSStatic)
-                    .Select(f => new OtpTransitFeedConfig
+                    .Select(f =>
                     {
-                        type = "gtfs",
-                        source = f.ExternalUrl ?? f.InternalUrl ?? string.Empty,
-                        feedId = f.FeedId
+                        var localPath = Path.Combine(_env.ContentRootPath, "feeds", f.FeedId, "gtfs.zip");
+                        var source = File.Exists(localPath)
+                            ? new Uri(localPath).AbsoluteUri
+                            : f.ExternalUrl ?? f.InternalUrl ?? string.Empty;
+                        return new OtpTransitFeedConfig
+                        {
+                            type = "gtfs",
+                            source = source,
+                            feedId = f.FeedId
+                        };
                     }))
                 .Where(f => !string.IsNullOrWhiteSpace(f.source))
                 .ToList(),

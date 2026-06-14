@@ -39,11 +39,15 @@ public class ReconciliationController : ControllerBase
                 RawStopLat = rc.RawStopLat,
                 RawStopLon = rc.RawStopLon,
                 ConfidenceScore = rc.ConfidenceScore,
+                NameSimilarityScore = rc.NameSimilarityScore,
+                DistanceMeters = rc.DistanceMeters,
                 Status = rc.Status.ToString(),
                 CreatedAt = rc.CreatedAt,
                 FeedId = rc.Feed.FeedId,
                 SuggestedStationId = rc.SuggestedCanonicalStationId,
-                SuggestedStationName = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Name : null
+                SuggestedStationName = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Name : null,
+                SuggestedStationLat = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Latitude : null,
+                SuggestedStationLon = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Longitude : null
             })
             .ToListAsync(ct);
 
@@ -67,11 +71,15 @@ public class ReconciliationController : ControllerBase
                 RawStopLat = rc.RawStopLat,
                 RawStopLon = rc.RawStopLon,
                 ConfidenceScore = rc.ConfidenceScore,
+                NameSimilarityScore = rc.NameSimilarityScore,
+                DistanceMeters = rc.DistanceMeters,
                 Status = rc.Status.ToString(),
                 CreatedAt = rc.CreatedAt,
                 FeedId = rc.Feed.FeedId,
                 SuggestedStationId = rc.SuggestedCanonicalStationId,
-                SuggestedStationName = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Name : null
+                SuggestedStationName = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Name : null,
+                SuggestedStationLat = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Latitude : null,
+                SuggestedStationLon = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Longitude : null
             })
             .ToListAsync(ct);
 

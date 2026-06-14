@@ -2,8 +2,18 @@
   "transitFeeds": [
     {
       "type": "gtfs",
-      "source": "https://www.zet.hr/gtfs-scheduled/latest",
+      "source": "file:///C:/Users/matej/Documents/VS%20Projects/GetThere/TransitInfoAPI/feeds/zet/gtfs.zip",
       "feedId": "zet"
+    },
+    {
+      "type": "gtfs",
+      "source": "file:///C:/Users/matej/Documents/VS%20Projects/GetThere/TransitInfoAPI/feeds/hzpp/gtfs.zip",
+      "feedId": "hzpp"
+    },
+    {
+      "type": "gtfs",
+      "source": "file:///C:/Users/matej/Documents/VS%20Projects/GetThere/TransitInfoAPI/feeds/obb/gtfs.zip",
+      "feedId": "obb"
     }
   ],
   "transitModelTimeZone": "Europe/Zagreb"

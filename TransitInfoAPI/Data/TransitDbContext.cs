@@ -54,7 +54,7 @@ public class TransitDbContext : DbContext
         modelBuilder.Entity<ReconciliationCandidate>(entity =>
         {
             entity.Property(e => e.ConfidenceScore).HasPrecision(5, 4);
-            entity.Property(e => e.DistanceMeters).HasPrecision(10, 4);
+            entity.Property(e => e.DistanceMeters).HasPrecision(14, 4);
             entity.Property(e => e.NameSimilarityScore).HasPrecision(5, 4);
         });
 

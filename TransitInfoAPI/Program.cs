@@ -24,6 +24,10 @@ builder.Services.AddHttpClient("otp", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.AddHttpClient("gtfsrt", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddScoped<FeedImportService>();
 builder.Services.AddScoped<ReconciliationService>();
