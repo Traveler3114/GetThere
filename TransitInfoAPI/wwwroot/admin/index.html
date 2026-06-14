@@ -1,19 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Admin</title><link rel="stylesheet" href="style.css"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin - TransitInfoAPI</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="style.css">
+</head>
 <body>
-  <nav><a href="/">Home</a></nav>
-  <main>
-    <h1>Admin</h1>
-    <ul>
-      <li><a href="/admin/operators.html">Operators</a></li>
-      <li><a href="/admin/stations.html">Stations</a></li>
-      <li><a href="/admin/routes.html">Routes</a></li>
-      <li><a href="/admin/feeds.html">Feeds</a></li>
-      <li><a href="/admin/mobility.html">Mobility</a></li>
-      <li><a href="/admin/reconciliation.html">Reconciliation</a></li>
-      <li><a href="/admin/realtime.html">Realtime</a></li>
-    </ul>
-  </main>
+<div class="container">
+  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a></nav>
+  <h1 class="mb-4">Admin</h1>
+  <div class="row g-3">
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/operators.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-building fs-1 text-primary"></i>
+            <h5 class="card-title mt-2">Operators</h5>
+            <p class="card-text text-muted small">List, add, edit transit operators</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/stations.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-geo-alt fs-1 text-success"></i>
+            <h5 class="card-title mt-2">Stations</h5>
+            <p class="card-text text-muted small">Browse and manage canonical stations</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/routes.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-signpost-2 fs-1 text-warning"></i>
+            <h5 class="card-title mt-2">Routes</h5>
+            <p class="card-text text-muted small">Browse and manage canonical routes</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/feeds.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-rss fs-1 text-danger"></i>
+            <h5 class="card-title mt-2">Feeds</h5>
+            <p class="card-text text-muted small">Manage GTFS feeds and converters</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/mobility.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-bicycle fs-1 text-info"></i>
+            <h5 class="card-title mt-2">Mobility</h5>
+            <p class="card-text text-muted small">Manage mobility providers</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/reconciliation.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-arrow-left-right fs-1 text-secondary"></i>
+            <h5 class="card-title mt-2">Reconciliation</h5>
+            <p class="card-text text-muted small">Review and approve station matches</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/realtime.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-truck fs-1 text-dark"></i>
+            <h5 class="card-title mt-2">Realtime</h5>
+            <p class="card-text text-muted small">Monitor GTFS-RT vehicle positions</p>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
 </body>
 </html>

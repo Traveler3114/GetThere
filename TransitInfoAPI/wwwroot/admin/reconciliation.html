@@ -1,1 +1,176 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Reconciliation</title><link rel="stylesheet" href="style.css"></head><body><nav><a href="/">Home</a> &gt; <a href="/admin/">Admin</a></nav><main><h1>Reconciliation</h1><p>Review and approve station matches. <em>Stub.</em></p></main></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reconciliation - Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Reconciliation</h1>
+    <button class="btn btn-outline-primary btn-sm" onclick="loadAll()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </div>
+
+  <ul class="nav nav-tabs mb-3" id="tabBar">
+    <li class="nav-item"><button class="nav-link active" data-tab="pending" onclick="switchTab('pending')">Pending</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="merged" onclick="switchTab('merged')">Auto-Merged</button></li>
+  </ul>
+
+  <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
+  <div id="error" class="alert alert-danger d-none"></div>
+  <div id="content" class="d-none"></div>
+</div>
+
+<script>
+const BASE = '';
+let pendingItems = [];
+let mergedItems = [];
+let currentTab = 'pending';
+
+async function loadAll() {
+  document.getElementById('loading').classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  try {
+    const [pR, mR] = await Promise.all([
+      fetch(BASE + '/reconciliation/pending').then(r=>r.json()),
+      fetch(BASE + '/reconciliation/auto-merged').then(r=>r.json())
+    ]);
+    pendingItems = pR.data || [];
+    mergedItems = mR.data || [];
+    renderCurrentTab();
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('content').classList.remove('d-none');
+  } catch(e) {
+    document.getElementById('loading').classList.add('d-none');
+    showError('Failed to load reconciliation data: ' + e.message);
+  }
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('#tabBar .nav-link').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  renderCurrentTab();
+}
+
+function renderCurrentTab() {
+  if (currentTab === 'pending') renderPending();
+  else renderMerged();
+}
+
+function renderPending() {
+  if (!pendingItems.length) {
+    document.getElementById('content').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> No pending reconciliation items.</div>';
+    return;
+  }
+  const cards = pendingItems.map(item => {
+    const score = item.confidenceScore;
+    const scorePct = (score * 100).toFixed(0);
+    const scoreClass = score >= 0.8 ? 'bg-success' : score >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
+    return `<div class="card mb-3 shadow-sm" id="rec-${item.id}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h6 class="card-title mb-1">${esc(item.rawStopName)}</h6>
+            <small class="text-muted">Feed: ${esc(item.feedId||'-')} | Raw ID: <code>${esc(item.rawStopId)}</code></small>
+          </div>
+          <span class="badge ${scoreClass} fs-6">${scorePct}%</span>
+        </div>
+        <div class="row mt-2 g-2">
+          <div class="col-sm-6"><small class="text-muted">Location:</small> <span class="small">${item.rawStopLat.toFixed(4)}, ${item.rawStopLon.toFixed(4)}</span></div>
+          <div class="col-sm-6"><small class="text-muted">Suggested:</small> <span class="small">${esc(item.suggestedStationName||'None')}</span></div>
+        </div>
+        <div class="mt-2">
+          <button class="btn btn-success btn-sm me-1" onclick="approve(${item.id})"><i class="bi bi-check-lg"></i> Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="reject(${item.id})"><i class="bi bi-x-lg"></i> Reject</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('content').innerHTML = `<div>${cards}</div><small class="text-muted">${pendingItems.length} pending item(s)</small>`;
+}
+
+function renderMerged() {
+  if (!mergedItems.length) {
+    document.getElementById('content').innerHTML = '<div class="alert alert-info">No auto-merged items.</div>';
+    return;
+  }
+  const rows = mergedItems.map(item => {
+    const score = item.confidenceScore;
+    const scoreClass = score >= 0.8 ? 'bg-success' : score >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
+    return `<tr>
+      <td>${esc(item.rawStopName)}</td>
+      <td><code>${esc(item.rawStopId)}</code></td>
+      <td>${esc(item.suggestedStationName||'-')}</td>
+      <td><span class="badge ${scoreClass}">${(score*100).toFixed(0)}%</span></td>
+      <td class="small">${item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
+      <td><span class="badge badge-automerged">Auto-Merged</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Raw Stop</th><th>Raw ID</th><th>Matched To</th><th>Score</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${mergedItems.length} item(s)</small>`;
+}
+
+async function approve(id) {
+  try {
+    const r = await fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' });
+    const j = await r.json();
+    if (j.success) {
+      loadAll();
+    } else {
+      showError(j.message || 'Failed to approve.');
+    }
+  } catch(e) { showError('Error: ' + e.message); }
+}
+
+function reject(id) {
+  const html = `<div class="modal fade" id="rejectModal" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title">Reject Item</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <p class="small">Reject this reconciliation candidate?</p>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="createNewStation">
+        <label class="form-check-label small" for="createNewStation">Create new canonical station instead</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-danger btn-sm" onclick="doReject(${id})">Reject</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('rejectModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+  modal.show();
+  document.getElementById('rejectModal').addEventListener('hidden.bs.modal', () => document.getElementById('rejectModal').remove());
+}
+
+async function doReject(id) {
+  const createNew = document.getElementById('createNewStation').checked;
+  try {
+    const params = new URLSearchParams();
+    if (createNew) params.set('createNewStation', 'true');
+    const r = await fetch(BASE + '/reconciliation/' + id + '/reject?' + params.toString(), { method: 'POST' });
+    const j = await r.json();
+    if (j.success) {
+      bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+      loadAll();
+    } else {
+      showError(j.message || 'Failed to reject.');
+    }
+  } catch(e) { showError('Error: ' + e.message); }
+}
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+loadAll();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
