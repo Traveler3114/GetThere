@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
@@ -13,17 +14,46 @@ public class OtpManagerService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OtpManagerService> _logger;
+    private readonly IWebHostEnvironment _env;
+    private readonly string _pidFilePath;
     private Process? _otpProcess;
 
-    public OtpManagerService(IServiceScopeFactory scopeFactory, ILogger<OtpManagerService> logger)
+    public OtpManagerService(IServiceScopeFactory scopeFactory, ILogger<OtpManagerService> logger, IWebHostEnvironment env)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _env = env;
+        _pidFilePath = Path.Combine(_env.ContentRootPath, "otp.pid");
+        TryKillStaleOtp();
     }
 
     public void SetProcess(Process? process)
     {
         _otpProcess = process;
+        if (process is not null && !process.HasExited)
+            WritePidFile(process.Id);
+    }
+
+    private void TryKillStaleOtp()
+    {
+        if (!File.Exists(_pidFilePath)) return;
+        try
+        {
+            var pidText = File.ReadAllText(_pidFilePath).Trim();
+            if (int.TryParse(pidText, out var pid))
+            {
+                var existing = Process.GetProcessById(pid);
+                if (!existing.HasExited)
+                {
+                    _logger.LogInformation("Killing stale OTP process (PID {Pid}) from previous session", pid);
+                    existing.Kill(true);
+                    existing.WaitForExit(5000);
+                }
+            }
+        }
+        catch (ArgumentException) { }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to kill stale OTP process"); }
+        try { File.Delete(_pidFilePath); } catch { }
     }
 
     public async Task GenerateConfigAsync(CancellationToken ct = default)
@@ -70,7 +100,7 @@ public class OtpManagerService
         var routerConfig = new OtpRouterConfig { updaters = updaters };
 
         var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-        var outputDir = AppContext.BaseDirectory;
+        var outputDir = _env.ContentRootPath;
 
         await File.WriteAllTextAsync(
             Path.Combine(outputDir, "build-config.json"),
@@ -107,9 +137,10 @@ public class OtpManagerService
 
         await GenerateConfigAsync(ct);
 
+        await KillExistingOtpAsync();
         if (_otpProcess is not null && !_otpProcess.HasExited)
         {
-            _logger.LogInformation("Killing existing OTP process (PID {Pid})...", _otpProcess.Id);
+            _logger.LogInformation("Killing tracked OTP process (PID {Pid})...", _otpProcess.Id);
             try
             {
                 _otpProcess.Kill(true);
@@ -118,21 +149,61 @@ public class OtpManagerService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to kill existing OTP process.");
+                _logger.LogWarning(ex, "Failed to kill tracked OTP process.");
             }
             _otpProcess = null;
         }
 
         using var scope = _scopeFactory.CreateScope();
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var contentRootPath = AppContext.BaseDirectory;
 
-        _otpProcess = StartOtpProcess(configuration, contentRootPath);
+        _otpProcess = StartOtpProcess(configuration, _env.ContentRootPath);
 
         if (_otpProcess is not null)
+        {
+            WritePidFile(_otpProcess.Id);
             _logger.LogInformation("OTP restarted with PID {Pid}", _otpProcess.Id);
+        }
         else
+        {
             _logger.LogWarning("OTP process could not be started.");
+        }
+    }
+
+    private async Task KillExistingOtpAsync()
+    {
+        if (!File.Exists(_pidFilePath)) return;
+        try
+        {
+            var pidText = await File.ReadAllTextAsync(_pidFilePath);
+            if (int.TryParse(pidText.Trim(), out var pid))
+            {
+                try
+                {
+                    var existing = Process.GetProcessById(pid);
+                    if (!existing.HasExited)
+                    {
+                        existing.Kill(true);
+                        existing.WaitForExit(5000);
+                        _logger.LogInformation("Killed OTP process (PID {Pid}) via PID file", pid);
+                    }
+                }
+                catch (ArgumentException) { }
+            }
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to kill OTP process via PID file"); }
+        try { File.Delete(_pidFilePath); } catch { }
+    }
+
+    private void WritePidFile(int pid)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(_pidFilePath);
+            if (dir is not null) Directory.CreateDirectory(dir);
+            File.WriteAllText(_pidFilePath, pid.ToString());
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to write PID file"); }
     }
 
     private Process? StartOtpProcess(IConfiguration configuration, string contentRootPath)

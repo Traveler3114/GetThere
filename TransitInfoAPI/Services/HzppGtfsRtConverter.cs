@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using Microsoft.AspNetCore.Hosting;
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Services.Converters;
@@ -16,8 +17,9 @@ public partial class HzppGtfsRtConverter : FeedConverterBase
         ILogger<HzppGtfsRtConverter> logger,
         IHttpClientFactory httpClientFactory,
         ProtobufFeedBuilder feedBuilder,
-        IConfiguration config)
-        : base(logger, httpClientFactory)
+        IConfiguration config,
+        IWebHostEnvironment env)
+        : base(logger, httpClientFactory, env.ContentRootPath)
     {
         _feedBuilder = feedBuilder;
         _config = config;

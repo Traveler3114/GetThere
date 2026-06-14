@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
@@ -11,12 +12,14 @@ public class FeedImportService
     private readonly TransitDbContext _db;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<FeedImportService> _logger;
+    private readonly IWebHostEnvironment _env;
 
-    public FeedImportService(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<FeedImportService> logger)
+    public FeedImportService(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<FeedImportService> logger, IWebHostEnvironment env)
     {
         _db = db;
         _httpFactory = httpFactory;
         _logger = logger;
+        _env = env;
     }
 
     public async Task<Feed> RegisterFeedAsync(int operatorId, FeedType feedType, SourceType sourceType, string feedId, string? externalUrl, string? internalUrl, int refreshIntervalSeconds, CancellationToken ct = default)
@@ -54,7 +57,7 @@ public class FeedImportService
         var http = _httpFactory.CreateClient();
         var bytes = await http.GetByteArrayAsync(url, ct);
 
-        var outputDir = Path.Combine(AppContext.BaseDirectory, "feeds", feed.FeedId);
+        var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
         Directory.CreateDirectory(outputDir);
         var outputPath = Path.Combine(outputDir, "gtfs.zip");
         await File.WriteAllBytesAsync(outputPath, bytes, ct);

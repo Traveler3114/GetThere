@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TransitInfoAPI.Controllers;
@@ -7,16 +8,18 @@ namespace TransitInfoAPI.Controllers;
 public class RealtimeRtController : ControllerBase
 {
     private readonly ILogger<RealtimeRtController> _logger;
+    private readonly IWebHostEnvironment _env;
 
-    public RealtimeRtController(ILogger<RealtimeRtController> logger)
+    public RealtimeRtController(ILogger<RealtimeRtController> logger, IWebHostEnvironment env)
     {
         _logger = logger;
+        _env = env;
     }
 
     [HttpGet("hzpp")]
     public IActionResult GetHzppRealtime()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "feeds", "hzpp", "HZPP_GTFSRT.pb");
+        var path = Path.Combine(_env.ContentRootPath, "feeds", "hzpp", "HZPP_GTFSRT.pb");
 
         if (!System.IO.File.Exists(path))
         {
