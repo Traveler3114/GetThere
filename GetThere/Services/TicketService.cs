@@ -19,43 +19,43 @@ public class TicketService
 
     public TicketService(HttpClient http) { _http = http; }
 
-    public async Task<OperationResult<List<TicketTypeResponse>>> GetTicketTypesAsync()
+    public async Task<OperationResult<List<TicketOptionResponse>>> GetTicketOptionsAsync()
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<TicketTypeResponse>>>("tickets/types", JsonOptions);
-            return result ?? OperationResult<List<TicketTypeResponse>>.Fail("Could not load ticket types");
+            var result = await _http.GetFromJsonAsync<OperationResult<List<TicketOptionResponse>>>("tickets/options", JsonOptions);
+            return result ?? OperationResult<List<TicketOptionResponse>>.Fail("Could not load ticket options");
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TicketTypeResponse>>.Fail(ex.Message);
+            return OperationResult<List<TicketOptionResponse>>.Fail(ex.Message);
         }
     }
 
-    public async Task<OperationResult<TicketInstanceResponse>> PurchaseTicketAsync(PurchaseTicketRequest request)
+    public async Task<OperationResult<TicketResponse>> PurchaseTicketAsync(TicketPurchaseRequest request)
     {
         try
         {
             var response = await _http.PostAsJsonAsync("tickets/purchase", request, JsonOptions);
-            var result = await response.Content.ReadFromJsonAsync<OperationResult<TicketInstanceResponse>>(JsonOptions);
-            return result ?? OperationResult<TicketInstanceResponse>.Fail("Purchase failed");
+            var result = await response.Content.ReadFromJsonAsync<OperationResult<TicketResponse>>(JsonOptions);
+            return result ?? OperationResult<TicketResponse>.Fail("Purchase failed");
         }
         catch (Exception ex)
         {
-            return OperationResult<TicketInstanceResponse>.Fail(ex.Message);
+            return OperationResult<TicketResponse>.Fail(ex.Message);
         }
     }
 
-    public async Task<OperationResult<List<TicketInstanceResponse>>> GetMyTicketsAsync()
+    public async Task<OperationResult<List<TicketResponse>>> GetMyTicketsAsync()
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<TicketInstanceResponse>>>("tickets", JsonOptions);
-            return result ?? OperationResult<List<TicketInstanceResponse>>.Fail("Could not load tickets");
+            var result = await _http.GetFromJsonAsync<OperationResult<List<TicketResponse>>>("tickets", JsonOptions);
+            return result ?? OperationResult<List<TicketResponse>>.Fail("Could not load tickets");
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TicketInstanceResponse>>.Fail(ex.Message);
+            return OperationResult<List<TicketResponse>>.Fail(ex.Message);
         }
     }
 }

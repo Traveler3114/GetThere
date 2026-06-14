@@ -54,25 +54,22 @@ namespace GetThereAPI.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "TicketTypes",
+                name: "TicketingAdapters",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    TransitInfoGlobalId = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Price = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    Currency = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    TicketFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    DurationMinutes = table.Column<int>(type: "int", nullable: true),
-                    ValidityDays = table.Column<int>(type: "int", nullable: true),
-                    TransferCount = table.Column<int>(type: "int", nullable: true),
+                    AdapterType = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    BaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ApiKeyEncrypted = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TicketTypes", x => x.Id);
+                    table.PrimaryKey("PK_TicketingAdapters", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -93,7 +90,7 @@ namespace GetThereAPI.Migrations
                         column: x => x.RoleId,
                         principalTable: "AspNetRoles",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -114,7 +111,7 @@ namespace GetThereAPI.Migrations
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -134,7 +131,7 @@ namespace GetThereAPI.Migrations
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -152,13 +149,13 @@ namespace GetThereAPI.Migrations
                         column: x => x.RoleId,
                         principalTable: "AspNetRoles",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_AspNetUserRoles_AspNetUsers_UserId",
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -178,7 +175,7 @@ namespace GetThereAPI.Migrations
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -207,30 +204,6 @@ namespace GetThereAPI.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Contacts",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Email = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Phone = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IsFavorite = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Contacts", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Contacts_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "RefreshTokens",
                 columns: table => new
                 {
@@ -252,7 +225,7 @@ namespace GetThereAPI.Migrations
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -276,7 +249,7 @@ namespace GetThereAPI.Migrations
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -299,7 +272,35 @@ namespace GetThereAPI.Migrations
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TicketOptions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TicketingAdapterId = table.Column<int>(type: "int", nullable: false),
+                    ExternalProductId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Price = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TicketFormat = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DurationMinutes = table.Column<int>(type: "int", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TicketOptions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TicketOptions_TicketingAdapters_TicketingAdapterId",
+                        column: x => x.TicketingAdapterId,
+                        principalTable: "TicketingAdapters",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -325,69 +326,75 @@ namespace GetThereAPI.Migrations
                         column: x => x.WalletId,
                         principalTable: "Wallets",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "TicketInstances",
+                name: "Purchases",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    TicketTypeId = table.Column<int>(type: "int", nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    PurchaseDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ActivationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    ExpiryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    TicketingAdapterId = table.Column<int>(type: "int", nullable: false),
+                    TicketOptionId = table.Column<int>(type: "int", nullable: false),
                     WalletTransactionId = table.Column<int>(type: "int", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    ExternalPurchaseId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PurchasedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    FailureReason = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TicketInstances", x => x.Id);
+                    table.PrimaryKey("PK_Purchases", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_TicketInstances_AspNetUsers_UserId",
+                        name: "FK_Purchases_AspNetUsers_UserId",
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_TicketInstances_TicketTypes_TicketTypeId",
-                        column: x => x.TicketTypeId,
-                        principalTable: "TicketTypes",
+                        name: "FK_Purchases_TicketOptions_TicketOptionId",
+                        column: x => x.TicketOptionId,
+                        principalTable: "TicketOptions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_TicketInstances_WalletTransactions_WalletTransactionId",
-                        column: x => x.WalletTransactionId,
-                        principalTable: "WalletTransactions",
-                        principalColumn: "Id");
+                        name: "FK_Purchases_TicketingAdapters_TicketingAdapterId",
+                        column: x => x.TicketingAdapterId,
+                        principalTable: "TicketingAdapters",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "TicketValidations",
+                name: "Tickets",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    TicketInstanceId = table.Column<int>(type: "int", nullable: false),
-                    ValidatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ValidatedByUserId = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IsValid = table.Column<bool>(type: "bit", nullable: false),
-                    FailureReason = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Latitude = table.Column<double>(type: "float", nullable: true),
-                    Longitude = table.Column<double>(type: "float", nullable: true)
+                    PurchaseId = table.Column<int>(type: "int", nullable: false),
+                    ExternalTicketId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    Format = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Data = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ValidFrom = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ValidTo = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ActivatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TicketValidations", x => x.Id);
+                    table.PrimaryKey("PK_Tickets", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_TicketValidations_TicketInstances_TicketInstanceId",
-                        column: x => x.TicketInstanceId,
-                        principalTable: "TicketInstances",
+                        name: "FK_Tickets_Purchases_PurchaseId",
+                        column: x => x.PurchaseId,
+                        principalTable: "Purchases",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateIndex(
@@ -440,8 +447,23 @@ namespace GetThereAPI.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Contacts_UserId",
-                table: "Contacts",
+                name: "IX_Purchases_ExternalPurchaseId",
+                table: "Purchases",
+                column: "ExternalPurchaseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Purchases_TicketingAdapterId",
+                table: "Purchases",
+                column: "TicketingAdapterId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Purchases_TicketOptionId",
+                table: "Purchases",
+                column: "TicketOptionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Purchases_UserId",
+                table: "Purchases",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
@@ -455,24 +477,29 @@ namespace GetThereAPI.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TicketInstances_TicketTypeId",
-                table: "TicketInstances",
-                column: "TicketTypeId");
+                name: "IX_TicketingAdapters_TransitInfoGlobalId",
+                table: "TicketingAdapters",
+                column: "TransitInfoGlobalId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TicketInstances_UserId",
-                table: "TicketInstances",
-                column: "UserId");
+                name: "IX_TicketOptions_ExternalProductId",
+                table: "TicketOptions",
+                column: "ExternalProductId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TicketInstances_WalletTransactionId",
-                table: "TicketInstances",
-                column: "WalletTransactionId");
+                name: "IX_TicketOptions_TicketingAdapterId",
+                table: "TicketOptions",
+                column: "TicketingAdapterId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TicketValidations_TicketInstanceId",
-                table: "TicketValidations",
-                column: "TicketInstanceId");
+                name: "IX_Tickets_ExternalTicketId",
+                table: "Tickets",
+                column: "ExternalTicketId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tickets_PurchaseId",
+                table: "Tickets",
+                column: "PurchaseId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserSettings_UserId",
@@ -514,34 +541,34 @@ namespace GetThereAPI.Migrations
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
-                name: "Contacts");
-
-            migrationBuilder.DropTable(
                 name: "RefreshTokens");
 
             migrationBuilder.DropTable(
-                name: "TicketValidations");
+                name: "Tickets");
 
             migrationBuilder.DropTable(
                 name: "UserSettings");
 
             migrationBuilder.DropTable(
+                name: "WalletTransactions");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
-                name: "TicketInstances");
-
-            migrationBuilder.DropTable(
-                name: "TicketTypes");
-
-            migrationBuilder.DropTable(
-                name: "WalletTransactions");
+                name: "Purchases");
 
             migrationBuilder.DropTable(
                 name: "Wallets");
 
             migrationBuilder.DropTable(
+                name: "TicketOptions");
+
+            migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "TicketingAdapters");
         }
     }
 }

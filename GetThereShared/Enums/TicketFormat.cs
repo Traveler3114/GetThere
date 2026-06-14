@@ -2,9 +2,9 @@ namespace GetThereShared.Enums;
 
 public enum TicketFormat
 {
-    Single,
-    Day,
-    Week,
-    Month,
-    Year
+    QR,
+    Barcode,
+    PDF,
+    NFC,
+    Reference
 }

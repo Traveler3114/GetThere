@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
-using TransitInfoAPI.Entities;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Models;
+using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -10,79 +10,41 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class StationsController : ControllerBase
 {
-    private readonly TransitDbContext _db;
+    private readonly StationService _stationService;
 
-    public StationsController(TransitDbContext db) { _db = db; }
+    public StationsController(StationService stationService) { _stationService = stationService; }
 
     [HttpGet]
-    public async Task<ActionResult<List<CanonicalStation>>> GetAll(
+    public async Task<ActionResult<OperationResult<List<StationDto>>>> GetAll(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
         [FromQuery] int? countryId,
         CancellationToken ct = default)
     {
-        var query = _db.CanonicalStations
-            .Include(cs => cs.Country)
-            .Where(cs => cs.IsActive)
-            .AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(cs => cs.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(cs =>
-                cs.Latitude >= lat.Value - latRange &&
-                cs.Latitude <= lat.Value + latRange &&
-                cs.Longitude >= lon.Value - lonRange &&
-                cs.Longitude <= lon.Value + lonRange);
-        }
-
-        return await query.ToListAsync(ct);
+        var result = await _stationService.GetAllAsync(lat, lon, radiusKm, countryId, ct);
+        return Ok(OperationResult<List<StationDto>>.Ok(result));
     }
 
     [HttpGet("{globalId}")]
-    public async Task<ActionResult<CanonicalStation>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<StationDto>>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
-        var station = await _db.CanonicalStations
-            .Include(cs => cs.Country)
-            .Include(cs => cs.City)
-            .FirstOrDefaultAsync(cs => cs.GlobalId == globalId && cs.IsActive, ct);
-
-        if (station is null) return NotFound();
-        return station;
+        var station = await _stationService.GetByGlobalIdAsync(globalId, ct);
+        if (station is null) return NotFound(OperationResult<StationDto>.Fail("Station not found."));
+        return Ok(OperationResult<StationDto>.Ok(station));
     }
 
     [HttpGet("{globalId}/operators")]
-    public async Task<ActionResult<List<object>>> GetOperators(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<StationOperatorDto>>>> GetOperators(string globalId, CancellationToken ct = default)
     {
-        var station = await _db.CanonicalStations
-            .FirstOrDefaultAsync(cs => cs.GlobalId == globalId && cs.IsActive, ct);
-
-        if (station is null) return NotFound();
-
-        var operators = await _db.CanonicalStationOperators
-            .Include(cso => cso.Operator)
-            .Where(cso => cso.CanonicalStationId == station.Id)
-            .Select(cso => new
-            {
-                cso.Operator.GlobalId,
-                cso.Operator.Name,
-                cso.Operator.OperatorType,
-                cso.PlatformInfo
-            })
-            .ToListAsync(ct);
-
-        return operators.Cast<object>().ToList();
+        var operators = await _stationService.GetOperatorsAsync(globalId, ct);
+        return Ok(OperationResult<List<StationOperatorDto>>.Ok(operators));
     }
 
     [HttpGet("{globalId}/departures")]
-    public async Task<ActionResult<List<object>>> GetDepartures(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<DepartureDto>>>> GetDepartures(string globalId, CancellationToken ct = default)
     {
-        // TODO: Query OTP for departures at this station
-        return new List<object>();
+        var departures = await _stationService.GetDeparturesAsync(globalId, ct);
+        return Ok(OperationResult<List<DepartureDto>>.Ok(departures));
     }
 }

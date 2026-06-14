@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
@@ -8,6 +9,7 @@ namespace GetThereAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class WalletController : ControllerBase
 {
     private readonly WalletManager _walletManager;

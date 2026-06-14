@@ -40,18 +40,15 @@ public class TransitDbContext : DbContext
                     property.SetValueConverter(converter);
                 }
             }
+
+            // Disable cascade deletes globally — SQL Server doesn't allow multiple cascade paths
+            foreach (var fk in entityType.GetForeignKeys())
+                fk.DeleteBehavior = DeleteBehavior.Restrict;
         }
 
         // CanonicalStationOperator composite key
         modelBuilder.Entity<CanonicalStationOperator>()
             .HasKey(cso => new { cso.CanonicalStationId, cso.OperatorId });
-
-        // CanonicalStation self-referencing parent
-        modelBuilder.Entity<CanonicalStation>()
-            .HasOne(cs => cs.ParentStation)
-            .WithMany(cs => cs.ChildStations)
-            .HasForeignKey(cs => cs.ParentStationId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         // Decimal precision for ReconciliationCandidate
         modelBuilder.Entity<ReconciliationCandidate>(entity =>

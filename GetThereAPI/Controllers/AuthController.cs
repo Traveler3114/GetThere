@@ -76,7 +76,7 @@ public class AuthController : ControllerBase
         _dbContext.RefreshTokens.Add(refreshToken);
         await _dbContext.SaveChangesAsync(ct);
 
-        var userDto = AuthMapper.ToResponse(user, accessToken);
+        var userDto = AuthMapper.ToResponse(user);
 
         return Ok(OperationResult<LoginResponse>.Ok(new LoginResponse
         {

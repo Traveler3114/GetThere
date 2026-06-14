@@ -2,41 +2,35 @@ using GetThereShared.Enums;
 
 namespace GetThereShared.Contracts;
 
-public class TicketTypeResponse
+public class TicketOptionResponse
 {
     public int Id { get; set; }
+    public int AdapterId { get; set; }
+    public string AdapterName { get; set; } = string.Empty;
+    public string ExternalProductId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public decimal Price { get; set; }
     public string Currency { get; set; } = "EUR";
     public TicketFormat TicketFormat { get; set; }
     public int? DurationMinutes { get; set; }
-    public int? ValidityDays { get; set; }
-    public int? TransferCount { get; set; }
-    public bool IsActive { get; set; }
 }
 
-public class TicketInstanceResponse
+public class TicketResponse
 {
     public int Id { get; set; }
-    public TicketTypeResponse TicketType { get; set; } = null!;
+    public int PurchaseId { get; set; }
+    public string? ExternalTicketId { get; set; }
+    public TicketFormat Format { get; set; }
+    public string Data { get; set; } = string.Empty;
+    public DateTime? ValidFrom { get; set; }
+    public DateTime? ValidTo { get; set; }
     public TicketStatus Status { get; set; }
-    public DateTime PurchaseDate { get; set; }
-    public DateTime? ActivationDate { get; set; }
-    public DateTime? ExpiryDate { get; set; }
+    public TicketOptionResponse Option { get; set; } = null!;
 }
 
-public class PurchaseTicketRequest
+public class TicketPurchaseRequest
 {
-    public int TicketTypeId { get; set; }
-    public string PaymentMethod { get; set; } = string.Empty;
-}
-
-public class TicketValidationResponse
-{
-    public int Id { get; set; }
-    public string TicketIdentifier { get; set; } = string.Empty;
-    public DateTime ValidatedAt { get; set; }
-    public bool IsValid { get; set; }
-    public string? FailureReason { get; set; }
+    public int AdapterId { get; set; }
+    public int OptionId { get; set; }
 }

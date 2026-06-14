@@ -1,6 +1,7 @@
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Managers;
+using GetThereAPI.Sdk;
 using GetThereShared.Common;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -29,13 +30,18 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("TransitInfoApi", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["TransitInfoApi:BaseUrl"] ?? "http://localhost:5000");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
+builder.Services.AddSingleton<AdapterRegistry>();
 builder.Services.AddScoped<TokenManager>();
 builder.Services.AddScoped<WalletManager>();
-builder.Services.AddScoped<TicketManager>();
-builder.Services.AddScoped<ContactManager>();
+builder.Services.AddScoped<TicketingManager>();
 builder.Services.AddScoped<UserSettingsManager>();
+builder.Services.AddScoped<ProfileManager>();
 
 builder.Services.AddAuthentication(options =>
 {
@@ -67,12 +73,6 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-}
 
 if (app.Environment.IsDevelopment())
 {
@@ -106,6 +106,7 @@ app.UseExceptionHandler(errorApp =>
 });
 
 app.UseCors("MapAssets");
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseHttpsRedirection();

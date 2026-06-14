@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Entities;
@@ -6,7 +7,7 @@ using TransitInfoAPI.Services.Converters;
 
 namespace TransitInfoAPI.Services;
 
-public class HzppGtfsRtConverter : FeedConverterBase
+public partial class HzppGtfsRtConverter : FeedConverterBase
 {
     private readonly ProtobufFeedBuilder _feedBuilder;
     private readonly IConfiguration _config;
@@ -77,35 +78,135 @@ public class HzppGtfsRtConverter : FeedConverterBase
         try
         {
             var response = await http.GetStringAsync($"{baseUrl}/__data.json", ct);
-            var trains = new List<string>();
-            var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-            foreach (var line in lines)
+            var trains = TryExtractFromSvelteData(response);
+            if (trains.Count > 0)
             {
-                try
-                {
-                    using var doc = JsonDocument.Parse(line.Trim());
-                    // Extract train numbers from the SvelteKit data
-                    if (doc.RootElement.TryGetProperty("data", out var data))
-                    {
-                        foreach (var item in data.EnumerateArray())
-                        {
-                            if (item.TryGetProperty("type", out var t) && t.GetString() == "chunk")
-                                continue;
-                        }
-                    }
-                }
-                catch { }
+                Logger.LogInformation("Found {Count} trains from __data.json", trains.Count);
+                return trains;
             }
 
-            return trains;
+            Logger.LogInformation("No trains found in __data.json, trying HTML fallback");
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to fetch active trains");
-            return [];
+            Logger.LogWarning(ex, "Failed to fetch __data.json, trying HTML fallback");
         }
+
+        try
+        {
+            var html = await http.GetStringAsync($"{baseUrl}/vlakovi", ct);
+            var trains = TryExtractFromHtml(html);
+            if (trains.Count > 0)
+            {
+                Logger.LogInformation("Found {Count} trains from HTML", trains.Count);
+                return trains;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to fetch HTML page");
+        }
+
+        return [];
     }
+
+    private static List<string> TryExtractFromSvelteData(string json)
+    {
+        var trains = new List<string>();
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+
+            // Modern SvelteKit format: {"type":"data","nodes":[{"data":{...}}]}
+            if (doc.RootElement.TryGetProperty("nodes", out var nodes))
+            {
+                foreach (var node in nodes.EnumerateArray())
+                {
+                    if (node.TryGetProperty("data", out var data))
+                    {
+                        trains.AddRange(ExtractTrainNumbersFromElement(data));
+                    }
+                }
+            }
+
+            // Newer SvelteKit streaming format: {"type":"data","data":{...}}
+            if (doc.RootElement.TryGetProperty("type", out var type) &&
+                type.GetString() == "data" &&
+                doc.RootElement.TryGetProperty("data", out var dataDirect))
+            {
+                trains.AddRange(ExtractTrainNumbersFromElement(dataDirect));
+            }
+
+            // Try the whole JSON as a flat object with train data
+            trains.AddRange(ExtractTrainNumbersFromElement(doc.RootElement));
+        }
+        catch { }
+
+        return trains.Distinct().ToList();
+    }
+
+    private static List<string> ExtractTrainNumbersFromElement(JsonElement element)
+    {
+        var result = new List<string>();
+
+        try
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        if (item.ValueKind == JsonValueKind.String)
+                        {
+                            var s = item.GetString();
+                            if (s is not null && TrainNumberRegex().IsMatch(s))
+                                result.Add(s);
+                        }
+                        else if (item.ValueKind == JsonValueKind.Number)
+                        {
+                            result.Add(item.GetInt32().ToString());
+                        }
+                        else if (item.ValueKind == JsonValueKind.Object)
+                        {
+                            result.AddRange(ExtractTrainNumbersFromElement(item));
+                        }
+                    }
+                    break;
+
+                case JsonValueKind.Object:
+                    foreach (var prop in element.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind is JsonValueKind.String && TrainNumberRegex().IsMatch(prop.Value.GetString()!))
+                            result.Add(prop.Value.GetString()!);
+                        else if (prop.Value.ValueKind is JsonValueKind.Array or JsonValueKind.Object)
+                            result.AddRange(ExtractTrainNumbersFromElement(prop.Value));
+                    }
+                    break;
+            }
+        }
+        catch { }
+
+        return result;
+    }
+
+    private static List<string> TryExtractFromHtml(string html)
+    {
+        var trains = new List<string>();
+
+        // Look for train number patterns in HTML: typically 4-5 digit numbers
+        var regex = TrainNumberRegex();
+        foreach (Match match in regex.Matches(html))
+        {
+            trains.Add(match.Value);
+        }
+
+        return trains.Distinct().ToList();
+    }
+
+    [GeneratedRegex(@"\b\d{4,5}\b")]
+    private static partial Regex TrainNumberRegex();
 
     private async Task<TrainPayload?> FetchTrainDataAsync(HttpClient http, string baseUrl, string trainNumber, CancellationToken ct)
     {
@@ -113,12 +214,93 @@ public class HzppGtfsRtConverter : FeedConverterBase
         {
             var url = $"{baseUrl}/__data.json?trainId={trainNumber}&x-sveltekit-trailing-slash=1";
             var response = await http.GetStringAsync(url, ct);
+
+            using var doc = JsonDocument.Parse(response);
+            var delay = TryExtractDelay(doc.RootElement);
+
+            return new TrainPayload { TrainNumber = trainNumber, DelayMin = delay };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to fetch data for train {TrainNumber}", trainNumber);
             return new TrainPayload { TrainNumber = trainNumber, DelayMin = 0 };
         }
-        catch
+    }
+
+    private static int TryExtractDelay(JsonElement element)
+    {
+        try
         {
-            return null;
+            // Look for delay/minutes fields in the JSON
+            if (element.TryGetProperty("nodes", out var nodes))
+            {
+                foreach (var node in nodes.EnumerateArray())
+                {
+                    if (node.TryGetProperty("data", out var data))
+                    {
+                        var delay = FindDelayValue(data);
+                        if (delay.HasValue) return delay.Value;
+                    }
+                }
+            }
+
+            if (element.TryGetProperty("data", out var dataDirect))
+            {
+                var delay = FindDelayValue(dataDirect);
+                if (delay.HasValue) return delay.Value;
+            }
         }
+        catch { }
+
+        return 0;
+    }
+
+    private static int? FindDelayValue(JsonElement element)
+    {
+        try
+        {
+            foreach (var prop in element.EnumerateObject())
+            {
+                var name = prop.Name.ToLowerInvariant();
+
+                if (name is "delay" or "delayminutes" or "delay_min" or "kasnjenje" or "zakašnjenje")
+                {
+                    if (prop.Value.ValueKind == JsonValueKind.Number)
+                        return prop.Value.GetInt32();
+                    if (prop.Value.ValueKind == JsonValueKind.String && int.TryParse(prop.Value.GetString(), out var d))
+                        return d;
+                }
+
+                if (prop.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                {
+                    var nested = prop.Value.ValueKind == JsonValueKind.Object
+                        ? FindDelayValue(prop.Value)
+                        : FindDelayInArray(prop.Value);
+                    if (nested.HasValue) return nested;
+                }
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static int? FindDelayInArray(JsonElement element)
+    {
+        try
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Object)
+                {
+                    var delay = FindDelayValue(item);
+                    if (delay.HasValue) return delay;
+                }
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     private class TrainPayload

@@ -18,8 +18,4 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\GetThereShared\GetThereShared.csproj" />
-  </ItemGroup>
-
 </Project>

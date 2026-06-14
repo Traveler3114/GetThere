@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Models;
+using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -9,19 +10,19 @@ namespace TransitInfoAPI.Controllers;
 [Route("realtime")]
 public class RealtimeController : ControllerBase
 {
-    private readonly TransitDbContext _db;
+    private readonly RealtimeService _realtime;
 
-    public RealtimeController(TransitDbContext db) { _db = db; }
+    public RealtimeController(RealtimeService realtime) { _realtime = realtime; }
 
     [HttpGet("vehicles")]
-    public async Task<ActionResult<List<object>>> GetVehicles(
-        [FromQuery] string? operatorGlobalId,
-        [FromQuery] double? lat,
-        [FromQuery] double? lon,
-        [FromQuery] double? radiusKm,
+    public async Task<ActionResult<OperationResult<List<VehicleDto>>>> GetVehicles(
+        [FromQuery] string? operatorGlobalId = null,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lon = null,
+        [FromQuery] double? radiusKm = null,
         CancellationToken ct = default)
     {
-        // TODO: Query OTP for real-time vehicle positions
-        return new List<object>();
+        var vehicles = await _realtime.GetVehiclesAsync(operatorGlobalId, lat, lon, radiusKm, ct);
+        return Ok(OperationResult<List<VehicleDto>>.Ok(vehicles));
     }
 }

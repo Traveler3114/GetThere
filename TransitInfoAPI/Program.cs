@@ -20,11 +20,21 @@ builder.Services.AddDbContext<TransitDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("otp", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddScoped<FeedImportService>();
 builder.Services.AddScoped<ReconciliationService>();
 builder.Services.AddScoped<OtpManagerService>();
 builder.Services.AddScoped<MobilityService>();
+
+builder.Services.AddScoped<StationService>();
+builder.Services.AddScoped<RouteService>();
+builder.Services.AddScoped<OperatorService>();
+builder.Services.AddScoped<FeedService>();
+builder.Services.AddScoped<RealtimeService>();
 
 var converterRegistry = new ConverterRegistry();
 builder.Services.AddSingleton(converterRegistry);
@@ -42,6 +52,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();
 
@@ -55,6 +66,19 @@ Console.WriteLine("""
 """);
 
 await app.StartAsync();
+
+// Generate OTP config on startup
+try
+{
+    using var configScope = app.Services.CreateScope();
+    var otpManager = configScope.ServiceProvider.GetRequiredService<OtpManagerService>();
+    await otpManager.GenerateConfigAsync();
+    Console.WriteLine("OTP config generated on startup.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Failed to generate OTP config on startup: {ex.Message}");
+}
 
 if (ShouldAutoStartOtp(app.Configuration))
 {

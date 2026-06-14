@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
-using TransitInfoAPI.Entities;
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Enums;
+using TransitInfoAPI.Models;
 using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Controllers;
@@ -12,71 +11,46 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class OperatorsController : ControllerBase
 {
-    private readonly TransitDbContext _db;
+    private readonly OperatorService _operatorService;
 
-    public OperatorsController(TransitDbContext db) { _db = db; }
+    public OperatorsController(OperatorService operatorService) { _operatorService = operatorService; }
 
     [HttpGet]
-    public async Task<ActionResult<List<Operator>>> GetAll(
+    public async Task<ActionResult<OperationResult<List<OperatorDto>>>> GetAll(
         [FromQuery] int? countryId = null,
         [FromQuery] OperatorType? type = null,
         CancellationToken ct = default)
     {
-        var query = _db.Operators.Include(o => o.Country).AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(o => o.CountryId == countryId.Value);
-        if (type.HasValue)
-            query = query.Where(o => o.OperatorType == type.Value);
-
-        return await query.ToListAsync(ct);
+        var result = await _operatorService.GetAllAsync(countryId, type, ct);
+        return Ok(OperationResult<List<OperatorDto>>.Ok(result));
     }
 
     [HttpGet("{globalId}")]
-    public async Task<ActionResult<Operator>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<OperatorDto>>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
-        var op = await _db.Operators
-            .Include(o => o.Country)
-            .FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
-
-        if (op is null) return NotFound();
-        return op;
+        var op = await _operatorService.GetByGlobalIdAsync(globalId, ct);
+        if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
+        return Ok(OperationResult<OperatorDto>.Ok(op));
     }
 
     [HttpGet("{globalId}/stations")]
-    public async Task<ActionResult<List<CanonicalStation>>> GetStations(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<StationDto>>>> GetStations(string globalId, CancellationToken ct = default)
     {
-        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
-        if (op is null) return NotFound();
-
-        var stations = await _db.CanonicalStationOperators
-            .Include(cso => cso.CanonicalStation)
-            .Where(cso => cso.OperatorId == op.Id)
-            .Select(cso => cso.CanonicalStation)
-            .ToListAsync(ct);
-
-        return stations;
+        var stations = await _operatorService.GetStationsAsync(globalId, ct);
+        return Ok(OperationResult<List<StationDto>>.Ok(stations));
     }
 
     [HttpGet("{globalId}/routes")]
-    public async Task<ActionResult<List<CanonicalRoute>>> GetRoutes(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<RouteDto>>>> GetRoutes(string globalId, CancellationToken ct = default)
     {
-        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
-        if (op is null) return NotFound();
-
-        return await _db.CanonicalRoutes
-            .Where(r => r.OperatorId == op.Id && r.IsActive)
-            .ToListAsync(ct);
+        var routes = await _operatorService.GetRoutesAsync(globalId, ct);
+        return Ok(OperationResult<List<RouteDto>>.Ok(routes));
     }
 
     [HttpGet("{globalId}/feeds")]
-    public async Task<ActionResult<List<Feed>>> GetFeeds(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<FeedDto>>>> GetFeeds(string globalId, CancellationToken ct = default)
     {
-        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
-        if (op is null) return NotFound();
-
-        return await _db.Feeds
-            .Where(f => f.OperatorId == op.Id && f.IsActive)
-            .ToListAsync(ct);
+        var feeds = await _operatorService.GetFeedsAsync(globalId, ct);
+        return Ok(OperationResult<List<FeedDto>>.Ok(feeds));
     }
 }

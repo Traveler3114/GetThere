@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Models;
 using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Controllers;
@@ -13,24 +15,24 @@ public class MobilityController : ControllerBase
     public MobilityController(MobilityService mobility) { _mobility = mobility; }
 
     [HttpGet("stations")]
-    public async Task<ActionResult<List<object>>> GetStations(
+    public async Task<ActionResult<OperationResult<List<MobilityStationDto>>>> GetStations(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
         CancellationToken ct = default)
     {
         var stations = await _mobility.GetStationsAsync(lat, lon, radiusKm, ct);
-        var result = stations.Select(s => new
+        var result = stations.Select(s => new MobilityStationDto
         {
-            s.StationId,
-            s.Name,
-            s.Latitude,
-            s.Longitude,
-            s.AvailableVehicles,
-            s.Capacity,
+            StationId = s.StationId,
+            Name = s.Name,
+            Latitude = s.Latitude,
+            Longitude = s.Longitude,
+            AvailableVehicles = s.AvailableVehicles,
+            Capacity = s.Capacity,
             ProviderName = s.MobilityProvider.Operator.Name
         }).ToList();
 
-        return Ok(result);
+        return Ok(OperationResult<List<MobilityStationDto>>.Ok(result));
     }
 }

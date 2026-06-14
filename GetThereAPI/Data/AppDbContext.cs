@@ -13,12 +13,12 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Wallet> Wallets { get; set; }
     public DbSet<WalletTransaction> WalletTransactions { get; set; }
-    public DbSet<TicketType> TicketTypes { get; set; }
-    public DbSet<TicketInstance> TicketInstances { get; set; }
-    public DbSet<TicketValidation> TicketValidations { get; set; }
-    public DbSet<Contact> Contacts { get; set; }
     public DbSet<UserSettings> UserSettings { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<TicketingAdapter> TicketingAdapters { get; set; }
+    public DbSet<TicketOption> TicketOptions { get; set; }
+    public DbSet<Purchase> Purchases { get; set; }
+    public DbSet<Ticket> Tickets { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +38,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
                     property.SetValueConverter(converter);
                 }
             }
+
+            foreach (var fk in entityType.GetForeignKeys())
+                fk.DeleteBehavior = DeleteBehavior.Restrict;
         }
 
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -45,8 +48,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasIndex(rt => rt.Token);
             entity.HasOne(rt => rt.User)
                   .WithMany()
-                  .HasForeignKey(rt => rt.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .HasForeignKey(rt => rt.UserId);
         });
 
         modelBuilder.Entity<Wallet>(entity =>
@@ -55,8 +57,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.Property(w => w.Balance).HasPrecision(18, 2);
             entity.HasOne(w => w.User)
                   .WithMany()
-                  .HasForeignKey(w => w.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .HasForeignKey(w => w.UserId);
         });
 
         modelBuilder.Entity<WalletTransaction>(entity =>
@@ -66,42 +67,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.Property(wt => wt.BalanceAfter).HasPrecision(18, 2);
             entity.HasOne(wt => wt.Wallet)
                   .WithMany(w => w.Transactions)
-                  .HasForeignKey(wt => wt.WalletId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<TicketType>(entity =>
-        {
-            entity.Property(tt => tt.Price).HasPrecision(18, 2);
-        });
-
-        modelBuilder.Entity<TicketInstance>(entity =>
-        {
-            entity.HasIndex(ti => ti.UserId);
-            entity.HasOne(ti => ti.User)
-                  .WithMany()
-                  .HasForeignKey(ti => ti.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(ti => ti.TicketType)
-                  .WithMany()
-                  .HasForeignKey(ti => ti.TicketTypeId)
-                  .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<TicketValidation>(entity =>
-        {
-            entity.HasOne(tv => tv.TicketInstance)
-                  .WithMany()
-                  .HasForeignKey(tv => tv.TicketInstanceId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Contact>(entity =>
-        {
-            entity.HasOne(c => c.User)
-                  .WithMany()
-                  .HasForeignKey(c => c.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .HasForeignKey(wt => wt.WalletId);
         });
 
         modelBuilder.Entity<UserSettings>(entity =>
@@ -109,8 +75,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasIndex(us => us.UserId).IsUnique();
             entity.HasOne(us => us.User)
                   .WithMany()
-                  .HasForeignKey(us => us.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .HasForeignKey(us => us.UserId);
         });
 
         modelBuilder.Entity<AuditLog>(entity =>
@@ -120,6 +85,45 @@ public class AppDbContext : IdentityDbContext<AppUser>
                   .WithMany()
                   .HasForeignKey(al => al.UserId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<TicketingAdapter>(entity =>
+        {
+            entity.HasIndex(ta => ta.TransitInfoGlobalId);
+            entity.Property(ta => ta.ApiKeyEncrypted).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<TicketOption>(entity =>
+        {
+            entity.HasIndex(to => to.ExternalProductId);
+            entity.Property(to => to.Price).HasPrecision(18, 2);
+            entity.HasOne(to => to.Adapter)
+                  .WithMany(ta => ta.TicketOptions)
+                  .HasForeignKey(to => to.TicketingAdapterId);
+        });
+
+        modelBuilder.Entity<Purchase>(entity =>
+        {
+            entity.HasIndex(p => p.UserId);
+            entity.HasIndex(p => p.ExternalPurchaseId);
+            entity.Property(p => p.Amount).HasPrecision(18, 2);
+            entity.HasOne(p => p.User)
+                  .WithMany()
+                  .HasForeignKey(p => p.UserId);
+            entity.HasOne(p => p.Adapter)
+                  .WithMany()
+                  .HasForeignKey(p => p.TicketingAdapterId);
+            entity.HasOne(p => p.TicketOption)
+                  .WithMany()
+                  .HasForeignKey(p => p.TicketOptionId);
+        });
+
+        modelBuilder.Entity<Ticket>(entity =>
+        {
+            entity.HasIndex(t => t.ExternalTicketId);
+            entity.HasOne(t => t.Purchase)
+                  .WithMany()
+                  .HasForeignKey(t => t.PurchaseId);
         });
     }
 }

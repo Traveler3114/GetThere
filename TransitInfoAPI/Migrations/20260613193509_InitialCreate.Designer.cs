@@ -12,7 +12,7 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    [Migration("20260613182301_InitialCreate")]
+    [Migration("20260613193509_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace TransitInfoAPI.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -512,7 +512,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany("Routes")
                         .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Operator");
@@ -522,12 +522,13 @@ namespace TransitInfoAPI.Migrations
                 {
                     b.HasOne("TransitInfoAPI.Entities.City", "City")
                         .WithMany()
-                        .HasForeignKey("CityId");
+                        .HasForeignKey("CityId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("TransitInfoAPI.Entities.Country", "Country")
                         .WithMany("CanonicalStations")
                         .HasForeignKey("CountryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("TransitInfoAPI.Entities.CanonicalStation", "ParentStation")
@@ -547,13 +548,13 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.CanonicalStation", "CanonicalStation")
                         .WithMany("StationOperators")
                         .HasForeignKey("CanonicalStationId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany("StationOperators")
                         .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CanonicalStation");
@@ -566,7 +567,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Country", "Country")
                         .WithMany("Cities")
                         .HasForeignKey("CountryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Country");
@@ -577,7 +578,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany("Feeds")
                         .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Operator");
@@ -588,7 +589,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Feed", "Feed")
                         .WithMany("Converters")
                         .HasForeignKey("FeedId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Feed");
@@ -599,7 +600,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany("MobilityProviders")
                         .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Operator");
@@ -609,18 +610,19 @@ namespace TransitInfoAPI.Migrations
                 {
                     b.HasOne("TransitInfoAPI.Entities.City", "City")
                         .WithMany()
-                        .HasForeignKey("CityId");
+                        .HasForeignKey("CityId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("TransitInfoAPI.Entities.Country", "Country")
                         .WithMany("MobilityStations")
                         .HasForeignKey("CountryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("TransitInfoAPI.Entities.MobilityProvider", "MobilityProvider")
                         .WithMany()
                         .HasForeignKey("MobilityProviderId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("City");
@@ -635,7 +637,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Country", "Country")
                         .WithMany("Operators")
                         .HasForeignKey("CountryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Country");
@@ -646,12 +648,13 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Feed", "Feed")
                         .WithMany()
                         .HasForeignKey("FeedId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("TransitInfoAPI.Entities.CanonicalStation", "SuggestedCanonicalStation")
                         .WithMany()
-                        .HasForeignKey("SuggestedCanonicalStationId");
+                        .HasForeignKey("SuggestedCanonicalStationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Feed");
 
@@ -663,7 +666,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasOne("TransitInfoAPI.Entities.Country", "Country")
                         .WithMany("Regions")
                         .HasForeignKey("CountryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Country");

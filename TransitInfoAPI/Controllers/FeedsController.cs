@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
+using TransitInfoAPI.Models;
 using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Controllers;
@@ -12,26 +12,22 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class FeedsController : ControllerBase
 {
-    private readonly TransitDbContext _db;
-    private readonly FeedImportService _feedImport;
+    private readonly FeedService _feedService;
 
-    public FeedsController(TransitDbContext db, FeedImportService feedImport)
+    public FeedsController(FeedService feedService)
     {
-        _db = db;
-        _feedImport = feedImport;
+        _feedService = feedService;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<Feed>>> GetAll(CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<FeedDto>>>> GetAll(CancellationToken ct = default)
     {
-        return await _db.Feeds
-            .Include(f => f.Operator)
-            .OrderBy(f => f.CreatedAt)
-            .ToListAsync(ct);
+        var feeds = await _feedService.GetAllAsync(ct);
+        return Ok(OperationResult<List<FeedDto>>.Ok(feeds));
     }
 
     [HttpPost]
-    public async Task<ActionResult<Feed>> Create(
+    public async Task<ActionResult<OperationResult<FeedDto>>> Create(
         [FromQuery] int operatorId,
         [FromQuery] FeedType feedType,
         [FromQuery] SourceType sourceType,
@@ -40,30 +36,24 @@ public class FeedsController : ControllerBase
         [FromQuery] int refreshIntervalSeconds = 3600,
         CancellationToken ct = default)
     {
-        var feed = await _feedImport.RegisterFeedAsync(operatorId, feedType, sourceType, feedId, externalUrl, null, refreshIntervalSeconds, ct);
-        return CreatedAtAction(nameof(GetAll), new { }, feed);
+        var feed = await _feedService.CreateAsync(operatorId, feedType, sourceType, feedId, externalUrl, refreshIntervalSeconds, ct);
+        var dto = await _feedService.GetByIdAsync(feed.Id, ct);
+        return CreatedAtAction(nameof(GetAll), new { }, OperationResult<FeedDto>.Ok(dto!));
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> Update(int id, [FromBody] Feed updated, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult>> Update(int id, [FromBody] Feed updated, CancellationToken ct = default)
     {
-        var feed = await _db.Feeds.FindAsync(new object[] { id }, ct);
-        if (feed is null) return NotFound();
-
-        feed.FeedType = updated.FeedType;
-        feed.ExternalUrl = updated.ExternalUrl;
-        feed.InternalUrl = updated.InternalUrl;
-        feed.IsActive = updated.IsActive;
-        feed.RefreshIntervalSeconds = updated.RefreshIntervalSeconds;
-
-        await _db.SaveChangesAsync(ct);
-        return NoContent();
+        var (success, message) = await _feedService.UpdateAsync(id, updated, ct);
+        if (!success) return NotFound(OperationResult.Fail(message!));
+        return Ok(OperationResult.Ok("Feed updated."));
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult> Deactivate(int id, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult>> Deactivate(int id, CancellationToken ct = default)
     {
-        await _feedImport.DeactivateFeedAsync(id, ct);
-        return NoContent();
+        var success = await _feedService.DeactivateAsync(id, ct);
+        if (!success) return NotFound(OperationResult.Fail("Feed not found."));
+        return Ok(OperationResult.Ok("Feed deactivated."));
     }
 }

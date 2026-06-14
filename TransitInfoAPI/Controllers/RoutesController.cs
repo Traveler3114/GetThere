@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
-using TransitInfoAPI.Entities;
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Enums;
+using TransitInfoAPI.Models;
+using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -11,33 +11,25 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class RoutesController : ControllerBase
 {
-    private readonly TransitDbContext _db;
+    private readonly RouteService _routeService;
 
-    public RoutesController(TransitDbContext db) { _db = db; }
+    public RoutesController(RouteService routeService) { _routeService = routeService; }
 
     [HttpGet]
-    public async Task<ActionResult<List<CanonicalRoute>>> GetAll(
+    public async Task<ActionResult<OperationResult<List<RouteDto>>>> GetAll(
         [FromQuery] int? operatorId,
         [FromQuery] RouteType? routeType,
         CancellationToken ct = default)
     {
-        var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
-
-        if (operatorId.HasValue)
-            query = query.Where(r => r.OperatorId == operatorId.Value);
-        if (routeType.HasValue)
-            query = query.Where(r => r.RouteType == routeType.Value);
-
-        return await query.ToListAsync(ct);
+        var result = await _routeService.GetAllAsync(operatorId, routeType, ct);
+        return Ok(OperationResult<List<RouteDto>>.Ok(result));
     }
 
     [HttpGet("{globalId}")]
-    public async Task<ActionResult<CanonicalRoute>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<RouteDto>>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
-        var route = await _db.CanonicalRoutes
-            .FirstOrDefaultAsync(r => r.GlobalId == globalId && r.IsActive, ct);
-
-        if (route is null) return NotFound();
-        return route;
+        var route = await _routeService.GetByGlobalIdAsync(globalId, ct);
+        if (route is null) return NotFound(OperationResult<RouteDto>.Fail("Route not found."));
+        return Ok(OperationResult<RouteDto>.Ok(route));
     }
 }
