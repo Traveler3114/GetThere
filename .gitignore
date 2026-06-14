@@ -364,3 +364,4 @@ FodyWeavers.xsd
 OpenTripPlanner/otp-shaded-2.9.0.jar
 OpenTripPlannerAPI/otp-shaded-2.9.0.jar
 TransitInfoAPI/otp-shaded-2.9.0.jar
+/TransitInfoAPI/feeds
