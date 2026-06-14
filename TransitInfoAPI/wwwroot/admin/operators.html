@@ -13,7 +13,10 @@
   <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Operators</h1>
-    <button class="btn btn-outline-primary btn-sm" onclick="loadOperators()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    <div>
+      <button class="btn btn-success btn-sm" onclick="showAddModal()"><i class="bi bi-plus-lg"></i> Add Operator</button>
+      <button class="btn btn-outline-primary btn-sm" onclick="loadOperators()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
   </div>
 
   <div class="row mb-3 g-2">
@@ -147,6 +150,89 @@ async function showDetail(globalId) {
 
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+async function showAddModal() {
+  let countries = [];
+  try {
+    const r = await fetch(BASE + '/countries');
+    const j = await r.json();
+    countries = j.data || [];
+  } catch(e) {}
+
+  const countryOptions = countries.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.isoCode)})</option>`).join('');
+  const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Add Operator</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text" id="addName" class="form-control form-control-sm" placeholder="e.g. Zagrebački električni tramvaj">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Short Name</label>
+        <input type="text" id="addShortName" class="form-control form-control-sm" placeholder="e.g. ZET">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Country</label>
+        <select id="addCountryId" class="form-select form-select-sm">${countryOptions}</select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Type</label>
+        <select id="addOperatorType" class="form-select form-select-sm">
+          <option value="Transit">Transit</option>
+          <option value="Rail">Rail</option>
+          <option value="Ferry">Ferry</option>
+          <option value="Air">Air</option>
+          <option value="Coach">Coach</option>
+          <option value="BikeShare">Bike Share</option>
+          <option value="ScooterShare">Scooter Share</option>
+          <option value="CableCarFunicular">Cable Car</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Website</label>
+        <input type="url" id="addWebsite" class="form-control form-control-sm" placeholder="https://...">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Global ID <small class="text-muted">(leave empty to auto-generate)</small></label>
+        <input type="text" id="addGlobalId" class="form-control form-control-sm" placeholder="Auto: gt-{country}-{shortname}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="addOperator()">Add Operator</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('addModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('addModal'));
+  modal.show();
+  document.getElementById('addModal').addEventListener('hidden.bs.modal', () => document.getElementById('addModal').remove());
+}
+
+async function addOperator() {
+  const name = document.getElementById('addName').value.trim();
+  const shortName = document.getElementById('addShortName').value.trim();
+  const countryId = parseInt(document.getElementById('addCountryId').value);
+  const operatorType = document.getElementById('addOperatorType').value;
+  const website = document.getElementById('addWebsite').value.trim() || null;
+  const globalId = document.getElementById('addGlobalId').value.trim() || null;
+  if (!name || !shortName) { alert('Name and Short Name are required.'); return; }
+  try {
+    const r = await fetch(BASE + '/operators', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, shortName, countryId, operatorType, website, globalId})
+    });
+    const j = await r.json();
+    if (j.success) {
+      bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+      loadOperators();
+    } else {
+      alert(j.message || 'Failed to add operator.');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+}
 
 loadOperators();
 </script>

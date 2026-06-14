@@ -82,11 +82,17 @@ public class RealtimeService
                             if (dist > radiusKm.Value * 1000) continue;
                         }
 
+                        var routeShortName = trip.TryGetProperty("route", out var routeProp) && routeProp.TryGetProperty("shortName", out var rsn)
+                            ? rsn.GetString() : null;
+
                         vehicles.Add(new VehicleDto
                         {
                             VehicleId = vehicleId,
                             RouteId = routeId,
                             TripId = tripId,
+                            RouteShortName = routeShortName,
+                            IsRealtime = true,
+                            BlockId = null,
                             Latitude = latVal,
                             Longitude = lonVal,
                             Bearing = bearing,

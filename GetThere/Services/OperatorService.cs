@@ -16,21 +16,17 @@ public class OperatorService
     };
 
     private readonly HttpClient _http;
-    private readonly string _apiBase;
 
-    public OperatorService(IHttpClientFactory clientFactory)
+    public OperatorService(HttpClient http)
     {
-        _http = clientFactory.CreateClient("MapData");
-        _apiBase = "https://localhost:5000";
+        _http = http;
     }
-
-    public string GetApiBaseUrl() => _apiBase;
 
     public async Task<OperationResult<List<TransportTypeResponse>>> GetTransportTypesAsync()
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<TransportTypeResponse>>>("operators/types", JsonOptions);
+            var result = await _http.GetFromJsonAsync<OperationResult<List<TransportTypeResponse>>>("api/map/operators/types", JsonOptions);
             return result ?? OperationResult<List<TransportTypeResponse>>.Fail("Could not load transport types");
         }
         catch (Exception ex)
@@ -39,42 +35,72 @@ public class OperatorService
         }
     }
 
-    public async Task<OperationResult<List<StopResponse>>> GetStopsAsync(int? countryId)
+    public async Task<OperationResult<List<MapStationResponse>>> GetStopsAsync(int? countryId)
     {
         try
         {
-            var url = countryId.HasValue ? $"stations?countryId={countryId.Value}" : "stations";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<StopResponse>>>(url, JsonOptions);
-            return result ?? OperationResult<List<StopResponse>>.Fail("Could not load stops");
+            var url = countryId.HasValue ? $"api/map/stations?countryId={countryId.Value}" : "api/map/stations";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapStationResponse>>>(url, JsonOptions);
+            return result ?? OperationResult<List<MapStationResponse>>.Fail("Could not load stops");
         }
         catch (Exception ex)
         {
-            return OperationResult<List<StopResponse>>.Fail(ex.Message);
+            return OperationResult<List<MapStationResponse>>.Fail(ex.Message);
         }
     }
 
-    public async Task<OperationResult<List<RouteResponse>>> GetRoutesAsync(int? countryId)
+    public async Task<OperationResult<List<MapRouteResponse>>> GetRoutesAsync(int? countryId)
     {
         try
         {
-            var url = countryId.HasValue ? $"routes?countryId={countryId.Value}" : "routes";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<RouteResponse>>>(url, JsonOptions);
-            return result ?? OperationResult<List<RouteResponse>>.Fail("Could not load routes");
+            var url = "api/map/routes";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapRouteResponse>>>(url, JsonOptions);
+            return result ?? OperationResult<List<MapRouteResponse>>.Fail("Could not load routes");
         }
         catch (Exception ex)
         {
-            return OperationResult<List<RouteResponse>>.Fail(ex.Message);
+            return OperationResult<List<MapRouteResponse>>.Fail(ex.Message);
         }
     }
 
-    public async Task<OperationResult<List<BikeStationResponse>>> GetBikeStationsAsync(int? countryId)
+    public async Task<OperationResult<List<MapMobilityStationResponse>>> GetBikeStationsAsync(int? countryId)
     {
-        return OperationResult<List<BikeStationResponse>>.Ok([]);
+        try
+        {
+            var url = "api/map/mobility/stations";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapMobilityStationResponse>>>(url, JsonOptions);
+            return result ?? OperationResult<List<MapMobilityStationResponse>>.Fail("Could not load bike stations");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<List<MapMobilityStationResponse>>.Fail(ex.Message);
+        }
     }
 
-    public async Task<OperationResult<StopScheduleResponse>> GetStopScheduleAsync(string stopId, int? countryId)
+    public async Task<OperationResult<List<MapDepartureResponse>>> GetStationDeparturesAsync(string globalId)
     {
-        return OperationResult<StopScheduleResponse>.Ok(new StopScheduleResponse());
+        try
+        {
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapDepartureResponse>>>($"api/map/stations/{globalId}/departures", JsonOptions);
+            return result ?? OperationResult<List<MapDepartureResponse>>.Fail("Could not load departures");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<List<MapDepartureResponse>>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<OperationResult<List<MapOperatorResponse>>> GetStationOperatorsAsync(string globalId)
+    {
+        try
+        {
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapOperatorResponse>>>($"api/map/stations/{globalId}/operators", JsonOptions);
+            return result ?? OperationResult<List<MapOperatorResponse>>.Fail("Could not load operators");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<List<MapOperatorResponse>>.Fail(ex.Message);
+        }
     }
 }
 
@@ -84,29 +110,3 @@ public class TransportTypeResponse
     public string Name { get; set; } = string.Empty;
     public string IconFile { get; set; } = string.Empty;
 }
-
-public class StopResponse
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public string? GlobalId { get; set; }
-}
-
-public class RouteResponse
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? GlobalId { get; set; }
-}
-
-public class BikeStationResponse
-{
-    public string StationId { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-}
-
-public class StopScheduleResponse { }

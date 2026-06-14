@@ -59,6 +59,8 @@ function renderFeeds() {
     <td class="small">${f.lastFetched ? new Date(f.lastFetched).toLocaleString() : '-'}</td>
     <td>${f.refreshIntervalSeconds}s</td>
     <td>
+      ${f.feedType === 'GTFSStatic' ? `<button class="btn btn-sm btn-outline-success" onclick="importFeed(${f.id})" title="Import"><i class="bi bi-download"></i></button>` : ''}
+      ${f.lastFetched ? `<button class="btn btn-sm btn-outline-info" onclick="reconcileFeed(${f.id})" title="Reconcile"><i class="bi bi-arrow-left-right"></i></button>` : ''}
       <button class="btn btn-sm btn-outline-warning" onclick="toggleActive(${f.id}, ${!f.isActive})" title="Toggle active"><i class="bi bi-power"></i></button>
       <button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>
     </td>
@@ -170,6 +172,45 @@ async function addFeed() {
 
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+async function importFeed(id) {
+  if (!confirm('Import this feed now?')) return;
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+  try {
+    const r = await fetch(BASE + '/feeds/' + id + '/import', { method: 'POST' });
+    const j = await r.json();
+    if (j.success) {
+      loadFeeds();
+    } else {
+      showError(j.message || 'Import failed.');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download"></i>'; }
+    }
+  } catch(e) {
+    showError('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download"></i>'; }
+  }
+}
+
+async function reconcileFeed(id) {
+  if (!confirm('Reconcile stops for this feed?')) return;
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+  try {
+    const r = await fetch(BASE + '/feeds/' + id + '/reconcile', { method: 'POST' });
+    const j = await r.json();
+    if (j.success) {
+      alert(j.message);
+      loadFeeds();
+    } else {
+      showError(j.message || 'Reconciliation failed.');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-left-right"></i>'; }
+    }
+  } catch(e) {
+    showError('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-left-right"></i>'; }
+  }
+}
 
 loadFeeds();
 </script>

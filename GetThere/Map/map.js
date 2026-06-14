@@ -2,7 +2,7 @@
 // CONFIG
 // ═══════════════════════════════════════════════════════════════════
 
-const STOPS_MIN_ZOOM = 14;   // stop icons visible at this zoom and above
+const STOPS_MIN_ZOOM = 14;
 
 let _routeMap = {};
 let _userMarker = null;
@@ -11,10 +11,7 @@ let _lastUserLat = null;
 let _currentStop = null;
 
 // ═══════════════════════════════════════════════════════════════════
-// BOOT — init map using the injected style (window._MAP_STYLE)
-// Style is injected by C# as a <script> block before this file loads.
-// We set _mapReady on 'style.load' (fires when base style tiles are
-// ready) rather than 'load' (which can stall waiting for all tiles).
+// BOOT
 // ═══════════════════════════════════════════════════════════════════
 
 window.map = new maplibregl.Map({
@@ -36,22 +33,17 @@ map.on('style.load', async function () {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// MAP LOAD — set up all sources and layers
+// MAP LOAD
 // ═══════════════════════════════════════════════════════════════════
 async function _onMapLoad() {
 
-    // ── Stop source + layers ───────────────────────────────────────
     map.addSource('gtfs-stops', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
     });
 
-    // Load stop icons. Called without await so _mapReady is never
-    // blocked by a network call. Icons register themselves and then
-    // MapLibre re-renders the stops layer automatically.
     _loadStopIcons();
 
-    // Single stops layer, no clustering, visible at all zoom levels ≥ 14
     map.addLayer({
         id: 'stops',
         type: 'symbol',
@@ -86,27 +78,22 @@ async function _onMapLoad() {
         data: { type: 'FeatureCollection', features: [] }
     });
 
-    // Vehicle icons — exact zetRt approach.
-    // Key format: "{routeShortName}-{routeType}-{realTime}-bg" or "-fg"
-    // bg = directional arrow (64x64), fg = coloured circle + route number (42x42)
     map.on('styleimagemissing', async e => {
         const id = e.id;
         if (!id.endsWith('-bg') && !id.endsWith('-fg')) return;
 
         const suffix = id.endsWith('-bg') ? 'bg' : 'fg';
-        const base = id.slice(0, -(suffix.length + 1)); // strip "-bg"/"-fg"
+        const base = id.slice(0, -(suffix.length + 1));
         const parts = base.split('-');
-        // parts = [routeShortName, routeType, realTime]
-        // routeShortName can contain digits only so split is safe
         const realTime = parts[parts.length - 1] === 'true';
         const routeType = parseInt(parts[parts.length - 2], 10);
         const routeShortName = parts.slice(0, parts.length - 2).join('-');
 
         let color;
         if (routeType === 0) {
-            color = realTime ? '#1264AB' : '#535353'; // tram blue / grey
+            color = realTime ? '#1264AB' : '#535353';
         } else {
-            color = realTime ? '#126400' : '#727272'; // bus green / grey
+            color = realTime ? '#126400' : '#727272';
         }
 
         const data = suffix === 'bg'
@@ -121,7 +108,6 @@ async function _onMapLoad() {
             });
     });
 
-    // bg layer: directional arrow, rotates with vehicle bearing
     map.addLayer({
         id: 'vehicles-bg', type: 'symbol', source: 'vehicles',
         layout: {
@@ -141,7 +127,6 @@ async function _onMapLoad() {
         }
     });
 
-    // fg layer: coloured circle with route number, no rotation
     map.addLayer({
         id: 'vehicles-fg', type: 'symbol', source: 'vehicles',
         layout: {
@@ -159,7 +144,6 @@ async function _onMapLoad() {
         }
     });
 
-    // Vehicle detail labels at zoom 15+ (VR + vehicle number, same as zetRt)
     map.addLayer({
         id: 'vehicle-details', type: 'symbol', source: 'vehicles',
         minzoom: 15,
@@ -184,7 +168,7 @@ async function _onMapLoad() {
         }
     });
 
-    // ── Bike station source + layer ────────────────────────────────────
+    // ── Bike station source + layer ────────────────────────────────
     map.addSource('bike-stations', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
@@ -221,7 +205,6 @@ async function _onMapLoad() {
     map.on('mouseenter', 'bike-stations', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'bike-stations', () => map.getCanvas().style.cursor = '');
 
-    // Stops sit below vehicle bg layer
     map.moveLayer('stops', 'vehicles-bg');
 
     // ── Active route line ─────────────────────────────────────────
@@ -241,7 +224,6 @@ async function _onMapLoad() {
     });
 
     // ── Click events ───────────────────────────────────────────────
-    // Stop click → request schedule from C#
     map.on('click', 'stops', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
@@ -250,7 +232,6 @@ async function _onMapLoad() {
             typeof p.routeType === 'number' ? p.routeType : parseInt(p.routeType) || 3);
     });
 
-    // Vehicle click disabled in OTP phase 1 (no vehicle tracking endpoint).
     ['vehicles-fg', 'vehicles-bg'].forEach(lyr => {
         map.on('click', lyr, e => {
             if (e.defaultPrevented) return;
@@ -261,7 +242,6 @@ async function _onMapLoad() {
         map.on('mouseleave', lyr, () => map.getCanvas().style.cursor = '');
     });
 
-    // Bike station click → show station info
     map.on('click', 'bike-stations', e => {
         if (e.defaultPrevented) return;
         e.preventDefault();
@@ -269,7 +249,6 @@ async function _onMapLoad() {
         _openBikeSheet(p);
     });
 
-    // Empty tap → close panels
     map.on('click', e => {
         if (e.defaultPrevented) return;
         _clearRoute();
@@ -278,7 +257,6 @@ async function _onMapLoad() {
         _closeBikeSheet();
     });
 
-    // Signal C# that the map is ready for data
     window._mapReady = true;
 }
 
@@ -286,8 +264,6 @@ async function _onMapLoad() {
 // PUBLIC FUNCTIONS — called by C# via CallJsAsync
 // ═══════════════════════════════════════════════════════════════════
 
-// ── renderStops ────────────────────────────────────────────────────
-// Called once on startup with all stops from the API.
 function renderStops(stops) {
     const features = (stops || []).map(s => ({
         type: 'Feature',
@@ -305,8 +281,6 @@ function renderStops(stops) {
     });
 }
 
-// ── renderRoutes ───────────────────────────────────────────────────
-// Stores route metadata (name, type, color, shape) for later use.
 function renderRoutes(routes) {
     _routeMap = {};
     (routes || []).forEach(r => {
@@ -314,8 +288,6 @@ function renderRoutes(routes) {
     });
 }
 
-// ── renderVehicles ─────────────────────────────────────────────────
-// Called every 10 seconds with live vehicle positions.
 function renderVehicles(vehicles) {
     const features = (vehicles || []).map((v, i) => {
         const route = _routeMap[v.routeId] || {};
@@ -341,8 +313,6 @@ function renderVehicles(vehicles) {
     });
 }
 
-// ── renderBikeStations ─────────────────────────────────────────
-// Called once on startup with all bike stations from the API.
 function renderBikeStations(stations) {
     const features = (stations || []).map(s => ({
         type: 'Feature',
@@ -362,18 +332,42 @@ function renderBikeStations(stations) {
     });
 }
 
-// ── renderStopSchedule ─────────────────────────────────────────────
-// Called by C# after user taps a stop.
 function renderStopSchedule(data) {
     if (typeof data === 'string') data = JSON.parse(data);
+
+    const departures = data.departures || [];
+    const operators = data.operators || [];
+
+    // Render operators
+    const operatorHtml = operators.length
+        ? '<div class="stop-operators">' + operators.map(o =>
+            `<span class="operator-badge">${_esc(o.name)}${o.hasTicketing ? ' <span class="ticket-icon">🎫</span>' : ''}</span>`
+          ).join('') + '</div>'
+        : '';
+
+    // Group departures by route name
+    const groups = {};
+    departures.forEach(d => {
+        const key = d.routeName || 'Unknown';
+        if (!groups[key]) groups[key] = { routeName: key, headsign: d.headsign || '', departures: [] };
+        groups[key].departures.push(d);
+    });
+
+    const groupsArray = Object.values(groups);
 
     _sheetLoad.style.display = 'none';
     _sheetBody.innerHTML = '';
 
-    const groups = data.groups || [];
-    if (!groups.length) { _sheetEmpty.style.display = 'block'; return; }
+    // Insert operator badges
+    if (operatorHtml) {
+        const opDiv = document.createElement('div');
+        opDiv.innerHTML = operatorHtml;
+        _sheetBody.appendChild(opDiv);
+    }
 
-    groups.forEach((g, gi) => {
+    if (!groupsArray.length) { _sheetEmpty.style.display = 'block'; return; }
+
+    groupsArray.forEach((g, gi) => {
         const route = _routeMap[g.routeId] || {};
         const rType = route.routeType ?? 3;
         const pc = _pillClass(rType);
@@ -381,26 +375,28 @@ function renderStopSchedule(data) {
 
         const timesHtml = deps.map((d, i) => {
             let cls = 'time-chip' + (i === 0 ? ' next' : '');
-            const onClick = '';
 
-            const hasEta = d.estimatedTime && d.estimatedTime !== d.scheduledTime;
+            const sched = d.scheduledDeparture ? new Date(d.scheduledDeparture) : null;
+            const est = d.estimatedDeparture ? new Date(d.estimatedDeparture) : null;
+            const schedStr = sched ? sched.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+            const estStr = est ? est.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+
+            const hasEta = estStr && estStr !== schedStr;
             if (hasEta) {
-                const delay = d.delayMinutes ?? 0;
-                const badge = delay > 1
-                    ? `<span class="delay-badge late">+${delay}'</span>`
-                    : delay < -1
-                        ? `<span class="delay-badge early">${delay}'</span>`
+                const delayMin = Math.round((d.delaySeconds || 0) / 60);
+                const badge = delayMin > 1
+                    ? `<span class="delay-badge late">+${delayMin}'</span>`
+                    : delayMin < -1
+                        ? `<span class="delay-badge early">${delayMin}'</span>`
                         : `<span class="delay-badge ontime">✓</span>`;
                 const dot = d.isRealtime ? `<span class="live-dot">●</span>` : '';
                 return `<span class="${cls}">
-                            <span class="sched-strike">${d.scheduledTime}</span>
-                            <span class="eta-time">${d.estimatedTime}</span>
+                            <span class="sched-strike">${schedStr}</span>
+                            <span class="eta-time">${estStr}</span>
                             ${badge}${dot}
                         </span>`;
-            } else if (d.isRealtime) {
-                return `<span class="${cls}">${d.scheduledTime}<span class="live-dot">●</span></span>`;
             } else {
-                return `<span class="${cls}">${d.scheduledTime}</span>`;
+                return `<span class="${cls}">${schedStr}</span>`;
             }
         }).join('');
 
@@ -412,7 +408,7 @@ function renderStopSchedule(data) {
         div.className = 'route-group' + (gi === 0 ? ' expanded' : '');
         div.innerHTML = `
                     <div class="route-group-header" onclick="this.parentElement.classList.toggle('expanded')">
-                        <span class="route-pill ${pc}">${_esc(g.shortName)}</span>
+                        <span class="route-pill ${pc}">${_esc(g.routeName)}</span>
                         <span class="route-headsign">${_esc(g.headsign)}</span>
                         <span class="route-count">${deps.length}&nbsp;dep.${rtBadge}</span>
                         <span class="route-chevron">▾</span>
@@ -427,8 +423,6 @@ function renderStopSchedule(data) {
     });
 }
 
-// ── renderTripDetail ───────────────────────────────────────────────
-// Called by C# after user taps a vehicle.
 function renderTripDetail(data) {
     if (typeof data === 'string') data = JSON.parse(data);
 
@@ -482,11 +476,9 @@ function renderTripDetail(data) {
         _tripBody.appendChild(row);
     });
 
-    // Fly to vehicle if tracked
     if (data.isRealtime && data.vehicleLat && data.vehicleLon)
         map.flyTo({ center: [data.vehicleLon, data.vehicleLat], zoom: 15, duration: 600 });
 
-    // Draw full route shape
     if (data.routeId) _showRoute(data.routeId);
 
     requestAnimationFrame(() => {
@@ -495,8 +487,6 @@ function renderTripDetail(data) {
     });
 }
 
-// ── updateMapLocation ──────────────────────────────────────────────
-// Called by C# when GPS location is available.
 function updateMapLocation(lng, lat) {
     _lastUserLng = lng;
     _lastUserLat = lat;
@@ -555,7 +545,6 @@ function _openStopSheet(stopId, stopName, routeType) {
     _sheetBody.innerHTML = '';
     _sheet.classList.add('open');
 
-    // Tell C# to fetch the schedule
     window._pendingMsg = 'stopSchedule:' + stopId;
 }
 
@@ -565,7 +554,6 @@ function _closeStopSheet() {
 }
 
 function _openTripPanel(tripId) {
-    // Intentionally disabled in OTP phase 1 (trip detail endpoint removed).
     if (!tripId) return;
     _sheet.classList.remove('open');
     _currentStop = null;
@@ -631,7 +619,6 @@ function _closeBikeSheet() {
 // ROUTE LINE
 // ═══════════════════════════════════════════════════════════════════
 
-// Draw the full route shape for the given routeId in the route's colour.
 function _showRoute(routeId) {
     const route = _routeMap[routeId];
     const shape = route?.shape;
@@ -655,17 +642,6 @@ function _clearRoute() {
 
 // ═══════════════════════════════════════════════════════════════════
 // STOP ICON LOADER
-//
-// Icons are served by the API from GET /operator/images/{filename}.
-// To add a new stop type: drop a PNG in GetThereAPI/wwwroot/images/
-// then add one entry to STOP_ICON_MAP — no other changes needed.
-//
-// GTFS routeType numbers:
-//   0  = tram / light-rail   → tram.png
-//   3  = bus                 → bus.png
-//   11 = trolleybus          → tram.png  (reuses tram icon)
-//   2  = rail/train          → add rail.png + uncomment below
-//   4  = ferry               → add ferry.png + uncomment below
 // ═══════════════════════════════════════════════════════════════════
 
 const STOP_ICON_MAP = Object.fromEntries(
@@ -675,7 +651,6 @@ const STOP_ICON_MAP = Object.fromEntries(
     ])
 );
 
-// Default fallback: prefer bus (routeType 3), otherwise first available type
 const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { id: 'stop-bus', color: '#126400' };
 const _defaultIconId = _defaultEntry.id;
 const _defaultColor = _defaultEntry.color;
@@ -708,11 +683,8 @@ function _loadStopIcons() {
     );
     return Promise.all(unique.map(({ id, file }) =>
         new Promise(resolve => {
-            // C# pre-fetches icons and injects them as base64 into window._ICON_DATA
-            // to avoid CORS issues. Fall back to direct URL if not present.
             const dataUri = window._ICON_DATA && window._ICON_DATA[file];
             const url = dataUri || (window._API_BASE || '') + '/images/' + file;
-            console.log('[StopIcons] Loading:', file, dataUri ? '(base64)' : '(url)');
             const img = new Image();
             img.onload = () => {
                 try {
@@ -723,7 +695,6 @@ function _loadStopIcons() {
                     const imageData = canvas.getContext('2d').getImageData(0, 0, img.width, img.height);
                     if (!map.hasImage(id)) {
                         map.addImage(id, imageData);
-                        console.log('[StopIcons] Added:', id, img.width, img.height);
                     }
                 } catch (e) {
                     console.error('[StopIcons] addImage failed:', id, e);
@@ -731,7 +702,6 @@ function _loadStopIcons() {
                 resolve();
             };
             img.onerror = (e) => {
-                console.error('[StopIcons] FAILED to load:', file, e);
                 resolve();
             };
             if (!dataUri) img.crossOrigin = 'anonymous';
@@ -741,7 +711,7 @@ function _loadStopIcons() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// VEHICLE ICON GENERATORS — exact zetRt code
+// VEHICLE ICON GENERATORS
 // ═══════════════════════════════════════════════════════════════════
 
 function _genVehicleBg(color) {
@@ -815,7 +785,6 @@ function _pillClass(t) {
     return 'bus';
 }
 
-// darkenColor — exact zetRt implementation
 function darkenColor(hex, factor = 0.8) {
     const r = Math.floor(parseInt(hex.slice(1, 3), 16) * factor);
     const g = Math.floor(parseInt(hex.slice(3, 5), 16) * factor);
@@ -844,13 +813,11 @@ document.getElementById('locate-btn').addEventListener('click', () => {
     flyToUserLocation();
 });
 
-// Prevent map clicks from firing when touching panels
 [_sheet, _tripPanel, _bikeSheet].forEach(p => {
     p.addEventListener('pointerdown', e => e.stopPropagation());
     p.addEventListener('click', e => e.stopPropagation());
 });
 
-// Swipe down to close
 function _addSwipeClose(panel, closeFn) {
     let startY = 0, dragging = false;
     panel.addEventListener('pointerdown', e => { startY = e.clientY; dragging = true; });

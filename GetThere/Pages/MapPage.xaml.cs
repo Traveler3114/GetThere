@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using GetThere.Services;
 using GetThere.State;
+using GetThereShared.Contracts;
 
 namespace GetThere.Pages;
 
@@ -26,8 +27,6 @@ public partial class MapPage : ContentPage
         _ = LoadHtmlAsync();
     }
 
-    // ── WebView navigation ────────────────────────────────────────────────
-
     private void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
     {
         if (e.Result == WebNavigationResult.Success)
@@ -37,7 +36,14 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // ── Load HTML ─────────────────────────────────────────────────────────
+    private string GetApiBaseUrl()
+    {
+#if ANDROID
+        return "https://10.0.2.2:7230";
+#else
+        return "https://localhost:7230";
+#endif
+    }
 
     private async Task LoadHtmlAsync()
     {
@@ -47,23 +53,15 @@ public partial class MapPage : ContentPage
             using var htmlReader = new StreamReader(htmlStream);
             var html = await htmlReader.ReadToEndAsync();
 
-            var apiBase = _operatorService.GetApiBaseUrl().TrimEnd('/');
-
-            // 1. Inline map.css
             html = await InlineCssAsync(html);
 
-            // 2. Inject API base URL
+            var apiBase = GetApiBaseUrl();
             html = html.Replace("</head>",
                 $"<script>window._API_BASE = '{apiBase}';</script></head>",
                 StringComparison.OrdinalIgnoreCase);
 
-            // 3. Inject map style JSON as window._MAP_STYLE
-            html = await InjectMapStyleAsync(html);
+            html = await InjectTransportTypesAsync(html);
 
-            // 4. Fetch transport types from server, inject icons + config
-            html = await InjectTransportTypesAsync(html, apiBase);
-
-            // 5. Inline map.js
             html = await InlineJsAsync(html);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -75,7 +73,6 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // Reads map.css and replaces the <link href="map.css"> tag with an inline <style> block.
     private async Task<string> InlineCssAsync(string html)
     {
         try
@@ -99,7 +96,6 @@ public partial class MapPage : ContentPage
         return html;
     }
 
-    // Reads map.js and replaces the <script src="map.js"> tag with an inline <script> block.
     private async Task<string> InlineJsAsync(string html)
     {
         try
@@ -123,34 +119,7 @@ public partial class MapPage : ContentPage
         return html;
     }
 
-    // Reads mapstyle.json and injects it as window._MAP_STYLE.
-    private async Task<string> InjectMapStyleAsync(string html)
-    {
-        try
-        {
-            using var stream = await FileSystem.OpenAppPackageFileAsync("mapstyle.json");
-            using var reader = new StreamReader(stream);
-            var styleJson = await reader.ReadToEndAsync();
-
-            html = html.Replace("</head>",
-                $"<script>window._MAP_STYLE = {styleJson};</script></head>",
-                StringComparison.OrdinalIgnoreCase);
-
-            Trace.WriteLine("[MapPage] Map style injected.");
-        }
-        catch (Exception ex)
-        {
-            Trace.WriteLine($"[MapPage] InjectMapStyle error: {ex.Message}");
-        }
-
-        return html;
-    }
-
-    // Fetches transport types from the API, injects window._TRANSPORT_TYPES
-    // and pre-fetches each icon as base64 into window._ICON_DATA.
-    // Fetches transport types from the API, injects window._TRANSPORT_TYPES
-    // and pre-fetches each icon as base64 into window._ICON_DATA.
-    private async Task<string> InjectTransportTypesAsync(string html, string apiBase)
+    private async Task<string> InjectTransportTypesAsync(string html)
     {
         try
         {
@@ -160,20 +129,18 @@ public partial class MapPage : ContentPage
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("<script>");
 
-            // Inject transport type config for map.js to build icon map dynamically
             var typesJson = JsonSerializer.Serialize(types,
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             sb.AppendLine($"window._TRANSPORT_TYPES = {typesJson};");
 
-            // Pre-fetch each icon as base64 to avoid CORS issues in WebView
             sb.AppendLine("window._ICON_DATA = {};");
             var handler = new HttpClientHandler
             {
                 ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) => true
             };
             using var http = new HttpClient(handler);
+            var apiBase = "https://localhost:7230";
 
-            // Deduplicate — multiple types can share the same icon file (e.g. tram + trolleybus)
             var uniqueFiles = types.Select(t => t.IconFile).Distinct();
             foreach (var file in uniqueFiles)
             {
@@ -203,8 +170,6 @@ public partial class MapPage : ContentPage
         return html;
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────
-
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -221,8 +186,6 @@ public partial class MapPage : ContentPage
         base.OnDisappearing();
         StopJsMessagePolling();
     }
-
-    // ── Map ready handshake ───────────────────────────────────────────────
 
     private async Task WaitForMapReadyAsync()
     {
@@ -249,15 +212,13 @@ public partial class MapPage : ContentPage
                 if (clean.StartsWith("JS ERROR:") || clean.StartsWith("onMapLoad ERROR:"))
                     Trace.WriteLine($"[MapPage] {clean}");
             }
-            catch { /* WebView not ready yet */ }
+            catch { }
 
             await Task.Delay(300);
         }
 
         Trace.WriteLine("[MapPage] Map ready");
     }
-
-    // ── Static data ───────────────────────────────────────────────────────
 
     private async Task LoadStaticDataAsync()
     {
@@ -274,23 +235,51 @@ public partial class MapPage : ContentPage
             var stops = await stopsTask;
             if (stops.Success && stops.Data is not null)
             {
+                var mapped = stops.Data.Select(s => new
+                {
+                    stopId = s.GlobalId,
+                    name = s.Name,
+                    lat = s.Latitude,
+                    lon = s.Longitude,
+                    stationType = s.StationType ?? "Stop",
+                    routeType = _StationTypeToRouteType(s.StationType)
+                }).ToList();
+
                 await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderStops", stops.Data));
+                    await CallJsAsync("renderStops", mapped));
             }
 
             var routes = await routesTask;
             if (routes.Success && routes.Data is not null)
             {
+                var mapped = routes.Data.Select(r => new
+                {
+                    routeId = r.GlobalId,
+                    name = r.Name,
+                    routeType = r.RouteType
+                }).ToList();
+
                 await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderRoutes", routes.Data));
+                    await CallJsAsync("renderRoutes", mapped));
             }
 
             var stations = await stationsTask;
             if (stations.Success && stations.Data is not null)
             {
                 Trace.WriteLine($"[MapPage] Bike stations loaded: {stations.Data.Count}");
+                var mapped = stations.Data.Select(s => new
+                {
+                    stationId = s.StationId,
+                    name = s.Name,
+                    lon = s.Longitude,
+                    lat = s.Latitude,
+                    availableBikes = s.AvailableVehicles,
+                    capacity = s.Capacity,
+                    providerName = s.ProviderName
+                }).ToList();
+
                 await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await CallJsAsync("renderBikeStations", stations.Data));
+                    await CallJsAsync("renderBikeStations", mapped));
             }
         }
         catch (Exception ex)
@@ -299,7 +288,19 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // ── User location ─────────────────────────────────────────────────────
+    private static int _StationTypeToRouteType(string? stationType)
+    {
+        return stationType?.ToLowerInvariant() switch
+        {
+            "tram" => 0,
+            "metro" => 1,
+            "rail" or "train" => 2,
+            "bus" => 3,
+            "ferry" => 4,
+            "trolleybus" => 11,
+            _ => 3
+        };
+    }
 
     private async Task GetLocationAsync()
     {
@@ -335,8 +336,6 @@ public partial class MapPage : ContentPage
             Trace.WriteLine($"[MapPage] Location error: {ex.Message}");
         }
     }
-
-    // ── JS → C# message polling ───────────────────────────────────────────
 
     private void StartJsMessagePolling()
     {
@@ -384,21 +383,29 @@ public partial class MapPage : ContentPage
         }
     }
 
-    // ── Message handlers ──────────────────────────────────────────────────
-
-    private async Task HandleStopTappedAsync(string stopId)
+    private async Task HandleStopTappedAsync(string globalId)
     {
-        int? countryId = _countryPrefs.HasSelection ? _countryPrefs.GetSelectedCountryId() : null;
-        var schedule = await _operatorService.GetStopScheduleAsync(stopId, countryId);
+        var departuresTask = _operatorService.GetStationDeparturesAsync(globalId);
+        var operatorsTask = _operatorService.GetStationOperatorsAsync(globalId);
+
+        await Task.WhenAll(departuresTask, operatorsTask);
+
+        var departures = await departuresTask;
+        var operators = await operatorsTask;
+
+        var data = new
+        {
+            departures = departures.Success && departures.Data is not null
+                ? departures.Data
+                : new List<MapDepartureResponse>(),
+            operators = operators.Success && operators.Data is not null
+                ? operators.Data
+                : new List<MapOperatorResponse>()
+        };
 
         await MainThread.InvokeOnMainThreadAsync(async () =>
-            await CallJsAsync("renderStopSchedule",
-                schedule.Success && schedule.Data is not null
-                    ? schedule.Data
-                    : (object)new { stopId, groups = Array.Empty<object>() }));
+            await CallJsAsync("renderStopSchedule", data));
     }
-
-    // ── JS bridge ─────────────────────────────────────────────────────────
 
     private async Task CallJsAsync(string function, object data)
     {

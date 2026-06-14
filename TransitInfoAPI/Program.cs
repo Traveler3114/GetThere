@@ -27,7 +27,7 @@ builder.Services.AddHttpClient("otp", client =>
 
 builder.Services.AddScoped<FeedImportService>();
 builder.Services.AddScoped<ReconciliationService>();
-builder.Services.AddScoped<OtpManagerService>();
+builder.Services.AddSingleton<OtpManagerService>();
 builder.Services.AddScoped<MobilityService>();
 
 builder.Services.AddScoped<StationService>();
@@ -70,8 +70,7 @@ await app.StartAsync();
 // Generate OTP config on startup
 try
 {
-    using var configScope = app.Services.CreateScope();
-    var otpManager = configScope.ServiceProvider.GetRequiredService<OtpManagerService>();
+    var otpManager = app.Services.GetRequiredService<OtpManagerService>();
     await otpManager.GenerateConfigAsync();
     Console.WriteLine("OTP config generated on startup.");
 }
@@ -83,8 +82,15 @@ catch (Exception ex)
 if (ShouldAutoStartOtp(app.Configuration))
 {
     Console.WriteLine("Starting OTP in a separate terminal window...");
-    var started = TryStartOtpInSeparateTerminal(app.Configuration, app.Environment.ContentRootPath);
-    if (!started)
+    var otpManager = app.Services.GetRequiredService<OtpManagerService>();
+
+    var process = TryStartOtp(app.Configuration, app.Environment.ContentRootPath);
+    if (process is not null)
+    {
+        otpManager.SetProcess(process);
+        Console.WriteLine("OTP started with PID {0}.", process.Id);
+    }
+    else
     {
         Console.WriteLine("Failed to open a separate terminal for OTP. Start OTP manually.");
     }
@@ -105,7 +111,7 @@ static bool ShouldAutoStartOtp(IConfiguration configuration)
     return false;
 }
 
-static bool TryStartOtpInSeparateTerminal(IConfiguration configuration, string contentRootPath)
+static Process? TryStartOtp(IConfiguration configuration, string contentRootPath)
 {
     var javaExecutable = string.IsNullOrWhiteSpace(configuration["Otp:JavaExecutable"])
         ? "java" : configuration["Otp:JavaExecutable"]!;
@@ -120,42 +126,40 @@ static bool TryStartOtpInSeparateTerminal(IConfiguration configuration, string c
     try
     {
         return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? TryStartOtpWindows(javaExecutable, otpArguments, workingDirectory)
+            ? StartOtpWindows(javaExecutable, otpArguments, workingDirectory)
             : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-                ? TryStartOtpMac(javaExecutable, otpArguments, workingDirectory)
-                : TryStartOtpLinux(javaExecutable, otpArguments, workingDirectory);
+                ? StartOtpMac(javaExecutable, otpArguments, workingDirectory)
+                : StartOtpLinux(javaExecutable, otpArguments, workingDirectory);
     }
     catch (Exception ex)
     {
         Console.WriteLine($"OTP startup error: {ex.Message}");
-        return false;
+        return null;
     }
 }
 
-static bool TryStartOtpWindows(string javaExecutable, string otpArguments, string workingDirectory)
+static Process? StartOtpWindows(string javaExecutable, string otpArguments, string workingDirectory)
 {
-    var process = Process.Start(new ProcessStartInfo
+    return Process.Start(new ProcessStartInfo
     {
         FileName = "cmd.exe",
         Arguments = $"/c start \"OTP\" /D {QuoteForCmd(workingDirectory)} {QuoteForCmd(javaExecutable)} {otpArguments}",
         UseShellExecute = false,
         CreateNoWindow = true
     });
-    return process is not null;
 }
 
-static bool TryStartOtpMac(string javaExecutable, string otpArguments, string workingDirectory)
+static Process? StartOtpMac(string javaExecutable, string otpArguments, string workingDirectory)
 {
     var shellCommand = $"cd {QuoteForBash(workingDirectory)} && {QuoteForBash(javaExecutable)} {otpArguments}";
     var appleScript = $"tell application \"Terminal\" to do script \"{EscapeForAppleScript(shellCommand)}\"";
     var info = new ProcessStartInfo("osascript") { UseShellExecute = false };
     info.ArgumentList.Add("-e");
     info.ArgumentList.Add(appleScript);
-    var process = Process.Start(info);
-    return process is not null;
+    return Process.Start(info);
 }
 
-static bool TryStartOtpLinux(string javaExecutable, string otpArguments, string workingDirectory)
+static Process? StartOtpLinux(string javaExecutable, string otpArguments, string workingDirectory)
 {
     var shellCommand = $"cd {QuoteForBash(workingDirectory)} && {QuoteForBash(javaExecutable)} {otpArguments}; exec bash";
     var escapedShellCommand = QuoteForBash(shellCommand);
@@ -177,11 +181,11 @@ static bool TryStartOtpLinux(string javaExecutable, string otpArguments, string 
                 Arguments = candidate.Arguments,
                 UseShellExecute = false
             });
-            if (process is not null) return true;
+            if (process is not null) return process;
         }
         catch { }
     }
-    return false;
+    return null;
 }
 
 static string QuoteForCmd(string value) => $"\"{value.Replace("\"", "\"\"")}\"";

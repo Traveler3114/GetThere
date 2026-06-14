@@ -690,4 +690,34 @@ html, body, #map {
     .trip-stop::before {
         background: #334155;
     }
+    .operator-badge {
+        color: #94a3b8;
+    }
+    .operator-badge .ticket-icon {
+        color: #fbbf24;
+    }
+}
+
+/* ── Operator badges ─────────────────────────────────────────── */
+.stop-operators {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 16px 4px;
+}
+
+.operator-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: #e8f0fe;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1565c0;
+}
+
+.operator-badge .ticket-icon {
+    font-size: 11px;
 }

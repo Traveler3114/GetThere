@@ -90,7 +90,40 @@
         </div>
       </a>
     </div>
+    <div class="col-md-4 col-lg-3">
+      <a href="/admin/countries.html" class="text-decoration-none">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body text-center py-4">
+            <i class="bi bi-globe fs-1 text-info"></i>
+            <h5 class="card-title mt-2">Countries</h5>
+            <p class="card-text text-muted small">Manage countries</p>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm" onclick="restartOtp()" style="cursor:pointer">
+        <div class="card-body text-center py-4">
+          <i class="bi bi-arrow-repeat fs-1 text-danger"></i>
+          <h5 class="card-title mt-2">Restart OTP</h5>
+          <p class="card-text text-muted small">Rebuild graph after adding feeds</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+async function restartOtp() {
+  if (!confirm('Restart OTP? Graph rebuild takes ~5 minutes. Proceed?')) return;
+  try {
+    const r = await fetch('/otp/restart', { method: 'POST' });
+    const j = await r.json();
+    alert(j.message || 'OTP restart initiated.');
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+</script>
 </body>
 </html>

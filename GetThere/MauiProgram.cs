@@ -50,9 +50,6 @@ public static class MauiProgram
             client.BaseAddress = new Uri(apiBase))
             .AddHttpMessageHandler<AuthenticatedHttpHandler>();
 
-        builder.Services.AddHttpClient("MapData", client =>
-            client.BaseAddress = new Uri("https://localhost:5000/"));
-
         builder.Services.AddTransient(sp =>
         {
             var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
@@ -71,7 +68,11 @@ public static class MauiProgram
             return new CountryService(clientFactory.CreateClient("GetThereAPI"));
         });
 
-        builder.Services.AddTransient<OperatorService>();
+        builder.Services.AddTransient(sp =>
+        {
+            var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            return new OperatorService(clientFactory.CreateClient("GetThereAPI"));
+        });
 
         var assembly = Assembly.GetExecutingAssembly();
 
