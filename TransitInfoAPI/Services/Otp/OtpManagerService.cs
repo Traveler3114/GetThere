@@ -87,14 +87,28 @@ public class OtpManagerService
         var updaters = operators
             .SelectMany(o => o.Feeds
                 .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime)
-                .Select(f => new OtpRouterUpdaterConfig
+                .SelectMany(f =>
                 {
-                    type = "STOP_TIME_UPDATER",
-                    feedId = f.FeedId,
-                    url = f.InternalUrl ?? f.ExternalUrl ?? string.Empty,
-                    frequency = "PT30S"
+                    var url = f.InternalUrl ?? f.ExternalUrl ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(url)) return [];
+                    return new[]
+                    {
+                        new OtpRouterUpdaterConfig
+                        {
+                            type = "STOP_TIME_UPDATER",
+                            feedId = f.FeedId,
+                            url = url,
+                            frequency = "PT30S"
+                        },
+                        new OtpRouterUpdaterConfig
+                        {
+                            type = "VEHICLE_POSITIONS",
+                            feedId = f.FeedId,
+                            url = url,
+                            frequency = "PT30S"
+                        }
+                    };
                 }))
-            .Where(u => !string.IsNullOrWhiteSpace(u.url))
             .ToList();
 
         var routerConfig = new OtpRouterConfig { updaters = updaters };
