@@ -3,7 +3,7 @@
     {
       "type": "gtfs",
       "source": "https://www.zet.hr/gtfs-scheduled/latest",
-      "feedId": "feed-1781426982861"
+      "feedId": "zet"
     }
   ],
   "transitModelTimeZone": "Europe/Zagreb"

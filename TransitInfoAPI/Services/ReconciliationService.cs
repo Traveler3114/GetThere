@@ -102,6 +102,63 @@ public class ReconciliationService
         _logger.LogInformation("Reconciled {Count} raw stops for feed {FeedId}", rawStops.Count, feedId);
     }
 
+    public async Task ReconcileFeedRoutesAsync(int feedId, List<(string gtfsId, string shortName, string longName, string mode, string? color, string? textColor)> rawRoutes, CancellationToken ct = default)
+    {
+        var feed = await _db.Feeds.FindAsync(new object[] { feedId }, ct);
+        if (feed is null) return;
+
+        var prefix = $"{feed.FeedId}:";
+        var imported = 0;
+
+        foreach (var raw in rawRoutes)
+        {
+            if (!raw.gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var routeId = raw.gtfsId[prefix.Length..];
+            var globalId = $"gt-{feed.FeedId}-{routeId.ToLowerInvariant()}";
+
+            var exists = await _db.CanonicalRoutes
+                .AnyAsync(r => r.GlobalId == globalId && r.OperatorId == feed.OperatorId, ct);
+            if (exists) continue;
+
+            _db.CanonicalRoutes.Add(new CanonicalRoute
+            {
+                GlobalId = globalId,
+                ShortName = raw.shortName,
+                LongName = raw.longName,
+                RouteType = MapOtpModeToRouteType(raw.mode),
+                Color = raw.color,
+                TextColor = raw.textColor,
+                IsActive = true,
+                OperatorId = feed.OperatorId
+            });
+            imported++;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Imported {Count} routes for feed {FeedId}", imported, feedId);
+    }
+
+    private static RouteType MapOtpModeToRouteType(string mode)
+    {
+        return mode?.ToUpperInvariant() switch
+        {
+            "TRAM" => RouteType.Tram,
+            "BUS" => RouteType.Bus,
+            "TROLLEYBUS" => RouteType.Trolleybus,
+            "SUBWAY" => RouteType.Metro,
+            "RAIL" => RouteType.Rail,
+            "FERRY" => RouteType.Ferry,
+            "CABLE_CAR" => RouteType.CableCar,
+            "FUNICULAR" => RouteType.Funicular,
+            "COACH" => RouteType.Coach,
+            "AIRPLANE" => RouteType.Flight,
+            "BIKESHARE" => RouteType.BikeShare,
+            _ => RouteType.Bus
+        };
+    }
+
     public async Task<OperationResult> ApproveCandidateAsync(int id, CancellationToken ct = default)
     {
         var candidate = await _db.ReconciliationCandidates

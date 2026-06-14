@@ -2,13 +2,13 @@
   "updaters": [
     {
       "type": "STOP_TIME_UPDATER",
-      "feedId": "feed-1781427010031",
+      "feedId": "zet",
       "url": "https://www.zet.hr/gtfs-rt-protobuf",
       "frequency": "PT30S"
     },
     {
       "type": "VEHICLE_POSITIONS",
-      "feedId": "feed-1781427010031",
+      "feedId": "zet",
       "url": "https://www.zet.hr/gtfs-rt-protobuf",
       "frequency": "PT30S"
     }

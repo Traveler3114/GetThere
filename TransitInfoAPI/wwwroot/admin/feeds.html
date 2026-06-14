@@ -91,21 +91,27 @@ async function deleteFeed(id) {
   } catch(e) { showError('Error: ' + e.message); }
 }
 
+let _operators = [];
+
+function feedIdFromGlobalId(globalId) {
+  const parts = (globalId || '').split('-');
+  return parts.length >= 3 ? parts.slice(2).join('-') : '';
+}
+
 async function showAddModal() {
-  let operators = [];
   try {
     const r = await fetch(BASE + '/operators');
     const j = await r.json();
-    operators = j.data || [];
+    _operators = j.data || [];
   } catch(e) {}
 
-  const opOptions = operators.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.globalId)})</option>`).join('');
+  const opOptions = _operators.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.globalId)})</option>`).join('');
   const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Add Feed</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
       <div class="mb-3">
         <label class="form-label">Operator</label>
-        <select id="addOperatorId" class="form-select form-select-sm">${opOptions}</select>
+        <select id="addOperatorId" class="form-select form-select-sm" onchange="updateFeedIdFromOperator()">${opOptions}</select>
       </div>
       <div class="mb-3">
         <label class="form-label">Feed Type</label>
@@ -124,7 +130,7 @@ async function showAddModal() {
       </div>
       <div class="mb-3">
         <label class="form-label">Feed ID</label>
-        <input type="text" id="addFeedId" class="form-control form-control-sm" value="feed-${Date.now()}">
+        <input type="text" id="addFeedId" class="form-control form-control-sm">
       </div>
       <div class="mb-3">
         <label class="form-label">External URL</label>
@@ -145,7 +151,15 @@ async function showAddModal() {
   document.body.insertAdjacentHTML('beforeend', html);
   const modal = new bootstrap.Modal(document.getElementById('addModal'));
   modal.show();
+  updateFeedIdFromOperator();
   document.getElementById('addModal').addEventListener('hidden.bs.modal', () => document.getElementById('addModal').remove());
+}
+
+function updateFeedIdFromOperator() {
+  const sel = document.getElementById('addOperatorId');
+  const op = _operators.find(o => o.id === parseInt(sel?.value));
+  const feedIdInput = document.getElementById('addFeedId');
+  if (op && feedIdInput) feedIdInput.value = feedIdFromGlobalId(op.globalId);
 }
 
 async function addFeed() {

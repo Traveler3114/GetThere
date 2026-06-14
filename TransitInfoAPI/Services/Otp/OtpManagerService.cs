@@ -249,10 +249,14 @@ public class OtpManagerService
 
     private static Process? StartOtpWindows(string javaExecutable, string otpArguments, string workingDirectory)
     {
+        var logPath = Path.Combine(workingDirectory, "otp-console.log");
+        var batContent = $"@echo off\r\ncd /d {QuoteForCmd(workingDirectory)}\r\n{QuoteForCmd(javaExecutable)} {otpArguments} > {QuoteForCmd(logPath)} 2>&1\r\n";
+        var batPath = Path.Combine(Path.GetTempPath(), $"otp_run_{Guid.NewGuid():N}.bat");
+        File.WriteAllText(batPath, batContent);
         return Process.Start(new ProcessStartInfo
         {
             FileName = "cmd.exe",
-            Arguments = $"/c start \"OTP\" /D {QuoteForCmd(workingDirectory)} {QuoteForCmd(javaExecutable)} {otpArguments}",
+            Arguments = $"/c start \"OTP\" /D {QuoteForCmd(workingDirectory)} cmd.exe /c {QuoteForCmd(batPath)}",
             UseShellExecute = false,
             CreateNoWindow = true
         });

@@ -75,11 +75,11 @@ public class FeedsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult<OperationResult>> Deactivate(int id, CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult>> Delete(int id, CancellationToken ct = default)
     {
-        var success = await _feedService.DeactivateAsync(id, ct);
+        var success = await _feedService.DeleteAsync(id, ct);
         if (!success) return NotFound(OperationResult.Fail("Feed not found."));
-        return Ok(OperationResult.Ok("Feed deactivated."));
+        return Ok(OperationResult.Ok("Feed deleted."));
     }
 
     [HttpPost("{id}/import")]
@@ -121,45 +121,69 @@ public class FeedsController : ControllerBase
         var otpBaseUrl = _config["Otp:InstanceBaseUrl"] ?? "http://localhost:8080";
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
-        _logger.LogInformation("Querying OTP GraphQL for stops to reconcile feed {FeedId}", feed.FeedId);
+        _logger.LogInformation("Querying OTP GraphQL for stops and routes to reconcile feed {FeedId}", feed.FeedId);
 
         try
         {
-            var query = new { query = "{ stops { gtfsId name lat lon } }" };
+            var query = new { query = "{ stops { gtfsId name lat lon } routes { gtfsId shortName longName mode color textColor } }" };
             var response = await http.PostAsJsonAsync($"{otpBaseUrl}/otp/routers/default/index/graphql", query, ct);
             if (!response.IsSuccessStatusCode)
                 return StatusCode(502, OperationResult.Fail($"OTP returned status {response.StatusCode}. Is OTP running?"));
 
             using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             var stops = new List<(string stopId, string stopName, double lat, double lon)>();
+            var routes = new List<(string gtfsId, string shortName, string longName, string mode, string? color, string? textColor)>();
 
-            if (doc.RootElement.TryGetProperty("data", out var data) &&
-                data.TryGetProperty("stops", out var stopsArray))
+            if (doc.RootElement.TryGetProperty("data", out var data))
             {
                 var prefix = $"{feed.FeedId}:";
-                foreach (var s in stopsArray.EnumerateArray())
-                {
-                    var gtfsId = s.TryGetProperty("gtfsId", out var g) ? g.GetString() ?? "" : "";
-                    if (!gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                        continue;
 
-                    stops.Add((
-                        gtfsId,
-                        s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                        s.TryGetProperty("lat", out var lat) ? lat.GetDouble() : 0,
-                        s.TryGetProperty("lon", out var lon) ? lon.GetDouble() : 0
-                    ));
+                if (data.TryGetProperty("stops", out var stopsArray))
+                {
+                    foreach (var s in stopsArray.EnumerateArray())
+                    {
+                        var gtfsId = s.TryGetProperty("gtfsId", out var g) ? g.GetString() ?? "" : "";
+                        if (!gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        stops.Add((
+                            gtfsId,
+                            s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                            s.TryGetProperty("lat", out var lat) ? lat.GetDouble() : 0,
+                            s.TryGetProperty("lon", out var lon) ? lon.GetDouble() : 0
+                        ));
+                    }
+                }
+
+                if (data.TryGetProperty("routes", out var routesArray))
+                {
+                    foreach (var r in routesArray.EnumerateArray())
+                    {
+                        var gtfsId = r.TryGetProperty("gtfsId", out var g) ? g.GetString() ?? "" : "";
+                        if (!gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        routes.Add((
+                            gtfsId,
+                            r.TryGetProperty("shortName", out var sn) ? sn.GetString() ?? "" : "",
+                            r.TryGetProperty("longName", out var ln) ? ln.GetString() ?? "" : "",
+                            r.TryGetProperty("mode", out var m) ? m.GetString() ?? "" : "",
+                            r.TryGetProperty("color", out var c) ? c.GetString() : null,
+                            r.TryGetProperty("textColor", out var tc) ? tc.GetString() : null
+                        ));
+                    }
                 }
             }
 
-            _logger.LogInformation("Found {Count} stops for feed {FeedId} in OTP", stops.Count, feed.FeedId);
+            await _reconciliationService.ReconcileFeedRoutesAsync(id, routes, ct);
+            _logger.LogInformation("Found {StopCount} stops and {RouteCount} routes for feed {FeedId} in OTP", stops.Count, routes.Count, feed.FeedId);
 
             if (stops.Count == 0)
                 return Ok(OperationResult.Ok("No stops found for this feed in OTP. Has OTP finished building the graph?"));
 
             await _reconciliationService.ReconcileFeedStopsAsync(id, stops, ct);
 
-            return Ok(OperationResult.Ok($"Reconciled {stops.Count} stops for feed '{feed.FeedId}'."));
+            return Ok(OperationResult.Ok($"Reconciled {stops.Count} stops and {routes.Count} routes for feed '{feed.FeedId}'."));
         }
         catch (HttpRequestException ex)
         {

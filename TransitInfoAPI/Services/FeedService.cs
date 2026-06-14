@@ -79,12 +79,20 @@ public class FeedService
         return (true, null);
     }
 
-    public async Task<bool> DeactivateAsync(int id, CancellationToken ct)
+    public async Task<bool> DeleteAsync(int id, CancellationToken ct)
     {
-        var feed = await _db.Feeds.FindAsync(new object[] { id }, ct);
+        var feed = await _db.Feeds
+            .Include(f => f.Converters)
+            .FirstOrDefaultAsync(f => f.Id == id, ct);
         if (feed is null) return false;
 
-        feed.IsActive = false;
+        var candidates = await _db.ReconciliationCandidates
+            .Where(rc => rc.FeedId == id)
+            .ToListAsync(ct);
+        _db.ReconciliationCandidates.RemoveRange(candidates);
+
+        _db.FeedConverters.RemoveRange(feed.Converters);
+        _db.Feeds.Remove(feed);
         await _db.SaveChangesAsync(ct);
         return true;
     }
