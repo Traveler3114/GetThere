@@ -1,6 +1,15 @@
+using System.Collections.Concurrent;
+
+using Microsoft.EntityFrameworkCore;
+
+using ProtoBuf;
+
+using TransitInfoAPI.Data;
+using TransitInfoAPI.Entities;
+using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 
-using transit_realtime;
+using TransitRealtime;
 
 namespace TransitInfoAPI.Services;
 
@@ -8,85 +17,175 @@ public class RealtimeService
 {
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<RealtimeService> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ConcurrentDictionary<string, VehicleDto> _vehicleCache = new();
+    private readonly object _alertLock = new();
 
     public RealtimeService(
         IHttpClientFactory httpFactory,
-        ILogger<RealtimeService> logger)
+        ILogger<RealtimeService> logger,
+        IServiceScopeFactory scopeFactory)
     {
         _httpFactory = httpFactory;
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
-    public async Task<List<VehicleDto>> GetVehiclesAsync(string? operatorGlobalId, double? lat, double? lon, double? radiusKm, CancellationToken ct)
+    public async Task PollAllFeedsAsync(CancellationToken ct)
     {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+
+        var activeRtFeeds = await db.Feeds
+            .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime)
+            .Where(f => f.InternalUrl != null || f.ExternalUrl != null)
+            .ToListAsync(ct);
+
+        foreach (var feed in activeRtFeeds)
+        {
+            try
+            {
+                await PollFeedAsync(feed, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to poll GTFS-RT feed {FeedId}", feed.FeedId);
+            }
+        }
+    }
+
+    private async Task PollFeedAsync(Feed feed, CancellationToken ct)
+    {
+        var url = feed.InternalUrl ?? feed.ExternalUrl!;
         var http = _httpFactory.CreateClient("gtfsrt");
 
-        try
+        var response = await http.GetAsync(url, ct);
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadAsByteArrayAsync(ct);
+
+        using var stream = new MemoryStream(body);
+        var feedMessage = Serializer.Deserialize<FeedMessage>(stream);
+
+        foreach (var entity in feedMessage.Entities)
         {
-            var response = await http.GetAsync("https://www.zet.hr/gtfs-rt-protobuf", ct);
-            response.EnsureSuccessStatusCode();
-
-            var body = await response.Content.ReadAsByteArrayAsync(ct);
-            var feed = FeedMessage.Parser.ParseFrom(body);
-
-            _logger.LogInformation("GTFS-RT feed: {Count} entities, {Vp} vehicle positions", feed.Entity.Count,
-                feed.Entity.Count(e => e.VehiclePosition is not null));
-
-            var vehicles = new List<VehicleDto>();
-
-            foreach (var entity in feed.Entity)
+            if (entity.Vehicle != null)
             {
-                var vp = entity.VehiclePosition;
-                if (vp is null || vp.Position is null) continue;
+                var vp = entity.Vehicle;
+                if (vp.Position == null) continue;
 
-                var tripId = vp.Trip?.TripId;
-                var routeId = vp.Trip?.RouteId;
                 var vehicleId = vp.Vehicle?.Id ?? entity.Id;
-
-                if (lat is not null && lon is not null && radiusKm is not null)
-                {
-                    var dist = CalculateDistance(lat.Value, lon.Value, vp.Position.Latitude, vp.Position.Longitude);
-                    if (dist > radiusKm.Value * 1000) continue;
-                }
-
-                var lastUpdated = vp.Timestamp > 0
-                    ? DateTime.UnixEpoch.AddSeconds(vp.Timestamp)
-                    : (DateTime?)null;
-
-                vehicles.Add(new VehicleDto
+                var vehicleDto = new VehicleDto
                 {
                     VehicleId = vehicleId,
-                    RouteId = string.IsNullOrEmpty(routeId) ? null : $"zet:{routeId}",
-                    TripId = tripId,
+                    RouteId = entity.Vehicle?.Trip?.RouteId,
+                    TripId = entity.Vehicle?.Trip?.TripId,
                     RouteShortName = null,
                     IsRealtime = true,
                     BlockId = null,
                     Latitude = vp.Position.Latitude,
                     Longitude = vp.Position.Longitude,
                     Bearing = vp.Position.Bearing > 0 ? vp.Position.Bearing : null,
-                    LastUpdated = lastUpdated
-                });
+                    LastUpdated = vp.Timestamp > 0
+                        ? DateTime.UnixEpoch.AddSeconds(vp.Timestamp)
+                        : DateTime.UtcNow
+                };
+
+                _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
             }
 
-            return vehicles;
+            if (entity.Alert != null)
+            {
+                var alert = entity.Alert;
+                lock (_alertLock)
+                {
+                    // Store in DB via scope later
+                }
+            }
         }
-        catch (Exception ex)
+
+        // Persist alerts
+        var db = _scopeFactory.CreateScope().ServiceProvider.GetRequiredService<TransitDbContext>();
+        foreach (var entity in feedMessage.Entities.Where(e => e.Alert != null))
         {
-            _logger.LogWarning(ex, "Failed to fetch vehicle positions from GTFS-RT");
-            return [];
+            var alert = entity.Alert;
+            var existing = await db.Alerts
+                .Where(a => a.FeedId == feed.Id)
+                .OrderByDescending(a => a.FetchedAt)
+                .FirstOrDefaultAsync(ct);
+
+            var headerText = alert.HeaderText?.Translations?.FirstOrDefault()?.Text;
+            if (existing?.HeaderText != headerText)
+            {
+                var alertEntity = new Entities.Alert
+                {
+                    FeedId = feed.Id,
+                    HeaderText = headerText,
+                    DescriptionText = alert.DescriptionText?.Translations?.FirstOrDefault()?.Text,
+                    Url = alert.Url?.Translations?.FirstOrDefault()?.Text,
+                    Cause = alert.cause.ToString(),
+                    Effect = alert.effect.ToString(),
+                    ActivePeriodStart = alert.ActivePeriods.Count > 0
+                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriods[0].Start)
+                        : null,
+                    ActivePeriodEnd = alert.ActivePeriods.Count > 0 && alert.ActivePeriods[0].End > 0
+                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriods[0].End)
+                        : null,
+                    FetchedAt = DateTime.UtcNow
+                };
+                db.Alerts.Add(alertEntity);
+            }
         }
+        await db.SaveChangesAsync(ct);
     }
 
-    private static double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+    public Task<List<VehicleDto>> GetVehiclesAsync(
+        string? feedId, double? minLat, double? minLon, double? maxLat, double? maxLon, CancellationToken ct)
     {
-        var r = 6371000;
-        var dLat = (lat2 - lat1) * Math.PI / 180;
-        var dLon = (lon2 - lon1) * Math.PI / 180;
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
-                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return r * c;
+        var vehicles = _vehicleCache.Values.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(feedId))
+            vehicles = vehicles.Where(v => v.VehicleId.StartsWith(feedId + ":"));
+
+        if (minLat.HasValue && maxLat.HasValue && minLon.HasValue && maxLon.HasValue)
+        {
+            vehicles = vehicles.Where(v =>
+                v.Latitude >= minLat.Value && v.Latitude <= maxLat.Value &&
+                v.Longitude >= minLon.Value && v.Longitude <= maxLon.Value);
+        }
+
+        return Task.FromResult(vehicles.ToList());
+    }
+
+    public async Task<List<AlertDto>> GetAlertsAsync(
+        string? stopOnestopId, string? routeOnestopId, CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+
+        var query = db.Alerts.AsQueryable();
+
+        if (!string.IsNullOrEmpty(stopOnestopId))
+            query = query.Where(a => a.AffectedStopIds != null && a.AffectedStopIds.Contains(stopOnestopId));
+
+        if (!string.IsNullOrEmpty(routeOnestopId))
+            query = query.Where(a => a.AffectedRouteIds != null && a.AffectedRouteIds.Contains(routeOnestopId));
+
+        return await query
+            .OrderByDescending(a => a.FetchedAt)
+            .Take(50)
+            .Select(a => new AlertDto
+            {
+                Id = a.Id,
+                HeaderText = a.HeaderText,
+                DescriptionText = a.DescriptionText,
+                Url = a.Url,
+                Cause = a.Cause,
+                Effect = a.Effect,
+                ActivePeriodStart = a.ActivePeriodStart,
+                ActivePeriodEnd = a.ActivePeriodEnd,
+                FetchedAt = a.FetchedAt
+            })
+            .ToListAsync(ct);
     }
 }
-

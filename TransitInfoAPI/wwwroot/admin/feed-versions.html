@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Feed Versions - Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Feed Versions</h1>
+    <button class="btn btn-outline-primary btn-sm" onclick="loadVersions()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </div>
+
+  <div class="row mb-3 g-2">
+    <div class="col-auto">
+      <input type="text" id="feedFilter" class="form-control form-control-sm" placeholder="Filter by feed ID..." oninput="filterVersions()">
+    </div>
+    <div class="col-auto">
+      <select id="statusFilter" class="form-select form-select-sm" onchange="filterVersions()">
+        <option value="">All Statuses</option>
+        <option value="Success">Success</option>
+        <option value="Importing">Importing</option>
+        <option value="Failed">Failed</option>
+        <option value="Pending">Pending</option>
+        <option value="Skipped">Skipped</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
+  <div id="error" class="alert alert-danger d-none"></div>
+  <div id="content" class="d-none"></div>
+</div>
+
+<script>
+const BASE = '';
+let allVersions = [];
+
+function statusBadge(status) {
+  const map = { Success: 'badge-success', Importing: 'badge-importing', Failed: 'badge-failed', Pending: 'badge-pending', Skipped: 'badge-skipped' };
+  return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
+}
+
+async function loadVersions() {
+  document.getElementById('loading').classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  try {
+    const r = await fetch(BASE + '/feed-versions?perPage=200');
+    const j = await r.json();
+    allVersions = j.data || [];
+    filterVersions();
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('content').classList.remove('d-none');
+  } catch(e) {
+    document.getElementById('loading').classList.add('d-none');
+    showError('Failed to load versions: ' + e.message);
+  }
+}
+
+function filterVersions() {
+  const feedQ = document.getElementById('feedFilter').value.toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  let filtered = allVersions;
+  if (feedQ) filtered = filtered.filter(v => v.feedId.toString().includes(feedQ));
+  if (status) filtered = filtered.filter(v => v.importStatus === status);
+  renderVersions(filtered);
+}
+
+function renderVersions(list) {
+  if (!list.length) {
+    document.getElementById('content').innerHTML = '<div class="alert alert-info">No feed versions found.</div>';
+    return;
+  }
+  const rows = list.map(v => `<tr class="${v.isActive ? 'table-success' : ''}">
+    <td><strong>#${v.feedId}</strong></td>
+    <td><code class="small" title="${esc(v.sha1)}">${esc(v.sha1.substring(0, 12))}...</code></td>
+    <td>${statusBadge(v.importStatus)}</td>
+    <td>${v.isActive ? '<span class="badge bg-success">Active</span>' : ''}</td>
+    <td class="small">${v.fetchedAt ? new Date(v.fetchedAt).toLocaleString() : '-'}</td>
+    <td class="small">${v.importedAt ? new Date(v.importedAt).toLocaleString() : '-'}</td>
+    <td class="small text-muted">${v.serviceLevelStart || '-'} &ndash; ${v.serviceLevelEnd || '-'}</td>
+    <td class="small text-muted">${v.stopCount || 0} / ${v.routeCount || 0} / ${v.tripCount || 0}</td>
+    <td>${v.importError ? '<span class="text-danger small" title="'+esc(v.importError)+'">Error</span>' : '-'}</td>
+  </tr>`).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Feed</th><th>SHA1</th><th>Status</th><th>Active</th><th>Fetched</th><th>Imported</th><th>Service Period</th><th>S/R/T</th><th>Error</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} version(s)</small>`;
+}
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+loadVersions();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -15,7 +15,7 @@ public class OperatorService
         _db = db;
     }
 
-    public async Task<List<OperatorDto>> GetAllAsync(int? countryId, OperatorType? type, CancellationToken ct)
+    public async Task<List<OperatorDto>> GetAllAsync(int? countryId, OperatorType? type, int after = 0, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.Operators.Include(o => o.Country).AsQueryable();
 
@@ -23,16 +23,20 @@ public class OperatorService
             query = query.Where(o => o.CountryId == countryId.Value);
         if (type.HasValue)
             query = query.Where(o => o.OperatorType == type.Value);
+        if (after > 0)
+            query = query.Where(o => o.Id > after);
 
-        return await query.Select(o => new OperatorDto
+        return await query.OrderBy(o => o.Id).Take(perPage).Select(o => new OperatorDto
         {
             Id = o.Id,
             GlobalId = o.GlobalId,
+            OnestopId = o.OnestopId,
             Name = o.Name,
             ShortName = o.ShortName,
             Website = o.Website,
             OperatorType = o.OperatorType.ToString(),
             IsVerified = o.IsVerified,
+            IsVirtual = o.IsVirtual,
             CountryName = o.Country.Name
         }).ToListAsync(ct);
     }
@@ -46,11 +50,13 @@ public class OperatorService
             {
                 Id = o.Id,
                 GlobalId = o.GlobalId,
+                OnestopId = o.OnestopId,
                 Name = o.Name,
                 ShortName = o.ShortName,
                 Website = o.Website,
                 OperatorType = o.OperatorType.ToString(),
                 IsVerified = o.IsVerified,
+                IsVirtual = o.IsVirtual,
                 CountryName = o.Country.Name
             })
             .FirstOrDefaultAsync(ct);
@@ -106,12 +112,12 @@ public class OperatorService
             .Select(f => new FeedDto
             {
                 Id = f.Id,
+                OnestopId = f.OnestopId,
                 FeedType = f.FeedType.ToString(),
                 FeedId = f.FeedId,
                 ExternalUrl = f.ExternalUrl,
                 InternalUrl = f.InternalUrl,
                 IsActive = f.IsActive,
-                LastFetched = f.LastFetched,
                 RefreshIntervalSeconds = f.RefreshIntervalSeconds
             })
             .ToListAsync(ct);

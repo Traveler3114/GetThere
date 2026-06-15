@@ -14,13 +14,22 @@ public class TransitDbContext : DbContext
     public DbSet<City> Cities { get; set; }
     public DbSet<Operator> Operators { get; set; }
     public DbSet<Feed> Feeds { get; set; }
-    public DbSet<FeedConverter> FeedConverters { get; set; }
+    public DbSet<FeedVersion> FeedVersions { get; set; }
+    public DbSet<Agency> Agencies { get; set; }
     public DbSet<CanonicalStation> CanonicalStations { get; set; }
     public DbSet<CanonicalStationOperator> CanonicalStationOperators { get; set; }
     public DbSet<CanonicalRoute> CanonicalRoutes { get; set; }
+    public DbSet<RawStop> RawStops { get; set; }
     public DbSet<ReconciliationCandidate> ReconciliationCandidates { get; set; }
     public DbSet<MobilityProvider> MobilityProviders { get; set; }
     public DbSet<MobilityStation> MobilityStations { get; set; }
+    public DbSet<Alert> Alerts { get; set; }
+    public DbSet<Place> Places { get; set; }
+    public DbSet<Trip> Trips { get; set; }
+    public DbSet<StopTime> StopTimes { get; set; }
+    public DbSet<Calendar> Calendars { get; set; }
+    public DbSet<CalendarDate> CalendarDates { get; set; }
+    public DbSet<Shape> Shapes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,17 +67,43 @@ public class TransitDbContext : DbContext
             entity.Property(e => e.NameSimilarityScore).HasPrecision(5, 4);
         });
 
-        // GlobalId unique indexes
+        // OnestopId unique indexes
         modelBuilder.Entity<Operator>()
-            .HasIndex(o => o.GlobalId)
+            .HasIndex(o => o.OnestopId)
             .IsUnique();
 
         modelBuilder.Entity<CanonicalStation>()
-            .HasIndex(cs => cs.GlobalId)
+            .HasIndex(cs => cs.OnestopId)
             .IsUnique();
 
         modelBuilder.Entity<CanonicalRoute>()
-            .HasIndex(cr => cr.GlobalId)
+            .HasIndex(cr => cr.OnestopId)
             .IsUnique();
+
+        // FeedVersion
+        modelBuilder.Entity<FeedVersion>()
+            .HasIndex(fv => fv.Sha1);
+        modelBuilder.Entity<FeedVersion>()
+            .HasIndex(fv => new { fv.FeedId, fv.IsActive });
+
+        // RawStop
+        modelBuilder.Entity<RawStop>()
+            .HasIndex(rs => new { rs.FeedVersionId, rs.RawStopId });
+        modelBuilder.Entity<RawStop>()
+            .HasIndex(rs => rs.CanonicalStationId);
+
+        // ReconciliationCandidate
+        modelBuilder.Entity<ReconciliationCandidate>()
+            .HasIndex(rc => rc.RawStopId);
+
+        // Trip
+        modelBuilder.Entity<Trip>()
+            .HasIndex(t => new { t.FeedVersionId, t.TripId });
+
+        // StopTime
+        modelBuilder.Entity<StopTime>()
+            .HasIndex(st => st.TripId);
+        modelBuilder.Entity<StopTime>()
+            .HasIndex(st => st.CanonicalStationId);
     }
 }

@@ -1,6 +1,3 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +7,6 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 using TransitInfoAPI.Services;
-using TransitInfoAPI.Services.Otp;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -19,36 +15,30 @@ namespace TransitInfoAPI.Controllers;
 public class FeedsController : ControllerBase
 {
     private readonly FeedService _feedService;
-    private readonly FeedImportService _feedImportService;
-    private readonly ReconciliationService _reconciliationService;
-    private readonly OtpManagerService _otpManager;
     private readonly TransitDbContext _db;
-    private readonly IConfiguration _config;
     private readonly ILogger<FeedsController> _logger;
 
     public FeedsController(
         FeedService feedService,
-        FeedImportService feedImportService,
-        ReconciliationService reconciliationService,
-        OtpManagerService otpManager,
         TransitDbContext db,
-        IConfiguration config,
         ILogger<FeedsController> logger)
     {
         _feedService = feedService;
-        _feedImportService = feedImportService;
-        _reconciliationService = reconciliationService;
-        _otpManager = otpManager;
         _db = db;
-        _config = config;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<FeedDto>>>> GetAll(CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<FeedDto>>>> GetAll(
+        [FromQuery] int after = 0,
+        [FromQuery] int perPage = 50,
+        CancellationToken ct = default)
     {
-        var feeds = await _feedService.GetAllAsync(ct);
-        return Ok(OperationResult<List<FeedDto>>.Ok(feeds));
+        var feeds = await _feedService.GetAllAsync(after, perPage, ct);
+        var nextAfter = feeds.Count > 0 ? feeds.Last().Id : after;
+        var total = await _db.Feeds.CountAsync(ct);
+        var nextUrl = feeds.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
+        return Ok(OperationResult<List<FeedDto>>.OkPaginated(feeds, nextAfter, total, nextUrl));
     }
 
     [HttpPost]
@@ -82,112 +72,41 @@ public class FeedsController : ControllerBase
         return Ok(OperationResult.Ok("Feed deleted."));
     }
 
-    [HttpPost("{id}/import")]
-    public async Task<ActionResult<OperationResult>> Import(int id, CancellationToken ct = default)
+    [HttpPost("{id}/fetch")]
+    public async Task<ActionResult<OperationResult>> Fetch(int id, CancellationToken ct = default)
     {
-        var feed = await _db.Feeds.FindAsync(new object[] { id }, ct);
-        if (feed is null)
-            return NotFound(OperationResult.Fail("Feed not found."));
-
-        if (feed.FeedType != FeedType.GTFSStatic)
-            return BadRequest(OperationResult.Fail("Only GTFS Static feeds can be imported."));
-
-        _logger.LogInformation("Starting import for feed {FeedId} ({Id})", feed.FeedId, id);
-
         try
         {
-            await _feedImportService.ImportGtfsStaticAsync(id, ct);
-            await _otpManager.GenerateConfigAsync(ct);
-            _logger.LogInformation("Import complete for feed {FeedId}", feed.FeedId);
-            return Ok(OperationResult.Ok("Import complete. OTP config regenerated."));
+            var version = await _feedService.TriggerImportAsync(id, ct);
+            return Ok(OperationResult.Ok($"Import triggered. FeedVersion #{version.Id}, status: {version.ImportStatus}"));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Import failed for feed {FeedId}", feed.FeedId);
+            _logger.LogError(ex, "Fetch/import failed for feed {Id}", id);
             return StatusCode(500, OperationResult.Fail($"Import failed: {ex.Message}"));
         }
     }
 
-    [HttpPost("{id}/reconcile")]
-    public async Task<ActionResult<OperationResult>> Reconcile(int id, CancellationToken ct = default)
+    [HttpGet("{id}/versions")]
+    public async Task<ActionResult<OperationResult<List<FeedVersionDto>>>> GetVersions(int id, CancellationToken ct = default)
     {
-        var feed = await _db.Feeds.FindAsync(new object[] { id }, ct);
-        if (feed is null)
-            return NotFound(OperationResult.Fail("Feed not found."));
-
-        if (feed.LastSuccessful is null)
-            return BadRequest(OperationResult.Fail("Feed has not been imported yet. Import first."));
-
-        var otpBaseUrl = _config["Otp:InstanceBaseUrl"] ?? "http://localhost:8080";
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-
-        _logger.LogInformation("Querying OTP GraphQL for stops and routes to reconcile feed {FeedId}", feed.FeedId);
-
-        try
+        var versions = await _feedService.GetFeedVersionsAsync(id, ct);
+        var dtos = versions.Select(v => new FeedVersionDto
         {
-            var query = new { query = "{ stops { gtfsId name lat lon } routes { gtfsId shortName longName mode color textColor } }" };
-            var response = await http.PostAsJsonAsync($"{otpBaseUrl}/otp/routers/default/index/graphql", query, ct);
-            if (!response.IsSuccessStatusCode)
-                return StatusCode(502, OperationResult.Fail($"OTP returned status {response.StatusCode}. Is OTP running?"));
-
-            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            var stops = new List<(string stopId, string stopName, double lat, double lon)>();
-            var routes = new List<(string gtfsId, string shortName, string longName, string mode, string? color, string? textColor)>();
-
-            if (doc.RootElement.TryGetProperty("data", out var data))
-            {
-                var prefix = $"{feed.FeedId}:";
-
-                if (data.TryGetProperty("stops", out var stopsArray))
-                {
-                    foreach (var s in stopsArray.EnumerateArray())
-                    {
-                        var gtfsId = s.TryGetProperty("gtfsId", out var g) ? g.GetString() ?? "" : "";
-                        if (!gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        stops.Add((
-                            gtfsId,
-                            s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                            s.TryGetProperty("lat", out var lat) ? lat.GetDouble() : 0,
-                            s.TryGetProperty("lon", out var lon) ? lon.GetDouble() : 0
-                        ));
-                    }
-                }
-
-                if (data.TryGetProperty("routes", out var routesArray))
-                {
-                    foreach (var r in routesArray.EnumerateArray())
-                    {
-                        var gtfsId = r.TryGetProperty("gtfsId", out var g) ? g.GetString() ?? "" : "";
-                        if (!gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        routes.Add((
-                            gtfsId,
-                            r.TryGetProperty("shortName", out var sn) ? sn.GetString() ?? "" : "",
-                            r.TryGetProperty("longName", out var ln) ? ln.GetString() ?? "" : "",
-                            r.TryGetProperty("mode", out var m) ? m.GetString() ?? "" : "",
-                            r.TryGetProperty("color", out var c) ? c.GetString() : null,
-                            r.TryGetProperty("textColor", out var tc) ? tc.GetString() : null
-                        ));
-                    }
-                }
-            }
-
-            await _reconciliationService.ReconcileFeedRoutesAsync(id, routes, ct);
-            _logger.LogInformation("Found {StopCount} stops and {RouteCount} routes for feed {FeedId} in OTP", stops.Count, routes.Count, feed.FeedId);
-
-            if (stops.Count == 0)
-                return Ok(OperationResult.Ok("No stops found for this feed in OTP. Has OTP finished building the graph?"));
-
-            await _reconciliationService.ReconcileFeedStopsAsync(id, stops, ct);
-
-            return Ok(OperationResult.Ok($"Reconciled {stops.Count} stops and {routes.Count} routes for feed '{feed.FeedId}'."));
-        }
-        catch (HttpRequestException ex)
-        {
-            return StatusCode(502, OperationResult.Fail($"Cannot reach OTP: {ex.Message}"));
-        }
+            Id = v.Id,
+            FeedId = v.FeedId,
+            Sha1 = v.Sha1,
+            FetchedAt = v.FetchedAt,
+            ImportedAt = v.ImportedAt,
+            IsActive = v.IsActive,
+            ImportStatus = v.ImportStatus.ToString(),
+            ImportError = v.ImportError,
+            ServiceLevelStart = v.ServiceLevelStart,
+            ServiceLevelEnd = v.ServiceLevelEnd,
+            StopCount = v.StopCount,
+            RouteCount = v.RouteCount,
+            TripCount = v.TripCount
+        }).ToList();
+        return Ok(OperationResult<List<FeedVersionDto>>.Ok(dtos));
     }
 }

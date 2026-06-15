@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Transit Map</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+#map { height: 100%; width: 100%; }
+#sidebar {
+  position: fixed; top: 0; right: -400px; width: 400px; height: 100%;
+  background: #fff; box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+  transition: right 0.3s ease; z-index: 1000; overflow-y: auto; padding: 20px;
+}
+#sidebar.open { right: 0; }
+#sidebar h2 { margin-bottom: 8px; font-size: 1.25rem; }
+#sidebar .close-btn {
+  float: right; cursor: pointer; font-size: 1.5rem; border: none;
+  background: none; color: #666; line-height: 1;
+}
+#sidebar .close-btn:hover { color: #000; }
+#sidebar .info-row { margin: 6px 0; font-size: 0.9rem; }
+#sidebar .info-row strong { display: inline-block; width: 100px; color: #555; }
+#sidebar .departures { margin-top: 12px; }
+#sidebar .departures h3 { font-size: 1rem; margin-bottom: 6px; }
+#sidebar .departure-item {
+  padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 0.85rem;
+}
+.route-type-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  color: #fff; font-size: 0.75rem; font-weight: 600;
+}
+.loading { color: #999; font-style: italic; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="sidebar">
+  <button class="close-btn" onclick="closeSidebar()">&times;</button>
+  <div id="sidebar-content"><p class="loading">Click a stop to view details</p></div>
+</div>
+
+<script>
+const ROUTE_COLORS = {
+  TRAM: '#33a02c', METRO: '#e31a1c', RAIL: '#b15928', BUS: '#1f78b4',
+  FERRY: '#33a02c', CABLE_CAR: '#ff7f00', GONDOLA: '#6a3d9a', FUNICULAR: '#b15928',
+  LIGHT_RAIL: '#ff7f00', STREETCAR: '#ff7f00', SUBWAY: '#e31a1c',
+  default: '#888'
+};
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.openfreemap.org/styles/liberty',
+  center: [16.0, 45.8],
+  zoom: 7
+});
+
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+let debounceTimer = null;
+let sidebarOpen = false;
+let stationsSource = 'stations';
+let routesSource = 'routes';
+let vehiclesSource = 'vehicles';
+
+function getRouteColor(type) {
+  return ROUTE_COLORS[type] || ROUTE_COLORS.default;
+}
+
+function loadMapData() {
+  const bounds = map.getBounds();
+  const center = map.getCenter();
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  const dlat = (ne.lat - sw.lat) / 2;
+  const dlon = (ne.lng - sw.lng) / 2;
+  const radiusKm = Math.max(
+    dlat * 111, dlon * 111 * Math.cos(center.lat * Math.PI / 180)
+  ) * 1.5;
+
+  const stationUrl = `/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}&after=0&perPage=500`;
+  const routeUrl = `/routes?format=geojson&after=0&perPage=500`;
+
+  fetch(stationUrl).then(r => r.json()).then(data => {
+    const src = map.getSource(stationsSource);
+    if (src) { src.setData(data); }
+  }).catch(() => {});
+
+  fetch(routeUrl).then(r => r.json()).then(data => {
+    const src = map.getSource(routesSource);
+    if (src) { src.setData(data); }
+  }).catch(() => {});
+}
+
+function loadVehicles() {
+  fetch('/realtime/vehicles').then(r => r.json()).then(resp => {
+    const vehicles = resp.data || [];
+    const fc = {
+      type: 'FeatureCollection',
+      features: vehicles.map(v => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
+        properties: {
+          vehicleId: v.vehicleId, routeId: v.routeId, tripId: v.tripId,
+          bearing: v.bearing, lastUpdated: v.lastUpdated
+        }
+      }))
+    };
+    const src = map.getSource(vehiclesSource);
+    if (src) { src.setData(fc); }
+  }).catch(() => {});
+}
+
+map.on('load', () => {
+  map.addSource(stationsSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource(routesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource(vehiclesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+
+  map.addLayer({
+    id: 'routes-line',
+    type: 'line',
+    source: routesSource,
+    paint: { 'line-color': '#888', 'line-width': 2, 'line-opacity': 0.6 }
+  });
+
+  map.addLayer({
+    id: 'stations-circle',
+    type: 'circle',
+    source: stationsSource,
+    paint: {
+      'circle-radius': 6,
+      'circle-color': [
+        'match', ['get', 'routeType'],
+        'TRAM', '#33a02c', 'LIGHT_RAIL', '#ff7f00', 'STREETCAR', '#ff7f00',
+        'METRO', '#e31a1c', 'SUBWAY', '#e31a1c', 'RAIL', '#b15928',
+        'BUS', '#1f78b4', 'FERRY', '#33a02c', 'CABLE_CAR', '#ff7f00',
+        'GONDOLA', '#6a3d9a', 'FUNICULAR', '#b15928',
+        '#888'
+      ],
+      'circle-stroke-width': 1,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.85
+    }
+  });
+
+  map.addLayer({
+    id: 'stations-label',
+    type: 'symbol',
+    source: stationsSource,
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': ['Open Sans Regular'],
+      'text-size': 11,
+      'text-offset': [0, 1.5],
+      'text-anchor': 'top'
+    },
+    paint: { 'text-halo-color': '#fff', 'text-halo-width': 1 }
+  });
+
+  map.addLayer({
+    id: 'vehicles-circle',
+    type: 'circle',
+    source: vehiclesSource,
+    paint: {
+      'circle-radius': 5,
+      'circle-color': '#e74c3c',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.9
+    }
+  });
+
+  loadMapData();
+  loadVehicles();
+  setInterval(loadVehicles, 30000);
+});
+
+map.on('moveend', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(loadMapData, 500);
+});
+
+map.on('click', 'stations-circle', (e) => {
+  const props = e.features[0].properties;
+  const id = props.id;
+  showStationDetails(id, props);
+});
+
+map.on('mouseenter', 'stations-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'stations-circle', () => { map.getCanvas().style.cursor = ''; });
+
+function showStationDetails(id, props) {
+  const content = document.getElementById('sidebar-content');
+  const type = props.stationType || 'unknown';
+  const color = getRouteColor(props.routeType);
+
+  let html = `
+    <h2>${props.name || 'Unknown'}</h2>
+    <div class="info-row"><strong>Type</strong> ${type}</div>
+    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${props.routeType || '-'}</span></div>
+    <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>
+    <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
+  `;
+
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+  content.innerHTML = html;
+
+  fetch(`/stations/${id}/departures?count=5`).then(r => r.json()).then(resp => {
+    const deps = resp.data || [];
+    if (deps.length === 0) {
+      document.querySelector('.departures .loading').textContent = 'No upcoming departures';
+      return;
+    }
+    let depHtml = '<h3>Next departures</h3>';
+    deps.forEach(d => {
+      const time = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+      const delay = d.delaySeconds ? ` (${Math.round(d.delaySeconds / 60)} min delay)` : '';
+      depHtml += `<div class="departure-item"><strong>${time}</strong> ${d.headsign || ''} — ${d.routeName || ''}${delay}</div>`;
+    });
+    document.querySelector('.departures').innerHTML = depHtml;
+  }).catch(() => {
+    document.querySelector('.departures .loading').textContent = 'Failed to load departures';
+  });
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  sidebarOpen = false;
+}
+</script>
+</body>
+</html>

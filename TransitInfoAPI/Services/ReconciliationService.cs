@@ -11,157 +11,180 @@ public class ReconciliationService
 {
     private readonly TransitDbContext _db;
     private readonly ILogger<ReconciliationService> _logger;
+    private readonly OnestopIdService _onestopId;
+    private readonly IConfiguration _config;
 
-    public ReconciliationService(TransitDbContext db, ILogger<ReconciliationService> logger)
+    public ReconciliationService(
+        TransitDbContext db,
+        ILogger<ReconciliationService> logger,
+        OnestopIdService onestopId,
+        IConfiguration config)
     {
         _db = db;
         _logger = logger;
+        _onestopId = onestopId;
+        _config = config;
     }
 
-    public async Task ReconcileFeedStopsAsync(int feedId, List<(string stopId, string stopName, double lat, double lon)> rawStops, CancellationToken ct = default)
+    public async Task ReconcileFeedVersionAsync(int feedVersionId, CancellationToken ct)
     {
-        var feed = await _db.Feeds
-            .Include(f => f.Operator)
-            .FirstOrDefaultAsync(f => f.Id == feedId, ct);
-        if (feed is null) return;
+        var rawStops = await _db.RawStops
+            .Where(rs => rs.FeedVersionId == feedVersionId && rs.IsActive)
+            .ToListAsync(ct);
+
+        if (rawStops.Count == 0) return;
+
+        var feedVersion = await _db.FeedVersions
+            .Include(fv => fv.Feed)
+            .FirstAsync(fv => fv.Id == feedVersionId, ct);
 
         var existingStations = await _db.CanonicalStations
             .Where(cs => cs.IsActive)
             .ToListAsync(ct);
 
-        foreach (var raw in rawStops)
-        {
-            var bestMatch = FindBestMatch(raw, existingStations);
+        var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
+        var autoDistThreshold = _config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100);
+        var manualNameThreshold = _config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70);
+        var manualDistThreshold = _config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300);
+        var feedOperatorId = feedVersion.Feed.OperatorId;
 
-            if (bestMatch is null)
+        foreach (var rawStop in rawStops)
+        {
+            var match = FindBestMatch(
+                rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType,
+                existingStations, autoDistThreshold * 2);
+
+            if (match is not null &&
+                match.Value.NameScore >= autoNameThreshold &&
+                match.Value.Distance <= autoDistThreshold &&
+                match.Value.RouteTypeMatch)
             {
-                var newStation = new CanonicalStation
-                {
-                    GlobalId = $"gt-{feed.FeedId}-{raw.stopId.ToLowerInvariant()}",
-                    Name = raw.stopName,
-                    Latitude = raw.lat,
-                    Longitude = raw.lon,
-                    StationType = StationType.Stop,
-                    IsActive = true,
-                    CountryId = feed.Operator.CountryId,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _db.CanonicalStations.Add(newStation);
-                await _db.SaveChangesAsync(ct);
+                rawStop.CanonicalStationId = match.Value.Station.Id;
+                rawStop.ReconciliationStatus = ReconciliationStatus.AutoMerged;
 
                 _db.ReconciliationCandidates.Add(new ReconciliationCandidate
                 {
-                    RawStopId = raw.stopId,
-                    RawStopName = raw.stopName,
-                    RawStopLat = raw.lat,
-                    RawStopLon = raw.lon,
-                    FeedId = feedId,
-                    SuggestedCanonicalStationId = newStation.Id,
-                    ConfidenceScore = 1.0m,
-                    NameSimilarityScore = 1.0m,
-                    DistanceMeters = 0,
-                    Status = ReconciliationStatus.NewStation,
+                    RawStopId = rawStop.Id,
+                    RawStopName = rawStop.Name,
+                    RawStopLat = rawStop.Lat,
+                    RawStopLon = rawStop.Lon,
+                    RawRouteType = rawStop.RouteType,
+                    CanonicalRouteType = match.Value.Station.PrimaryRouteType,
+                    FeedId = feedVersion.FeedId,
+                    SuggestedCanonicalStationId = match.Value.Station.Id,
+                    ConfidenceScore = (decimal)match.Value.NameScore,
+                    NameSimilarityScore = (decimal)match.Value.NameScore,
+                    DistanceMeters = (decimal)match.Value.Distance,
+                    NameMatched = true,
+                    DistanceMatched = true,
+                    RouteTypeMatched = true,
+                    AutoReconciled = true,
+                    Status = ReconciliationStatus.AutoMerged,
                     CreatedAt = DateTime.UtcNow
                 });
+
+                await LinkOperatorToStationAsync(match.Value.Station.Id, feedOperatorId, ct);
             }
-            else if (bestMatch.Value.Confidence >= 0.85m)
+            else if (match is not null &&
+                     match.Value.NameScore >= manualNameThreshold &&
+                     match.Value.Distance <= manualDistThreshold &&
+                     match.Value.RouteTypeMatch)
             {
                 _db.ReconciliationCandidates.Add(new ReconciliationCandidate
                 {
-                    RawStopId = raw.stopId,
-                    RawStopName = raw.stopName,
-                    RawStopLat = raw.lat,
-                    RawStopLon = raw.lon,
-                    FeedId = feedId,
-                    SuggestedCanonicalStationId = bestMatch.Value.Station.Id,
-                    ConfidenceScore = bestMatch.Value.Confidence,
-                    NameSimilarityScore = bestMatch.Value.NameScore,
-                    DistanceMeters = bestMatch.Value.Distance,
-                    Status = ReconciliationStatus.AutoMerged,
+                    RawStopId = rawStop.Id,
+                    RawStopName = rawStop.Name,
+                    RawStopLat = rawStop.Lat,
+                    RawStopLon = rawStop.Lon,
+                    RawRouteType = rawStop.RouteType,
+                    CanonicalRouteType = match.Value.Station.PrimaryRouteType,
+                    FeedId = feedVersion.FeedId,
+                    SuggestedCanonicalStationId = match.Value.Station.Id,
+                    ConfidenceScore = (decimal)match.Value.NameScore,
+                    NameSimilarityScore = (decimal)match.Value.NameScore,
+                    DistanceMeters = (decimal)match.Value.Distance,
+                    NameMatched = true,
+                    DistanceMatched = true,
+                    RouteTypeMatched = true,
+                    AutoReconciled = false,
+                    Status = ReconciliationStatus.Pending,
                     CreatedAt = DateTime.UtcNow
                 });
             }
             else
             {
+                var newStation = await CreateCanonicalStationAsync(rawStop, ct);
+                rawStop.CanonicalStationId = newStation.Id;
+                rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
+
                 _db.ReconciliationCandidates.Add(new ReconciliationCandidate
                 {
-                    RawStopId = raw.stopId,
-                    RawStopName = raw.stopName,
-                    RawStopLat = raw.lat,
-                    RawStopLon = raw.lon,
-                    FeedId = feedId,
-                    SuggestedCanonicalStationId = bestMatch.Value.Station.Id,
-                    ConfidenceScore = bestMatch.Value.Confidence,
-                    NameSimilarityScore = bestMatch.Value.NameScore,
-                    DistanceMeters = bestMatch.Value.Distance,
-                    Status = ReconciliationStatus.Pending,
+                    RawStopId = rawStop.Id,
+                    RawStopName = rawStop.Name,
+                    RawStopLat = rawStop.Lat,
+                    RawStopLon = rawStop.Lon,
+                    RawRouteType = rawStop.RouteType,
+                    FeedId = feedVersion.FeedId,
+                    SuggestedCanonicalStationId = newStation.Id,
+                    ConfidenceScore = 1.0m,
+                    NameSimilarityScore = 1.0m,
+                    DistanceMeters = 0,
+                    NameMatched = false,
+                    DistanceMatched = false,
+                    RouteTypeMatched = true,
+                    AutoReconciled = true,
+                    Status = ReconciliationStatus.NewStation,
                     CreatedAt = DateTime.UtcNow
                 });
+
+                await LinkOperatorToStationAsync(newStation.Id, feedOperatorId, ct);
             }
         }
 
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Reconciled {Count} raw stops for feed {FeedId}", rawStops.Count, feedId);
+        _logger.LogInformation("Reconciled {Count} raw stops for FeedVersion {FeedVersionId}", rawStops.Count, feedVersionId);
     }
 
-    public async Task ReconcileFeedRoutesAsync(int feedId, List<(string gtfsId, string shortName, string longName, string mode, string? color, string? textColor)> rawRoutes, CancellationToken ct = default)
+    public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, CancellationToken ct)
     {
-        var feed = await _db.Feeds.FindAsync(new object[] { feedId }, ct);
-        if (feed is null) return;
+        var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
 
-        var prefix = $"{feed.FeedId}:";
-        var imported = 0;
-
-        foreach (var raw in rawRoutes)
+        var station = new CanonicalStation
         {
-            if (!raw.gtfsId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var routeId = raw.gtfsId[prefix.Length..];
-            var globalId = $"gt-{feed.FeedId}-{routeId.ToLowerInvariant()}";
-
-            var exists = await _db.CanonicalRoutes
-                .AnyAsync(r => r.GlobalId == globalId && r.OperatorId == feed.OperatorId, ct);
-            if (exists) continue;
-
-            _db.CanonicalRoutes.Add(new CanonicalRoute
-            {
-                GlobalId = globalId,
-                ShortName = raw.shortName,
-                LongName = raw.longName,
-                RouteType = MapOtpModeToRouteType(raw.mode),
-                Color = raw.color,
-                TextColor = raw.textColor,
-                IsActive = true,
-                OperatorId = feed.OperatorId
-            });
-            imported++;
-        }
-
-        await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Imported {Count} routes for feed {FeedId}", imported, feedId);
-    }
-
-    private static RouteType MapOtpModeToRouteType(string mode)
-    {
-        return mode?.ToUpperInvariant() switch
-        {
-            "TRAM" => RouteType.Tram,
-            "BUS" => RouteType.Bus,
-            "TROLLEYBUS" => RouteType.Trolleybus,
-            "SUBWAY" => RouteType.Metro,
-            "RAIL" => RouteType.Rail,
-            "FERRY" => RouteType.Ferry,
-            "CABLE_CAR" => RouteType.CableCar,
-            "FUNICULAR" => RouteType.Funicular,
-            "COACH" => RouteType.Coach,
-            "AIRPLANE" => RouteType.Flight,
-            "BIKESHARE" => RouteType.BikeShare,
-            _ => RouteType.Bus
+            GlobalId = $"gt-raw-{rawStop.Id}",
+            OnestopId = onestopId,
+            Name = rawStop.Name,
+            Latitude = rawStop.Lat,
+            Longitude = rawStop.Lon,
+            StationType = rawStop.StationType,
+            PrimaryRouteType = rawStop.RouteType,
+            IsActive = true,
+            CountryId = 1,
+            CreatedAt = DateTime.UtcNow
         };
+
+        _db.CanonicalStations.Add(station);
+        await _db.SaveChangesAsync(ct);
+        return station;
     }
 
-    public async Task<OperationResult> ApproveCandidateAsync(int id, CancellationToken ct = default)
+    public async Task LinkOperatorToStationAsync(int canonicalStationId, int operatorId, CancellationToken ct)
+    {
+        var exists = await _db.CanonicalStationOperators
+            .AnyAsync(cso => cso.CanonicalStationId == canonicalStationId && cso.OperatorId == operatorId, ct);
+
+        if (!exists)
+        {
+            _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+            {
+                CanonicalStationId = canonicalStationId,
+                OperatorId = operatorId
+            });
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    public async Task<OperationResult> ApproveCandidateAsync(int id, CancellationToken ct)
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
@@ -174,19 +197,14 @@ public class ReconciliationService
 
         if (candidate.SuggestedCanonicalStationId.HasValue)
         {
-            var existing = await _db.CanonicalStationOperators
-                .FirstOrDefaultAsync(cso =>
-                    cso.CanonicalStationId == candidate.SuggestedCanonicalStationId.Value &&
-                    cso.OperatorId == candidate.Feed.OperatorId, ct);
-
-            if (existing is null)
+            var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
+            if (rawStop is not null)
             {
-                _db.CanonicalStationOperators.Add(new CanonicalStationOperator
-                {
-                    CanonicalStationId = candidate.SuggestedCanonicalStationId.Value,
-                    OperatorId = candidate.Feed.OperatorId
-                });
+                rawStop.CanonicalStationId = candidate.SuggestedCanonicalStationId;
+                rawStop.ReconciliationStatus = ReconciliationStatus.ManuallyApproved;
             }
+
+            await LinkOperatorToStationAsync(candidate.SuggestedCanonicalStationId.Value, candidate.Feed.OperatorId, ct);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -197,45 +215,35 @@ public class ReconciliationService
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
-                .ThenInclude(f => f.Operator)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
         if (candidate is null)
             return OperationResult.Fail("Candidate not found.");
 
         if (createNewStation)
         {
-            var newStation = new CanonicalStation
+            var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
+            if (rawStop is not null)
             {
-                GlobalId = $"gt-{candidate.Feed.FeedId}-{candidate.RawStopId.ToLowerInvariant()}",
-                Name = candidate.RawStopName,
-                Latitude = candidate.RawStopLat,
-                Longitude = candidate.RawStopLon,
-                StationType = StationType.Stop,
-                IsActive = true,
-                CountryId = candidate.Feed.Operator.CountryId,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.CanonicalStations.Add(newStation);
-            await _db.SaveChangesAsync(ct);
-
-            candidate.SuggestedCanonicalStationId = newStation.Id;
+                var newStation = await CreateCanonicalStationAsync(rawStop, ct);
+                candidate.SuggestedCanonicalStationId = newStation.Id;
+                rawStop.CanonicalStationId = newStation.Id;
+                rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
+            }
         }
 
         candidate.Status = ReconciliationStatus.Rejected;
         candidate.ReviewedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-
         return OperationResult.Ok("Rejected.");
     }
 
-    public async Task<OperationResult> ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct = default)
+    public async Task<OperationResult> ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct)
     {
-        var candidate = await _db.ReconciliationCandidates.FindAsync(new object[] { id }, ct);
+        var candidate = await _db.ReconciliationCandidates.FindAsync([id], ct);
         if (candidate is null)
             return OperationResult.Fail("Candidate not found.");
 
-        var station = await _db.CanonicalStations.FindAsync(new object[] { canonicalStationId }, ct);
+        var station = await _db.CanonicalStations.FindAsync([canonicalStationId], ct);
         if (station is null)
             return OperationResult.Fail("Station not found.");
 
@@ -243,31 +251,42 @@ public class ReconciliationService
         candidate.Status = ReconciliationStatus.ManuallyApproved;
         candidate.ReviewedAt = DateTime.UtcNow;
 
+        var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
+        if (rawStop is not null)
+        {
+            rawStop.CanonicalStationId = canonicalStationId;
+            rawStop.ReconciliationStatus = ReconciliationStatus.ManuallyApproved;
+        }
+
         await _db.SaveChangesAsync(ct);
         return OperationResult.Ok("Reassigned.");
     }
 
-    private (CanonicalStation Station, decimal Confidence, decimal NameScore, decimal Distance)? FindBestMatch(
-        (string stopId, string stopName, double lat, double lon) raw,
-        List<CanonicalStation> stations)
+    private (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? FindBestMatch(
+        string rawName, double rawLat, double rawLon, RouteType rawRouteType,
+        List<CanonicalStation> stations, double searchRadiusMeters)
     {
-        (CanonicalStation Station, decimal Confidence, decimal NameScore, decimal Distance)? best = null;
+        (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? best = null;
+        var searchRadiusDeg = searchRadiusMeters / 111_000.0;
 
-        foreach (var station in stations)
+        foreach (var station in stations.Where(s => s.PrimaryRouteType == rawRouteType))
         {
-            var dist = (decimal)CalculateDistance(raw.lat, raw.lon, station.Latitude, station.Longitude);
-            var nameScore = CalculateNameSimilarity(raw.stopName, station.Name);
+            var dist = CalculateDistanceMeters(rawLat, rawLon, station.Latitude, station.Longitude);
+            if (dist > searchRadiusMeters) continue;
 
-            var confidence = nameScore * 0.7m + (dist < 100 ? 0.3m : dist < 500 ? 0.15m : 0);
+            var nameScore = CalculateNameSimilarity(rawName, station.Name);
+            if (nameScore < 0.3) continue;
 
-            if (best is null || confidence > best.Value.Confidence)
-                best = (Station: station, Confidence: confidence, NameScore: nameScore, Distance: dist);
+            if (best is null || nameScore > best.Value.NameScore)
+            {
+                best = (station, nameScore, dist, true);
+            }
         }
 
         return best;
     }
 
-    private static double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+    public double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)
     {
         var r = 6371000;
         var dLat = (lat2 - lat1) * Math.PI / 180;
@@ -279,19 +298,81 @@ public class ReconciliationService
         return r * c;
     }
 
-    private static decimal CalculateNameSimilarity(string name1, string name2)
+    public double CalculateNameSimilarity(string name1, string name2)
     {
         if (string.IsNullOrWhiteSpace(name1) || string.IsNullOrWhiteSpace(name2))
             return 0;
 
-        var n1 = name1.ToLowerInvariant().Trim();
-        var n2 = name2.ToLowerInvariant().Trim();
-        if (n1 == n2) return 1.0m;
-        if (n1.Contains(n2) || n2.Contains(n1)) return 0.8m;
+        var n1 = NormalizeName(name1);
+        var n2 = NormalizeName(name2);
 
-        var words1 = n1.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var words2 = n2.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var common = words1.Intersect(words2).Count();
-        return common / (decimal)Math.Max(words1.Length, words2.Length);
+        if (n1 == n2) return 1.0;
+        if (n1.Contains(n2) || n2.Contains(n1)) return 0.85;
+
+        var dist = LevenshteinDistance(n1, n2);
+        var maxLen = Math.Max(n1.Length, n2.Length);
+        if (maxLen == 0) return 0;
+
+        return 1.0 - (double)dist / maxLen;
+    }
+
+    private static string NormalizeName(string name)
+    {
+        var lower = name.ToLowerInvariant().Trim();
+
+        lower = lower
+            .Replace("kol.", "kolodvor")
+            .Replace("trg", "trg")
+            .Replace("ul.", "ulica")
+            .Replace("st.", "sveti")
+            .Replace("sv.", "sveti");
+
+        var sb = new System.Text.StringBuilder(lower.Length);
+        foreach (var c in lower)
+        {
+            var mapped = c switch
+            {
+                'č' or 'ć' => 'c',
+                'š' => 's',
+                'ž' => 'z',
+                'đ' => 'd',
+                'à' or 'á' or 'â' or 'ã' or 'ä' or 'å' => 'a',
+                'è' or 'é' or 'ê' or 'ë' => 'e',
+                'ì' or 'í' or 'î' or 'ï' => 'i',
+                'ò' or 'ó' or 'ô' or 'õ' or 'ö' or 'ø' => 'o',
+                'ù' or 'ú' or 'û' or 'ü' => 'u',
+                'ñ' => 'n',
+                _ => c
+            };
+            if (char.IsLetterOrDigit(mapped) || mapped == ' ')
+                sb.Append(mapped);
+        }
+
+        var result = sb.ToString().Trim();
+        while (result.Contains("  "))
+            result = result.Replace("  ", " ");
+
+        return result;
+    }
+
+    private static int LevenshteinDistance(string s, string t)
+    {
+        var m = s.Length;
+        var n = t.Length;
+        var d = new int[m + 1, n + 1];
+
+        for (var i = 0; i <= m; i++) d[i, 0] = i;
+        for (var j = 0; j <= n; j++) d[0, j] = j;
+
+        for (var j = 1; j <= n; j++)
+        {
+            for (var i = 1; i <= m; i++)
+            {
+                var cost = s[i - 1] == t[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+            }
+        }
+
+        return d[m, n];
     }
 }

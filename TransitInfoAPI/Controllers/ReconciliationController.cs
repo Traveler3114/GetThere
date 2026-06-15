@@ -24,13 +24,28 @@ public class ReconciliationController : ControllerBase
     }
 
     [HttpGet("pending")]
-    public async Task<ActionResult<OperationResult<List<ReconciliationDto>>>> GetPending(CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<ReconciliationDto>>>> GetPending(
+        [FromQuery] int? feedVersionId = null,
+        [FromQuery] int after = 0,
+        [FromQuery] int perPage = 50,
+        CancellationToken ct = default)
     {
-        var candidates = await _db.ReconciliationCandidates
+        var query = _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
             .Where(rc => rc.Status == ReconciliationStatus.Pending)
-            .OrderByDescending(rc => rc.ConfidenceScore)
+            .AsQueryable();
+
+        if (feedVersionId.HasValue)
+            query = query.Where(rc => rc.RawStop.FeedVersionId == feedVersionId.Value);
+
+        if (after > 0)
+            query = query.Where(rc => rc.Id > after);
+
+        var candidates = await query
+            .OrderBy(rc => rc.Id)
+            .Take(perPage)
             .Select(rc => new ReconciliationDto
             {
                 Id = rc.Id,
@@ -38,9 +53,16 @@ public class ReconciliationController : ControllerBase
                 RawStopName = rc.RawStopName,
                 RawStopLat = rc.RawStopLat,
                 RawStopLon = rc.RawStopLon,
+                RawStopGtfsId = rc.RawStop.RawStopId,
+                RawRouteType = rc.RawRouteType.ToString(),
+                CanonicalRouteType = rc.CanonicalRouteType.ToString(),
                 ConfidenceScore = rc.ConfidenceScore,
                 NameSimilarityScore = rc.NameSimilarityScore,
                 DistanceMeters = rc.DistanceMeters,
+                NameMatched = rc.NameMatched,
+                DistanceMatched = rc.DistanceMatched,
+                RouteTypeMatched = rc.RouteTypeMatched,
+                AutoReconciled = rc.AutoReconciled,
                 Status = rc.Status.ToString(),
                 CreatedAt = rc.CreatedAt,
                 FeedId = rc.Feed.FeedId,
@@ -51,18 +73,31 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(OperationResult<List<ReconciliationDto>>.Ok(candidates));
+        var nextAfter = candidates.Count > 0 ? candidates.Last().Id : after;
+        var total = await _db.ReconciliationCandidates.CountAsync(rc => rc.Status == ReconciliationStatus.Pending, ct);
+        var nextUrl = candidates.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
+        return Ok(OperationResult<List<ReconciliationDto>>.OkPaginated(candidates, nextAfter, total, nextUrl));
     }
 
     [HttpGet("auto-merged")]
-    public async Task<ActionResult<OperationResult<List<ReconciliationDto>>>> GetAutoMerged(CancellationToken ct = default)
+    public async Task<ActionResult<OperationResult<List<ReconciliationDto>>>> GetAutoMerged(
+        [FromQuery] int after = 0,
+        [FromQuery] int perPage = 50,
+        CancellationToken ct = default)
     {
-        var candidates = await _db.ReconciliationCandidates
+        var query = _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
             .Where(rc => rc.Status == ReconciliationStatus.AutoMerged)
-            .OrderByDescending(rc => rc.CreatedAt)
-            .Take(50)
+            .AsQueryable();
+
+        if (after > 0)
+            query = query.Where(rc => rc.Id > after);
+
+        var candidates = await query
+            .OrderBy(rc => rc.Id)
+            .Take(perPage)
             .Select(rc => new ReconciliationDto
             {
                 Id = rc.Id,
@@ -70,9 +105,16 @@ public class ReconciliationController : ControllerBase
                 RawStopName = rc.RawStopName,
                 RawStopLat = rc.RawStopLat,
                 RawStopLon = rc.RawStopLon,
+                RawStopGtfsId = rc.RawStop.RawStopId,
+                RawRouteType = rc.RawRouteType.ToString(),
+                CanonicalRouteType = rc.CanonicalRouteType.ToString(),
                 ConfidenceScore = rc.ConfidenceScore,
                 NameSimilarityScore = rc.NameSimilarityScore,
                 DistanceMeters = rc.DistanceMeters,
+                NameMatched = rc.NameMatched,
+                DistanceMatched = rc.DistanceMatched,
+                RouteTypeMatched = rc.RouteTypeMatched,
+                AutoReconciled = rc.AutoReconciled,
                 Status = rc.Status.ToString(),
                 CreatedAt = rc.CreatedAt,
                 FeedId = rc.Feed.FeedId,
@@ -83,7 +125,10 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(OperationResult<List<ReconciliationDto>>.Ok(candidates));
+        var nextAfter = candidates.Count > 0 ? candidates.Last().Id : after;
+        var total = await _db.ReconciliationCandidates.CountAsync(rc => rc.Status == ReconciliationStatus.AutoMerged, ct);
+        var nextUrl = candidates.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
+        return Ok(OperationResult<List<ReconciliationDto>>.OkPaginated(candidates, nextAfter, total, nextUrl));
     }
 
     [HttpPost("{id}/approve")]

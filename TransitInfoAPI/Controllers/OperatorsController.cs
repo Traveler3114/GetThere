@@ -24,13 +24,116 @@ public class OperatorsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<OperatorDto>>>> GetAll(
+    public async Task<ActionResult> GetAll(
         [FromQuery] int? countryId = null,
         [FromQuery] OperatorType? type = null,
+        [FromQuery] string? format = null,
+        [FromQuery] int after = 0,
+        [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
-        var result = await _operatorService.GetAllAsync(countryId, type, ct);
-        return Ok(OperationResult<List<OperatorDto>>.Ok(result));
+        if (format == "geojson")
+        {
+            var query = _db.Operators.AsQueryable();
+
+            if (countryId.HasValue)
+                query = query.Where(o => o.CountryId == countryId.Value);
+            if (type.HasValue)
+                query = query.Where(o => o.OperatorType == type.Value);
+            if (after > 0)
+                query = query.Where(o => o.Id > after);
+
+            var operators = await query.OrderBy(o => o.Id).Take(perPage)
+                .Select(o => new
+                {
+                    Operator = o,
+                    StationLat = o.StationOperators
+                        .Select(cso => (double?)cso.CanonicalStation.Latitude)
+                        .FirstOrDefault(),
+                    StationLon = o.StationOperators
+                        .Select(cso => (double?)cso.CanonicalStation.Longitude)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(ct);
+
+            var fc = new GeoJsonFeatureCollection
+            {
+                Features = operators.Select(item => new GeoJsonFeature
+                {
+                    Geometry = item.StationLat.HasValue && item.StationLon.HasValue
+                        ? new { type = "Point", coordinates = new[] { item.StationLon.Value, item.StationLat.Value } }
+                        : null,
+                    Properties = new Dictionary<string, object?>
+                    {
+                        ["id"] = item.Operator.Id,
+                        ["globalId"] = item.Operator.GlobalId,
+                        ["onestopId"] = item.Operator.OnestopId,
+                        ["name"] = item.Operator.Name,
+                        ["shortName"] = item.Operator.ShortName,
+                        ["operatorType"] = item.Operator.OperatorType.ToString(),
+                        ["isVerified"] = item.Operator.IsVerified,
+                        ["isVirtual"] = item.Operator.IsVirtual
+                    }
+                }).ToList()
+            };
+            return Ok(fc);
+        }
+
+        var result = await _operatorService.GetAllAsync(countryId, type, after, perPage, ct);
+        var nextAfter = result.Count > 0 ? result.Last().Id : after;
+        var total = await _db.Operators.CountAsync(ct);
+        var nextUrl = result.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
+        return Ok(OperationResult<List<OperatorDto>>.OkPaginated(result, nextAfter, total, nextUrl));
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<OperationResult<OperatorDto>>> GetById(int id, CancellationToken ct = default)
+    {
+        var op = await _db.Operators
+            .Include(o => o.Country)
+            .Where(o => o.Id == id)
+            .Select(o => new OperatorDto
+            {
+                Id = o.Id,
+                GlobalId = o.GlobalId,
+                OnestopId = o.OnestopId,
+                Name = o.Name,
+                ShortName = o.ShortName,
+                Website = o.Website,
+                OperatorType = o.OperatorType.ToString(),
+                IsVerified = o.IsVerified,
+                IsVirtual = o.IsVirtual,
+                CountryName = o.Country != null ? o.Country.Name : null
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
+        return Ok(OperationResult<OperatorDto>.Ok(op));
+    }
+
+    [HttpGet("by-onestop/{onestopId}")]
+    public async Task<ActionResult<OperationResult<OperatorDto>>> GetByOnestopId(string onestopId, CancellationToken ct = default)
+    {
+        var op = await _db.Operators
+            .Include(o => o.Country)
+            .Where(o => o.OnestopId == onestopId)
+            .Select(o => new OperatorDto
+            {
+                Id = o.Id,
+                GlobalId = o.GlobalId,
+                OnestopId = o.OnestopId,
+                Name = o.Name,
+                ShortName = o.ShortName,
+                Website = o.Website,
+                OperatorType = o.OperatorType.ToString(),
+                IsVerified = o.IsVerified,
+                IsVirtual = o.IsVirtual,
+                CountryName = o.Country != null ? o.Country.Name : null
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
+        return Ok(OperationResult<OperatorDto>.Ok(op));
     }
 
     [HttpGet("{globalId}")]
@@ -39,6 +142,32 @@ public class OperatorsController : ControllerBase
         var op = await _operatorService.GetByGlobalIdAsync(globalId, ct);
         if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
         return Ok(OperationResult<OperatorDto>.Ok(op));
+    }
+
+    [HttpGet("{id:int}/service-area")]
+    public async Task<ActionResult<OperationResult<object>>> GetServiceArea(int id, CancellationToken ct = default)
+    {
+        var hull = await _db.FeedVersions
+            .Where(fv => fv.ConvexHull != null && fv.Agencies.Any(a => a.OperatorId == id))
+            .OrderByDescending(fv => fv.ImportedAt)
+            .Select(fv => fv.ConvexHull)
+            .FirstOrDefaultAsync(ct);
+
+        if (hull is null)
+            return NotFound(OperationResult<object>.Fail("No service area found for this operator."));
+
+        var geoJson = new
+        {
+            type = "Feature",
+            geometry = new
+            {
+                type = hull.GeometryType,
+                coordinates = hull.Coordinates.Select(c => new[] { c.X, c.Y })
+            },
+            properties = new { }
+        };
+
+        return Ok(OperationResult<object>.Ok(geoJson));
     }
 
     [HttpGet("{globalId}/stations")]
@@ -105,6 +234,7 @@ public class OperatorsController : ControllerBase
         {
             Id = op.Id,
             GlobalId = op.GlobalId,
+            OnestopId = op.OnestopId,
             Name = op.Name,
             ShortName = op.ShortName,
             Website = op.Website,

@@ -4,10 +4,12 @@ public class OperatorDto
 {
     public int Id { get; set; }
     public string GlobalId { get; set; } = string.Empty;
+    public string OnestopId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string ShortName { get; set; } = string.Empty;
     public string? Website { get; set; }
     public string OperatorType { get; set; } = string.Empty;
     public bool IsVerified { get; set; }
+    public bool IsVirtual { get; set; }
     public string? CountryName { get; set; }
 }

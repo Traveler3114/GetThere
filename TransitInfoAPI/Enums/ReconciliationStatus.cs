@@ -6,5 +6,6 @@ public enum ReconciliationStatus
     AutoMerged,
     ManuallyApproved,
     Rejected,
-    NewStation
+    NewStation,
+    Inactive
 }

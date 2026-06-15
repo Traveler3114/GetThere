@@ -15,7 +15,7 @@ public class RouteService
         _db = db;
     }
 
-    public async Task<List<RouteDto>> GetAllAsync(int? operatorId, RouteType? routeType, CancellationToken ct)
+    public async Task<List<RouteDto>> GetAllAsync(int? operatorId, RouteType? routeType, int after = 0, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
 
@@ -23,11 +23,14 @@ public class RouteService
             query = query.Where(r => r.OperatorId == operatorId.Value);
         if (routeType.HasValue)
             query = query.Where(r => r.RouteType == routeType.Value);
+        if (after > 0)
+            query = query.Where(r => r.Id > after);
 
-        return await query.Select(r => new RouteDto
+        return await query.OrderBy(r => r.Id).Take(perPage).Select(r => new RouteDto
         {
             Id = r.Id,
             GlobalId = r.GlobalId,
+            OnestopId = r.OnestopId,
             Name = r.LongName,
             ShortName = r.ShortName,
             RouteType = r.RouteType.ToString(),
@@ -44,6 +47,7 @@ public class RouteService
             {
                 Id = r.Id,
                 GlobalId = r.GlobalId,
+                OnestopId = r.OnestopId,
                 Name = r.LongName,
                 ShortName = r.ShortName,
                 RouteType = r.RouteType.ToString(),

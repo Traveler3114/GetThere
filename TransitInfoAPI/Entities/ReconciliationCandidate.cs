@@ -5,10 +5,21 @@ namespace TransitInfoAPI.Entities;
 public class ReconciliationCandidate
 {
     public int Id { get; set; }
-    public string RawStopId { get; set; } = string.Empty;
+    public int RawStopId { get; set; }
+    public RawStop RawStop { get; set; } = null!;
+
     public string RawStopName { get; set; } = string.Empty;
     public double RawStopLat { get; set; }
     public double RawStopLon { get; set; }
+
+    public RouteType RawRouteType { get; set; }
+    public RouteType? CanonicalRouteType { get; set; }
+
+    public bool NameMatched { get; set; }
+    public bool DistanceMatched { get; set; }
+    public bool RouteTypeMatched { get; set; }
+    public bool AutoReconciled { get; set; }
+
     public int? SuggestedCanonicalStationId { get; set; }
     public decimal ConfidenceScore { get; set; }
     public decimal DistanceMeters { get; set; }

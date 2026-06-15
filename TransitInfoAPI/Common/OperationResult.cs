@@ -1,3 +1,5 @@
+using TransitInfoAPI.Models;
+
 namespace TransitInfoAPI.Common;
 
 public class OperationResult
@@ -19,9 +21,13 @@ public class OperationResult
 public class OperationResult<T> : OperationResult
 {
     public T? Data { get; set; }
+    public PaginationMeta? Meta { get; set; }
 
     public static OperationResult<T> Ok(T data, string? message = null) =>
         new() { Success = true, Data = data, Message = message };
+
+    public static OperationResult<T> OkPaginated(T data, int after, int totalCount, string? nextUrl, string? message = null) =>
+        new() { Success = true, Data = data, Message = message, Meta = new PaginationMeta { After = after, Next = nextUrl, TotalCount = totalCount } };
 
     public static new OperationResult<T> Fail(string? errorCode, string? message = null) =>
         new() { Success = false, ErrorCode = errorCode, Message = message };
