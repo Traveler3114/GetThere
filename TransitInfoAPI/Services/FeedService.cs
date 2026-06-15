@@ -1,3 +1,6 @@
+using System.Data;
+using System.IO.Compression;
+
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
@@ -231,6 +234,13 @@ public class FeedService
         version.ImportStatus = FeedImportStatus.Importing;
         await _db.SaveChangesAsync(CancellationToken.None);
 
+        using var archive = ZipFile.OpenRead(zipPath);
+        var conn = _db.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+            await conn.OpenAsync(ct);
+        var sqlConn = (Microsoft.Data.SqlClient.SqlConnection)conn;
+        var sqlTx = sqlConn.BeginTransaction();
+        _db.Database.UseTransaction(sqlTx);
         try
         {
             _db.Database.SetCommandTimeout(180);
@@ -239,11 +249,12 @@ public class FeedService
             {
                 version.ImportStatus = FeedImportStatus.Failed;
                 version.ImportError = "GTFS validation failed: " + string.Join("; ", validation.Errors);
-                    await _db.SaveChangesAsync(CancellationToken.None);
-                    return;
-                }
+            await _db.SaveChangesAsync(CancellationToken.None);
+            await sqlTx.CommitAsync(CancellationToken.None);
+            return;
+            }
 
-                var agencies = _gtfs.ParseAgencies(zipPath);
+            var agencies = _gtfs.ParseAgencies(zipPath);
             var rawStops = _gtfs.ParseStops(zipPath);
             var routes = _gtfs.ParseRoutes(zipPath);
             var trips = _gtfs.ParseTrips(zipPath);
@@ -270,11 +281,30 @@ public class FeedService
                 });
             }
 
-            var allStopTimes = new List<RawStopTimeRecord>();
-            await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(zipPath))
-                allStopTimes.AddRange(batch);
+            // Build trip→route and route→type maps for single-pass stop time processing
+            var routeTypeByRoute = routes
+                .GroupBy(r => r.RouteId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().RouteTypeEnum, StringComparer.OrdinalIgnoreCase);
+            var routeByTrip = trips
+                .GroupBy(t => t.TripId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().RouteId, StringComparer.OrdinalIgnoreCase);
 
-            var routeTypesPerStop = _gtfs.DeriveRouteTypesPerStop(routes, trips, allStopTimes);
+            // Single pass: parse stop times, compute route types, accumulate for bulk insert
+            var allStopTimes = new List<RawStopTimeRecord>();
+            var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
+            await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive))
+            {
+                foreach (var st in batch)
+                {
+                    if (routeByTrip.TryGetValue(st.TripId, out var rId) &&
+                        routeTypeByRoute.TryGetValue(rId, out var rt) &&
+                        !routeTypesPerStop.ContainsKey(st.StopId))
+                    {
+                        routeTypesPerStop[st.StopId] = rt;
+                    }
+                }
+                allStopTimes.AddRange(batch);
+            }
 
             foreach (var s in rawStops)
             {
@@ -326,6 +356,9 @@ public class FeedService
                     });
                 }
             }
+
+            // Save routes first so route lookup finds them (FK fix)
+            await _db.SaveChangesAsync(CancellationToken.None);
 
             var prefix = $"gt-{version.Feed.FeedId}-";
             var canonicalRouteLookup = await _db.CanonicalRoutes
@@ -391,6 +424,80 @@ public class FeedService
                 });
             }
 
+            // Save trips, shapes, calendars before stop times
+            await _db.SaveChangesAsync(CancellationToken.None);
+
+            // Build trip lookup from DB (trips now have IDs)
+            var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in await _db.Trips
+                .Where(t => t.FeedVersionId == feedVersionId)
+                .ToListAsync(CancellationToken.None))
+            {
+                tripLookup.TryAdd(t.TripId, t.Id);
+            }
+
+            // Bulk insert stop times via SqlBulkCopy
+            using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(
+                (Microsoft.Data.SqlClient.SqlConnection)conn,
+                Microsoft.Data.SqlClient.SqlBulkCopyOptions.Default,
+                sqlTx)
+            {
+                DestinationTableName = "StopTimes",
+                BatchSize = 50000
+            };
+
+            bulkCopy.ColumnMappings.Add("TripId", "TripId");
+            bulkCopy.ColumnMappings.Add("RawStopId", "RawStopId");
+            bulkCopy.ColumnMappings.Add("ArrivalTime", "ArrivalTime");
+            bulkCopy.ColumnMappings.Add("DepartureTime", "DepartureTime");
+            bulkCopy.ColumnMappings.Add("StopSequence", "StopSequence");
+            bulkCopy.ColumnMappings.Add("StopHeadsign", "StopHeadsign");
+            bulkCopy.ColumnMappings.Add("PickupType", "PickupType");
+            bulkCopy.ColumnMappings.Add("DropOffType", "DropOffType");
+            bulkCopy.ColumnMappings.Add("Timepoint", "Timepoint");
+
+            var dt = new DataTable();
+            dt.Columns.Add("TripId", typeof(int));
+            dt.Columns.Add("RawStopId", typeof(string));
+            dt.Columns.Add("ArrivalTime", typeof(int));
+            dt.Columns.Add("DepartureTime", typeof(int));
+            dt.Columns.Add("StopSequence", typeof(int));
+            dt.Columns.Add("StopHeadsign", typeof(string));
+            dt.Columns.Add("PickupType", typeof(int));
+            dt.Columns.Add("DropOffType", typeof(int));
+            dt.Columns.Add("Timepoint", typeof(bool));
+
+            for (var i = 0; i < allStopTimes.Count; i += 50000)
+            {
+                dt.Rows.Clear();
+                var batch = allStopTimes.Skip(i).Take(50000);
+                foreach (var st in batch)
+                {
+                    dt.Rows.Add(
+                        tripLookup.GetValueOrDefault(st.TripId, 0),
+                        st.StopId,
+                        GtfsParserService.ParseGtfsTimeToSeconds(st.ArrivalTime),
+                        GtfsParserService.ParseGtfsTimeToSeconds(st.DepartureTime),
+                        st.StopSequence,
+                        (object?)st.StopHeadsign ?? DBNull.Value,
+                        (object?)st.PickupType ?? DBNull.Value,
+                        (object?)st.DropOffType ?? DBNull.Value,
+                        st.Timepoint.HasValue ? (object)(st.Timepoint == 1) : DBNull.Value
+                    );
+                }
+                await bulkCopy.WriteToServerAsync(dt, ct);
+            }
+
+            _db.Entry(version).State = EntityState.Modified;
+
+            // Deactivate previous active versions
+            var prevActive = await _db.FeedVersions
+                .Where(fv => fv.FeedId == version.FeedId && fv.IsActive && fv.Id != feedVersionId)
+                .ToListAsync(CancellationToken.None);
+            foreach (var pv in prevActive)
+                pv.IsActive = false;
+
+            // Set version metadata
             var convexHull = _gtfs.ComputeConvexHull(rawStops);
 
             version.StopCount = rawStops.Count;
@@ -405,54 +512,18 @@ public class FeedService
                 version.ServiceLevelEnd = calendar.Max(c => DateOnly.ParseExact(c.EndDate, "yyyyMMdd"));
             }
 
-            await _db.SaveChangesAsync(CancellationToken.None);
-
-            var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var t in await _db.Trips
-                .Where(t => t.FeedVersionId == feedVersionId)
-                .ToListAsync(CancellationToken.None))
-            {
-                tripLookup.TryAdd(t.TripId, t.Id);
-            }
-
-            for (var i = 0; i < allStopTimes.Count; i += 1000)
-            {
-                var batch = allStopTimes.Skip(i).Take(1000).ToList();
-                _db.StopTimes.AddRange(batch.Select(st => new StopTime
-                {
-                    TripId = tripLookup.GetValueOrDefault(st.TripId, 0),
-                    RawStopId = st.StopId,
-                    ArrivalTime = GtfsParserService.ParseGtfsTimeToSeconds(st.ArrivalTime),
-                    DepartureTime = GtfsParserService.ParseGtfsTimeToSeconds(st.DepartureTime),
-                    StopSequence = st.StopSequence,
-                    StopHeadsign = st.StopHeadsign,
-                    PickupType = st.PickupType,
-                    DropOffType = st.DropOffType,
-                    Timepoint = st.Timepoint.HasValue ? st.Timepoint == 1 : null
-                }));
-
-                await _db.SaveChangesAsync(CancellationToken.None);
-                _db.ChangeTracker.Clear();
-            }
-
-            _db.Entry(version).State = EntityState.Modified;
-
-            var prevActive = await _db.FeedVersions
-                .Where(fv => fv.FeedId == version.FeedId && fv.IsActive && fv.Id != feedVersionId)
-                .ToListAsync(CancellationToken.None);
-            foreach (var pv in prevActive)
-                pv.IsActive = false;
-
             version.IsActive = true;
             version.ImportStatus = FeedImportStatus.Success;
             version.ImportedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(CancellationToken.None);
+            await sqlTx.CommitAsync(CancellationToken.None);
 
             _logger.LogInformation("Import complete for FeedVersion {VersionId} ({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
                 feedVersionId, routes.Count, rawStops.Count, trips.Count);
         }
         catch (Exception ex)
         {
+            await sqlTx.RollbackAsync(CancellationToken.None);
             _db.Entry(version).State = EntityState.Modified;
             version.ImportStatus = FeedImportStatus.Failed;
             version.ImportError = ex.Message;

@@ -114,6 +114,14 @@ public class GtfsParserService
         });
     }
 
+    public IAsyncEnumerable<List<RawStopTimeRecord>> ParseStopTimesBatchedAsync(ZipArchive archive, int batchSize = 1000)
+    {
+        return ParseCsvBatchedAsync<RawStopTimeRecord>(archive, "stop_times.txt", batchSize, cfg =>
+        {
+            cfg.RegisterClassMap(new StopTimeMap());
+        });
+    }
+
     public Dictionary<string, LineString> ParseShapes(string zipPath)
     {
         using var archive = ZipFile.OpenRead(zipPath);
@@ -213,6 +221,31 @@ public class GtfsParserService
         string zipPath, string fileName, int batchSize, Action<CsvContext>? configure = null)
     {
         using var archive = ZipFile.OpenRead(zipPath);
+        var entry = archive.Entries.FirstOrDefault(e =>
+            e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+        if (entry is null) yield break;
+
+        using var reader = new StreamReader(entry.Open());
+        using var csv = new CsvReader(reader, CsvConfig());
+        configure?.Invoke(csv.Context);
+
+        var batch = new List<T>(batchSize);
+        await foreach (var record in csv.GetRecordsAsync<T>())
+        {
+            batch.Add(record);
+            if (batch.Count >= batchSize)
+            {
+                yield return batch;
+                batch = new List<T>(batchSize);
+            }
+        }
+        if (batch.Count > 0)
+            yield return batch;
+    }
+
+    private async IAsyncEnumerable<List<T>> ParseCsvBatchedAsync<T>(
+        ZipArchive archive, string fileName, int batchSize, Action<CsvContext>? configure = null)
+    {
         var entry = archive.Entries.FirstOrDefault(e =>
             e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
         if (entry is null) yield break;
