@@ -2,8 +2,6 @@ using System.Collections.Concurrent;
 
 using Microsoft.EntityFrameworkCore;
 
-using ProtoBuf;
-
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -64,10 +62,9 @@ public class RealtimeService
 
         var body = await response.Content.ReadAsByteArrayAsync(ct);
 
-        using var stream = new MemoryStream(body);
-        var feedMessage = Serializer.Deserialize<FeedMessage>(stream);
+        var feedMessage = FeedMessage.Parser.ParseFrom(body);
 
-        foreach (var entity in feedMessage.Entities)
+        foreach (var entity in feedMessage.Entity)
         {
             if (entity.Vehicle != null)
             {
@@ -106,7 +103,7 @@ public class RealtimeService
 
         // Persist alerts
         var db = _scopeFactory.CreateScope().ServiceProvider.GetRequiredService<TransitDbContext>();
-        foreach (var entity in feedMessage.Entities.Where(e => e.Alert != null))
+        foreach (var entity in feedMessage.Entity.Where(e => e.Alert != null))
         {
             var alert = entity.Alert;
             var existing = await db.Alerts
@@ -114,22 +111,22 @@ public class RealtimeService
                 .OrderByDescending(a => a.FetchedAt)
                 .FirstOrDefaultAsync(ct);
 
-            var headerText = alert.HeaderText?.Translations?.FirstOrDefault()?.Text;
+            var headerText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text;
             if (existing?.HeaderText != headerText)
             {
                 var alertEntity = new Entities.Alert
                 {
                     FeedId = feed.Id,
                     HeaderText = headerText,
-                    DescriptionText = alert.DescriptionText?.Translations?.FirstOrDefault()?.Text,
-                    Url = alert.Url?.Translations?.FirstOrDefault()?.Text,
-                    Cause = alert.cause.ToString(),
-                    Effect = alert.effect.ToString(),
-                    ActivePeriodStart = alert.ActivePeriods.Count > 0
-                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriods[0].Start)
+                    DescriptionText = alert.DescriptionText?.Translation?.FirstOrDefault()?.Text,
+                    Url = alert.Url?.Translation?.FirstOrDefault()?.Text,
+                    Cause = alert.Cause.ToString(),
+                    Effect = alert.Effect.ToString(),
+                    ActivePeriodStart = alert.ActivePeriod.Count > 0
+                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].Start)
                         : null,
-                    ActivePeriodEnd = alert.ActivePeriods.Count > 0 && alert.ActivePeriods[0].End > 0
-                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriods[0].End)
+                    ActivePeriodEnd = alert.ActivePeriod.Count > 0 && alert.ActivePeriod[0].End > 0
+                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].End)
                         : null,
                     FetchedAt = DateTime.UtcNow
                 };
