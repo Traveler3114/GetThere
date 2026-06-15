@@ -10,8 +10,8 @@ public class StopTime
     public int? CanonicalStationId { get; set; }
     public CanonicalStation? CanonicalStation { get; set; }
 
-    public TimeSpan ArrivalTime { get; set; }
-    public TimeSpan DepartureTime { get; set; }
+    public int ArrivalTime { get; set; }
+    public int DepartureTime { get; set; }
     public int StopSequence { get; set; }
     public string? StopHeadsign { get; set; }
     public int? PickupType { get; set; }

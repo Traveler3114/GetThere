@@ -13,7 +13,7 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    [Migration("20260615173139_InitialCreate")]
+    [Migration("20260615193301_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -939,14 +939,14 @@ namespace TransitInfoAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<TimeSpan>("ArrivalTime")
-                        .HasColumnType("time");
+                    b.Property<int>("ArrivalTime")
+                        .HasColumnType("int");
 
                     b.Property<int?>("CanonicalStationId")
                         .HasColumnType("int");
 
-                    b.Property<TimeSpan>("DepartureTime")
-                        .HasColumnType("time");
+                    b.Property<int>("DepartureTime")
+                        .HasColumnType("int");
 
                     b.Property<int?>("DropOffType")
                         .HasColumnType("int");

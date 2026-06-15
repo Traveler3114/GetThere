@@ -19,7 +19,7 @@ public class ScheduleService
         int canonicalStationId, DateTime from, int count, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(from);
-        var fromTime = from.TimeOfDay;
+        var fromTime = (int)from.TimeOfDay.TotalSeconds;
 
         var activeTripIds = await _db.Trips
             .Where(t => t.FeedVersion.IsActive)
@@ -48,7 +48,7 @@ public class ScheduleService
                     ? (st.Trip.CanonicalRoute.ShortName ?? st.Trip.CanonicalRoute.LongName)
                     : st.Trip.TripShortName ?? "",
                 Headsign = st.StopHeadsign ?? st.Trip.TripHeadsign ?? "",
-                ScheduledDeparture = from.Date + st.DepartureTime,
+                ScheduledDeparture = from.Date.AddSeconds(st.DepartureTime),
                 EstimatedDeparture = null,
                 DelaySeconds = null
             })

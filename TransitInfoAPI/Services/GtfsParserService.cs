@@ -188,7 +188,12 @@ public class GtfsParserService
     {
         if (stops.Count == 0) return _geometryFactory.CreatePoint();
         var coords = stops.Select(s => new Coordinate(s.StopLon, s.StopLat)).ToArray();
-        return new ConvexHull(coords, _geometryFactory).GetConvexHull();
+        var hull = new ConvexHull(coords, _geometryFactory).GetConvexHull();
+
+        if (hull is Polygon polygon && !Orientation.IsCCW(polygon.Shell.Coordinates))
+            hull = polygon.Reverse();
+
+        return hull;
     }
 
     private List<T> ParseCsv<T>(string zipPath, string fileName, Action<CsvContext>? configure = null)
@@ -239,6 +244,18 @@ public class GtfsParserService
         TrimOptions = TrimOptions.Trim,
         AllowComments = true
     };
+    public static int ParseGtfsTimeToSeconds(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return 0;
+        if (raw.Length == 7) raw = "0" + raw;
+        var parts = raw.Split(':');
+        if (parts.Length == 3
+            && int.TryParse(parts[0], out var h)
+            && int.TryParse(parts[1], out var m)
+            && int.TryParse(parts[2], out var s))
+            return h * 3600 + m * 60 + s;
+        return 0;
+    }
 }
 
 public class GtfsValidationResult
@@ -466,7 +483,7 @@ internal class CalendarDateMap : ClassMap<RawCalendarDateRecord>
     }
 }
 
-public static class GtfsRouteTypeMapper
+    public static class GtfsRouteTypeMapper
 {
     public static RouteType MapGtfsRouteType(int gtfsType) => gtfsType switch
     {

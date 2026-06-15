@@ -2,10 +2,9 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Services;
-using TransitInfoAPI.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://0.0.0.0:5000");
+builder.Logging.ClearProviders().AddConsole().AddDebug();
 
 builder.Services.AddControllers();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -31,8 +30,6 @@ builder.Services.AddScoped<RouteService>();
 builder.Services.AddScoped<OperatorService>();
 builder.Services.AddScoped<FeedService>();
 builder.Services.AddScoped<RealtimeService>();
-builder.Services.AddHostedService<FeedPollingWorker>();
-builder.Services.AddHostedService<RealtimePollingWorker>();
 
 builder.Services.AddCors(options =>
 {

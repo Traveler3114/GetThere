@@ -172,7 +172,11 @@ public class FeedService
         var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
         Directory.CreateDirectory(outputDir);
         var zipPath = Path.Combine(outputDir, "gtfs.zip");
-        await File.WriteAllBytesAsync(zipPath, bytes, ct);
+        var tmpPath = zipPath + ".tmp";
+        await File.WriteAllBytesAsync(tmpPath, bytes, ct);
+        if (File.Exists(zipPath))
+            File.Delete(zipPath);
+        File.Move(tmpPath, zipPath);
 
         var sha1 = _gtfs.ComputeGtfsSha1(zipPath);
 
@@ -183,7 +187,11 @@ public class FeedService
         if (existing)
         {
             _logger.LogInformation("Feed {FeedId} SHA1 unchanged ({Sha1}), skipping", feed.FeedId, sha1);
-            return null;
+            var existingVersion = await _db.FeedVersions
+                .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
+                .OrderByDescending(fv => fv.FetchedAt)
+                .FirstOrDefaultAsync(ct);
+            return existingVersion;
         }
 
         var version = new FeedVersion
@@ -202,12 +210,12 @@ public class FeedService
         return version;
     }
 
-    public async Task ImportFeedVersionAsync(int feedVersionId, CancellationToken ct)
+    public async Task ImportFeedVersionAsync(int feedVersionId, CancellationToken ct = default)
     {
         var version = await _db.FeedVersions
             .Include(fv => fv.Feed)
                 .ThenInclude(f => f.Operator)
-            .FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct);
+            .FirstOrDefaultAsync(fv => fv.Id == feedVersionId, CancellationToken.None);
 
         if (version is null) throw new InvalidOperationException("FeedVersion not found.");
 
@@ -216,25 +224,26 @@ public class FeedService
         {
             version.ImportStatus = FeedImportStatus.Failed;
             version.ImportError = "GTFS zip not found on disk";
-            await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
             return;
         }
 
         version.ImportStatus = FeedImportStatus.Importing;
-        await _db.SaveChangesAsync(ct);
+        await _db.SaveChangesAsync(CancellationToken.None);
 
         try
         {
+            _db.Database.SetCommandTimeout(180);
             var validation = _gtfs.ValidateGtfs(zipPath);
             if (!validation.IsValid)
             {
                 version.ImportStatus = FeedImportStatus.Failed;
                 version.ImportError = "GTFS validation failed: " + string.Join("; ", validation.Errors);
-                await _db.SaveChangesAsync(ct);
-                return;
-            }
+                    await _db.SaveChangesAsync(CancellationToken.None);
+                    return;
+                }
 
-            var agencies = _gtfs.ParseAgencies(zipPath);
+                var agencies = _gtfs.ParseAgencies(zipPath);
             var rawStops = _gtfs.ParseStops(zipPath);
             var routes = _gtfs.ParseRoutes(zipPath);
             var trips = _gtfs.ParseTrips(zipPath);
@@ -294,7 +303,7 @@ public class FeedService
             {
                 var existingRoute = await _db.CanonicalRoutes
                     .FirstOrDefaultAsync(cr =>
-                        cr.GlobalId == $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}", ct);
+                        cr.GlobalId == $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}", CancellationToken.None);
 
                 if (existingRoute is null)
                 {
@@ -318,11 +327,14 @@ public class FeedService
                 }
             }
 
+            var prefix = $"gt-{version.Feed.FeedId}-";
+            var canonicalRouteLookup = await _db.CanonicalRoutes
+                .Where(cr => cr.GlobalId.StartsWith(prefix))
+                .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, CancellationToken.None);
+
             foreach (var t in trips)
             {
-                var canonicalRoute = await _db.CanonicalRoutes
-                    .FirstOrDefaultAsync(cr =>
-                        cr.GlobalId == $"gt-{version.Feed.FeedId}-{t.RouteId.ToLowerInvariant()}", ct);
+                var globalId = $"gt-{version.Feed.FeedId}-{t.RouteId.ToLowerInvariant()}";
 
                 _db.Trips.Add(new Trip
                 {
@@ -336,7 +348,7 @@ public class FeedService
                     ShapeId = t.ShapeId,
                     WheelchairAccessible = t.WheelchairAccessible.HasValue ? t.WheelchairAccessible == 1 : null,
                     BikesAllowed = t.BikesAllowed.HasValue ? t.BikesAllowed == 1 : null,
-                    CanonicalRouteId = canonicalRoute?.Id
+                    CanonicalRouteId = canonicalRouteLookup.GetValueOrDefault(globalId)
                 });
             }
 
@@ -393,11 +405,15 @@ public class FeedService
                 version.ServiceLevelEnd = calendar.Max(c => DateOnly.ParseExact(c.EndDate, "yyyyMMdd"));
             }
 
-            await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
-            var tripLookup = await _db.Trips
+            var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in await _db.Trips
                 .Where(t => t.FeedVersionId == feedVersionId)
-                .ToDictionaryAsync(t => t.TripId, t => t.Id, StringComparer.OrdinalIgnoreCase, ct);
+                .ToListAsync(CancellationToken.None))
+            {
+                tripLookup.TryAdd(t.TripId, t.Id);
+            }
 
             for (var i = 0; i < allStopTimes.Count; i += 1000)
             {
@@ -406,37 +422,41 @@ public class FeedService
                 {
                     TripId = tripLookup.GetValueOrDefault(st.TripId, 0),
                     RawStopId = st.StopId,
-                    ArrivalTime = ParseGtfsTime(st.ArrivalTime),
-                    DepartureTime = ParseGtfsTime(st.DepartureTime),
+                    ArrivalTime = GtfsParserService.ParseGtfsTimeToSeconds(st.ArrivalTime),
+                    DepartureTime = GtfsParserService.ParseGtfsTimeToSeconds(st.DepartureTime),
                     StopSequence = st.StopSequence,
                     StopHeadsign = st.StopHeadsign,
                     PickupType = st.PickupType,
                     DropOffType = st.DropOffType,
                     Timepoint = st.Timepoint.HasValue ? st.Timepoint == 1 : null
                 }));
+
+                await _db.SaveChangesAsync(CancellationToken.None);
+                _db.ChangeTracker.Clear();
             }
 
-            await _db.SaveChangesAsync(ct);
+            _db.Entry(version).State = EntityState.Modified;
 
             var prevActive = await _db.FeedVersions
                 .Where(fv => fv.FeedId == version.FeedId && fv.IsActive && fv.Id != feedVersionId)
-                .ToListAsync(ct);
+                .ToListAsync(CancellationToken.None);
             foreach (var pv in prevActive)
                 pv.IsActive = false;
 
             version.IsActive = true;
             version.ImportStatus = FeedImportStatus.Success;
             version.ImportedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
             _logger.LogInformation("Import complete for FeedVersion {VersionId} ({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
                 feedVersionId, routes.Count, rawStops.Count, trips.Count);
         }
         catch (Exception ex)
         {
+            _db.Entry(version).State = EntityState.Modified;
             version.ImportStatus = FeedImportStatus.Failed;
             version.ImportError = ex.Message;
-            await _db.SaveChangesAsync(ct);
+            await _db.SaveChangesAsync(CancellationToken.None);
             _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
         }
     }
@@ -464,7 +484,7 @@ public class FeedService
             await _db.SaveChangesAsync(ct);
         }
 
-        await ImportFeedVersionAsync(version.Id, ct);
+        await ImportFeedVersionAsync(version.Id, CancellationToken.None);
         return version;
     }
 
@@ -499,11 +519,5 @@ public class FeedService
         _ => StationType.Stop
     };
 
-    private static TimeSpan ParseGtfsTime(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return TimeSpan.Zero;
-        if (raw.Length == 7) raw = "0" + raw;
-        if (TimeSpan.TryParse(raw, out var result)) return result;
-        return TimeSpan.Zero;
-    }
+
 }
