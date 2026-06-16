@@ -64,12 +64,13 @@ public class RealtimeService
 
         var feedMessage = FeedMessage.Parser.ParseFrom(body);
 
+
         foreach (var entity in feedMessage.Entity)
         {
             if (entity.Vehicle != null)
             {
                 var vp = entity.Vehicle;
-                if (vp.Position == null) continue;
+                if (vp.Position == null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
 
                 var vehicleId = vp.Vehicle?.Id ?? entity.Id;
                 var vehicleDto = new VehicleDto
@@ -102,7 +103,8 @@ public class RealtimeService
         }
 
         // Persist alerts
-        var db = _scopeFactory.CreateScope().ServiceProvider.GetRequiredService<TransitDbContext>();
+        using var alertScope = _scopeFactory.CreateScope();
+        var db = alertScope.ServiceProvider.GetRequiredService<TransitDbContext>();
         foreach (var entity in feedMessage.Entity.Where(e => e.Alert != null))
         {
             var alert = entity.Alert;

@@ -17,7 +17,7 @@ builder.Services.AddDbContext<TransitDbContext>(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("gtfsrt", client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(10);
+    client.Timeout = TimeSpan.FromSeconds(30);
 });
 
 builder.Services.AddScoped<GtfsParserService>();
@@ -30,7 +30,7 @@ builder.Services.AddScoped<StationService>();
 builder.Services.AddScoped<RouteService>();
 builder.Services.AddScoped<OperatorService>();
 builder.Services.AddScoped<FeedService>();
-builder.Services.AddScoped<RealtimeService>();
+builder.Services.AddSingleton<RealtimeService>();
 builder.Services.AddHostedService<RealtimePollingWorker>();
 
 builder.Services.AddCors(options =>
