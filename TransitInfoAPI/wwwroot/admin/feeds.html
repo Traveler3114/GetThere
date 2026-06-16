@@ -145,14 +145,164 @@ function statusBadge(status) {
   return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
 }
 
+let importInFlight = false;
+
 async function fetchFeed(id) {
-  if (!confirm('Fetch and import this feed now?')) return;
+  if (importInFlight) return;
+  importInFlight = true;
+
+  const feed = allFeeds.find(f => f.id === id);
+  const modalId = 'importProgressModal';
+
+  function closeModal() {
+    const el = document.getElementById(modalId);
+    if (el) { bootstrap.Modal.getInstance(el)?.hide(); el.remove(); }
+  }
+
+  function showImportModal() {
+    const existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+    const html = `<div class="modal fade" id="${modalId}" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Importing <code>${esc(feed?.feedId||id)}</code></h5>
+            <div><span class="spinner-border spinner-border-sm me-2" role="status"></span><span id="importStatusText">Starting...</span></div>
+          </div>
+          <div class="modal-body p-2" style="max-height:60vh;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-family:ui-monospace,monospace;font-size:.8rem;line-height:1.5" id="importLogContainer">
+            <div id="importLogContent"></div>
+          </div>
+          <div class="modal-footer">
+            <span id="importResult" class="me-auto small"></span>
+            <button type="button" class="btn btn-secondary btn-sm" id="importCloseBtn" disabled onclick="closeImportModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = new bootstrap.Modal(document.getElementById(modalId));
+    modal.show();
+    document.getElementById(modalId).addEventListener('hidden.bs.modal', () => {
+      document.getElementById(modalId).remove();
+      importInFlight = false;
+    });
+  }
+
+  window.closeImportModal = closeModal;
+
+  showImportModal();
+  const logContainer = document.getElementById('importLogContainer');
+  const logContent = document.getElementById('importLogContent');
+  const statusText = document.getElementById('importStatusText');
+  const resultSpan = document.getElementById('importResult');
+  const closeBtn = document.getElementById('importCloseBtn');
+
+  function appendLog(msg) {
+    const line = document.createElement('div');
+    line.textContent = msg;
+    logContent.appendChild(line);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
+
+  // Fire POST without awaiting
+  const fetchPromise = fetch(BASE + '/feeds/' + id + '/fetch', { method: 'POST' }).catch(e => e);
+
+  // Poll versions to discover the version ID, then poll logs
+  let versionId = null;
+  let knownFirstVersionId = null;
+  let pollTimer = null;
+  let logPollTimer = null;
+
+  // Before starting, check what versions already exist
   try {
-    const r = await fetch(BASE + '/feeds/' + id + '/fetch', { method: 'POST' });
+    const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+    const vj = await vr.json();
+    const existingVersions = vj.data || [];
+    if (existingVersions.length > 0) knownFirstVersionId = existingVersions[0].id;
+  } catch(e) {}
+
+  pollTimer = setInterval(async () => {
+    try {
+      const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+      const vj = await vr.json();
+      const versions = vj.data || [];
+      if (versions.length > 0) {
+        const latest = versions[0];
+        if (latest.id !== knownFirstVersionId || (latest.importStatus === 'Importing' || latest.importStatus === 'Pending')) {
+          versionId = latest.id;
+          knownFirstVersionId = latest.id;
+          clearInterval(pollTimer);
+          pollTimer = null;
+
+          // Start polling logs
+          logPollTimer = setInterval(async () => {
+            try {
+              const lr = await fetch(BASE + '/feeds/versions/' + versionId + '/logs');
+              const lj = await lr.json();
+              const logs = lj.data || [];
+              // Only append new entries
+              const currentCount = logContent.children.length;
+              for (let i = currentCount; i < logs.length; i++) {
+                appendLog(logs[i]);
+                if (logs[i].includes('Import complete') || logs[i].includes('Import failed') || logs[i].includes('Validation failed') || logs[i].includes('Error:')) {
+                  statusText.textContent = 'Done';
+                }
+              }
+            } catch(e) {}
+          }, 1000);
+        }
+      }
+    } catch(e) {}
+  }, 2000);
+
+  // Wait for the POST to finish
+  const r = await fetchPromise;
+  clearInterval(pollTimer);
+  if (logPollTimer) clearInterval(logPollTimer);
+  logPollTimer = null;
+
+  // If we never discovered the version ID, try one more time now
+  if (!versionId) {
+    try {
+      const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+      const vj = await vr.json();
+      const versions = vj.data || [];
+      if (versions.length > 0) versionId = versions[0].id;
+    } catch(e) {}
+  }
+
+  // One final log poll to catch any last entries
+  if (versionId) {
+    try {
+      const lr = await fetch(BASE + '/feeds/versions/' + versionId + '/logs');
+      const lj = await lr.json();
+      const logs = lj.data || [];
+      const currentCount = logContent.children.length;
+      for (let i = currentCount; i < logs.length; i++) appendLog(logs[i]);
+    } catch(e) {}
+  }
+
+  if (r instanceof Error) {
+    appendLog('Network error: ' + r.message);
+    resultSpan.textContent = 'Import failed';
+    resultSpan.className = 'me-auto small text-danger';
+  } else {
     const j = await r.json();
-    if (j.success) { alert('Import started.'); loadFeeds(); }
-    else { showError(j.message || 'Fetch failed.'); }
-  } catch(e) { showError('Error: ' + e.message); }
+    if (j.success) {
+      resultSpan.textContent = j.message || 'Import succeeded';
+      resultSpan.className = 'me-auto small text-success';
+      statusText.textContent = 'Complete';
+      // Auto-expand versions for this feed
+      const btn = document.querySelector(`button[onclick*="expandVersions(${id}"]`);
+      if (btn) { expandVersions(id, btn); loadFeeds(); }
+      else { loadFeeds(); }
+      setTimeout(closeModal, 5000);
+    } else {
+      resultSpan.textContent = j.message || 'Import failed';
+      resultSpan.className = 'me-auto small text-danger';
+    }
+  }
+  closeBtn.disabled = false;
 }
 
 async function editFeed(id) {

@@ -31,6 +31,7 @@ builder.Services.AddScoped<StationService>();
 builder.Services.AddScoped<RouteService>();
 builder.Services.AddScoped<OperatorService>();
 builder.Services.AddScoped<FeedService>();
+builder.Services.AddSingleton<ImportLogStore>();
 builder.Services.AddSingleton<RealtimeService>();
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();

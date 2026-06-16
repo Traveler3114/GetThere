@@ -25,6 +25,7 @@ public class FeedService
     private readonly OnestopIdService _onestopId;
     private readonly ReconciliationService _reconciliation;
     private readonly PlaceMatchingService _placeMatching;
+    private readonly ImportLogStore _logStore;
 
     public FeedService(
         TransitDbContext db,
@@ -34,7 +35,8 @@ public class FeedService
         GtfsParserService gtfs,
         OnestopIdService onestopId,
         ReconciliationService reconciliation,
-        PlaceMatchingService placeMatching)
+        PlaceMatchingService placeMatching,
+        ImportLogStore logStore)
     {
         _db = db;
         _httpFactory = httpFactory;
@@ -44,6 +46,7 @@ public class FeedService
         _onestopId = onestopId;
         _reconciliation = reconciliation;
         _placeMatching = placeMatching;
+        _logStore = logStore;
     }
 
     public async Task<List<FeedDto>> GetAllAsync(int after = 0, int perPage = 50, CancellationToken ct = default)
@@ -228,6 +231,8 @@ public class FeedService
                 .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
                 .OrderByDescending(fv => fv.FetchedAt)
                 .FirstOrDefaultAsync(ct);
+            if (existingVersion is not null)
+                _logStore.AddEntry(existingVersion.Id, $"SHA1 unchanged ({sha1}), skipping import");
             return existingVersion;
         }
 
@@ -244,6 +249,8 @@ public class FeedService
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("New FeedVersion {VersionId} for feed {FeedId} SHA1={Sha1}", version.Id, feed.FeedId, sha1);
+        _logStore.AddEntry(version.Id, $"Downloaded {bytes.Length:N0} bytes from {url}");
+        _logStore.AddEntry(version.Id, $"SHA1 = {sha1}");
         return version;
     }
 
@@ -261,6 +268,7 @@ public class FeedService
         {
             version.ImportStatus = FeedImportStatus.Failed;
             version.ImportError = "GTFS zip not found on disk";
+            _logStore.AddEntry(feedVersionId, "Error: GTFS zip not found on disk");
             await _db.SaveChangesAsync(CancellationToken.None);
             return;
         }
@@ -268,7 +276,10 @@ public class FeedService
         version.ImportStatus = FeedImportStatus.Importing;
         await _db.SaveChangesAsync(CancellationToken.None);
 
+        _logStore.AddEntry(feedVersionId, "Import started");
+
         using var archive = ZipFile.OpenRead(zipPath);
+        _logStore.AddEntry(feedVersionId, "Opening GTFS archive...");
         var conn = _db.Database.GetDbConnection();
         if (conn.State != ConnectionState.Open)
             await conn.OpenAsync(ct);
@@ -278,16 +289,20 @@ public class FeedService
         try
         {
             _db.Database.SetCommandTimeout(180);
+            _logStore.AddEntry(feedVersionId, "Validating GTFS files...");
             var validation = _gtfs.ValidateGtfs(archive);
             if (!validation.IsValid)
             {
                 version.ImportStatus = FeedImportStatus.Failed;
                 version.ImportError = "GTFS validation failed: " + string.Join("; ", validation.Errors);
+                _logStore.AddEntry(feedVersionId, $"Validation failed: {string.Join("; ", validation.Errors)}");
             await _db.SaveChangesAsync(CancellationToken.None);
             await sqlTx.CommitAsync(CancellationToken.None);
             return;
             }
 
+            _logStore.AddEntry(feedVersionId, "Validation passed");
+            _logStore.AddEntry(feedVersionId, "Parsing GTFS files...");
             var agencies = _gtfs.ParseAgencies(archive);
             var rawStops = _gtfs.ParseStops(archive);
             var routes = _gtfs.ParseRoutes(archive);
@@ -295,6 +310,7 @@ public class FeedService
             var calendar = _gtfs.ParseCalendar(archive);
             var calendarDates = _gtfs.ParseCalendarDates(archive);
             var shapes = _gtfs.ParseShapes(archive);
+            _logStore.AddEntry(feedVersionId, $"Parsed: {agencies.Count} agencies, {rawStops.Count} stops, {routes.Count} routes, {trips.Count} trips, {calendar.Count} calendars, {calendarDates.Count} calendar_dates, {shapes.Count} shapes");
 
             var operatorId = version.Feed.OperatorId;
 
@@ -306,6 +322,7 @@ public class FeedService
                 .ToDictionary(g => g.Key, g => g.First().RouteId, StringComparer.OrdinalIgnoreCase);
 
             // Phase 1: save routes → canonical IDs
+            _logStore.AddEntry(feedVersionId, "Phase 1: Saving canonical routes...");
             foreach (var r in routes)
             {
                 var globalId = $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}";
@@ -335,6 +352,7 @@ public class FeedService
             }
 
             await _db.SaveChangesAsync(CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, $"Phase 1: {routes.Count} routes saved");
 
             var prefix = $"gt-{version.Feed.FeedId}-";
             var canonicalRouteLookup = await _db.CanonicalRoutes
@@ -342,6 +360,7 @@ public class FeedService
                 .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, CancellationToken.None);
 
             // Phase 2: save trips, shapes, calendars → trip IDs
+            _logStore.AddEntry(feedVersionId, $"Phase 2: Saving {trips.Count} trips, {shapes.Count} shapes, {calendar.Count} calendars...");
             foreach (var t in trips)
             {
                 var globalId = prefix + t.RouteId.ToLowerInvariant();
@@ -391,6 +410,7 @@ public class FeedService
                 });
 
             await _db.SaveChangesAsync(CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, "Phase 2: trips, shapes, calendars saved");
 
             // Build trip lookup
             var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -402,6 +422,7 @@ public class FeedService
             }
 
             // Phase 3: single-pass stop_times — derive route types + SqlBulkCopy
+            _logStore.AddEntry(feedVersionId, "Phase 3: Bulk importing stop_times...");
             var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
 
             using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(
@@ -462,7 +483,10 @@ public class FeedService
                 await bulkCopy.WriteToServerAsync(dt, ct);
             }
 
+            _logStore.AddEntry(feedVersionId, "Phase 3: stop_times import complete");
+
             // Phase 4: save agencies and stops (with derived route types)
+            _logStore.AddEntry(feedVersionId, $"Phase 4: Saving {agencies.Count} agencies and {rawStops.Count} stops...");
             foreach (var a in agencies)
                 _db.Agencies.Add(new Agency
                 {
@@ -492,17 +516,24 @@ public class FeedService
             }
 
             await _db.SaveChangesAsync(CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, "Phase 4: agencies and stops saved");
 
             // Reconcile raw stops into canonical stations
+            _logStore.AddEntry(feedVersionId, "Reconciling stations...");
             await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, "Reconciliation complete");
 
             // Backfill RawStopEntityId and CanonicalStationId on StopTimes
+            _logStore.AddEntry(feedVersionId, "Backfilling station references...");
             await _db.Database.ExecuteSqlAsync(
                 $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, "Backfill complete");
 
             // Match new canonical stations to places
+            _logStore.AddEntry(feedVersionId, "Matching stations to places...");
             await _placeMatching.LoadPlacesAsync(CancellationToken.None);
             await _placeMatching.MatchStationsToPlacesAsync(CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, "Place matching complete");
 
             // Phase 5: finalize version
             _db.Entry(version).State = EntityState.Modified;
@@ -542,12 +573,14 @@ public class FeedService
             await _db.SaveChangesAsync(CancellationToken.None);
             await sqlTx.CommitAsync(CancellationToken.None);
 
+            _logStore.AddEntry(feedVersionId, $"Import complete: {routes.Count} routes, {rawStops.Count} stops, {trips.Count} trips");
             _logger.LogInformation("Import complete for FeedVersion {VersionId} ({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
                 feedVersionId, routes.Count, rawStops.Count, trips.Count);
         }
         catch (Exception ex)
         {
             try { await sqlTx.RollbackAsync(CancellationToken.None); } catch { }
+            _logStore.AddEntry(feedVersionId, $"Import failed: {ex.Message}");
             try
             {
                 using var errConn = new Microsoft.Data.SqlClient.SqlConnection(sqlConn.ConnectionString);
@@ -592,9 +625,11 @@ public class FeedService
             };
             _db.FeedVersions.Add(version);
             await _db.SaveChangesAsync(ct);
+            _logStore.AddEntry(version.Id, "Manual trigger, zip on disk, SHA1 computed");
         }
         else if (version.ImportStatus == FeedImportStatus.Success)
         {
+            _logStore.AddEntry(version.Id, "Already up to date (previous import succeeded)");
             return version;
         }
 
@@ -614,6 +649,11 @@ public class FeedService
     {
         return await _db.FeedVersions
             .FirstOrDefaultAsync(fv => fv.FeedId == feedId && fv.IsActive, ct);
+    }
+
+    public List<string> GetImportLogs(int versionId)
+    {
+        return _logStore.GetEntries(versionId);
     }
 
     public async Task<List<Feed>> GetActiveGtfsFeedsAsync(CancellationToken ct)

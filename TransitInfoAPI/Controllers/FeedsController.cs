@@ -72,6 +72,13 @@ public class FeedsController : ControllerBase
         return Ok(OperationResult.Ok("Feed deleted."));
     }
 
+    [HttpGet("versions/{versionId}/logs")]
+    public ActionResult<OperationResult<List<string>>> GetVersionLogs(int versionId, CancellationToken ct = default)
+    {
+        var logs = _feedService.GetImportLogs(versionId);
+        return Ok(OperationResult<List<string>>.Ok(logs));
+    }
+
     [HttpPost("{id}/fetch")]
     public async Task<ActionResult<OperationResult>> Fetch(int id, CancellationToken ct = default)
     {
