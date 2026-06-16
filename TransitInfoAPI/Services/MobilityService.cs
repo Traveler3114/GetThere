@@ -107,7 +107,7 @@ public class MobilityService
                             Longitude = place.Lng,
                             Capacity = place.BikeRacks,
                             AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes,
-                            CountryId = 1,
+                            CountryId = provider.Operator.CountryId,
                             LastUpdated = DateTime.UtcNow
                         });
                     }

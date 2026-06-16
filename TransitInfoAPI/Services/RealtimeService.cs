@@ -50,6 +50,13 @@ public class RealtimeService
                 _logger.LogWarning(ex, "Failed to poll GTFS-RT feed {FeedId}", feed.FeedId);
             }
         }
+
+        var cutoff = DateTime.UtcNow.AddMinutes(-5);
+        foreach (var key in _vehicleCache.Keys)
+        {
+            if (_vehicleCache.TryGetValue(key, out var v) && v.LastUpdated < cutoff)
+                _vehicleCache.TryRemove(key, out _);
+        }
     }
 
     private async Task PollFeedAsync(Feed feed, CancellationToken ct)
@@ -108,25 +115,30 @@ public class RealtimeService
         foreach (var entity in feedMessage.Entity.Where(e => e.Alert != null))
         {
             var alert = entity.Alert;
+            var cause = alert.Cause.ToString();
+            var effect = alert.Effect.ToString();
+            var activePeriodStart = alert.ActivePeriod.Count > 0
+                ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].Start)
+                : (DateTime?)null;
+
             var existing = await db.Alerts
-                .Where(a => a.FeedId == feed.Id)
-                .OrderByDescending(a => a.FetchedAt)
+                .Where(a => a.FeedId == feed.Id
+                    && a.Cause == cause
+                    && a.Effect == effect
+                    && a.ActivePeriodStart == activePeriodStart)
                 .FirstOrDefaultAsync(ct);
 
-            var headerText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text;
-            if (existing?.HeaderText != headerText)
+            if (existing is null)
             {
                 var alertEntity = new Entities.Alert
                 {
                     FeedId = feed.Id,
-                    HeaderText = headerText,
+                    HeaderText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text,
                     DescriptionText = alert.DescriptionText?.Translation?.FirstOrDefault()?.Text,
                     Url = alert.Url?.Translation?.FirstOrDefault()?.Text,
-                    Cause = alert.Cause.ToString(),
-                    Effect = alert.Effect.ToString(),
-                    ActivePeriodStart = alert.ActivePeriod.Count > 0
-                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].Start)
-                        : null,
+                    Cause = cause,
+                    Effect = effect,
+                    ActivePeriodStart = activePeriodStart,
                     ActivePeriodEnd = alert.ActivePeriod.Count > 0 && alert.ActivePeriod[0].End > 0
                         ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].End)
                         : null,

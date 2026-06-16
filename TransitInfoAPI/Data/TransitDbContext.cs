@@ -105,5 +105,12 @@ public class TransitDbContext : DbContext
             .HasIndex(st => st.TripId);
         modelBuilder.Entity<StopTime>()
             .HasIndex(st => st.CanonicalStationId);
+        modelBuilder.Entity<StopTime>()
+            .HasIndex(st => st.RawStopEntityId);
+        modelBuilder.Entity<StopTime>()
+            .HasOne(st => st.RawStopEntity)
+            .WithMany()
+            .HasForeignKey(st => st.RawStopEntityId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

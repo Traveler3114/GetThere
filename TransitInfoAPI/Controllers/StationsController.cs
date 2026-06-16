@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Data;
+using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 using TransitInfoAPI.Services;
 
@@ -11,8 +14,13 @@ namespace TransitInfoAPI.Controllers;
 public class StationsController : ControllerBase
 {
     private readonly StationService _stationService;
+    private readonly TransitDbContext _db;
 
-    public StationsController(StationService stationService) { _stationService = stationService; }
+    public StationsController(StationService stationService, TransitDbContext db)
+    {
+        _stationService = stationService;
+        _db = db;
+    }
 
     [HttpGet]
     public async Task<ActionResult> GetAll(
@@ -50,10 +58,25 @@ public class StationsController : ControllerBase
         return Ok(OperationResult<List<StationDto>>.OkPaginated(result, nextAfter, total, nextUrl));
     }
 
+    [HttpGet("search")]
+    public async Task<ActionResult> Search(
+        [FromQuery] string? q,
+        [FromQuery] RouteType? routeType,
+        [FromQuery] int after = 0,
+        [FromQuery] int perPage = 50,
+        CancellationToken ct = default)
+    {
+        var result = await _stationService.SearchAsync(q, routeType, after, perPage, ct);
+        var nextAfter = result.Count > 0 ? result.Max(r => r.Id) : after;
+        var total = await _stationService.GetTotalCountAsync(ct);
+        var nextUrl = result.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
+        return Ok(OperationResult<List<StationDto>>.OkPaginated(result, nextAfter, total, nextUrl));
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<OperationResult<StationDto>>> GetById(int id, CancellationToken ct = default)
     {
-        var station = await _stationService.GetByGlobalIdAsync($"gt-{id}", ct);
+        var station = await _stationService.GetByIdAsync(id, ct);
         if (station is null) return NotFound(OperationResult<StationDto>.Fail("Station not found."));
         return Ok(OperationResult<StationDto>.Ok(station));
     }
@@ -69,10 +92,38 @@ public class StationsController : ControllerBase
     [HttpGet("{id}/operators")]
     public async Task<ActionResult<OperationResult<List<StationOperatorDto>>>> GetOperators(int id, CancellationToken ct = default)
     {
-        var station = await _stationService.GetByGlobalIdAsync($"gt-{id}", ct);
+        var station = await _stationService.GetByIdAsync(id, ct);
         if (station is null) return NotFound();
         var operators = await _stationService.GetOperatorsAsync(station.OnestopId, ct);
         return Ok(OperationResult<List<StationOperatorDto>>.Ok(operators));
+    }
+
+    [HttpGet("{id}/routes")]
+    public async Task<ActionResult<OperationResult<List<RouteDto>>>> GetRoutes(int id, CancellationToken ct = default)
+    {
+        var routeIds = await _db.StopTimes
+            .Where(st => st.CanonicalStationId == id)
+            .Where(st => st.Trip.CanonicalRouteId != null)
+            .Select(st => st.Trip.CanonicalRouteId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var routes = await _db.CanonicalRoutes
+            .Where(r => routeIds.Contains(r.Id))
+            .Select(r => new RouteDto
+            {
+                Id = r.Id,
+                GlobalId = r.GlobalId,
+                OnestopId = r.OnestopId,
+                Name = r.LongName,
+                ShortName = r.ShortName,
+                RouteType = r.RouteType.ToString(),
+                OperatorId = r.OperatorId,
+                OperatorName = r.Operator.Name
+            })
+            .ToListAsync(ct);
+
+        return Ok(OperationResult<List<RouteDto>>.Ok(routes));
     }
 
     [HttpGet("{id}/departures")]

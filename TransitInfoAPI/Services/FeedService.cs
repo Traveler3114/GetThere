@@ -24,6 +24,7 @@ public class FeedService
     private readonly GtfsParserService _gtfs;
     private readonly OnestopIdService _onestopId;
     private readonly ReconciliationService _reconciliation;
+    private readonly PlaceMatchingService _placeMatching;
 
     public FeedService(
         TransitDbContext db,
@@ -32,7 +33,8 @@ public class FeedService
         IWebHostEnvironment env,
         GtfsParserService gtfs,
         OnestopIdService onestopId,
-        ReconciliationService reconciliation)
+        ReconciliationService reconciliation,
+        PlaceMatchingService placeMatching)
     {
         _db = db;
         _httpFactory = httpFactory;
@@ -41,6 +43,7 @@ public class FeedService
         _gtfs = gtfs;
         _onestopId = onestopId;
         _reconciliation = reconciliation;
+        _placeMatching = placeMatching;
     }
 
     public async Task<List<FeedDto>> GetAllAsync(int after = 0, int perPage = 50, CancellationToken ct = default)
@@ -67,7 +70,12 @@ public class FeedService
                 InternalUrl = f.InternalUrl,
                 IsActive = f.IsActive,
                 RefreshIntervalSeconds = f.RefreshIntervalSeconds,
-                OperatorName = f.Operator.Name
+                OperatorName = f.Operator.Name,
+                LicenseName = f.LicenseName,
+                LicenseUrl = f.LicenseUrl,
+                LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
+                LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
+                LicenseRedistributionAllowed = f.LicenseRedistributionAllowed
             })
             .ToListAsync(ct);
     }
@@ -87,7 +95,12 @@ public class FeedService
                 InternalUrl = f.InternalUrl,
                 IsActive = f.IsActive,
                 RefreshIntervalSeconds = f.RefreshIntervalSeconds,
-                OperatorName = f.Operator.Name
+                OperatorName = f.Operator.Name,
+                LicenseName = f.LicenseName,
+                LicenseUrl = f.LicenseUrl,
+                LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
+                LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
+                LicenseRedistributionAllowed = f.LicenseRedistributionAllowed
             })
             .FirstOrDefaultAsync(ct);
     }
@@ -153,14 +166,9 @@ public class FeedService
 
         if (versionIds.Count > 0)
         {
-            _db.Database.SetCommandTimeout(300);
             foreach (var vid in versionIds)
             {
-                await _db.Database.ExecuteSqlAsync(
-                    $"DELETE FROM StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = {vid})", ct);
-            }
-            foreach (var vid in versionIds)
-            {
+                await _db.StopTimes.Where(st => st.Trip.FeedVersionId == vid).ExecuteDeleteAsync(ct);
                 await _db.CalendarDates.Where(cd => cd.FeedVersionId == vid).ExecuteDeleteAsync(ct);
                 await _db.Calendars.Where(c => c.FeedVersionId == vid).ExecuteDeleteAsync(ct);
                 await _db.Shapes.Where(s => s.FeedVersionId == vid).ExecuteDeleteAsync(ct);
@@ -205,7 +213,9 @@ public class FeedService
             File.Delete(zipPath);
         File.Move(tmpPath, zipPath);
 
-        var sha1 = _gtfs.ComputeGtfsSha1(zipPath);
+        string sha1;
+        using (var archive = ZipFile.OpenRead(zipPath))
+            sha1 = _gtfs.ComputeGtfsSha1(archive);
 
         var existing = await _db.FeedVersions
             .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
@@ -345,7 +355,12 @@ public class FeedService
                     TripShortName = t.TripShortName,
                     DirectionId = t.DirectionId,
                     ShapeId = t.ShapeId,
-                    WheelchairAccessible = t.WheelchairAccessible.HasValue ? t.WheelchairAccessible == 1 : null,
+                    WheelchairAccessible = t.WheelchairAccessible switch
+                    {
+                        1 => true,
+                        2 => false,
+                        _ => null
+                    },
                     BikesAllowed = t.BikesAllowed.HasValue ? t.BikesAllowed == 1 : null,
                     CanonicalRouteId = canonicalRouteLookup.GetValueOrDefault(globalId)
                 });
@@ -481,9 +496,13 @@ public class FeedService
             // Reconcile raw stops into canonical stations
             await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, CancellationToken.None);
 
-            // Backfill CanonicalStationId on StopTimes so departures work
+            // Backfill RawStopEntityId and CanonicalStationId on StopTimes
             await _db.Database.ExecuteSqlAsync(
-                $"UPDATE st SET st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", CancellationToken.None);
+                $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", CancellationToken.None);
+
+            // Match new canonical stations to places
+            await _placeMatching.LoadPlacesAsync(CancellationToken.None);
+            await _placeMatching.MatchStationsToPlacesAsync(CancellationToken.None);
 
             // Phase 5: finalize version
             _db.Entry(version).State = EntityState.Modified;
@@ -493,6 +512,10 @@ public class FeedService
                 .ToListAsync(CancellationToken.None);
             foreach (var pv in prevActive)
                 pv.IsActive = false;
+
+            var prevActiveIds = prevActive.Select(pv => pv.Id).ToList();
+            if (prevActiveIds.Count > 0)
+                await _db.Shapes.Where(s => prevActiveIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync(CancellationToken.None);
 
             var convexHull = _gtfs.ComputeConvexHull(rawStops);
 
@@ -506,6 +529,11 @@ public class FeedService
             {
                 version.ServiceLevelStart = calendar.Min(c => DateOnly.ParseExact(c.StartDate, "yyyyMMdd"));
                 version.ServiceLevelEnd = calendar.Max(c => DateOnly.ParseExact(c.EndDate, "yyyyMMdd"));
+            }
+            else if (calendarDates.Count > 0)
+            {
+                version.ServiceLevelStart = calendarDates.Min(cd => DateOnly.ParseExact(cd.Date, "yyyyMMdd"));
+                version.ServiceLevelEnd = calendarDates.Max(cd => DateOnly.ParseExact(cd.Date, "yyyyMMdd"));
             }
 
             version.IsActive = true;
@@ -532,6 +560,7 @@ public class FeedService
                 await cmd.ExecuteNonQueryAsync(CancellationToken.None);
             }
             catch { }
+            try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
             _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
             throw;
         }
@@ -546,7 +575,12 @@ public class FeedService
             if (feed is null) throw new InvalidOperationException("Feed not found.");
 
             var zipPath = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId, "gtfs.zip");
-            var sha1 = File.Exists(zipPath) ? _gtfs.ComputeGtfsSha1(zipPath) : "manual-trigger";
+            var sha1 = "manual-trigger";
+            if (File.Exists(zipPath))
+            {
+                using var archive = ZipFile.OpenRead(zipPath);
+                sha1 = _gtfs.ComputeGtfsSha1(archive);
+            }
 
             version = new FeedVersion
             {
@@ -594,7 +628,7 @@ public class FeedService
         0 => StationType.Stop,
         1 => StationType.Station,
         2 => StationType.Platform,
-        3 => StationType.Stop,
+        3 => StationType.Platform,
         4 => StationType.Platform,
         _ => StationType.Stop
     };

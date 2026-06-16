@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
+using TransitInfoAPI.Enums;
 using TransitInfoAPI.Services;
 using TransitInfoAPI.Workers;
 
@@ -32,6 +33,7 @@ builder.Services.AddScoped<OperatorService>();
 builder.Services.AddScoped<FeedService>();
 builder.Services.AddSingleton<RealtimeService>();
 builder.Services.AddHostedService<RealtimePollingWorker>();
+builder.Services.AddHostedService<FeedPollingWorker>();
 
 builder.Services.AddCors(options =>
 {
@@ -47,5 +49,19 @@ app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+    var stuck = await db.FeedVersions
+        .Where(fv => fv.ImportStatus == FeedImportStatus.Importing)
+        .ToListAsync();
+    foreach (var version in stuck)
+    {
+        version.ImportStatus = FeedImportStatus.Failed;
+        version.ImportError = "Import interrupted by application restart";
+    }
+    await db.SaveChangesAsync();
+}
 
 await app.RunAsync();

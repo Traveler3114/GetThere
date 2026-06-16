@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using NetTopologySuite.Geometries;
+
 using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
@@ -28,6 +30,10 @@ public class RoutesController : ControllerBase
     public async Task<ActionResult> GetAll(
         [FromQuery] int? operatorId,
         [FromQuery] RouteType? routeType,
+        [FromQuery] double? minLat,
+        [FromQuery] double? minLon,
+        [FromQuery] double? maxLat,
+        [FromQuery] double? maxLon,
         [FromQuery] string? format = null,
         [FromQuery] int after = 0,
         [FromQuery] int perPage = 50,
@@ -43,6 +49,13 @@ public class RoutesController : ControllerBase
                 query = query.Where(r => r.RouteType == routeType.Value);
             if (after > 0)
                 query = query.Where(r => r.Id > after);
+
+            if (minLat.HasValue && minLon.HasValue && maxLat.HasValue && maxLon.HasValue)
+            {
+                var envelope = new Envelope(minLon.Value, maxLon.Value, minLat.Value, maxLat.Value);
+                var bbox = GeometryFactory.Default.ToGeometry(envelope);
+                query = query.Where(r => r.Geometry != null && r.Geometry.Intersects(bbox));
+            }
 
             var routes = await query.OrderBy(r => r.Id).Take(perPage).ToListAsync(ct);
 
@@ -114,6 +127,29 @@ public class RoutesController : ControllerBase
             return NotFound(OperationResult<RouteDto>.Fail("Route not found."));
 
         return Ok(OperationResult<RouteDto>.Ok(route));
+    }
+
+    [HttpGet("{id}/shape")]
+    public async Task<ActionResult> GetShape(int id, CancellationToken ct = default)
+    {
+        var geometry = await _db.CanonicalRoutes
+            .Where(r => r.Id == id)
+            .Select(r => r.Geometry)
+            .FirstOrDefaultAsync(ct);
+
+        if (geometry is null)
+            return NotFound();
+
+        return Ok(new
+        {
+            type = "Feature",
+            geometry = new
+            {
+                type = geometry.GeometryType,
+                coordinates = geometry.Coordinates.Select(c => new[] { c.X, c.Y })
+            },
+            properties = new { }
+        });
     }
 
     [HttpGet("{id}/stops")]

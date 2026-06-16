@@ -48,13 +48,16 @@ let allVehicles = [];
 let paused = false;
 let timer = null;
 let intervalSec = 15;
+let abortController = null;
 
 async function loadVehicles() {
   if (paused) return;
+  if (abortController) abortController.abort();
+  abortController = new AbortController();
   document.getElementById('loading').classList.remove('d-none');
   document.getElementById('error').classList.add('d-none');
   try {
-    const r = await fetch(BASE + '/realtime/vehicles');
+    const r = await fetch(BASE + '/realtime/vehicles', { signal: abortController.signal });
     const j = await r.json();
     allVehicles = j.data || [];
     document.getElementById('loading').classList.add('d-none');
@@ -63,6 +66,7 @@ async function loadVehicles() {
     filterVehicles();
     document.getElementById('statusBar').textContent = `Updated: ${new Date().toLocaleTimeString()} | ${allVehicles.length} vehicle(s) total`;
   } catch(e) {
+    if (e.name === 'AbortError') return;
     document.getElementById('loading').classList.add('d-none');
     showError('Failed to load vehicles: ' + e.message);
   }

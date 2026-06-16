@@ -18,22 +18,10 @@
 
   <div class="row mb-3 g-2">
     <div class="col-auto flex-grow-1">
-      <input type="text" id="search" class="form-control form-control-sm" placeholder="Search by name..." oninput="filterStations()">
+      <input type="text" id="search" class="form-control form-control-sm" placeholder="Search by name..." oninput="scheduleSearch()">
     </div>
     <div class="col-auto">
-      <select id="filterType" class="form-select form-select-sm" onchange="filterStations()">
-        <option value="">All Types</option>
-        <option value="Station">Station</option>
-        <option value="Stop">Stop</option>
-        <option value="Airport">Airport</option>
-        <option value="Port">Port</option>
-        <option value="BusTerminal">Bus Terminal</option>
-        <option value="FerryTerminal">Ferry Terminal</option>
-        <option value="Platform">Platform</option>
-      </select>
-    </div>
-    <div class="col-auto">
-      <select id="filterRouteType" class="form-select form-select-sm" onchange="filterStations()">
+      <select id="filterRouteType" class="form-select form-select-sm" onchange="scheduleSearch()">
         <option value="">All Route Types</option>
         <option value="Bus">Bus</option>
         <option value="Tram">Tram</option>
@@ -48,6 +36,18 @@
       </select>
     </div>
     <div class="col-auto">
+      <select id="filterType" class="form-select form-select-sm" onchange="filterStations()">
+        <option value="">All Types</option>
+        <option value="Station">Station</option>
+        <option value="Stop">Stop</option>
+        <option value="Airport">Airport</option>
+        <option value="Port">Port</option>
+        <option value="BusTerminal">Bus Terminal</option>
+        <option value="FerryTerminal">Ferry Terminal</option>
+        <option value="Platform">Platform</option>
+      </select>
+    </div>
+    <div class="col-auto">
       <select id="filterCountry" class="form-select form-select-sm" onchange="filterStations()">
         <option value="">All Countries</option>
       </select>
@@ -57,11 +57,13 @@
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
   <div id="error" class="alert alert-danger d-none"></div>
   <div id="content" class="d-none"></div>
+  <div id="statusBar" class="small text-muted mt-2 d-none"></div>
 </div>
 
 <script>
 const BASE = '';
 let allStations = [];
+let searchTimer = null;
 
 const ROUTE_COLORS = { Tram: '#33a02c', Metro: '#e31a1c', Rail: '#b15928', Bus: '#1f78b4', Ferry: '#33a02c', LightRail: '#ff7f00', CableCar: '#ff7f00', Gondola: '#6a3d9a', Funicular: '#b15928', Trolleybus: '#1f78b4' };
 
@@ -71,12 +73,24 @@ function rtBadge(type) {
   return `<span class="rt-badge" style="background:${color}">${type}</span>`;
 }
 
-async function loadStations() {
+function scheduleSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 250);
+}
+
+async function doSearch() {
+  const q = document.getElementById('search').value.trim();
+  const rt = document.getElementById('filterRouteType').value;
   document.getElementById('loading').classList.remove('d-none');
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
+  document.getElementById('statusBar').classList.add('d-none');
   try {
-    const r = await fetch(BASE + '/stations');
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (rt) params.set('routeType', rt);
+    params.set('perPage', '200');
+    const r = await fetch(BASE + '/stations/search?' + params.toString());
     const j = await r.json();
     allStations = j.data || [];
     const countries = [...new Set(allStations.filter(s=>s.countryName).map(s=>s.countryName))].sort();
@@ -85,21 +99,25 @@ async function loadStations() {
     filterStations();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
+    document.getElementById('statusBar').classList.remove('d-none');
+    document.getElementById('statusBar').textContent = `Found ${allStations.length} station(s) matching search`;
   } catch(e) {
     document.getElementById('loading').classList.add('d-none');
-    showError('Failed to load stations: ' + e.message);
+    showError('Failed to search stations: ' + e.message);
   }
 }
 
+async function loadStations() {
+  document.getElementById('search').value = '';
+  document.getElementById('filterRouteType').value = '';
+  await doSearch();
+}
+
 function filterStations() {
-  const q = document.getElementById('search').value.toLowerCase();
   const type = document.getElementById('filterType').value;
-  const rt = document.getElementById('filterRouteType').value;
   const country = document.getElementById('filterCountry').value;
   let filtered = allStations;
-  if (q) filtered = filtered.filter(s => s.name.toLowerCase().includes(q));
   if (type) filtered = filtered.filter(s => s.stationType === type);
-  if (rt) filtered = filtered.filter(s => (s.primaryRouteType || s.stationType) === rt);
   if (country) filtered = filtered.filter(s => s.countryName === country);
   renderStations(filtered);
 }
@@ -114,11 +132,12 @@ function renderStations(list) {
     <td><code>${esc(s.globalId)}</code></td>
     <td><code class="small">${esc(s.onestopId||'-')}</code></td>
     <td><span class="badge bg-secondary">${esc(s.stationType)}</span></td>
+    <td>${rtBadge(s.primaryRouteType)}</td>
     <td>${esc(s.countryName||'-')}</td>
     <td>${esc(s.cityName||'-')}</td>
     <td class="small text-nowrap">${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
-  </tr><tr class="detail-row" id="detail-${esc(s.globalId)}"><td colspan="7"><div class="detail-inner" id="detailInner-${esc(s.globalId)}"><i class="bi bi-hourglass-split"></i> Loading...</div></td></tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>Global ID</th><th>Onestop ID</th><th>Type</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s)</small>`;
+  </tr><tr class="detail-row" id="detail-${esc(s.globalId)}"><td colspan="8"><div class="detail-inner" id="detailInner-${esc(s.globalId)}"><i class="bi bi-hourglass-split"></i> Loading...</div></td></tr>`).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>Global ID</th><th>Onestop ID</th><th>Type</th><th>Route Type</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s)</small>`;
 }
 
 let detailLoading = {};
@@ -133,9 +152,11 @@ async function toggleDetail(row, globalId) {
   if (!detailLoading[globalId]) {
     detailLoading[globalId] = true;
     try {
+      const station = allStations.find(s => s.globalId === globalId);
+      if (!station) { document.getElementById('detailInner-' + globalId).innerHTML = '<p class="text-danger small">Station not found.</p>'; return; }
       const [oR, dR] = await Promise.all([
-        fetch(BASE + '/stations/' + globalId + '/operators').then(r=>r.json()),
-        fetch(BASE + '/stations/' + globalId + '/departures').then(r=>r.json())
+        fetch(BASE + '/stations/' + station.id + '/operators').then(r=>r.json()),
+        fetch(BASE + '/stations/' + station.id + '/departures').then(r=>r.json())
       ]);
       const operators = oR.data || [];
       const departures = dR.data || [];

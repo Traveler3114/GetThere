@@ -10,4 +10,5 @@ public class MobilityStationDto
     public int AvailableVehicles { get; set; }
     public int Capacity { get; set; }
     public string ProviderName { get; set; } = string.Empty;
+    public DateTime? LastUpdated { get; set; }
 }

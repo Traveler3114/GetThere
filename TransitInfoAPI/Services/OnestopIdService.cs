@@ -102,6 +102,12 @@ public class OnestopIdService
         return $"o-{geohash}-{slug}";
     }
 
+    public string GenerateOperatorOnestopId(string isoCode, string name)
+    {
+        var slug = ToNameSlug(name);
+        return $"o-{isoCode.ToLowerInvariant()}-{slug}";
+    }
+
     public string GenerateFeedOnestopId(double lat, double lon, string feedId)
     {
         var geohash = EncodeGeohash(lat, lon, 6);

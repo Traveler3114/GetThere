@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using NetTopologySuite.Algorithm;
+using NetTopologySuite.Geometries;
+
 using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -16,11 +19,13 @@ public class OperatorsController : ControllerBase
 {
     private readonly OperatorService _operatorService;
     private readonly TransitDbContext _db;
+    private readonly OnestopIdService _onestopIdService;
 
-    public OperatorsController(OperatorService operatorService, TransitDbContext db)
+    public OperatorsController(OperatorService operatorService, TransitDbContext db, OnestopIdService onestopIdService)
     {
         _operatorService = operatorService;
         _db = db;
+        _onestopIdService = onestopIdService;
     }
 
     [HttpGet]
@@ -145,7 +150,7 @@ public class OperatorsController : ControllerBase
     }
 
     [HttpGet("{id:int}/service-area")]
-    public async Task<ActionResult<OperationResult<object>>> GetServiceArea(int id, CancellationToken ct = default)
+    public async Task<ActionResult> GetServiceArea(int id, CancellationToken ct = default)
     {
         var hull = await _db.FeedVersions
             .Where(fv => fv.ConvexHull != null && fv.Agencies.Any(a => a.OperatorId == id))
@@ -153,21 +158,39 @@ public class OperatorsController : ControllerBase
             .Select(fv => fv.ConvexHull)
             .FirstOrDefaultAsync(ct);
 
-        if (hull is null)
-            return NotFound(OperationResult<object>.Fail("No service area found for this operator."));
+        Geometry geom;
+        if (hull is not null)
+        {
+            geom = hull;
+        }
+        else
+        {
+            var coords = await _db.CanonicalStationOperators
+                .Where(cso => cso.OperatorId == id)
+                .Select(cso => cso.CanonicalStation)
+                .Where(cs => cs != null)
+                .Select(cs => new Coordinate(cs.Longitude, cs.Latitude))
+                .ToListAsync(ct);
 
-        var geoJson = new
+            if (coords.Count == 0)
+                return NotFound(new { type = "Feature", geometry = (object?)null, properties = new { } });
+
+            var computed = new ConvexHull(coords.ToArray(), GeometryFactory.Default).GetConvexHull();
+            if (computed is Polygon polygon && !Orientation.IsCCW(polygon.Shell.Coordinates))
+                computed = polygon.Reverse();
+            geom = computed;
+        }
+
+        return Ok(new
         {
             type = "Feature",
             geometry = new
             {
-                type = hull.GeometryType,
-                coordinates = hull.Coordinates.Select(c => new[] { c.X, c.Y })
+                type = geom.GeometryType,
+                coordinates = geom.Coordinates.Select(c => new[] { c.X, c.Y })
             },
             properties = new { }
-        };
-
-        return Ok(OperationResult<object>.Ok(geoJson));
+        });
     }
 
     [HttpGet("{globalId}/stations")]
@@ -218,6 +241,7 @@ public class OperatorsController : ControllerBase
         var op = new Operator
         {
             GlobalId = globalId,
+            OnestopId = _onestopIdService.GenerateOperatorOnestopId(country.IsoCode, request.ShortName),
             Name = request.Name,
             ShortName = request.ShortName,
             Website = request.Website,

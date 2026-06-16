@@ -21,23 +21,12 @@ public class ScheduleService
         var today = DateOnly.FromDateTime(from);
         var fromTime = (int)from.TimeOfDay.TotalSeconds;
 
-        var activeTripIds = await _db.Trips
-            .Where(t => t.FeedVersion.IsActive)
-            .Where(t => t.StopTimes.Any(st => st.CanonicalStationId == canonicalStationId))
-            .Select(t => t.Id)
-            .ToListAsync(ct);
-
         var activeServiceIds = await GetActiveServiceIdsForDateAsync(today, ct);
-
-        var validTripIds = await _db.Trips
-            .Where(t => activeTripIds.Contains(t.Id))
-            .Where(t => activeServiceIds.Contains(t.ServiceId))
-            .Select(t => t.Id)
-            .ToListAsync(ct);
 
         var departures = await _db.StopTimes
             .Where(st => st.CanonicalStationId == canonicalStationId)
-            .Where(st => validTripIds.Contains(st.TripId))
+            .Where(st => st.Trip.FeedVersion.IsActive)
+            .Where(st => st.Trip != null && activeServiceIds.Contains(st.Trip.ServiceId))
             .Where(st => st.DepartureTime >= fromTime)
             .OrderBy(st => st.DepartureTime)
             .Take(count)
@@ -73,7 +62,8 @@ public class ScheduleService
                 Name = st.CanonicalStation.Name,
                 Latitude = st.CanonicalStation.Latitude,
                 Longitude = st.CanonicalStation.Longitude,
-                StationType = st.CanonicalStation.StationType.ToString()
+                StationType = st.CanonicalStation.StationType.ToString(),
+                PrimaryRouteType = st.CanonicalStation.PrimaryRouteType.ToString()
             })
             .ToListAsync(ct);
 
@@ -99,7 +89,7 @@ public class ScheduleService
                     ? (t.CanonicalRoute.ShortName ?? t.CanonicalRoute.LongName)
                     : "",
                 RouteType = t.CanonicalRoute != null ? t.CanonicalRoute.RouteType.ToString() : null,
-                ActiveToday = true
+                ActiveToday = activeServiceIds.Contains(t.ServiceId)
             })
             .ToListAsync(ct);
 
@@ -137,12 +127,12 @@ public class ScheduleService
         return result;
     }
 
-    public bool IsServiceActiveOn(string serviceId, DateOnly date, int feedVersionId)
+    public async Task<bool> IsServiceActiveOnAsync(string serviceId, DateOnly date, int feedVersionId, CancellationToken ct)
     {
         var dayOfWeek = date.DayOfWeek;
 
-        var calendar = _db.Calendars
-            .FirstOrDefault(c => c.FeedVersionId == feedVersionId && c.ServiceId == serviceId);
+        var calendar = await _db.Calendars
+            .FirstOrDefaultAsync(c => c.FeedVersionId == feedVersionId && c.ServiceId == serviceId, ct);
 
         if (calendar is null) return false;
         if (date < calendar.StartDate || date > calendar.EndDate) return false;
@@ -161,8 +151,8 @@ public class ScheduleService
 
         if (!active) return false;
 
-        var exception = _db.CalendarDates
-            .FirstOrDefault(cd => cd.FeedVersionId == feedVersionId && cd.ServiceId == serviceId && cd.Date == date);
+        var exception = await _db.CalendarDates
+            .FirstOrDefaultAsync(cd => cd.FeedVersionId == feedVersionId && cd.ServiceId == serviceId && cd.Date == date, ct);
 
         if (exception is not null)
             return exception.ExceptionType == 1;

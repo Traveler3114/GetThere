@@ -11,6 +11,7 @@ public class StationDto
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public string StationType { get; set; } = string.Empty;
+    public string? PrimaryRouteType { get; set; }
     public string? CountryName { get; set; }
     public string? CityName { get; set; }
 }

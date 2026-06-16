@@ -55,7 +55,8 @@ public class MobilityController : ControllerBase
                 Longitude = ms.Longitude,
                 AvailableVehicles = ms.AvailableVehicles,
                 Capacity = ms.Capacity,
-                ProviderName = ms.MobilityProvider.Operator.Name
+                ProviderName = ms.MobilityProvider.Operator.Name,
+                LastUpdated = ms.LastUpdated
             })
             .ToListAsync(ct);
 

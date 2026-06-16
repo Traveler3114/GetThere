@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
+using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 
 namespace TransitInfoAPI.Services;
@@ -54,6 +55,7 @@ public class StationService
                 Latitude = cs.Latitude,
                 Longitude = cs.Longitude,
                 StationType = cs.StationType.ToString(),
+                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
                 CountryName = cs.Country.Name,
                 CityName = cs.City != null ? cs.City.Name : null
             })
@@ -75,6 +77,29 @@ public class StationService
                 Latitude = cs.Latitude,
                 Longitude = cs.Longitude,
                 StationType = cs.StationType.ToString(),
+                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
+                CountryName = cs.Country.Name,
+                CityName = cs.City != null ? cs.City.Name : null
+            })
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<StationDto?> GetByIdAsync(int id, CancellationToken ct)
+    {
+        return await _db.CanonicalStations
+            .Include(cs => cs.Country)
+            .Include(cs => cs.City)
+            .Where(cs => cs.Id == id && cs.IsActive)
+            .Select(cs => new StationDto
+            {
+                Id = cs.Id,
+                GlobalId = cs.GlobalId,
+                OnestopId = cs.OnestopId,
+                Name = cs.Name,
+                Latitude = cs.Latitude,
+                Longitude = cs.Longitude,
+                StationType = cs.StationType.ToString(),
+                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
                 CountryName = cs.Country.Name,
                 CityName = cs.City != null ? cs.City.Name : null
             })
@@ -96,10 +121,46 @@ public class StationService
                 Latitude = cs.Latitude,
                 Longitude = cs.Longitude,
                 StationType = cs.StationType.ToString(),
+                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
                 CountryName = cs.Country.Name,
                 CityName = cs.City != null ? cs.City.Name : null
             })
             .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<List<StationDto>> SearchAsync(string? q, RouteType? routeType, int after, int perPage, CancellationToken ct)
+    {
+        var query = _db.CanonicalStations
+            .Include(cs => cs.Country)
+            .Where(cs => cs.IsActive)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(cs => cs.Name.Contains(q));
+
+        if (routeType.HasValue)
+            query = query.Where(cs => cs.PrimaryRouteType == routeType.Value);
+
+        if (after > 0)
+            query = query.Where(cs => cs.Id > after);
+
+        return await query
+            .OrderBy(cs => cs.Id)
+            .Take(perPage)
+            .Select(cs => new StationDto
+            {
+                Id = cs.Id,
+                GlobalId = cs.GlobalId,
+                OnestopId = cs.OnestopId,
+                Name = cs.Name,
+                Latitude = cs.Latitude,
+                Longitude = cs.Longitude,
+                StationType = cs.StationType.ToString(),
+                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
+                CountryName = cs.Country.Name,
+                CityName = cs.City != null ? cs.City.Name : null
+            })
+            .ToListAsync(ct);
     }
 
     public async Task<List<StationOperatorDto>> GetOperatorsAsync(string onestopId, CancellationToken ct)

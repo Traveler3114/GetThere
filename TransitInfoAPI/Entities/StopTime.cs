@@ -10,6 +10,8 @@ public class StopTime
 
     [MaxLength(450)]
     public string RawStopId { get; set; } = string.Empty;
+    public int? RawStopEntityId { get; set; }
+    public RawStop? RawStopEntity { get; set; }
     public int? CanonicalStationId { get; set; }
     public CanonicalStation? CanonicalStation { get; set; }
 

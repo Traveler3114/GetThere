@@ -19,6 +19,8 @@
     </div>
   </div>
 
+  <div id="healthSection" class="d-none"></div>
+
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
   <div id="error" class="alert alert-danger d-none"></div>
   <div id="content" class="d-none"></div>
@@ -32,17 +34,58 @@ async function loadFeeds() {
   document.getElementById('loading').classList.remove('d-none');
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
+  document.getElementById('healthSection').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/feeds');
     const j = await r.json();
     allFeeds = j.data || [];
     renderFeeds();
+    checkFeedHealth();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
   } catch(e) {
     document.getElementById('loading').classList.add('d-none');
     showError('Failed to load feeds: ' + e.message);
   }
+}
+
+async function checkFeedHealth() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const unhealthy = [];
+
+  for (let i = 0; i < allFeeds.length; i += 5) {
+    const batch = allFeeds.slice(i, i + 5);
+    const results = await Promise.all(batch.map(async feed => {
+      try {
+        const r = await fetch(BASE + '/feeds/' + feed.id + '/versions');
+        const j = await r.json();
+        const versions = j.data || [];
+        const latest = versions[0];
+        if (!latest) return feed;
+        if (latest.importStatus === 'Success' && latest.importedAt && new Date(latest.importedAt) >= sevenDaysAgo) return null;
+        return feed;
+      } catch { return feed; }
+    }));
+    unhealthy.push(...results.filter(f => f !== null));
+  }
+
+  if (!unhealthy.length) return;
+
+  const html = unhealthy.map(f => `<li class="list-group-item list-group-item-danger d-flex justify-content-between align-items-center py-1">
+    <span><strong>${esc(f.feedId)}</strong> <code class="small">${esc(f.onestopId||'-')}</code> <span class="badge bg-secondary">${esc(f.feedType)}</span></span>
+    <button class="btn btn-sm btn-outline-danger" onclick="openFeedHealth(${f.id})">Inspect</button>
+  </li>`).join('');
+
+  document.getElementById('healthSection').innerHTML = `<div class="alert alert-danger mb-3"><h6 class="mb-2"><i class="bi bi-exclamation-triangle-fill"></i> ${unhealthy.length} feed(s) without successful import in the last 7 days</h6><ul class="list-group list-group-flush">${html}</ul></div>`;
+  document.getElementById('healthSection').classList.remove('d-none');
+}
+
+function openFeedHealth(feedId) {
+  const feed = allFeeds.find(f => f.id === feedId);
+  if (!feed) return;
+  const btn = document.querySelector(`button[onclick*="expandVersions(${feedId}"]`);
+  if (btn) btn.click();
+  document.getElementById('healthSection').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function renderFeeds() {
@@ -61,7 +104,7 @@ function renderFeeds() {
     <td>
       <button class="btn btn-sm btn-outline-success" onclick="expandVersions(${f.id}, this)" title="Versions"><i class="bi bi-clock-history"></i></button>
       ${f.feedType === 'GTFSStatic' ? `<button class="btn btn-sm btn-outline-primary" onclick="fetchFeed(${f.id})" title="Fetch & Import"><i class="bi bi-download"></i></button>` : ''}
-      <button class="btn btn-sm btn-outline-warning" onclick="toggleActive(${f.id}, ${!f.isActive})" title="Toggle active"><i class="bi bi-power"></i></button>
+      <button class="btn btn-sm btn-outline-warning" onclick="editFeed(${f.id})" title="Edit"><i class="bi bi-pencil"></i></button>
       <button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>
     </td>
   </tr>`).join('');
@@ -112,17 +155,95 @@ async function fetchFeed(id) {
   } catch(e) { showError('Error: ' + e.message); }
 }
 
-async function toggleActive(id, active) {
+async function editFeed(id) {
+  const feed = allFeeds.find(f => f.id === id);
+  if (!feed) return;
   try {
-    const feed = allFeeds.find(f => f.id === id);
-    if (!feed) return;
+    const r = await fetch(BASE + '/operators');
+    const j = await r.json();
+    _operators = j.data || [];
+  } catch(e) {}
+  const html = `<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Edit Feed: ${esc(feed.feedId)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">Active</label>
+        <select id="editIsActive" class="form-select form-select-sm">
+          <option value="true" ${feed.isActive ? 'selected' : ''}>Active</option>
+          <option value="false" ${!feed.isActive ? 'selected' : ''}>Inactive</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Refresh Interval (seconds)</label>
+        <input type="number" id="editInterval" class="form-control form-control-sm" value="${feed.refreshIntervalSeconds}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">External URL</label>
+        <input type="url" id="editExternalUrl" class="form-control form-control-sm" value="${esc(feed.externalUrl||'')}">
+      </div>
+      <hr>
+      <h6>License</h6>
+      <div class="mb-2">
+        <label class="form-label">License Name</label>
+        <input type="text" id="editLicenseName" class="form-control form-control-sm" value="${esc(feed.licenseName||'')}">
+      </div>
+      <div class="mb-2">
+        <label class="form-label">License URL</label>
+        <input type="url" id="editLicenseUrl" class="form-control form-control-sm" value="${esc(feed.licenseUrl||'')}">
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="editLicenseCommercialUseAllowed" ${feed.licenseCommercialUseAllowed === true ? 'checked' : ''}>
+        <label class="form-check-label" for="editLicenseCommercialUseAllowed">Commercial Use Allowed</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="editLicenseShareAlikeOptional" ${feed.licenseShareAlikeOptional === true ? 'checked' : ''}>
+        <label class="form-check-label" for="editLicenseShareAlikeOptional">Share Alike Optional</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="editLicenseRedistributionAllowed" ${feed.licenseRedistributionAllowed === true ? 'checked' : ''}>
+        <label class="form-check-label" for="editLicenseRedistributionAllowed">Redistribution Allowed</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="saveEditFeed(${id})">Save</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('editModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('editModal'));
+  modal.show();
+  document.getElementById('editModal').addEventListener('hidden.bs.modal', () => document.getElementById('editModal').remove());
+}
+
+async function saveEditFeed(id) {
+  const feed = allFeeds.find(f => f.id === id);
+  if (!feed) return;
+  const updated = {
+    ...feed,
+    isActive: document.getElementById('editIsActive').value === 'true',
+    refreshIntervalSeconds: parseInt(document.getElementById('editInterval').value) || 3600,
+    externalUrl: document.getElementById('editExternalUrl').value.trim() || null,
+    licenseName: document.getElementById('editLicenseName').value.trim() || null,
+    licenseUrl: document.getElementById('editLicenseUrl').value.trim() || null,
+    licenseCommercialUseAllowed: document.getElementById('editLicenseCommercialUseAllowed').checked || null,
+    licenseShareAlikeOptional: document.getElementById('editLicenseShareAlikeOptional').checked || null,
+    licenseRedistributionAllowed: document.getElementById('editLicenseRedistributionAllowed').checked || null
+  };
+  try {
     const r = await fetch(BASE + '/feeds/' + id, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({...feed, isActive: active})
+      body: JSON.stringify(updated)
     });
     const j = await r.json();
-    if (j.success) { loadFeeds(); } else { showError(j.message || 'Failed to update feed.'); }
+    if (j.success) {
+      bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+      loadFeeds();
+    } else {
+      showError(j.message || 'Failed to update feed.');
+    }
   } catch(e) { showError('Error: ' + e.message); }
 }
 
@@ -183,6 +304,28 @@ async function showAddModal() {
       <div class="mb-3">
         <label class="form-label">Refresh Interval (seconds)</label>
         <input type="number" id="addInterval" class="form-control form-control-sm" value="3600">
+      </div>
+      <hr>
+      <h6>License</h6>
+      <div class="mb-2">
+        <label class="form-label">License Name</label>
+        <input type="text" id="addLicenseName" class="form-control form-control-sm" placeholder="e.g., ODbL">
+      </div>
+      <div class="mb-2">
+        <label class="form-label">License URL</label>
+        <input type="url" id="addLicenseUrl" class="form-control form-control-sm" placeholder="https://...">
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="addLicenseCommercialUseAllowed">
+        <label class="form-check-label" for="addLicenseCommercialUseAllowed">Commercial Use Allowed</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="addLicenseShareAlikeOptional">
+        <label class="form-check-label" for="addLicenseShareAlikeOptional">Share Alike Optional</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="addLicenseRedistributionAllowed">
+        <label class="form-check-label" for="addLicenseRedistributionAllowed">Redistribution Allowed</label>
       </div>
     </div>
     <div class="modal-footer">

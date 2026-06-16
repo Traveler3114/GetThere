@@ -46,7 +46,7 @@ public class FeedPollingWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var feedService = scope.ServiceProvider.GetRequiredService<FeedService>();
 
-        var activeFeeds = await feedService.GetAllAsync(perPage: 0, ct: ct);
+        var activeFeeds = await feedService.GetAllAsync(perPage: int.MaxValue, ct: ct);
         var staticFeeds = activeFeeds
             .Where(f => f.FeedType == nameof(FeedType.GTFSStatic) && f.IsActive)
             .ToList();

@@ -29,17 +29,25 @@ public class ReconciliationService
     public async Task ReconcileFeedVersionAsync(int feedVersionId, CancellationToken ct)
     {
         var rawStops = await _db.RawStops
-            .Where(rs => rs.FeedVersionId == feedVersionId && rs.IsActive)
+            .Where(rs => rs.FeedVersionId == feedVersionId && rs.IsActive && rs.StationType != StationType.Platform)
             .ToListAsync(ct);
 
         if (rawStops.Count == 0) return;
 
         var feedVersion = await _db.FeedVersions
             .Include(fv => fv.Feed)
+            .ThenInclude(f => f.Operator)
             .FirstAsync(fv => fv.Id == feedVersionId, ct);
 
+        var minLat = rawStops.Min(r => r.Lat);
+        var maxLat = rawStops.Max(r => r.Lat);
+        var minLon = rawStops.Min(r => r.Lon);
+        var maxLon = rawStops.Max(r => r.Lon);
+        var buffer = 0.005;
         var existingStations = await _db.CanonicalStations
-            .Where(cs => cs.IsActive)
+            .Where(cs => cs.IsActive
+                && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
+                && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
             .ToListAsync(ct);
 
         var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
@@ -56,24 +64,36 @@ public class ReconciliationService
         foreach (var rawStop in rawStops)
         {
             var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
-            if (onestopSeen.Add(onestopId))
+
+            if (!onestopSeen.Add(onestopId))
+                continue;
+
+            var nearbyMatch = existingStations
+                .FirstOrDefault(s => s.PrimaryRouteType == rawStop.RouteType
+                    && CalculateDistanceMeters(rawStop.Lat, rawStop.Lon, s.Latitude, s.Longitude) <= 50
+                    && CalculateNameSimilarity(rawStop.Name, s.Name) >= 0.85);
+
+            if (nearbyMatch is not null)
             {
-                var station = new CanonicalStation
-                {
-                    GlobalId = $"gt-raw-{rawStop.Id}",
-                    OnestopId = onestopId,
-                    Name = rawStop.Name,
-                    Latitude = rawStop.Lat,
-                    Longitude = rawStop.Lon,
-                    StationType = rawStop.StationType,
-                    PrimaryRouteType = rawStop.RouteType,
-                    IsActive = true,
-                    CountryId = 1,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _db.CanonicalStations.Add(station);
-                newStationList.Add(station);
+                onestopToStation[onestopId] = nearbyMatch;
+                continue;
             }
+
+            var station = new CanonicalStation
+            {
+                GlobalId = $"gt-raw-{rawStop.Id}",
+                OnestopId = onestopId,
+                Name = rawStop.Name,
+                Latitude = rawStop.Lat,
+                Longitude = rawStop.Lon,
+                StationType = rawStop.StationType,
+                PrimaryRouteType = rawStop.RouteType,
+                IsActive = true,
+                CountryId = feedVersion.Feed.Operator.CountryId,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.CanonicalStations.Add(station);
+            newStationList.Add(station);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -82,7 +102,9 @@ public class ReconciliationService
             onestopToStation[s.OnestopId] = s;
 
         existingStations = await _db.CanonicalStations
-            .Where(cs => cs.IsActive)
+            .Where(cs => cs.IsActive
+                && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
+                && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
             .ToListAsync(ct);
 
         // Phase 2: match raw stops to stations and create candidates
@@ -197,7 +219,7 @@ public class ReconciliationService
         _logger.LogInformation("Reconciled {Count} raw stops for FeedVersion {FeedVersionId}", rawStops.Count, feedVersionId);
     }
 
-    public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, CancellationToken ct)
+    public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, int countryId, CancellationToken ct)
     {
         var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
 
@@ -211,7 +233,7 @@ public class ReconciliationService
             StationType = rawStop.StationType,
             PrimaryRouteType = rawStop.RouteType,
             IsActive = true,
-            CountryId = 1,
+            CountryId = countryId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -267,6 +289,7 @@ public class ReconciliationService
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
+            .ThenInclude(c => c.Operator)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
         if (candidate is null)
             return OperationResult.Fail("Candidate not found.");
@@ -276,7 +299,7 @@ public class ReconciliationService
             var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
             if (rawStop is not null)
             {
-                var newStation = await CreateCanonicalStationAsync(rawStop, ct);
+                var newStation = await CreateCanonicalStationAsync(rawStop, candidate.Feed.Operator.CountryId, ct);
                 candidate.SuggestedCanonicalStationId = newStation.Id;
                 rawStop.CanonicalStationId = newStation.Id;
                 rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
@@ -319,7 +342,6 @@ public class ReconciliationService
         List<CanonicalStation> stations, double searchRadiusMeters)
     {
         (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? best = null;
-        var searchRadiusDeg = searchRadiusMeters / 111_000.0;
 
         foreach (var station in stations.Where(s => s.PrimaryRouteType == rawRouteType))
         {

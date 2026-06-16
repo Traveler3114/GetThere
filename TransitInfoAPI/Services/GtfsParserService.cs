@@ -5,6 +5,8 @@ using System.Security.Cryptography;
 using CsvHelper;
 using CsvHelper.Configuration;
 
+using Microsoft.Extensions.Logging;
+
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Algorithm;
 
@@ -15,10 +17,15 @@ namespace TransitInfoAPI.Services;
 public class GtfsParserService
 {
     private readonly GeometryFactory _geometryFactory = new(new PrecisionModel(), 4326);
+    private readonly ILogger<GtfsParserService> _logger;
 
-    public string ComputeGtfsSha1(string zipPath)
+    public GtfsParserService(ILogger<GtfsParserService> logger)
     {
-        using var archive = ZipFile.OpenRead(zipPath);
+        _logger = logger;
+    }
+
+    public string ComputeGtfsSha1(ZipArchive archive)
+    {
         var entries = archive.Entries
             .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) && e.Length > 0)
             .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
@@ -35,43 +42,6 @@ public class GtfsParserService
         }
         sha1.TransformFinalBlock([], 0, 0);
         return Convert.ToHexString(sha1.Hash!).ToLowerInvariant();
-    }
-
-    public GtfsValidationResult ValidateGtfs(string zipPath)
-    {
-        var result = new GtfsValidationResult();
-        try
-        {
-            using var archive = ZipFile.OpenRead(zipPath);
-            var fileNames = archive.Entries
-                .Select(e => Path.GetFileName(e.FullName))
-                .Where(n => !string.IsNullOrEmpty(n))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            result.HasAgency = fileNames.Contains("agency.txt");
-            result.HasStops = fileNames.Contains("stops.txt");
-            result.HasRoutes = fileNames.Contains("routes.txt");
-            result.HasTrips = fileNames.Contains("trips.txt");
-            result.HasStopTimes = fileNames.Contains("stop_times.txt");
-
-            if (!result.HasAgency) result.Errors.Add("Missing agency.txt");
-            if (!result.HasStops) result.Errors.Add("Missing stops.txt");
-            if (!result.HasRoutes) result.Errors.Add("Missing routes.txt");
-            if (!result.HasTrips) result.Errors.Add("Missing trips.txt");
-            if (!result.HasStopTimes) result.Errors.Add("Missing stop_times.txt");
-
-            result.HasCalendar = fileNames.Contains("calendar.txt");
-            result.HasCalendarDates = fileNames.Contains("calendar_dates.txt");
-            result.HasShapes = fileNames.Contains("shapes.txt");
-
-            result.IsValid = result.HasAgency && result.HasStops && result.HasRoutes && result.HasTrips && result.HasStopTimes;
-        }
-        catch (Exception ex)
-        {
-            result.IsValid = false;
-            result.Errors.Add($"Failed to read zip: {ex.Message}");
-        }
-        return result;
     }
 
     public GtfsValidationResult ValidateGtfs(ZipArchive archive)
@@ -110,14 +80,6 @@ public class GtfsParserService
         return result;
     }
 
-    public List<RawAgencyRecord> ParseAgencies(string zipPath)
-    {
-        return ParseCsv<RawAgencyRecord>(zipPath, "agency.txt", cfg =>
-        {
-            cfg.RegisterClassMap(new AgencyMap());
-        });
-    }
-
     public List<RawAgencyRecord> ParseAgencies(ZipArchive archive)
     {
         return ParseCsv<RawAgencyRecord>(archive, "agency.txt", cfg =>
@@ -126,28 +88,28 @@ public class GtfsParserService
         });
     }
 
-    public List<RawStopRecord> ParseStops(string zipPath)
-    {
-        return ParseCsv<RawStopRecord>(zipPath, "stops.txt", cfg =>
-        {
-            cfg.RegisterClassMap(new StopMap());
-        });
-    }
-
     public List<RawStopRecord> ParseStops(ZipArchive archive)
     {
-        return ParseCsv<RawStopRecord>(archive, "stops.txt", cfg =>
+        var stops = ParseCsv<RawStopRecord>(archive, "stops.txt", cfg =>
         {
             cfg.RegisterClassMap(new StopMap());
         });
-    }
 
-    public List<RawRouteRecord> ParseRoutes(string zipPath)
-    {
-        return ParseCsv<RawRouteRecord>(zipPath, "routes.txt", cfg =>
+        var valid = new List<RawStopRecord>(stops.Count);
+        foreach (var stop in stops)
         {
-            cfg.RegisterClassMap(new RouteMap());
-        });
+            if (stop.StopLat < -90 || stop.StopLat > 90 || stop.StopLon < -180 || stop.StopLon > 180)
+            {
+                _logger.LogWarning("Skipping stop {StopId} with invalid coordinates ({Lat}, {Lon})",
+                    stop.StopId, stop.StopLat, stop.StopLon);
+            }
+            else
+            {
+                valid.Add(stop);
+            }
+        }
+
+        return valid;
     }
 
     public List<RawRouteRecord> ParseRoutes(ZipArchive archive)
@@ -155,14 +117,6 @@ public class GtfsParserService
         return ParseCsv<RawRouteRecord>(archive, "routes.txt", cfg =>
         {
             cfg.RegisterClassMap(new RouteMap());
-        });
-    }
-
-    public List<RawTripRecord> ParseTrips(string zipPath)
-    {
-        return ParseCsv<RawTripRecord>(zipPath, "trips.txt", cfg =>
-        {
-            cfg.RegisterClassMap(new TripMap());
         });
     }
 
@@ -180,12 +134,6 @@ public class GtfsParserService
         {
             cfg.RegisterClassMap(new StopTimeMap());
         });
-    }
-
-    public Dictionary<string, LineString> ParseShapes(string zipPath)
-    {
-        using var archive = ZipFile.OpenRead(zipPath);
-        return ParseShapes(archive);
     }
 
     public Dictionary<string, LineString> ParseShapes(ZipArchive archive)
@@ -216,27 +164,11 @@ public class GtfsParserService
         return result;
     }
 
-    public List<RawCalendarRecord> ParseCalendar(string zipPath)
-    {
-        return ParseCsv<RawCalendarRecord>(zipPath, "calendar.txt", cfg =>
-        {
-            cfg.RegisterClassMap(new CalendarMap());
-        });
-    }
-
     public List<RawCalendarRecord> ParseCalendar(ZipArchive archive)
     {
         return ParseCsv<RawCalendarRecord>(archive, "calendar.txt", cfg =>
         {
             cfg.RegisterClassMap(new CalendarMap());
-        });
-    }
-
-    public List<RawCalendarDateRecord> ParseCalendarDates(string zipPath)
-    {
-        return ParseCsv<RawCalendarDateRecord>(zipPath, "calendar_dates.txt", cfg =>
-        {
-            cfg.RegisterClassMap(new CalendarDateMap());
         });
     }
 
@@ -258,19 +190,6 @@ public class GtfsParserService
             hull = polygon.Reverse();
 
         return hull;
-    }
-
-    private List<T> ParseCsv<T>(string zipPath, string fileName, Action<CsvContext>? configure = null)
-    {
-        using var archive = ZipFile.OpenRead(zipPath);
-        var entry = archive.Entries.FirstOrDefault(e =>
-            e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
-        if (entry is null) return [];
-
-        using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, CsvConfig());
-        configure?.Invoke(csv.Context);
-        return csv.GetRecords<T>().ToList();
     }
 
     private List<T> ParseCsv<T>(ZipArchive archive, string fileName, Action<CsvContext>? configure = null)

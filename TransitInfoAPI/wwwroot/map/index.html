@@ -83,7 +83,7 @@ function loadMapData() {
   ) * 1.5;
 
   const stationUrl = `/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}&after=0&perPage=500`;
-  const routeUrl = `/routes?format=geojson&after=0&perPage=500`;
+  const routeUrl = `/routes?format=geojson&after=0&perPage=500&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
 
   fetch(stationUrl).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
