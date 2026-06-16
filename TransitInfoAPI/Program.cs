@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Services;
+using TransitInfoAPI.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders().AddConsole().AddDebug();
@@ -30,6 +31,7 @@ builder.Services.AddScoped<RouteService>();
 builder.Services.AddScoped<OperatorService>();
 builder.Services.AddScoped<FeedService>();
 builder.Services.AddScoped<RealtimeService>();
+builder.Services.AddHostedService<RealtimePollingWorker>();
 
 builder.Services.AddCors(options =>
 {

@@ -146,6 +146,30 @@ public class FeedService
             .FirstOrDefaultAsync(f => f.Id == id, ct);
         if (feed is null) return false;
 
+        var versionIds = await _db.FeedVersions
+            .Where(fv => fv.FeedId == id)
+            .Select(fv => fv.Id)
+            .ToListAsync(ct);
+
+        if (versionIds.Count > 0)
+        {
+            _db.Database.SetCommandTimeout(300);
+            foreach (var vid in versionIds)
+            {
+                await _db.Database.ExecuteSqlAsync(
+                    $"DELETE FROM StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = {vid})", ct);
+            }
+            foreach (var vid in versionIds)
+            {
+                await _db.CalendarDates.Where(cd => cd.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+                await _db.Calendars.Where(c => c.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+                await _db.Shapes.Where(s => s.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+                await _db.Trips.Where(t => t.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+                await _db.RawStops.Where(rs => rs.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+                await _db.Agencies.Where(a => a.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            }
+        }
+
         var candidates = await _db.ReconciliationCandidates
             .Where(rc => rc.FeedId == id)
             .ToListAsync(ct);
@@ -244,7 +268,7 @@ public class FeedService
         try
         {
             _db.Database.SetCommandTimeout(180);
-            var validation = _gtfs.ValidateGtfs(zipPath);
+            var validation = _gtfs.ValidateGtfs(archive);
             if (!validation.IsValid)
             {
                 version.ImportStatus = FeedImportStatus.Failed;
@@ -254,34 +278,16 @@ public class FeedService
             return;
             }
 
-            var agencies = _gtfs.ParseAgencies(zipPath);
-            var rawStops = _gtfs.ParseStops(zipPath);
-            var routes = _gtfs.ParseRoutes(zipPath);
-            var trips = _gtfs.ParseTrips(zipPath);
-            var calendar = _gtfs.ParseCalendar(zipPath);
-            var calendarDates = _gtfs.ParseCalendarDates(zipPath);
-            var shapes = _gtfs.ParseShapes(zipPath);
+            var agencies = _gtfs.ParseAgencies(archive);
+            var rawStops = _gtfs.ParseStops(archive);
+            var routes = _gtfs.ParseRoutes(archive);
+            var trips = _gtfs.ParseTrips(archive);
+            var calendar = _gtfs.ParseCalendar(archive);
+            var calendarDates = _gtfs.ParseCalendarDates(archive);
+            var shapes = _gtfs.ParseShapes(archive);
 
             var operatorId = version.Feed.OperatorId;
 
-            foreach (var a in agencies)
-            {
-                _db.Agencies.Add(new Agency
-                {
-                    FeedVersionId = feedVersionId,
-                    AgencyId = a.AgencyId,
-                    Name = a.AgencyName,
-                    Url = a.AgencyUrl,
-                    Timezone = a.AgencyTimezone,
-                    Language = a.AgencyLang,
-                    Phone = a.AgencyPhone,
-                    FareUrl = a.AgencyFareUrl,
-                    Email = a.AgencyEmail,
-                    OperatorId = operatorId
-                });
-            }
-
-            // Build trip→route and route→type maps for single-pass stop time processing
             var routeTypeByRoute = routes
                 .GroupBy(r => r.RouteId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First().RouteTypeEnum, StringComparer.OrdinalIgnoreCase);
@@ -289,51 +295,12 @@ public class FeedService
                 .GroupBy(t => t.TripId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First().RouteId, StringComparer.OrdinalIgnoreCase);
 
-            // Single pass: parse stop times, compute route types, accumulate for bulk insert
-            var allStopTimes = new List<RawStopTimeRecord>();
-            var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
-            await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive))
-            {
-                foreach (var st in batch)
-                {
-                    if (routeByTrip.TryGetValue(st.TripId, out var rId) &&
-                        routeTypeByRoute.TryGetValue(rId, out var rt) &&
-                        !routeTypesPerStop.ContainsKey(st.StopId))
-                    {
-                        routeTypesPerStop[st.StopId] = rt;
-                    }
-                }
-                allStopTimes.AddRange(batch);
-            }
-
-            foreach (var s in rawStops)
-            {
-                routeTypesPerStop.TryGetValue(s.StopId, out var rt);
-                _db.RawStops.Add(new RawStop
-                {
-                    FeedVersionId = feedVersionId,
-                    RawStopId = s.StopId,
-                    Name = s.StopName,
-                    Lat = s.StopLat,
-                    Lon = s.StopLon,
-                    StationType = MapGtfsLocationType(s.LocationType),
-                    ParentRawStopId = s.ParentStation,
-                    StopCode = s.StopCode,
-                    StopDesc = s.StopDesc,
-                    ZoneId = s.ZoneId,
-                    PlatformCode = s.PlatformCode,
-                    WheelchairBoarding = s.WheelchairBoarding.HasValue ? s.WheelchairBoarding == 1 : null,
-                    RouteType = rt,
-                    IsActive = true,
-                    ReconciliationStatus = ReconciliationStatus.Pending
-                });
-            }
-
+            // Phase 1: save routes → canonical IDs
             foreach (var r in routes)
             {
+                var globalId = $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}";
                 var existingRoute = await _db.CanonicalRoutes
-                    .FirstOrDefaultAsync(cr =>
-                        cr.GlobalId == $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}", CancellationToken.None);
+                    .FirstOrDefaultAsync(cr => cr.GlobalId == globalId, CancellationToken.None);
 
                 if (existingRoute is null)
                 {
@@ -344,7 +311,7 @@ public class FeedService
 
                     _db.CanonicalRoutes.Add(new CanonicalRoute
                     {
-                        GlobalId = $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}",
+                        GlobalId = globalId,
                         OnestopId = routeOnestopId,
                         ShortName = r.RouteShortName,
                         LongName = r.RouteLongName,
@@ -357,7 +324,6 @@ public class FeedService
                 }
             }
 
-            // Save routes first so route lookup finds them (FK fix)
             await _db.SaveChangesAsync(CancellationToken.None);
 
             var prefix = $"gt-{version.Feed.FeedId}-";
@@ -365,10 +331,10 @@ public class FeedService
                 .Where(cr => cr.GlobalId.StartsWith(prefix))
                 .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, CancellationToken.None);
 
+            // Phase 2: save trips, shapes, calendars → trip IDs
             foreach (var t in trips)
             {
-                var globalId = $"gt-{version.Feed.FeedId}-{t.RouteId.ToLowerInvariant()}";
-
+                var globalId = prefix + t.RouteId.ToLowerInvariant();
                 _db.Trips.Add(new Trip
                 {
                     FeedVersionId = feedVersionId,
@@ -386,35 +352,21 @@ public class FeedService
             }
 
             foreach (var kvp in shapes)
-            {
-                _db.Shapes.Add(new Shape
-                {
-                    FeedVersionId = feedVersionId,
-                    ShapeId = kvp.Key,
-                    Geometry = kvp.Value
-                });
-            }
+                _db.Shapes.Add(new Shape { FeedVersionId = feedVersionId, ShapeId = kvp.Key, Geometry = kvp.Value });
 
             foreach (var c in calendar)
-            {
                 _db.Calendars.Add(new Calendar
                 {
                     FeedVersionId = feedVersionId,
                     ServiceId = c.ServiceId,
-                    Monday = c.Monday == 1,
-                    Tuesday = c.Tuesday == 1,
-                    Wednesday = c.Wednesday == 1,
-                    Thursday = c.Thursday == 1,
-                    Friday = c.Friday == 1,
-                    Saturday = c.Saturday == 1,
+                    Monday = c.Monday == 1, Tuesday = c.Tuesday == 1, Wednesday = c.Wednesday == 1,
+                    Thursday = c.Thursday == 1, Friday = c.Friday == 1, Saturday = c.Saturday == 1,
                     Sunday = c.Sunday == 1,
                     StartDate = DateOnly.ParseExact(c.StartDate, "yyyyMMdd"),
                     EndDate = DateOnly.ParseExact(c.EndDate, "yyyyMMdd")
                 });
-            }
 
             foreach (var cd in calendarDates)
-            {
                 _db.CalendarDates.Add(new CalendarDate
                 {
                     FeedVersionId = feedVersionId,
@@ -422,12 +374,10 @@ public class FeedService
                     Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd"),
                     ExceptionType = cd.ExceptionType
                 });
-            }
 
-            // Save trips, shapes, calendars before stop times
             await _db.SaveChangesAsync(CancellationToken.None);
 
-            // Build trip lookup from DB (trips now have IDs)
+            // Build trip lookup
             var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var t in await _db.Trips
                 .Where(t => t.FeedVersionId == feedVersionId)
@@ -436,14 +386,17 @@ public class FeedService
                 tripLookup.TryAdd(t.TripId, t.Id);
             }
 
-            // Bulk insert stop times via SqlBulkCopy
+            // Phase 3: single-pass stop_times — derive route types + SqlBulkCopy
+            var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
+
             using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(
                 (Microsoft.Data.SqlClient.SqlConnection)conn,
                 Microsoft.Data.SqlClient.SqlBulkCopyOptions.Default,
                 sqlTx)
             {
                 DestinationTableName = "StopTimes",
-                BatchSize = 50000
+                BatchSize = 50000,
+                BulkCopyTimeout = 180
             };
 
             bulkCopy.ColumnMappings.Add("TripId", "TripId");
@@ -467,12 +420,18 @@ public class FeedService
             dt.Columns.Add("DropOffType", typeof(int));
             dt.Columns.Add("Timepoint", typeof(bool));
 
-            for (var i = 0; i < allStopTimes.Count; i += 50000)
+            await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000))
             {
                 dt.Rows.Clear();
-                var batch = allStopTimes.Skip(i).Take(50000);
                 foreach (var st in batch)
                 {
+                    if (routeByTrip.TryGetValue(st.TripId, out var rId) &&
+                        routeTypeByRoute.TryGetValue(rId, out var rt) &&
+                        !routeTypesPerStop.ContainsKey(st.StopId))
+                    {
+                        routeTypesPerStop[st.StopId] = rt;
+                    }
+
                     dt.Rows.Add(
                         tripLookup.GetValueOrDefault(st.TripId, 0),
                         st.StopId,
@@ -488,16 +447,53 @@ public class FeedService
                 await bulkCopy.WriteToServerAsync(dt, ct);
             }
 
+            // Phase 4: save agencies and stops (with derived route types)
+            foreach (var a in agencies)
+                _db.Agencies.Add(new Agency
+                {
+                    FeedVersionId = feedVersionId,
+                    AgencyId = a.AgencyId, Name = a.AgencyName, Url = a.AgencyUrl,
+                    Timezone = a.AgencyTimezone, Language = a.AgencyLang, Phone = a.AgencyPhone,
+                    FareUrl = a.AgencyFareUrl, Email = a.AgencyEmail, OperatorId = operatorId
+                });
+
+            foreach (var s in rawStops)
+            {
+                routeTypesPerStop.TryGetValue(s.StopId, out var rt);
+                _db.RawStops.Add(new RawStop
+                {
+                    FeedVersionId = feedVersionId,
+                    RawStopId = s.StopId,
+                    Name = s.StopName, Lat = s.StopLat, Lon = s.StopLon,
+                    StationType = MapGtfsLocationType(s.LocationType),
+                    ParentRawStopId = s.ParentStation,
+                    StopCode = s.StopCode, StopDesc = s.StopDesc, ZoneId = s.ZoneId,
+                    PlatformCode = s.PlatformCode,
+                    WheelchairBoarding = s.WheelchairBoarding.HasValue ? s.WheelchairBoarding == 1 : null,
+                    RouteType = rt,
+                    IsActive = true,
+                    ReconciliationStatus = ReconciliationStatus.Pending
+                });
+            }
+
+            await _db.SaveChangesAsync(CancellationToken.None);
+
+            // Reconcile raw stops into canonical stations
+            await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, CancellationToken.None);
+
+            // Backfill CanonicalStationId on StopTimes so departures work
+            await _db.Database.ExecuteSqlAsync(
+                $"UPDATE st SET st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", CancellationToken.None);
+
+            // Phase 5: finalize version
             _db.Entry(version).State = EntityState.Modified;
 
-            // Deactivate previous active versions
             var prevActive = await _db.FeedVersions
                 .Where(fv => fv.FeedId == version.FeedId && fv.IsActive && fv.Id != feedVersionId)
                 .ToListAsync(CancellationToken.None);
             foreach (var pv in prevActive)
                 pv.IsActive = false;
 
-            // Set version metadata
             var convexHull = _gtfs.ComputeConvexHull(rawStops);
 
             version.StopCount = rawStops.Count;
@@ -523,12 +519,21 @@ public class FeedService
         }
         catch (Exception ex)
         {
-            await sqlTx.RollbackAsync(CancellationToken.None);
-            _db.Entry(version).State = EntityState.Modified;
-            version.ImportStatus = FeedImportStatus.Failed;
-            version.ImportError = ex.Message;
-            await _db.SaveChangesAsync(CancellationToken.None);
+            try { await sqlTx.RollbackAsync(CancellationToken.None); } catch { }
+            try
+            {
+                using var errConn = new Microsoft.Data.SqlClient.SqlConnection(sqlConn.ConnectionString);
+                await errConn.OpenAsync(CancellationToken.None);
+                await using var cmd = errConn.CreateCommand();
+                cmd.CommandText = "UPDATE FeedVersions SET ImportStatus = @status, ImportError = @error WHERE Id = @id";
+                cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@status", (int)FeedImportStatus.Failed));
+                cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@error", ex.Message));
+                cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@id", feedVersionId));
+                await cmd.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+            catch { }
             _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
+            throw;
         }
     }
 
@@ -553,6 +558,10 @@ public class FeedService
             };
             _db.FeedVersions.Add(version);
             await _db.SaveChangesAsync(ct);
+        }
+        else if (version.ImportStatus == FeedImportStatus.Success)
+        {
+            return version;
         }
 
         await ImportFeedVersionAsync(version.Id, CancellationToken.None);

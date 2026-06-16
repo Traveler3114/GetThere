@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TransitInfoAPI.Entities;
 
 public class StopTime
@@ -6,6 +8,7 @@ public class StopTime
     public int TripId { get; set; }
     public Trip Trip { get; set; } = null!;
 
+    [MaxLength(450)]
     public string RawStopId { get; set; } = string.Empty;
     public int? CanonicalStationId { get; set; }
     public CanonicalStation? CanonicalStation { get; set; }

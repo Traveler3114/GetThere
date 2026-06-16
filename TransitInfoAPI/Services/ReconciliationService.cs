@@ -48,8 +48,51 @@ public class ReconciliationService
         var manualDistThreshold = _config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300);
         var feedOperatorId = feedVersion.Feed.OperatorId;
 
+        // Phase 1: build deduplicated station lookup by OnestopId
+        var onestopToStation = existingStations.ToDictionary(s => s.OnestopId, s => s);
+        var onestopSeen = new HashSet<string>(existingStations.Select(s => s.OnestopId));
+        var newStationList = new List<CanonicalStation>();
+
         foreach (var rawStop in rawStops)
         {
+            var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
+            if (onestopSeen.Add(onestopId))
+            {
+                var station = new CanonicalStation
+                {
+                    GlobalId = $"gt-raw-{rawStop.Id}",
+                    OnestopId = onestopId,
+                    Name = rawStop.Name,
+                    Latitude = rawStop.Lat,
+                    Longitude = rawStop.Lon,
+                    StationType = rawStop.StationType,
+                    PrimaryRouteType = rawStop.RouteType,
+                    IsActive = true,
+                    CountryId = 1,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _db.CanonicalStations.Add(station);
+                newStationList.Add(station);
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        foreach (var s in newStationList)
+            onestopToStation[s.OnestopId] = s;
+
+        existingStations = await _db.CanonicalStations
+            .Where(cs => cs.IsActive)
+            .ToListAsync(ct);
+
+        // Phase 2: match raw stops to stations and create candidates
+        var addedOperatorLinks = new HashSet<(int CanonicalStationId, int OperatorId)>();
+
+        foreach (var rawStop in rawStops)
+        {
+            var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
+            var station = onestopToStation[onestopId];
+
             var match = FindBestMatch(
                 rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType,
                 existingStations, autoDistThreshold * 2);
@@ -83,7 +126,12 @@ public class ReconciliationService
                     CreatedAt = DateTime.UtcNow
                 });
 
-                await LinkOperatorToStationAsync(match.Value.Station.Id, feedOperatorId, ct);
+                if (addedOperatorLinks.Add((match.Value.Station.Id, feedOperatorId)))
+                    _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                    {
+                        CanonicalStationId = match.Value.Station.Id,
+                        OperatorId = feedOperatorId
+                    });
             }
             else if (match is not null &&
                      match.Value.NameScore >= manualNameThreshold &&
@@ -113,8 +161,7 @@ public class ReconciliationService
             }
             else
             {
-                var newStation = await CreateCanonicalStationAsync(rawStop, ct);
-                rawStop.CanonicalStationId = newStation.Id;
+                rawStop.CanonicalStationId = station.Id;
                 rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
 
                 _db.ReconciliationCandidates.Add(new ReconciliationCandidate
@@ -125,7 +172,7 @@ public class ReconciliationService
                     RawStopLon = rawStop.Lon,
                     RawRouteType = rawStop.RouteType,
                     FeedId = feedVersion.FeedId,
-                    SuggestedCanonicalStationId = newStation.Id,
+                    SuggestedCanonicalStationId = station.Id,
                     ConfidenceScore = 1.0m,
                     NameSimilarityScore = 1.0m,
                     DistanceMeters = 0,
@@ -137,7 +184,12 @@ public class ReconciliationService
                     CreatedAt = DateTime.UtcNow
                 });
 
-                await LinkOperatorToStationAsync(newStation.Id, feedOperatorId, ct);
+                if (addedOperatorLinks.Add((station.Id, feedOperatorId)))
+                    _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                    {
+                        CanonicalStationId = station.Id,
+                        OperatorId = feedOperatorId
+                    });
             }
         }
 
