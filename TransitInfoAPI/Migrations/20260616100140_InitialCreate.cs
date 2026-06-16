@@ -626,7 +626,8 @@ namespace TransitInfoAPI.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     TripId = table.Column<int>(type: "int", nullable: false),
-                    RawStopId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RawStopId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: false),
+                    RawStopEntityId = table.Column<int>(type: "int", nullable: true),
                     CanonicalStationId = table.Column<int>(type: "int", nullable: true),
                     ArrivalTime = table.Column<int>(type: "int", nullable: false),
                     DepartureTime = table.Column<int>(type: "int", nullable: false),
@@ -643,6 +644,12 @@ namespace TransitInfoAPI.Migrations
                         name: "FK_StopTimes_CanonicalStations_CanonicalStationId",
                         column: x => x.CanonicalStationId,
                         principalTable: "CanonicalStations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StopTimes_RawStops_RawStopEntityId",
+                        column: x => x.RawStopEntityId,
+                        principalTable: "RawStops",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -810,6 +817,11 @@ namespace TransitInfoAPI.Migrations
                 name: "IX_StopTimes_CanonicalStationId",
                 table: "StopTimes",
                 column: "CanonicalStationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StopTimes_RawStopEntityId",
+                table: "StopTimes",
+                column: "RawStopEntityId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StopTimes_TripId",

@@ -951,9 +951,13 @@ namespace TransitInfoAPI.Migrations
                     b.Property<int?>("PickupType")
                         .HasColumnType("int");
 
+                    b.Property<int?>("RawStopEntityId")
+                        .HasColumnType("int");
+
                     b.Property<string>("RawStopId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("StopHeadsign")
                         .HasColumnType("nvarchar(max)");
@@ -970,6 +974,8 @@ namespace TransitInfoAPI.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CanonicalStationId");
+
+                    b.HasIndex("RawStopEntityId");
 
                     b.HasIndex("TripId");
 
@@ -1296,6 +1302,11 @@ namespace TransitInfoAPI.Migrations
                         .HasForeignKey("CanonicalStationId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("TransitInfoAPI.Entities.RawStop", "RawStopEntity")
+                        .WithMany()
+                        .HasForeignKey("RawStopEntityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TransitInfoAPI.Entities.Trip", "Trip")
                         .WithMany("StopTimes")
                         .HasForeignKey("TripId")
@@ -1303,6 +1314,8 @@ namespace TransitInfoAPI.Migrations
                         .IsRequired();
 
                     b.Navigation("CanonicalStation");
+
+                    b.Navigation("RawStopEntity");
 
                     b.Navigation("Trip");
                 });
