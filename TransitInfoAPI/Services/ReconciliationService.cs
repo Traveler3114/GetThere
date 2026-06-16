@@ -108,7 +108,12 @@ public class ReconciliationService
             .ToListAsync(ct);
 
         // Phase 2: match raw stops to stations and create candidates
-        var addedOperatorLinks = new HashSet<(int CanonicalStationId, int OperatorId)>();
+        var existingLinkedStationIds = await _db.CanonicalStationOperators
+            .Where(cso => cso.OperatorId == feedOperatorId)
+            .Select(cso => cso.CanonicalStationId)
+            .ToHashSetAsync(ct);
+        var addedOperatorLinks = new HashSet<(int CanonicalStationId, int OperatorId)>(
+            existingLinkedStationIds.Select(id => (id, feedOperatorId)));
 
         foreach (var rawStop in rawStops)
         {

@@ -45,10 +45,11 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 
 <script>
 const ROUTE_COLORS = {
-  TRAM: '#33a02c', METRO: '#e31a1c', RAIL: '#b15928', BUS: '#1f78b4',
-  FERRY: '#33a02c', CABLE_CAR: '#ff7f00', GONDOLA: '#6a3d9a', FUNICULAR: '#b15928',
-  LIGHT_RAIL: '#ff7f00', STREETCAR: '#ff7f00', SUBWAY: '#e31a1c',
-  default: '#888'
+  Tram: '#33a02c', Bus: '#1f78b4', Trolleybus: '#ff7f00',
+  Metro: '#e31a1c', Rail: '#b15928', Ferry: '#33a02c', Flight: '#888',
+  CableCar: '#ff7f00', Funicular: '#b15928', Coach: '#888',
+  BikeShare: '#6a3d9a', ScooterShare: '#ff7f00',
+  default: '#d4a017'
 };
 
 const map = new maplibregl.Map({
@@ -63,7 +64,7 @@ map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
 
 let debounceTimer = null;
 let sidebarOpen = false;
-let stationsSource = 'stations';
+let stationsSource = 'gt-stops';
 let routesSource = 'routes';
 let vehiclesSource = 'vehicles';
 
@@ -87,7 +88,11 @@ function loadMapData() {
 
   fetch(stationUrl).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
-    if (src) { src.setData(data); }
+    if (src) {
+      if (data?.type === 'FeatureCollection') {
+        src.setData(data);
+      }
+    }
   }).catch(() => {});
 
   fetch(routeUrl).then(r => r.json()).then(data => {
@@ -128,50 +133,17 @@ map.on('load', () => {
   });
 
   map.addLayer({
-    id: 'stations-circle',
+    id: 'gt-stops-circle',
     type: 'circle',
     source: stationsSource,
-    paint: {
-      'circle-radius': 6,
-      'circle-color': [
-        'match', ['get', 'routeType'],
-        'TRAM', '#33a02c', 'LIGHT_RAIL', '#ff7f00', 'STREETCAR', '#ff7f00',
-        'METRO', '#e31a1c', 'SUBWAY', '#e31a1c', 'RAIL', '#b15928',
-        'BUS', '#1f78b4', 'FERRY', '#33a02c', 'CABLE_CAR', '#ff7f00',
-        'GONDOLA', '#6a3d9a', 'FUNICULAR', '#b15928',
-        '#888'
-      ],
-      'circle-stroke-width': 1,
-      'circle-stroke-color': '#fff',
-      'circle-opacity': 0.85
-    }
-  });
-
-  map.addLayer({
-    id: 'stations-label',
-    type: 'symbol',
-    source: stationsSource,
-    layout: {
-      'text-field': ['get', 'name'],
-      'text-font': ['Open Sans Regular'],
-      'text-size': 11,
-      'text-offset': [0, 1.5],
-      'text-anchor': 'top'
-    },
-    paint: { 'text-halo-color': '#fff', 'text-halo-width': 1 }
+    paint: { 'circle-radius': 7, 'circle-color': '#27ae60', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-opacity': 0.9 }
   });
 
   map.addLayer({
     id: 'vehicles-circle',
     type: 'circle',
     source: vehiclesSource,
-    paint: {
-      'circle-radius': 5,
-      'circle-color': '#e74c3c',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#fff',
-      'circle-opacity': 0.9
-    }
+    paint: { 'circle-radius': 5, 'circle-color': '#e74c3c', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-opacity': 0.9 }
   });
 
   loadMapData();
@@ -184,14 +156,14 @@ map.on('moveend', () => {
   debounceTimer = setTimeout(loadMapData, 500);
 });
 
-map.on('click', 'stations-circle', (e) => {
+map.on('click', 'gt-stops-circle', (e) => {
   const props = e.features[0].properties;
   const id = props.id;
   showStationDetails(id, props);
 });
 
-map.on('mouseenter', 'stations-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
-map.on('mouseleave', 'stations-circle', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'gt-stops-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'gt-stops-circle', () => { map.getCanvas().style.cursor = ''; });
 
 function showStationDetails(id, props) {
   const content = document.getElementById('sidebar-content');

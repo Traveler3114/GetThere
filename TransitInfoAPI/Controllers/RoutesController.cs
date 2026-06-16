@@ -53,7 +53,10 @@ public class RoutesController : ControllerBase
             if (minLat.HasValue && minLon.HasValue && maxLat.HasValue && maxLon.HasValue)
             {
                 var envelope = new Envelope(minLon.Value, maxLon.Value, minLat.Value, maxLat.Value);
-                var bbox = GeometryFactory.Default.ToGeometry(envelope);
+                var gf = new NetTopologySuite.Geometries.GeometryFactory(new NetTopologySuite.Geometries.PrecisionModel(), 4326);
+                var bbox = gf.ToGeometry(envelope);
+                if (bbox is Polygon poly && !NetTopologySuite.Algorithm.Orientation.IsCCW(poly.Shell.Coordinates))
+                    bbox = poly.Reverse();
                 query = query.Where(r => r.Geometry != null && r.Geometry.Intersects(bbox));
             }
 

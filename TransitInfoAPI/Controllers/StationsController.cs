@@ -46,6 +46,8 @@ public class StationsController : ControllerBase
                     ["onestopId"] = s.OnestopId,
                     ["name"] = s.Name,
                     ["stationType"] = s.StationType,
+                    ["routeType"] = s.PrimaryRouteType,
+                    ["primaryRouteType"] = s.PrimaryRouteType,
                     ["countryName"] = s.CountryName,
                     ["cityName"] = s.CityName
                 });
