@@ -280,6 +280,19 @@ public class FeedService
 
         using var archive = ZipFile.OpenRead(zipPath);
         _logStore.AddEntry(feedVersionId, "Opening GTFS archive...");
+
+        _logStore.AddEntry(feedVersionId, "Cleaning up existing data for this feed version...");
+        _db.Database.SetCommandTimeout(300);
+        await _db.Database.ExecuteSqlAsync($"WHILE 1=1 BEGIN DELETE TOP (50000) StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = {feedVersionId}); IF @@ROWCOUNT = 0 BREAK END", CancellationToken.None);
+        await _db.CalendarDates.Where(cd => cd.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        await _db.Calendars.Where(c => c.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        await _db.Shapes.Where(s => s.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        await _db.Trips.Where(t => t.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        await _db.ReconciliationCandidates.Where(rc => rc.RawStop.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        await _db.RawStops.Where(rs => rs.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        await _db.Agencies.Where(a => a.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
+        _logStore.AddEntry(feedVersionId, "Cleanup complete");
+
         var conn = _db.Database.GetDbConnection();
         if (conn.State != ConnectionState.Open)
             await conn.OpenAsync(ct);
@@ -288,7 +301,8 @@ public class FeedService
         _db.Database.UseTransaction(sqlTx);
         try
         {
-            _db.Database.SetCommandTimeout(180);
+            _db.Database.SetCommandTimeout(600);
+            _db.ChangeTracker.AutoDetectChangesEnabled = false;
             _logStore.AddEntry(feedVersionId, "Validating GTFS files...");
             var validation = _gtfs.ValidateGtfs(archive);
             if (!validation.IsValid)
@@ -351,6 +365,7 @@ public class FeedService
                 }
             }
 
+            _db.ChangeTracker.DetectChanges();
             await _db.SaveChangesAsync(CancellationToken.None);
             _logStore.AddEntry(feedVersionId, $"Phase 1: {routes.Count} routes saved");
 
@@ -409,6 +424,7 @@ public class FeedService
                     ExceptionType = cd.ExceptionType
                 });
 
+            _db.ChangeTracker.DetectChanges();
             await _db.SaveChangesAsync(CancellationToken.None);
             _logStore.AddEntry(feedVersionId, "Phase 2: trips, shapes, calendars saved");
 
@@ -515,6 +531,7 @@ public class FeedService
                 });
             }
 
+            _db.ChangeTracker.DetectChanges();
             await _db.SaveChangesAsync(CancellationToken.None);
             _logStore.AddEntry(feedVersionId, "Phase 4: agencies and stops saved");
 
@@ -525,8 +542,9 @@ public class FeedService
 
             // Backfill RawStopEntityId and CanonicalStationId on StopTimes
             _logStore.AddEntry(feedVersionId, "Backfilling station references...");
-            await _db.Database.ExecuteSqlAsync(
-                $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", CancellationToken.None);
+            await _db.Database.ExecuteSqlRawAsync(
+                "UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = @p0",
+                new object[] { feedVersionId }, CancellationToken.None);
             _logStore.AddEntry(feedVersionId, "Backfill complete");
 
             // Match new canonical stations to places
@@ -569,13 +587,22 @@ public class FeedService
 
             version.IsActive = true;
             version.ImportStatus = FeedImportStatus.Success;
+            version.ImportError = null;
             version.ImportedAt = DateTime.UtcNow;
+            _db.ChangeTracker.DetectChanges();
             await _db.SaveChangesAsync(CancellationToken.None);
             await sqlTx.CommitAsync(CancellationToken.None);
 
             _logStore.AddEntry(feedVersionId, $"Import complete: {routes.Count} routes, {rawStops.Count} stops, {trips.Count} trips");
             _logger.LogInformation("Import complete for FeedVersion {VersionId} ({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
                 feedVersionId, routes.Count, rawStops.Count, trips.Count);
+
+            // Deactivate orphan CanonicalStations (Stop-type with no RawStops linked)
+            var deactivated = await _db.Database.ExecuteSqlRawAsync(
+                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1)",
+                CancellationToken.None);
+            _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
+            _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
         }
         catch (Exception ex)
         {

@@ -23,7 +23,7 @@ public class StationService
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
-            .Where(cs => cs.IsActive)
+            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
             .AsQueryable();
 
         if (countryId.HasValue)
@@ -67,7 +67,7 @@ public class StationService
         return await _db.CanonicalStations
             .Include(cs => cs.Country)
             .Include(cs => cs.City)
-            .Where(cs => cs.OnestopId == onestopId && cs.IsActive)
+            .Where(cs => cs.OnestopId == onestopId && cs.IsActive && cs.StationType == StationType.Stop)
             .Select(cs => new StationDto
             {
                 Id = cs.Id,
@@ -89,7 +89,7 @@ public class StationService
         return await _db.CanonicalStations
             .Include(cs => cs.Country)
             .Include(cs => cs.City)
-            .Where(cs => cs.Id == id && cs.IsActive)
+            .Where(cs => cs.Id == id && cs.IsActive && cs.StationType == StationType.Stop)
             .Select(cs => new StationDto
             {
                 Id = cs.Id,
@@ -111,7 +111,7 @@ public class StationService
         return await _db.CanonicalStations
             .Include(cs => cs.Country)
             .Include(cs => cs.City)
-            .Where(cs => cs.GlobalId == globalId && cs.IsActive)
+            .Where(cs => cs.GlobalId == globalId && cs.IsActive && cs.StationType == StationType.Stop)
             .Select(cs => new StationDto
             {
                 Id = cs.Id,
@@ -132,7 +132,7 @@ public class StationService
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
-            .Where(cs => cs.IsActive)
+            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -166,7 +166,7 @@ public class StationService
     public async Task<List<StationOperatorDto>> GetOperatorsAsync(string onestopId, CancellationToken ct)
     {
         var station = await _db.CanonicalStations
-            .FirstOrDefaultAsync(cs => cs.OnestopId == onestopId && cs.IsActive, ct);
+            .FirstOrDefaultAsync(cs => cs.OnestopId == onestopId && cs.IsActive && cs.StationType == StationType.Stop, ct);
 
         if (station is null) return [];
 
@@ -190,6 +190,6 @@ public class StationService
 
     public async Task<int> GetTotalCountAsync(CancellationToken ct)
     {
-        return await _db.CanonicalStations.CountAsync(cs => cs.IsActive, ct);
+        return await _db.CanonicalStations.CountAsync(cs => cs.IsActive && cs.StationType == StationType.Stop, ct);
     }
 }

@@ -45,16 +45,16 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 
 <script>
 const ROUTE_COLORS = {
-  Tram: '#33a02c', Bus: '#1f78b4', Trolleybus: '#ff7f00',
-  Metro: '#e31a1c', Rail: '#b15928', Ferry: '#33a02c', Flight: '#888',
-  CableCar: '#ff7f00', Funicular: '#b15928', Coach: '#888',
+  Tram: '#33a02c', Bus: '#1f78b4', Trolleybus: '#1f78b4',
+  Metro: '#e31a1c', Rail: '#b15928', Ferry: '#006994', Flight: '#888',
+  CableCar: '#ff7f00', Funicular: '#ff7f00', Coach: '#6a3d9a',
   BikeShare: '#6a3d9a', ScooterShare: '#ff7f00',
-  default: '#d4a017'
+  default: '#888'
 };
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://tiles.openfreemap.org/styles/liberty',
+  style: '/map/style.json',
   center: [16.0, 45.8],
   zoom: 7
 });
@@ -64,9 +64,9 @@ map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
 
 let debounceTimer = null;
 let sidebarOpen = false;
-let stationsSource = 'gt-stops';
-let routesSource = 'routes';
-let vehiclesSource = 'vehicles';
+const stationsSource = 'gt-stops';
+const routesSource = 'routes';
+const vehiclesSource = 'vehicles';
 
 function getRouteColor(type) {
   return ROUTE_COLORS[type] || ROUTE_COLORS.default;
@@ -88,16 +88,16 @@ function loadMapData() {
 
   fetch(stationUrl).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
-    if (src) {
-      if (data?.type === 'FeatureCollection') {
-        src.setData(data);
-      }
+    if (src && data?.type === 'FeatureCollection') {
+      src.setData(data);
     }
   }).catch(() => {});
 
   fetch(routeUrl).then(r => r.json()).then(data => {
     const src = map.getSource(routesSource);
-    if (src) { src.setData(data); }
+    if (src && data?.type === 'FeatureCollection') {
+      src.setData(data);
+    }
   }).catch(() => {});
 }
 
@@ -111,7 +111,8 @@ function loadVehicles() {
         geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
         properties: {
           vehicleId: v.vehicleId, routeId: v.routeId, tripId: v.tripId,
-          bearing: v.bearing, lastUpdated: v.lastUpdated
+          bearing: v.bearing, lastUpdated: v.lastUpdated,
+          routeType: v.routeType
         }
       }))
     };
@@ -121,29 +122,145 @@ function loadVehicles() {
 }
 
 map.on('load', () => {
-  map.addSource(stationsSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource(stationsSource, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 50
+  });
   map.addSource(routesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource(vehiclesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
+  // Route lines colored by type
   map.addLayer({
     id: 'routes-line',
     type: 'line',
     source: routesSource,
-    paint: { 'line-color': '#888', 'line-width': 2, 'line-opacity': 0.6 }
+    paint: {
+      'line-color': [
+        'match', ['get', 'routeType'],
+        'Tram', '#33a02c',
+        'Bus', '#1f78b4',
+        'Trolleybus', '#1f78b4',
+        'Metro', '#e31a1c',
+        'Rail', '#b15928',
+        'Ferry', '#006994',
+        'CableCar', '#ff7f00',
+        'Funicular', '#ff7f00',
+        'Coach', '#6a3d9a',
+        '#888'
+      ],
+      'line-width': 2,
+      'line-opacity': 0.7
+    }
   });
 
+  // Cluster circles
   map.addLayer({
-    id: 'gt-stops-circle',
+    id: 'stations-cluster',
     type: 'circle',
     source: stationsSource,
-    paint: { 'circle-radius': 7, 'circle-color': '#27ae60', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-opacity': 0.9 }
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#1f78b4',
+      'circle-radius': [
+        'step', ['get', 'point_count'],
+        15, 10,
+        20, 50,
+        25
+      ],
+      'circle-opacity': 0.85,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff'
+    }
   });
 
+  // Cluster count labels
+  map.addLayer({
+    id: 'stations-cluster-count',
+    type: 'symbol',
+    source: stationsSource,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['Open Sans Regular'],
+      'text-size': 12
+    },
+    paint: { 'text-color': '#fff' }
+  });
+
+  // Individual stop circles (unclustered)
+  map.addLayer({
+    id: 'stations-circle',
+    type: 'circle',
+    source: stationsSource,
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        10, 4,
+        14, 6,
+        16, 8
+      ],
+      'circle-color': [
+        'match', ['get', 'primaryRouteType'],
+        'Tram', '#33a02c',
+        'Bus', '#1f78b4',
+        'Trolleybus', '#1f78b4',
+        'Metro', '#e31a1c',
+        'Rail', '#b15928',
+        'Ferry', '#006994',
+        'CableCar', '#ff7f00',
+        'Funicular', '#ff7f00',
+        'Coach', '#6a3d9a',
+        '#888'
+      ],
+      'circle-stroke-width': 1,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.9
+    }
+  });
+
+  // Vehicle dots
   map.addLayer({
     id: 'vehicles-circle',
     type: 'circle',
     source: vehiclesSource,
-    paint: { 'circle-radius': 5, 'circle-color': '#e74c3c', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-opacity': 0.9 }
+    paint: {
+      'circle-radius': 6,
+      'circle-color': [
+        'match', ['get', 'routeType'],
+        'Tram', '#33a02c',
+        'Bus', '#1f78b4',
+        'Rail', '#b15928',
+        '#e74c3c'
+      ],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.9
+    }
+  });
+
+  // Vehicle bearing arrows
+  map.addLayer({
+    id: 'vehicles-arrow',
+    type: 'symbol',
+    source: vehiclesSource,
+    filter: ['!=', ['get', 'bearing'], null],
+    layout: {
+      'text-field': '▲',
+      'text-rotate': ['get', 'bearing'],
+      'text-rotation-alignment': 'map',
+      'text-size': 14,
+      'text-allow-overlap': true,
+      'text-ignore-placement': true
+    },
+    paint: {
+      'text-color': '#fff',
+      'text-halo-color': '#000',
+      'text-halo-width': 1
+    }
   });
 
   loadMapData();
@@ -156,25 +273,41 @@ map.on('moveend', () => {
   debounceTimer = setTimeout(loadMapData, 500);
 });
 
-map.on('click', 'gt-stops-circle', (e) => {
-  const props = e.features[0].properties;
-  const id = props.id;
-  showStationDetails(id, props);
+// Click cluster -> zoom in
+map.on('click', 'stations-cluster', (e) => {
+  const features = map.queryRenderedFeatures(e.point, { layers: ['stations-cluster'] });
+  const clusterId = features[0].properties.cluster_id;
+  map.getSource(stationsSource).getClusterExpansionZoom(clusterId, (err, zoom) => {
+    if (err) return;
+    map.easeTo({ center: features[0].geometry.coordinates, zoom });
+  });
 });
 
-map.on('mouseenter', 'gt-stops-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
-map.on('mouseleave', 'gt-stops-circle', () => { map.getCanvas().style.cursor = ''; });
+// Click individual stop -> show details
+map.on('click', 'stations-circle', (e) => {
+  const props = e.features[0].properties;
+  showStationDetails(props.id, props);
+});
+
+// Cursor for clusters
+map.on('mouseenter', 'stations-cluster', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'stations-cluster', () => { map.getCanvas().style.cursor = ''; });
+
+// Cursor for individual stops
+map.on('mouseenter', 'stations-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'stations-circle', () => { map.getCanvas().style.cursor = ''; });
 
 function showStationDetails(id, props) {
   const content = document.getElementById('sidebar-content');
   const type = props.stationType || 'unknown';
-  const color = getRouteColor(props.routeType);
+  const rt = props.primaryRouteType || props.routeType || '';
+  const color = getRouteColor(rt);
 
   let html = `
     <h2>${props.name || 'Unknown'}</h2>
     <div class="info-row"><strong>Type</strong> ${type}</div>
     <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
-    <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${props.routeType || '-'}</span></div>
+    <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${rt || '-'}</span></div>
     <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>
     <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
   `;

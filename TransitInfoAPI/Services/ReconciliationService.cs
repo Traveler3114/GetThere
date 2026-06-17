@@ -29,7 +29,7 @@ public class ReconciliationService
     public async Task ReconcileFeedVersionAsync(int feedVersionId, CancellationToken ct)
     {
         var rawStops = await _db.RawStops
-            .Where(rs => rs.FeedVersionId == feedVersionId && rs.IsActive && rs.StationType != StationType.Platform)
+            .Where(rs => rs.FeedVersionId == feedVersionId && rs.IsActive && rs.StationType == StationType.Stop)
             .ToListAsync(ct);
 
         if (rawStops.Count == 0) return;
@@ -50,6 +50,13 @@ public class ReconciliationService
                 && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
             .ToListAsync(ct);
 
+        var inactiveStations = await _db.CanonicalStations
+            .Where(cs => !cs.IsActive)
+            .ToListAsync(ct);
+        var inactiveByOnestopId = new Dictionary<string, CanonicalStation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in inactiveStations)
+            inactiveByOnestopId[s.OnestopId] = s;
+
         var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
         var autoDistThreshold = _config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100);
         var manualNameThreshold = _config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70);
@@ -58,7 +65,7 @@ public class ReconciliationService
 
         // Phase 1: build deduplicated station lookup by OnestopId
         var onestopToStation = existingStations.ToDictionary(s => s.OnestopId, s => s);
-        var onestopSeen = new HashSet<string>(existingStations.Select(s => s.OnestopId));
+        var onestopSeen = new HashSet<string>(existingStations.Select(s => s.OnestopId), StringComparer.OrdinalIgnoreCase);
         var newStationList = new List<CanonicalStation>();
 
         foreach (var rawStop in rawStops)
@@ -66,7 +73,26 @@ public class ReconciliationService
             var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
 
             if (!onestopSeen.Add(onestopId))
+            {
+                if (onestopToStation.TryGetValue(onestopId, out var existing))
+                    rawStop.CanonicalStationId = existing.Id;
                 continue;
+            }
+
+            // Re-activate an inactive CanonicalStation with the same OnestopId instead of creating a duplicate
+            if (inactiveByOnestopId.TryGetValue(onestopId, out var inactiveStation))
+            {
+                inactiveStation.IsActive = true;
+                inactiveStation.Latitude = rawStop.Lat;
+                inactiveStation.Longitude = rawStop.Lon;
+                inactiveStation.Name = rawStop.Name;
+                inactiveStation.PrimaryRouteType = rawStop.RouteType;
+                inactiveStation.StationType = rawStop.StationType;
+                rawStop.CanonicalStationId = inactiveStation.Id;
+                onestopToStation[onestopId] = inactiveStation;
+                newStationList.Add(inactiveStation);
+                continue;
+            }
 
             var nearbyMatch = existingStations
                 .FirstOrDefault(s => s.PrimaryRouteType == rawStop.RouteType
@@ -119,6 +145,7 @@ public class ReconciliationService
         {
             var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
             var station = onestopToStation[onestopId];
+            rawStop.CanonicalStationId = station.Id;
 
             var match = FindBestMatch(
                 rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType,
