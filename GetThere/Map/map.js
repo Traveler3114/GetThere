@@ -644,14 +644,16 @@ function _clearRoute() {
 // STOP ICON LOADER
 // ═══════════════════════════════════════════════════════════════════
 
+const _ROUTE_COLORS = { 0: '#126400', 2: '#b15928', 3: '#1f78b4', 11: '#126400' };
+
 const STOP_ICON_MAP = Object.fromEntries(
     (window._TRANSPORT_TYPES || []).map(t => [
-        t.gtfsRouteType,
-        { id: 'stop-' + t.iconFile.replace('.png', ''), file: t.iconFile, color: t.color }
+        t.id,
+        { id: 'stop-' + t.iconFile.replace('.png', ''), file: t.iconFile, color: t.color || _ROUTE_COLORS[t.id] || '#888' }
     ])
 );
 
-const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { id: 'stop-bus', color: '#126400' };
+const _defaultEntry = STOP_ICON_MAP[3] || Object.values(STOP_ICON_MAP)[0] || { id: 'stop-bus', color: '#1f78b4' };
 const _defaultIconId = _defaultEntry.id;
 const _defaultColor = _defaultEntry.color;
 

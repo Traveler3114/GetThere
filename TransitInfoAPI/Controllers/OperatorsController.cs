@@ -149,6 +149,18 @@ public class OperatorsController : ControllerBase
         return Ok(OperationResult<OperatorDto>.Ok(op));
     }
 
+    [HttpGet("types")]
+    public ActionResult<OperationResult<List<object>>> GetTypes()
+    {
+        var types = new[]
+        {
+            new { Id = 0, Name = "Tram", IconFile = "tram.png", Color = "#126400" },
+            new { Id = 2, Name = "Train", IconFile = "train.png", Color = "#b15928" },
+            new { Id = 3, Name = "Bus", IconFile = "bus.png", Color = "#1f78b4" }
+        };
+        return Ok(OperationResult<List<object>>.Ok(types.ToList<object>()));
+    }
+
     [HttpGet("{id:int}/service-area")]
     public async Task<ActionResult> GetServiceArea(int id, CancellationToken ct = default)
     {

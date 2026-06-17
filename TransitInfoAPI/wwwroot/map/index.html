@@ -190,35 +190,48 @@ map.on('load', () => {
     paint: { 'text-color': '#fff' }
   });
 
-  // Individual stop circles (unclustered)
+  // Load stop icons
+  const STOP_ICONS = [
+    { id: 'stop-bus', file: '/images/bus.png', types: ['Bus', 'Trolleybus', 'Coach'] },
+    { id: 'stop-tram', file: '/images/tram.png', types: ['Tram'] },
+    { id: 'stop-train', file: '/images/train.png', types: ['Rail', 'Metro', 'Ferry', 'CableCar', 'Funicular'] },
+    { id: 'stop-default', file: '/images/bus.png', types: [] }
+  ];
+
+  map.on('styleimagemissing', async (e) => {
+    const icon = STOP_ICONS.find(i => i.id === e.id);
+    if (!icon) return;
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image(); i.crossOrigin = 'anonymous';
+      i.onload = () => resolve(i); i.onerror = reject;
+      i.src = window.location.origin + icon.file;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    const data = canvas.getContext('2d').getImageData(0, 0, img.width, img.height);
+    if (!map.hasImage(e.id)) map.addImage(e.id, data);
+  });
+
+  const _stationIconExpr = ['case',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Bus', 'Trolleybus', 'Coach']]], 'stop-bus',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Tram']]], 'stop-tram',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Rail', 'Metro', 'Ferry', 'CableCar', 'Funicular']]], 'stop-train',
+    'stop-bus'
+  ];
+
+  // Individual stop icons (unclustered)
   map.addLayer({
     id: 'stations-circle',
-    type: 'circle',
+    type: 'symbol',
     source: stationsSource,
     filter: ['!', ['has', 'point_count']],
-    paint: {
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        10, 4,
-        14, 6,
-        16, 8
-      ],
-      'circle-color': [
-        'match', ['get', 'primaryRouteType'],
-        'Tram', '#33a02c',
-        'Bus', '#1f78b4',
-        'Trolleybus', '#1f78b4',
-        'Metro', '#e31a1c',
-        'Rail', '#b15928',
-        'Ferry', '#006994',
-        'CableCar', '#ff7f00',
-        'Funicular', '#ff7f00',
-        'Coach', '#6a3d9a',
-        '#888'
-      ],
-      'circle-stroke-width': 1,
-      'circle-stroke-color': '#fff',
-      'circle-opacity': 0.9
+    layout: {
+      'icon-image': _stationIconExpr,
+      'icon-size': 0.35,
+      'icon-anchor': 'bottom',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
     }
   });
 
@@ -229,13 +242,7 @@ map.on('load', () => {
     source: vehiclesSource,
     paint: {
       'circle-radius': 6,
-      'circle-color': [
-        'match', ['get', 'routeType'],
-        'Tram', '#33a02c',
-        'Bus', '#1f78b4',
-        'Rail', '#b15928',
-        '#e74c3c'
-      ],
+      'circle-color': '#7b2d8e',
       'circle-stroke-width': 2,
       'circle-stroke-color': '#fff',
       'circle-opacity': 0.9
@@ -258,8 +265,8 @@ map.on('load', () => {
     },
     paint: {
       'text-color': '#fff',
-      'text-halo-color': '#000',
-      'text-halo-width': 1
+      'text-halo-color': '#7b2d8e',
+      'text-halo-width': 2
     }
   });
 
