@@ -125,24 +125,21 @@ public class ReconciliationController : ControllerBase
     [HttpPost("{id}/approve")]
     public async Task<IActionResult> Approve(int id, CancellationToken ct = default)
     {
-        var ok = await _reconciliationService.ApproveCandidateAsync(id, ct);
-        if (!ok) return NotFound();
+        await _reconciliationService.ApproveCandidateAsync(id, ct);
         return NoContent();
     }
 
     [HttpPost("{id}/reject")]
     public async Task<IActionResult> Reject(int id, [FromQuery] bool createNewStation = false, CancellationToken ct = default)
     {
-        var ok = await _reconciliationService.RejectCandidateAsync(id, createNewStation, ct);
-        if (!ok) return NotFound();
+        await _reconciliationService.RejectCandidateAsync(id, createNewStation, ct);
         return NoContent();
     }
 
     [HttpPost("{id}/reassign")]
     public async Task<IActionResult> Reassign(int id, [FromQuery] int canonicalStationId, CancellationToken ct = default)
     {
-        var ok = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
-        if (!ok) return NotFound();
+        await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
         return NoContent();
     }
 }

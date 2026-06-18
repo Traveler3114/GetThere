@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
+using TransitInfoAPI.Exceptions;
 
 namespace TransitInfoAPI.Managers;
 
@@ -289,13 +290,13 @@ public class ReconciliationManager
         }
     }
 
-    public async Task<bool> ApproveCandidateAsync(int id, CancellationToken ct)
+    public async Task ApproveCandidateAsync(int id, CancellationToken ct)
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
         if (candidate is null)
-            return false;
+            throw new AppException("Candidate not found", 404);
 
         candidate.Status = ReconciliationStatus.ManuallyApproved;
         candidate.ReviewedAt = DateTime.UtcNow;
@@ -313,17 +314,16 @@ public class ReconciliationManager
         }
 
         await _db.SaveChangesAsync(ct);
-        return true;
     }
 
-    public async Task<bool> RejectCandidateAsync(int id, bool createNewStation = false, CancellationToken ct = default)
+    public async Task RejectCandidateAsync(int id, bool createNewStation = false, CancellationToken ct = default)
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
             .ThenInclude(c => c.Operator)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
         if (candidate is null)
-            return false;
+            throw new AppException("Candidate not found", 404);
 
         if (createNewStation)
         {
@@ -340,18 +340,17 @@ public class ReconciliationManager
         candidate.Status = ReconciliationStatus.Rejected;
         candidate.ReviewedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-        return true;
     }
 
-    public async Task<bool> ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct)
+    public async Task ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct)
     {
         var candidate = await _db.ReconciliationCandidates.FindAsync([id], ct);
         if (candidate is null)
-            return false;
+            throw new AppException("Candidate not found", 404);
 
         var station = await _db.CanonicalStations.FindAsync([canonicalStationId], ct);
         if (station is null)
-            return false;
+            throw new AppException("Station not found", 404);
 
         candidate.SuggestedCanonicalStationId = canonicalStationId;
         candidate.Status = ReconciliationStatus.ManuallyApproved;
@@ -365,7 +364,6 @@ public class ReconciliationManager
         }
 
         await _db.SaveChangesAsync(ct);
-        return true;
     }
 
     private (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? FindBestMatch(

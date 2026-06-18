@@ -48,6 +48,24 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        if (ex is TransitInfoAPI.Exceptions.AppException appEx)
+        {
+            context.Response.StatusCode = appEx.StatusCode;
+            context.Response.ContentType = "application/problem+json";
+            await context.Response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Status = appEx.StatusCode,
+                Title = appEx.ErrorCode ?? "Error",
+                Detail = appEx.Message
+            });
+        }
+    });
+});
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();

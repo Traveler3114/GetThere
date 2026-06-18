@@ -199,9 +199,12 @@ return int.Parse(claim);
 ### Manager return patterns
 Managers return data directly (no envelope wrapper):
 - Found → return the DTO or `List<T>`
-- Not found → return `null` (controller maps to `NotFound()`)
-- Command success → return `true` or `void`
-- Failure (not found/invalid) → return `false` or `null` (controller maps to appropriate status)
+- Not found → return `null` or throw `AppException` (controller maps to `NotFound()`)
+
+### Exception pattern
+- Managers throw `AppException(message, statusCode, errorCode?)` for expected failures
+- Global middleware catches `AppException` and writes a `ProblemDetails` response
+- Controllers never handle errors — they just call the manager and return the happy path
 
 ### Auto-registration
 - MAUI services in `GetThere.Services` namespace are auto-registered by reflection in `MauiProgram.cs`
