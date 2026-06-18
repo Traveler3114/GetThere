@@ -245,10 +245,15 @@ public class OperatorsController : ControllerBase
         if (!Enum.TryParse<OperatorType>(request.OperatorType, true, out var operatorType))
             return Problem(statusCode: 400, title: $"Invalid operator type '{request.OperatorType}'.");
 
+        var onestopId = _onestopIdService.GenerateOperatorOnestopId(country.IsoCode, request.ShortName);
+        var onestopExists = await _db.Operators.AnyAsync(o => o.OnestopId == onestopId, ct);
+        if (onestopExists)
+            return Problem(statusCode: 409, title: $"Operator with OnestopId '{onestopId}' already exists.");
+
         var op = new Operator
         {
             GlobalId = globalId,
-            OnestopId = _onestopIdService.GenerateOperatorOnestopId(country.IsoCode, request.ShortName),
+            OnestopId = onestopId,
             Name = request.Name,
             ShortName = request.ShortName,
             Website = request.Website,

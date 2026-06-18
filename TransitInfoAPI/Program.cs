@@ -53,17 +53,20 @@ app.UseExceptionHandler(errorApp =>
     errorApp.Run(async context =>
     {
         var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails { Detail = ex?.Message };
         if (ex is TransitInfoAPI.Exceptions.AppException appEx)
         {
-            context.Response.StatusCode = appEx.StatusCode;
-            context.Response.ContentType = "application/problem+json";
-            await context.Response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
-            {
-                Status = appEx.StatusCode,
-                Title = appEx.ErrorCode ?? "Error",
-                Detail = appEx.Message
-            });
+            pd.Status = appEx.StatusCode;
+            pd.Title = appEx.ErrorCode ?? "Error";
         }
+        else
+        {
+            pd.Status = 500;
+            pd.Title = "Internal Server Error";
+        }
+        context.Response.StatusCode = pd.Status ?? 500;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsJsonAsync(pd);
     });
 });
 app.UseDefaultFiles();
@@ -82,6 +85,9 @@ using (var scope = app.Services.CreateScope())
         version.ImportError = "Import interrupted by application restart";
     }
     await db.SaveChangesAsync();
+
+    await db.Database.ExecuteSqlRawAsync(
+        "UPDATE cs SET IsActive = 1 FROM CanonicalStations cs WHERE cs.IsActive = 0 AND cs.StationType = 'Stop' AND EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)");
 }
 
 await app.RunAsync();

@@ -340,10 +340,23 @@ public class FeedManager
 
                 if (existingRoute is null)
                 {
+                    var routeName = r.RouteShortName;
+                    if (string.IsNullOrEmpty(routeName))
+                        routeName = r.RouteLongName;
+                    if (string.IsNullOrEmpty(routeName))
+                        routeName = r.RouteId;
+                    if (string.IsNullOrEmpty(routeName))
+                        routeName = "unknown";
+
                     var routeOnestopId = _onestopId.GenerateRouteOnestopId(
                         rawStops.Count > 0 ? rawStops.Average(s => s.StopLat) : 0,
                         rawStops.Count > 0 ? rawStops.Average(s => s.StopLon) : 0,
-                        r.RouteShortName);
+                        routeName);
+
+                    var existingByOnestop = await _db.CanonicalRoutes
+                        .FirstOrDefaultAsync(cr => cr.OnestopId == routeOnestopId, CancellationToken.None);
+                    if (existingByOnestop is not null)
+                        continue;
 
                     _db.CanonicalRoutes.Add(new CanonicalRoute
                     {
@@ -592,9 +605,9 @@ public class FeedManager
             _logger.LogInformation("Import complete for FeedVersion {VersionId} ({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
                 feedVersionId, routes.Count, rawStops.Count, trips.Count);
 
-            // Deactivate orphan CanonicalStations (Stop-type with no RawStops linked)
+            // Deactivate orphan CanonicalStations (Stop-type with no active RawStops from any active FeedVersion)
             var deactivated = await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1)",
+                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
                 CancellationToken.None);
             _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
             _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
