@@ -89,7 +89,7 @@ public class OnestopIdManager
 
     public string GenerateStopOnestopId(double lat, double lon, string name, RouteType routeType)
     {
-        var geohash = EncodeGeohash(lat, lon, 7);
+        var geohash = EncodeGeohash(lat, lon, 9);
         var slug = ToNameSlug(name);
         var rtSuffix = RouteTypeToOnestopSuffix(routeType);
         return $"s-{geohash}-{slug}~{rtSuffix}";

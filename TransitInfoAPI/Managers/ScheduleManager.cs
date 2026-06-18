@@ -52,8 +52,8 @@ public class ScheduleManager
             {
                 TripId = st.Trip.TripId,
                 RouteName = st.Trip.CanonicalRoute != null
-                    ? (st.Trip.CanonicalRoute.ShortName ?? st.Trip.CanonicalRoute.LongName)
-                    : st.Trip.TripShortName ?? "",
+                    ? (st.Trip.CanonicalRoute.ShortName != "" ? st.Trip.CanonicalRoute.ShortName : st.Trip.CanonicalRoute.LongName)
+                    : (st.Trip.TripShortName ?? ""),
                 Headsign = st.StopHeadsign ?? st.Trip.TripHeadsign ?? "",
                 ScheduledDeparture = from.Date.AddSeconds(st.DepartureTime),
                 EstimatedDeparture = null,
@@ -123,7 +123,7 @@ public class ScheduleManager
                 ShortName = t.TripShortName,
                 DirectionId = t.DirectionId,
                 RouteName = t.CanonicalRoute != null
-                    ? (t.CanonicalRoute.ShortName ?? t.CanonicalRoute.LongName)
+                    ? (t.CanonicalRoute.ShortName != "" ? t.CanonicalRoute.ShortName : t.CanonicalRoute.LongName)
                     : "",
                 RouteType = t.CanonicalRoute != null ? t.CanonicalRoute.RouteType.ToString() : null,
                 ActiveToday = true

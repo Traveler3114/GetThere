@@ -96,7 +96,7 @@ public class ReconciliationManager
 
             var nearbyMatch = existingStations
                 .FirstOrDefault(s => s.PrimaryRouteType == rawStop.RouteType
-                    && CalculateDistanceMeters(rawStop.Lat, rawStop.Lon, s.Latitude, s.Longitude) <= 50
+                    && CalculateDistanceMeters(rawStop.Lat, rawStop.Lon, s.Latitude, s.Longitude) <= 20
                     && CalculateNameSimilarity(rawStop.Name, s.Name) >= 0.85);
 
             if (nearbyMatch is not null)

@@ -289,7 +289,13 @@ public class FeedManager
 
         _logStore.AddEntry(feedVersionId, "Import started");
 
-        using var archive = ZipFile.OpenRead(zipPath);
+        var importTempDir = Path.Combine(Path.GetTempPath(), "gtfs-imports");
+        Directory.CreateDirectory(importTempDir);
+        var tempZipPath = Path.Combine(importTempDir, $"import-{feedVersionId}-{Guid.NewGuid()}.zip");
+        File.Copy(zipPath, tempZipPath, overwrite: true);
+        _logStore.AddEntry(feedVersionId, "Copied GTFS zip to temporary working file");
+
+        using var archive = ZipFile.OpenRead(tempZipPath);
         _logStore.AddEntry(feedVersionId, "Opening GTFS archive...");
 
         var conn = _db.Database.GetDbConnection();
@@ -311,6 +317,7 @@ public class FeedManager
                 _logStore.AddEntry(feedVersionId, $"Validation failed: {string.Join("; ", validation.Errors)}");
             await _db.SaveChangesAsync(ct);
             await sqlTx.CommitAsync(ct);
+            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
             return;
             }
 
@@ -563,6 +570,11 @@ public class FeedManager
             await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, ct);
             _logStore.AddEntry(feedVersionId, "Reconciliation complete");
 
+            // Ensure index exists for the backfill join
+            _logStore.AddEntry(feedVersionId, "Ensuring backfill indexes...");
+            await _db.Database.ExecuteSqlRawAsync(
+                "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StopTimes_RawStopId') CREATE INDEX IX_StopTimes_RawStopId ON StopTimes (RawStopId) INCLUDE (CanonicalStationId, RawStopEntityId)", ct);
+
             // Backfill RawStopEntityId and CanonicalStationId on StopTimes
             _logStore.AddEntry(feedVersionId, "Backfilling station references...");
             try
@@ -641,6 +653,8 @@ public class FeedManager
                 ct);
             _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
             _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
+
+            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
         }
         catch (Exception ex)
         {
@@ -658,7 +672,7 @@ public class FeedManager
                 await cmd.ExecuteNonQueryAsync(ct);
             }
             catch { }
-            try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
+            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
             _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
             throw;
         }
