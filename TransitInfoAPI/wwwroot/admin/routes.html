@@ -51,6 +51,7 @@ async function loadRoutes() {
   document.getElementById('content').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/routes');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allRoutes = j.data || [];
     filterRoutes();

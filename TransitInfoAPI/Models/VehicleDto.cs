@@ -3,6 +3,7 @@ namespace TransitInfoAPI.Models;
 public class VehicleDto
 {
     public string VehicleId { get; set; } = string.Empty;
+    public string? FeedId { get; set; }
     public string? RouteId { get; set; }
     public string? TripId { get; set; }
     public string? RouteShortName { get; set; }

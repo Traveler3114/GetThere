@@ -70,6 +70,7 @@ async function loadOperators() {
   document.getElementById('content').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/operators');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allOperators = j.data || [];
     populateCountryFilter(allOperators);
@@ -243,12 +244,12 @@ async function addOperator() {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({name, shortName, countryId, operatorType, website, globalId})
     });
-    const j = await r.json();
-    if (j.success) {
+    if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
       loadOperators();
     } else {
-      alert(j.message || 'Failed to add operator.');
+      const j = await r.json().catch(() => ({}));
+      alert(j.title || j.message || 'Failed to add operator.');
     }
   } catch(e) { alert('Error: ' + e.message); }
 }

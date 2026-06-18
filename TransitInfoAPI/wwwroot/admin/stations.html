@@ -91,6 +91,7 @@ async function doSearch() {
     if (rt) params.set('routeType', rt);
     params.set('perPage', '200');
     const r = await fetch(BASE + '/stations/search?' + params.toString());
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allStations = j.data || [];
     const countries = [...new Set(allStations.filter(s=>s.countryName).map(s=>s.countryName))].sort();

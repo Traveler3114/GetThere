@@ -54,9 +54,9 @@ public class FeedsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Feed updated, CancellationToken ct = default)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateFeedRequest request, CancellationToken ct = default)
     {
-        var (success, message) = await _feedService.UpdateAsync(id, updated, ct);
+        var (success, message) = await _feedService.UpdateAsync(id, request, ct);
         if (!success) return NotFound();
         return NoContent();
     }

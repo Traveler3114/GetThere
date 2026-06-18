@@ -58,6 +58,7 @@ async function loadVehicles() {
   document.getElementById('error').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/realtime/vehicles', { signal: abortController.signal });
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allVehicles = j.data || [];
     document.getElementById('loading').classList.add('d-none');

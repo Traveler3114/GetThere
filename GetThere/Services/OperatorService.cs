@@ -102,6 +102,24 @@ public class OperatorService
             return OperationResult<List<MapOperatorResponse>>.Fail(ex.Message);
         }
     }
+
+    public async Task<OperationResult<List<MapVehicleResponse>>> GetVehiclesAsync(double? lat = null, double? lon = null, double? radiusKm = null)
+    {
+        try
+        {
+            var parts = new List<string>();
+            if (lat.HasValue) parts.Add($"lat={lat.Value}");
+            if (lon.HasValue) parts.Add($"lon={lon.Value}");
+            if (radiusKm.HasValue) parts.Add($"radiusKm={radiusKm.Value}");
+            var qs = parts.Count > 0 ? "?" + string.Join("&", parts) : "";
+            var result = await _http.GetFromJsonAsync<OperationResult<List<MapVehicleResponse>>>("api/map/realtime/vehicles" + qs, JsonOptions);
+            return result ?? OperationResult<List<MapVehicleResponse>>.Fail("Could not load vehicles");
+        }
+        catch (Exception ex)
+        {
+            return OperationResult<List<MapVehicleResponse>>.Fail(ex.Message);
+        }
+    }
 }
 
 public class TransportTypeResponse

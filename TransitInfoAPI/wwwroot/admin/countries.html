@@ -34,6 +34,7 @@ async function loadCountries() {
   document.getElementById('content').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/countries');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allCountries = j.data || [];
     renderCountries();
@@ -100,12 +101,12 @@ async function addCountry() {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({name, isoCode, continent})
     });
-    const j = await r.json();
-    if (j.success) {
+    if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
       loadCountries();
     } else {
-      alert(j.message || 'Failed to add country.');
+      const j = await r.json().catch(() => ({}));
+      alert(j.title || j.message || 'Failed to add country.');
     }
   } catch(e) { alert('Error: ' + e.message); }
 }

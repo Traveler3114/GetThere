@@ -76,6 +76,8 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+    await db.Database.MigrateAsync();
+
     var stuck = await db.FeedVersions
         .Where(fv => fv.ImportStatus == FeedImportStatus.Importing)
         .ToListAsync();

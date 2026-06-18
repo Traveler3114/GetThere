@@ -74,10 +74,12 @@ async function loadAll() {
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
   try {
-    const [pR, mR] = await Promise.all([
-      fetch(BASE + '/reconciliation/pending').then(r=>r.json()),
-      fetch(BASE + '/reconciliation/auto-merged').then(r=>r.json())
-    ]);
+    const pRResp = await fetch(BASE + '/reconciliation/pending');
+    if (!pRResp.ok) { showError('Failed to load: ' + (pRResp.statusText || 'Unknown error')); return; }
+    const pR = await pRResp.json();
+    const mRResp = await fetch(BASE + '/reconciliation/auto-merged');
+    if (!mRResp.ok) { showError('Failed to load: ' + (mRResp.statusText || 'Unknown error')); return; }
+    const mR = await mRResp.json();
     pendingItems = pR.data || [];
     mergedItems = mR.data || [];
     renderCurrentTab();
@@ -226,9 +228,8 @@ async function batchApprove() {
 async function approve(id) {
   try {
     const r = await fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' });
-    const j = await r.json();
-    if (j.success) { loadAll(); }
-    else { showError(j.message || 'Failed to approve.'); }
+    if (r.ok) { loadAll(); }
+    else { showError('Failed to approve.'); }
   } catch(e) { showError('Error: ' + e.message); }
 }
 
@@ -261,12 +262,11 @@ async function doReject(id) {
     const params = new URLSearchParams();
     if (createNew) params.set('createNewStation', 'true');
     const r = await fetch(BASE + '/reconciliation/' + id + '/reject?' + params.toString(), { method: 'POST' });
-    const j = await r.json();
-    if (j.success) {
+    if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
       loadAll();
     } else {
-      showError(j.message || 'Failed to reject.');
+      showError('Failed to reject.');
     }
   } catch(e) { showError('Error: ' + e.message); }
 }

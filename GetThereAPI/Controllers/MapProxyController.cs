@@ -30,6 +30,8 @@ public class MapProxyController : ControllerBase
     private static async Task<List<JsonElement>?> ExtractDataArrayAsync(HttpResponseMessage response, CancellationToken ct)
     {
         using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            return JsonSerializer.Deserialize<List<JsonElement>>(doc.RootElement.GetRawText(), JsonOptions);
         return doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
             ? JsonSerializer.Deserialize<List<JsonElement>>(data.GetRawText(), JsonOptions)
             : null;
@@ -128,12 +130,22 @@ public class MapProxyController : ControllerBase
 
     [HttpGet("realtime/vehicles")]
     public async Task<ActionResult<OperationResult<List<MapVehicleResponse>>>> GetVehicles(
-        [FromQuery] string? operatorGlobalId, [FromQuery] double? lat,
+        [FromQuery] string? feedId, [FromQuery] double? lat,
         [FromQuery] double? lon, [FromQuery] double? radiusKm,
         CancellationToken ct = default)
     {
         var client = CreateClient();
-        var query = BuildQuery(("operatorGlobalId", operatorGlobalId), ("lat", lat), ("lon", lon), ("radiusKm", radiusKm));
+        double? minLat = null, minLon = null, maxLat = null, maxLon = null;
+        if (lat.HasValue && lon.HasValue && radiusKm.HasValue)
+        {
+            var latDeg = radiusKm.Value / 111.0;
+            var lonDeg = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            minLat = lat.Value - latDeg;
+            maxLat = lat.Value + latDeg;
+            minLon = lon.Value - lonDeg;
+            maxLon = lon.Value + lonDeg;
+        }
+        var query = BuildQuery(("feedId", feedId), ("minLat", minLat), ("minLon", minLon), ("maxLat", maxLat), ("maxLon", maxLon));
         var response = await client.GetAsync($"/realtime/vehicles{query}", ct);
         if (!response.IsSuccessStatusCode)
             return StatusCode((int)response.StatusCode, OperationResult<List<MapVehicleResponse>>.Fail("TransitInfoAPI error."));
@@ -163,7 +175,19 @@ public class MapProxyController : ControllerBase
         string globalId, CancellationToken ct = default)
     {
         var client = CreateClient();
-        var response = await client.GetAsync($"/stations/{globalId}/departures", ct);
+
+        // Resolve globalId → numeric id
+        var stationResponse = await client.GetAsync($"/stations/by-global/{globalId}", ct);
+        if (!stationResponse.IsSuccessStatusCode)
+            return StatusCode((int)stationResponse.StatusCode, OperationResult<List<MapDepartureResponse>>.Fail("Station not found."));
+
+        int stationId;
+        {
+            using var doc = await JsonDocument.ParseAsync(await stationResponse.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            stationId = doc.RootElement.GetProperty("id").GetInt32();
+        }
+
+        var response = await client.GetAsync($"/stations/{stationId}/departures", ct);
         if (!response.IsSuccessStatusCode)
             return StatusCode((int)response.StatusCode, OperationResult<List<MapDepartureResponse>>.Fail("TransitInfoAPI error."));
 
@@ -188,7 +212,18 @@ public class MapProxyController : ControllerBase
         string globalId, CancellationToken ct = default)
     {
         var client = CreateClient();
-        var response = await client.GetAsync($"/stations/{globalId}/operators", ct);
+
+        var stationResponse = await client.GetAsync($"/stations/by-global/{globalId}", ct);
+        if (!stationResponse.IsSuccessStatusCode)
+            return StatusCode((int)stationResponse.StatusCode, OperationResult<List<MapOperatorResponse>>.Fail("Station not found."));
+
+        int stationId;
+        {
+            using var doc = await JsonDocument.ParseAsync(await stationResponse.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            stationId = doc.RootElement.GetProperty("id").GetInt32();
+        }
+
+        var response = await client.GetAsync($"/stations/{stationId}/operators", ct);
         if (!response.IsSuccessStatusCode)
             return StatusCode((int)response.StatusCode, OperationResult<List<MapOperatorResponse>>.Fail("TransitInfoAPI error."));
 

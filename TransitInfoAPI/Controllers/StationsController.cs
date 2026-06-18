@@ -123,6 +123,14 @@ public class StationsController : ControllerBase
         return Ok(routes);
     }
 
+    [HttpGet("by-global/{globalId}")]
+    public async Task<ActionResult<StationDto>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    {
+        var station = await _stationService.GetByGlobalIdAsync(globalId, ct);
+        if (station is null) return NotFound();
+        return Ok(station);
+    }
+
     [HttpGet("{id}/departures")]
     public async Task<ActionResult<List<DepartureDto>>> GetDepartures(
         int id,

@@ -37,6 +37,7 @@ async function loadFeeds() {
   document.getElementById('healthSection').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/feeds');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allFeeds = j.data || [];
     renderFeeds();
@@ -287,17 +288,17 @@ async function fetchFeed(id) {
     resultSpan.textContent = 'Import failed';
     resultSpan.className = 'me-auto small text-danger';
   } else {
-    const j = await r.json();
-    if (j.success) {
+    if (r.ok) {
+      const j = await r.json().catch(() => ({}));
       resultSpan.textContent = j.message || 'Import succeeded';
       resultSpan.className = 'me-auto small text-success';
       statusText.textContent = 'Complete';
-      // Auto-expand versions for this feed
       const btn = document.querySelector(`button[onclick*="expandVersions(${id}"]`);
       if (btn) { expandVersions(id, btn); loadFeeds(); }
       else { loadFeeds(); }
       setTimeout(closeModal, 5000);
     } else {
+      const j = await r.json().catch(() => ({}));
       resultSpan.textContent = j.message || 'Import failed';
       resultSpan.className = 'me-auto small text-danger';
     }
@@ -387,11 +388,11 @@ async function saveEditFeed(id) {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(updated)
     });
-    const j = await r.json();
-    if (j.success) {
+    if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
       loadFeeds();
     } else {
+      const j = await r.json().catch(() => ({}));
       showError(j.message || 'Failed to update feed.');
     }
   } catch(e) { showError('Error: ' + e.message); }
@@ -401,8 +402,7 @@ async function deleteFeed(id) {
   if (!confirm('Delete this feed?')) return;
   try {
     const r = await fetch(BASE + '/feeds/' + id, { method: 'DELETE' });
-    const j = await r.json();
-    if (j.success) { loadFeeds(); } else { showError(j.message || 'Failed to delete feed.'); }
+    if (r.ok) { loadFeeds(); } else { showError('Failed to delete feed.'); }
   } catch(e) { showError('Error: ' + e.message); }
 }
 
@@ -511,11 +511,11 @@ async function addFeed() {
     const params = new URLSearchParams({operatorId, feedType, sourceType, feedId, refreshIntervalSeconds: interval});
     if (externalUrl) params.set('externalUrl', externalUrl);
     const r = await fetch(BASE + '/feeds?' + params.toString(), { method: 'POST' });
-    const j = await r.json();
-    if (j.success) {
+    if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
       loadFeeds();
     } else {
+      const j = await r.json().catch(() => ({}));
       alert(j.message || 'Failed to add feed.');
     }
   } catch(e) { alert('Error: ' + e.message); }

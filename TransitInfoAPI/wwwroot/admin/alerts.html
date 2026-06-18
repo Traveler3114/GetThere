@@ -45,8 +45,7 @@ async function loadAlerts(stopOnestopId, routeOnestopId) {
     if (routeOnestopId) params.set('routeOnestopId', routeOnestopId);
     const url = BASE + '/realtime/alerts' + (params.toString() ? '?' + params.toString() : '');
     const r = await fetch(url);
-    const j = await r.json();
-    allAlerts = j.data || [];
+    allAlerts = await r.json();
     renderAlerts();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');

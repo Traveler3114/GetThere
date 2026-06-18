@@ -40,6 +40,7 @@ async function loadPlaces() {
   document.getElementById('content').classList.add('d-none');
   try {
     const r = await fetch(BASE + '/places?perPage=200');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allPlaces = j.data || [];
     filterPlaces();

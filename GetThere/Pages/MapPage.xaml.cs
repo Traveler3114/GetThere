@@ -13,6 +13,7 @@ public partial class MapPage : ContentPage
     private readonly CountryPreferenceService _countryPrefs;
 
     private System.Timers.Timer? _jsMessageTimer;
+    private System.Timers.Timer? _vehicleTimer;
 
     private readonly TaskCompletionSource _navigatedTcs = new();
     private bool _isWebViewReady = false;
@@ -179,12 +180,60 @@ public partial class MapPage : ContentPage
         await LoadStaticDataAsync();
         await GetLocationAsync();
         StartJsMessagePolling();
+        StartVehiclePolling();
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         StopJsMessagePolling();
+        StopVehiclePolling();
+    }
+
+    private void StartVehiclePolling()
+    {
+        _vehicleTimer = new System.Timers.Timer(15000);
+        _vehicleTimer.Elapsed += async (_, _) => await FetchVehiclesAsync();
+        _vehicleTimer.AutoReset = true;
+        _vehicleTimer.Start();
+    }
+
+    private void StopVehiclePolling()
+    {
+        _vehicleTimer?.Stop();
+        _vehicleTimer?.Dispose();
+        _vehicleTimer = null;
+    }
+
+    private async Task FetchVehiclesAsync()
+    {
+        if (!_isWebViewReady) return;
+        try
+        {
+            var result = await _operatorService.GetVehiclesAsync();
+            if (result.Success && result.Data is not null)
+            {
+                var mapped = result.Data.Select(v => new
+                {
+                    vehicleId = v.VehicleId,
+                    routeId = v.RouteId,
+                    tripId = v.TripId,
+                    routeShortName = v.RouteShortName,
+                    isRealtime = v.IsRealtime,
+                    bearing = v.Bearing,
+                    blockId = v.BlockId,
+                    lat = v.Latitude,
+                    lon = v.Longitude
+                }).ToList();
+
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await CallJsAsync("renderVehicles", mapped));
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[MapPage] FetchVehicles error: {ex.Message}");
+        }
     }
 
     private async Task WaitForMapReadyAsync()

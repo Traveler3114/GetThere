@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data;
 using System.IO.Compression;
 
@@ -25,6 +26,7 @@ public class FeedManager
     private readonly ReconciliationManager _reconciliation;
     private readonly PlaceMatchingManager _placeMatching;
     private readonly ImportLogStore _logStore;
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
 
     public FeedManager(
         TransitDbContext db,
@@ -130,21 +132,21 @@ public class FeedManager
         return feed;
     }
 
-    public async Task<(bool Success, string? Message)> UpdateAsync(int id, Feed updated, CancellationToken ct)
+    public async Task<(bool Success, string? Message)> UpdateAsync(int id, UpdateFeedRequest request, CancellationToken ct)
     {
         var feed = await _db.Feeds.FindAsync([id], ct);
         if (feed is null) return (false, "Feed not found.");
 
-        feed.FeedType = updated.FeedType;
-        feed.ExternalUrl = updated.ExternalUrl;
-        feed.InternalUrl = updated.InternalUrl;
-        feed.IsActive = updated.IsActive;
-        feed.RefreshIntervalSeconds = updated.RefreshIntervalSeconds;
-        feed.LicenseName = updated.LicenseName;
-        feed.LicenseUrl = updated.LicenseUrl;
-        feed.LicenseCommercialUseAllowed = updated.LicenseCommercialUseAllowed;
-        feed.LicenseShareAlikeOptional = updated.LicenseShareAlikeOptional;
-        feed.LicenseRedistributionAllowed = updated.LicenseRedistributionAllowed;
+        feed.FeedType = request.FeedType;
+        feed.ExternalUrl = request.ExternalUrl;
+        feed.InternalUrl = request.InternalUrl;
+        feed.IsActive = request.IsActive;
+        feed.RefreshIntervalSeconds = request.RefreshIntervalSeconds;
+        feed.LicenseName = request.LicenseName;
+        feed.LicenseUrl = request.LicenseUrl;
+        feed.LicenseCommercialUseAllowed = request.LicenseCommercialUseAllowed;
+        feed.LicenseShareAlikeOptional = request.LicenseShareAlikeOptional;
+        feed.LicenseRedistributionAllowed = request.LicenseRedistributionAllowed;
 
         await _db.SaveChangesAsync(ct);
         return (true, null);
@@ -193,60 +195,74 @@ public class FeedManager
 
     public async Task<FeedVersion?> CheckAndFetchAsync(int feedId, CancellationToken ct)
     {
-        var feed = await _db.Feeds.FindAsync([feedId], ct);
-        if (feed is null) return null;
-
-        var url = feed.ExternalUrl ?? feed.InternalUrl;
-        if (string.IsNullOrWhiteSpace(url)) return null;
-
-        var http = _httpFactory.CreateClient();
-        var bytes = await http.GetByteArrayAsync(url, ct);
-
-        var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
-        Directory.CreateDirectory(outputDir);
-        var zipPath = Path.Combine(outputDir, "gtfs.zip");
-        var tmpPath = zipPath + ".tmp";
-        await File.WriteAllBytesAsync(tmpPath, bytes, ct);
-        if (File.Exists(zipPath))
-            File.Delete(zipPath);
-        File.Move(tmpPath, zipPath);
-
-        string sha1;
-        using (var archive = ZipFile.OpenRead(zipPath))
-            sha1 = _gtfs.ComputeGtfsSha1(archive);
-
-        var existing = await _db.FeedVersions
-            .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
-            .AnyAsync(ct);
-
-        if (existing)
+        var sem = _feedLocks.GetOrAdd(feedId, _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync(ct);
+        try
         {
-            _logger.LogInformation("Feed {FeedId} SHA1 unchanged ({Sha1}), skipping", feed.FeedId, sha1);
-            var existingVersion = await _db.FeedVersions
+            var feed = await _db.Feeds.FindAsync([feedId], ct);
+            if (feed is null) return null;
+
+            var url = feed.ExternalUrl ?? feed.InternalUrl;
+            if (string.IsNullOrWhiteSpace(url)) return null;
+
+            var http = _httpFactory.CreateClient();
+            var bytes = await http.GetByteArrayAsync(url, ct);
+
+            var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
+            Directory.CreateDirectory(outputDir);
+            var zipPath = Path.Combine(outputDir, "gtfs.zip");
+            var tmpPath = zipPath + ".tmp";
+            await File.WriteAllBytesAsync(tmpPath, bytes, ct);
+            try
+            {
+                File.Replace(tmpPath, zipPath, null);
+            }
+            catch (FileNotFoundException)
+            {
+                File.Move(tmpPath, zipPath);
+            }
+
+            string sha1;
+            using (var archive = ZipFile.OpenRead(zipPath))
+                sha1 = _gtfs.ComputeGtfsSha1(archive);
+
+            var existing = await _db.FeedVersions
                 .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
-                .OrderByDescending(fv => fv.FetchedAt)
-                .FirstOrDefaultAsync(ct);
-            if (existingVersion is not null)
-                _logStore.AddEntry(existingVersion.Id, $"SHA1 unchanged ({sha1}), skipping import");
-            return existingVersion;
+                .AnyAsync(ct);
+
+            if (existing)
+            {
+                _logger.LogInformation("Feed {FeedId} SHA1 unchanged ({Sha1}), skipping", feed.FeedId, sha1);
+                var existingVersion = await _db.FeedVersions
+                    .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
+                    .OrderByDescending(fv => fv.FetchedAt)
+                    .FirstOrDefaultAsync(ct);
+                if (existingVersion is not null)
+                    _logStore.AddEntry(existingVersion.Id, $"SHA1 unchanged ({sha1}), skipping import");
+                return existingVersion;
+            }
+
+            var version = new FeedVersion
+            {
+                FeedId = feedId,
+                Sha1 = sha1,
+                FetchedAt = DateTime.UtcNow,
+                ImportStatus = FeedImportStatus.Pending,
+                IsActive = false
+            };
+
+            _db.FeedVersions.Add(version);
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation("New FeedVersion {VersionId} for feed {FeedId} SHA1={Sha1}", version.Id, feed.FeedId, sha1);
+            _logStore.AddEntry(version.Id, $"Downloaded {bytes.Length:N0} bytes from {url}");
+            _logStore.AddEntry(version.Id, $"SHA1 = {sha1}");
+            return version;
         }
-
-        var version = new FeedVersion
+        finally
         {
-            FeedId = feedId,
-            Sha1 = sha1,
-            FetchedAt = DateTime.UtcNow,
-            ImportStatus = FeedImportStatus.Pending,
-            IsActive = false
-        };
-
-        _db.FeedVersions.Add(version);
-        await _db.SaveChangesAsync(ct);
-
-        _logger.LogInformation("New FeedVersion {VersionId} for feed {FeedId} SHA1={Sha1}", version.Id, feed.FeedId, sha1);
-        _logStore.AddEntry(version.Id, $"Downloaded {bytes.Length:N0} bytes from {url}");
-        _logStore.AddEntry(version.Id, $"SHA1 = {sha1}");
-        return version;
+            sem.Release();
+        }
     }
 
     public async Task ImportFeedVersionAsync(int feedVersionId, CancellationToken ct = default)

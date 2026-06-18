@@ -83,9 +83,10 @@ public class RealtimeManager
                 var vehicleDto = new VehicleDto
                 {
                     VehicleId = vehicleId,
+                    FeedId = feed.FeedId,
                     RouteId = entity.Vehicle?.Trip?.RouteId,
                     TripId = entity.Vehicle?.Trip?.TripId,
-                    RouteShortName = null,
+                    RouteShortName = entity.Vehicle?.Trip?.RouteId,
                     IsRealtime = true,
                     BlockId = null,
                     Latitude = vp.Position.Latitude,
@@ -156,7 +157,7 @@ public class RealtimeManager
         var vehicles = _vehicleCache.Values.AsEnumerable();
 
         if (!string.IsNullOrEmpty(feedId))
-            vehicles = vehicles.Where(v => v.VehicleId.StartsWith(feedId + ":"));
+            vehicles = vehicles.Where(v => v.FeedId == feedId);
 
         if (minLat.HasValue && maxLat.HasValue && minLon.HasValue && maxLon.HasValue)
         {
