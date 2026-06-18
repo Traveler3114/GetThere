@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Models;
 
@@ -16,9 +15,9 @@ public class PlacesController : ControllerBase
     public PlacesController(TransitDbContext db) { _db = db; }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<PlaceDto>>>> GetAll(
+    public async Task<ActionResult<Paginated<PlaceDto>>> GetAll(
         [FromQuery] string? countryCode = null,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -29,10 +28,9 @@ public class PlacesController : ControllerBase
         if (!string.IsNullOrEmpty(countryCode))
             query = query.Where(p => p.AdmCountryCode == countryCode);
 
-        if (after > 0)
-            query = query.Where(p => p.Id > after);
-
+        var total = await query.CountAsync(ct);
         var places = await query
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(p => new PlaceDto
             {
@@ -46,14 +44,11 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var nextAfter = places.Count > 0 ? places.Last().Id : after;
-        var total = await _db.Places.CountAsync(ct);
-        var nextUrl = places.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<PlaceDto>>.OkPaginated(places, nextAfter, total, nextUrl));
+        return Ok(new Paginated<PlaceDto>(places, total));
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<OperationResult<PlaceDto>>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<PlaceDto>> GetById(int id, CancellationToken ct = default)
     {
         var place = await _db.Places
             .Where(p => p.Id == id)
@@ -70,13 +65,13 @@ public class PlacesController : ControllerBase
             .FirstOrDefaultAsync(ct);
 
         if (place is null)
-            return NotFound(OperationResult<PlaceDto>.Fail("Place not found."));
+            return NotFound();
 
-        return Ok(OperationResult<PlaceDto>.Ok(place));
+        return Ok(place);
     }
 
     [HttpGet("{id}/operators")]
-    public async Task<ActionResult<OperationResult<List<OperatorDto>>>> GetOperators(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<OperatorDto>>> GetOperators(int id, CancellationToken ct = default)
     {
         var operators = await _db.CanonicalStations
             .Where(cs => cs.PlaceId == id)
@@ -99,11 +94,11 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(OperationResult<List<OperatorDto>>.Ok(operators));
+        return Ok(operators);
     }
 
     [HttpGet("{id}/stations")]
-    public async Task<ActionResult<OperationResult<List<StationDto>>>> GetStations(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationDto>>> GetStations(int id, CancellationToken ct = default)
     {
         var stations = await _db.CanonicalStations
             .Where(cs => cs.PlaceId == id)
@@ -121,6 +116,6 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(OperationResult<List<StationDto>>.Ok(stations));
+        return Ok(stations);
     }
 }

@@ -170,28 +170,38 @@ return int.Parse(claim);
 
 ### Controllers
 - Always annotated: `[ApiController]`, `[Route]`, `[Authorize]` (where needed)
-- Always return `ActionResult<OperationResult<T>>`
-- Thin: receive input → call manager/service → forward result
+- Success (2xx): return the DTO/resource directly (`Ok(dto)`)
+- Error (4xx/5xx): return `Problem(statusCode, title)` standard RFC 7807 ProblemDetails
+- Pagination: return `Ok(new Paginated<T>(items, total))` where `Paginated<T>` is a concrete record in `Models/Paginated.cs`
+- Thin: receive input → call manager → forward result
 - Never contain business logic
 
-### OperationResult pattern
-All manager methods return `OperationResult<T>`:
-```csharp
-return OperationResult<T>.Ok(data);
-return OperationResult<T>.Fail("error message");
-```
-Controllers forward directly:
-```csharp
-return result.Success ? Ok(result) : NotFound(result);
-```
+### Response conventions
+| Status | Body | Use case |
+|--------|------|----------|
+| 200 | DTO or `List<T>` | GET single or non-paginated list |
+| 200 | `{ data, total }` via `Paginated<T>` | GET paginated list |
+| 200 | `{ message }` | Command with optional message (e.g., import result) |
+| 201 | DTO | Created resource via `CreatedAtAction` |
+| 204 | (empty) | Command success (PUT, DELETE, POST action) |
+| 400 | ProblemDetails | Bad request / validation error |
+| 404 | ProblemDetails | Resource not found |
+| 409 | ProblemDetails | Conflict (duplicate) |
+| 500 | ProblemDetails | Server error |
 
-### Status codes
-| Code | When |
-|------|------|
-| 200 | Success (via `Ok(result)`) |
-| 400 | Bad request (via `BadRequest(result)`) |
-| 404 | Not found (via `NotFound(result)`) |
-| 401 | Unauthorized (via `Unauthorized(result)`) |
+### Pagination
+- Offset-based: `?page=1&perPage=50`
+- `page` is 1-based (page 1 = items 1–50)
+- Response body: `{ "data": [...], "total": <int> }` via `Paginated<T>` record
+- `total` is the total matching items (not filtered by page)
+- Non-paginated list endpoints return the array directly with no wrapper
+
+### Manager return patterns
+Managers return data directly (no envelope wrapper):
+- Found → return the DTO or `List<T>`
+- Not found → return `null` (controller maps to `NotFound()`)
+- Command success → return `true` or `void`
+- Failure (not found/invalid) → return `false` or `null` (controller maps to appropriate status)
 
 ### Auto-registration
 - MAUI services in `GetThere.Services` namespace are auto-registered by reflection in `MauiProgram.cs`
@@ -247,8 +257,9 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 | File | Purpose |
 |------|---------|
 | `README.md` | Project vision, scope, roadmap |
-| `GetThereShared/Common/OperationResult.cs` | API response wrapper |
-| `GetThereShared/Common/PagedResult.cs` | Paginated list response |
+| `GetThereShared/Common/PagedResult.cs` | Paginated list response (GetThereAPI) |
+| `TransitInfoAPI/Models/Paginated.cs` | Paginated list response (TransitInfoAPI) |
+| `GetThereShared/Common/OperationResult.cs` | API response wrapper (GetThereAPI only) |
 | `GetThereShared/Contracts/*.cs` | Request/response DTOs |
 | `GetThereAPI/Program.cs` | Service registration, startup |
 | `GetThereAPI/Controllers/TicketingController.cs` | Ticket purchase, options, listing |
@@ -257,7 +268,7 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 | `GetThereAPI/Managers/WalletManager.cs` | Wallet balance, top-up, ensure |
 | `GetThere/MauiProgram.cs` | MAUI DI setup, API base URL per platform |
 | `GetThere/Platforms/Map/map.html` | Map bundle (MapLibre GL JS) |
-| `TransitInfoAPI/Services/ReconciliationService.cs` | Station reconciliation logic |
+| `TransitInfoAPI/Managers/ReconciliationManager.cs` | Station reconciliation logic |
 | `TransitInfoAPI/Controllers/ReconciliationController.cs` | Reconciliation approve/reject/reassign endpoints |
 
 ## Database

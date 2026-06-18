@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -24,9 +23,9 @@ public class ReconciliationController : ControllerBase
     }
 
     [HttpGet("pending")]
-    public async Task<ActionResult<OperationResult<List<ReconciliationDto>>>> GetPending(
+    public async Task<ActionResult<Paginated<ReconciliationDto>>> GetPending(
         [FromQuery] int? feedVersionId = null,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -40,11 +39,10 @@ public class ReconciliationController : ControllerBase
         if (feedVersionId.HasValue)
             query = query.Where(rc => rc.RawStop.FeedVersionId == feedVersionId.Value);
 
-        if (after > 0)
-            query = query.Where(rc => rc.Id > after);
-
+        var total = await query.CountAsync(ct);
         var candidates = await query
             .OrderBy(rc => rc.Id)
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(rc => new ReconciliationDto
             {
@@ -73,15 +71,12 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var nextAfter = candidates.Count > 0 ? candidates.Last().Id : after;
-        var total = await _db.ReconciliationCandidates.CountAsync(rc => rc.Status == ReconciliationStatus.Pending, ct);
-        var nextUrl = candidates.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<ReconciliationDto>>.OkPaginated(candidates, nextAfter, total, nextUrl));
+        return Ok(new Paginated<ReconciliationDto>(candidates, total));
     }
 
     [HttpGet("auto-merged")]
-    public async Task<ActionResult<OperationResult<List<ReconciliationDto>>>> GetAutoMerged(
-        [FromQuery] int after = 0,
+    public async Task<ActionResult<Paginated<ReconciliationDto>>> GetAutoMerged(
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -92,11 +87,10 @@ public class ReconciliationController : ControllerBase
             .Where(rc => rc.Status == ReconciliationStatus.AutoMerged)
             .AsQueryable();
 
-        if (after > 0)
-            query = query.Where(rc => rc.Id > after);
-
+        var total = await query.CountAsync(ct);
         var candidates = await query
             .OrderBy(rc => rc.Id)
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(rc => new ReconciliationDto
             {
@@ -125,30 +119,30 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var nextAfter = candidates.Count > 0 ? candidates.Last().Id : after;
-        var total = await _db.ReconciliationCandidates.CountAsync(rc => rc.Status == ReconciliationStatus.AutoMerged, ct);
-        var nextUrl = candidates.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<ReconciliationDto>>.OkPaginated(candidates, nextAfter, total, nextUrl));
+        return Ok(new Paginated<ReconciliationDto>(candidates, total));
     }
 
     [HttpPost("{id}/approve")]
-    public async Task<ActionResult<OperationResult>> Approve(int id, CancellationToken ct = default)
+    public async Task<IActionResult> Approve(int id, CancellationToken ct = default)
     {
-        var result = await _reconciliationService.ApproveCandidateAsync(id, ct);
-        return result.Success ? Ok(result) : NotFound(result);
+        var ok = await _reconciliationService.ApproveCandidateAsync(id, ct);
+        if (!ok) return NotFound();
+        return NoContent();
     }
 
     [HttpPost("{id}/reject")]
-    public async Task<ActionResult<OperationResult>> Reject(int id, [FromQuery] bool createNewStation = false, CancellationToken ct = default)
+    public async Task<IActionResult> Reject(int id, [FromQuery] bool createNewStation = false, CancellationToken ct = default)
     {
-        var result = await _reconciliationService.RejectCandidateAsync(id, createNewStation, ct);
-        return result.Success ? Ok(result) : NotFound(result);
+        var ok = await _reconciliationService.RejectCandidateAsync(id, createNewStation, ct);
+        if (!ok) return NotFound();
+        return NoContent();
     }
 
     [HttpPost("{id}/reassign")]
-    public async Task<ActionResult<OperationResult>> Reassign(int id, [FromQuery] int canonicalStationId, CancellationToken ct = default)
+    public async Task<IActionResult> Reassign(int id, [FromQuery] int canonicalStationId, CancellationToken ct = default)
     {
-        var result = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
-        return result.Success ? Ok(result) : NotFound(result);
+        var ok = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
+        if (!ok) return NotFound();
+        return NoContent();
     }
 }

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
+using TransitInfoAPI.Models;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -16,10 +16,10 @@ public class AgenciesController : ControllerBase
     public AgenciesController(TransitDbContext db) { _db = db; }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<AgencyDto>>>> GetAll(
+    public async Task<ActionResult<Paginated<AgencyDto>>> GetAll(
         [FromQuery] int? feedId = null,
         [FromQuery] int? operatorId = null,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -35,10 +35,9 @@ public class AgenciesController : ControllerBase
         if (operatorId.HasValue)
             query = query.Where(a => a.OperatorId == operatorId.Value);
 
-        if (after > 0)
-            query = query.Where(a => a.Id > after);
-
+        var total = await query.CountAsync(ct);
         var agencies = await query
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(a => new AgencyDto
             {
@@ -54,10 +53,7 @@ public class AgenciesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var nextAfter = agencies.Count > 0 ? agencies.Last().Id : after;
-        var total = await _db.Agencies.CountAsync(ct);
-        var nextUrl = agencies.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<AgencyDto>>.OkPaginated(agencies, nextAfter, total, nextUrl));
+        return Ok(new Paginated<AgencyDto>(agencies, total));
     }
 }
 

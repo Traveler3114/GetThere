@@ -15,7 +15,7 @@ public class OperatorManager
         _db = db;
     }
 
-    public async Task<List<OperatorDto>> GetAllAsync(int? countryId, OperatorType? type, int after = 0, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<OperatorDto>> GetAllAsync(int? countryId, OperatorType? type, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.Operators.Include(o => o.Country).AsQueryable();
 
@@ -23,10 +23,8 @@ public class OperatorManager
             query = query.Where(o => o.CountryId == countryId.Value);
         if (type.HasValue)
             query = query.Where(o => o.OperatorType == type.Value);
-        if (after > 0)
-            query = query.Where(o => o.Id > after);
 
-        return await query.OrderBy(o => o.Id).Take(perPage).Select(o => new OperatorDto
+        return await query.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage).Select(o => new OperatorDto
         {
             Id = o.Id,
             GlobalId = o.GlobalId,

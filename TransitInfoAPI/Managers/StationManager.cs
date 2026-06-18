@@ -19,7 +19,7 @@ public class StationManager
     }
 
     public async Task<List<StationDto>> GetAllAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId, int? after, int perPage, CancellationToken ct)
+        double? lat, double? lon, double? radiusKm, int? countryId, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
@@ -28,9 +28,6 @@ public class StationManager
 
         if (countryId.HasValue)
             query = query.Where(cs => cs.CountryId == countryId.Value);
-
-        if (after.HasValue)
-            query = query.Where(cs => cs.Id > after.Value);
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
@@ -45,6 +42,7 @@ public class StationManager
 
         return await query
             .OrderBy(cs => cs.Id)
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(cs => new StationDto
             {
@@ -128,7 +126,7 @@ public class StationManager
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<StationDto>> SearchAsync(string? q, RouteType? routeType, int after, int perPage, CancellationToken ct)
+    public async Task<List<StationDto>> SearchAsync(string? q, RouteType? routeType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
@@ -141,11 +139,9 @@ public class StationManager
         if (routeType.HasValue)
             query = query.Where(cs => cs.PrimaryRouteType == routeType.Value);
 
-        if (after > 0)
-            query = query.Where(cs => cs.Id > after);
-
         return await query
             .OrderBy(cs => cs.Id)
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(cs => new StationDto
             {

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Models;
 
@@ -16,11 +15,11 @@ public class MobilityController : ControllerBase
     public MobilityController(TransitDbContext db) { _db = db; }
 
     [HttpGet("stations")]
-    public async Task<ActionResult<OperationResult<List<MobilityStationDto>>>> GetStations(
+    public async Task<ActionResult<Paginated<MobilityStationDto>>> GetStations(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -41,10 +40,9 @@ public class MobilityController : ControllerBase
                 ms.Longitude <= lon.Value + lonRange);
         }
 
-        if (after > 0)
-            query = query.Where(ms => ms.Id > after);
-
+        var total = await query.CountAsync(ct);
         var stations = await query
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(ms => new MobilityStationDto
             {
@@ -60,9 +58,6 @@ public class MobilityController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var nextAfter = stations.Count > 0 ? stations.Last().Id : after;
-        var total = await _db.MobilityStations.CountAsync(ct);
-        var nextUrl = stations.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<MobilityStationDto>>.OkPaginated(stations, nextAfter, total, nextUrl));
+        return Ok(new Paginated<MobilityStationDto>(stations, total));
     }
 }

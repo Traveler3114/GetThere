@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -29,20 +28,18 @@ public class FeedsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<FeedDto>>>> GetAll(
-        [FromQuery] int after = 0,
+    public async Task<ActionResult<Paginated<FeedDto>>> GetAll(
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
-        var feeds = await _feedService.GetAllAsync(after, perPage, ct);
-        var nextAfter = feeds.Count > 0 ? feeds.Last().Id : after;
+        var feeds = await _feedService.GetAllAsync(page, perPage, ct);
         var total = await _db.Feeds.CountAsync(ct);
-        var nextUrl = feeds.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<FeedDto>>.OkPaginated(feeds, nextAfter, total, nextUrl));
+        return Ok(new Paginated<FeedDto>(feeds, total));
     }
 
     [HttpPost]
-    public async Task<ActionResult<OperationResult<FeedDto>>> Create(
+    public async Task<ActionResult<FeedDto>> Create(
         [FromQuery] int operatorId,
         [FromQuery] FeedType feedType,
         [FromQuery] SourceType sourceType,
@@ -53,50 +50,49 @@ public class FeedsController : ControllerBase
     {
         var feed = await _feedService.CreateAsync(operatorId, feedType, sourceType, feedId, externalUrl, refreshIntervalSeconds, ct);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
-        return CreatedAtAction(nameof(GetAll), new { }, OperationResult<FeedDto>.Ok(dto!));
+        return CreatedAtAction(nameof(GetAll), new { }, dto);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<OperationResult>> Update(int id, [FromBody] Feed updated, CancellationToken ct = default)
+    public async Task<IActionResult> Update(int id, [FromBody] Feed updated, CancellationToken ct = default)
     {
         var (success, message) = await _feedService.UpdateAsync(id, updated, ct);
-        if (!success) return NotFound(OperationResult.Fail(message!));
-        return Ok(OperationResult.Ok("Feed updated."));
+        if (!success) return NotFound();
+        return NoContent();
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult<OperationResult>> Delete(int id, CancellationToken ct = default)
+    public async Task<IActionResult> Delete(int id, CancellationToken ct = default)
     {
         var success = await _feedService.DeleteAsync(id, ct);
-        if (!success) return NotFound(OperationResult.Fail("Feed not found."));
-        return Ok(OperationResult.Ok("Feed deleted."));
+        if (!success) return NotFound();
+        return NoContent();
     }
 
     [HttpGet("versions/{versionId}/logs")]
-    public ActionResult<OperationResult<List<string>>> GetVersionLogs(int versionId, CancellationToken ct = default)
+    public ActionResult<List<string>> GetVersionLogs(int versionId, CancellationToken ct = default)
     {
         var logs = _feedService.GetImportLogs(versionId);
-        return Ok(OperationResult<List<string>>.Ok(logs));
+        return Ok(logs);
     }
 
     [HttpPost("{id}/fetch")]
-    public async Task<ActionResult<OperationResult>> Fetch(int id, CancellationToken ct = default)
+    public async Task<ActionResult> Fetch(int id, CancellationToken ct = default)
     {
         try
         {
             var version = await _feedService.TriggerImportAsync(id, ct);
-            return Ok(OperationResult.Ok(
-                $"Import succeeded: {version.RouteCount} routes, {version.StopCount} stops, {version.TripCount} trips."));
+            return Ok(new { message = $"Import succeeded: {version.RouteCount} routes, {version.StopCount} stops, {version.TripCount} trips." });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Fetch/import failed for feed {Id}", id);
-            return StatusCode(500, OperationResult.Fail($"Import failed: {ex.Message}"));
+            return Problem(statusCode: 500, title: "Import failed", detail: ex.Message);
         }
     }
 
     [HttpGet("{id}/versions")]
-    public async Task<ActionResult<OperationResult<List<FeedVersionDto>>>> GetVersions(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<FeedVersionDto>>> GetVersions(int id, CancellationToken ct = default)
     {
         var versions = await _feedService.GetFeedVersionsAsync(id, ct);
         var dtos = versions.Select(v => new FeedVersionDto
@@ -115,6 +111,6 @@ public class FeedsController : ControllerBase
             RouteCount = v.RouteCount,
             TripCount = v.TripCount
         }).ToList();
-        return Ok(OperationResult<List<FeedVersionDto>>.Ok(dtos));
+        return Ok(dtos);
     }
 }

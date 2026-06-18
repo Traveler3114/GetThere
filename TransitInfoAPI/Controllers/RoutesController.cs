@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 using NetTopologySuite.Geometries;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
@@ -35,7 +34,7 @@ public class RoutesController : ControllerBase
         [FromQuery] double? maxLat,
         [FromQuery] double? maxLon,
         [FromQuery] string? format = null,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -47,8 +46,6 @@ public class RoutesController : ControllerBase
                 query = query.Where(r => r.OperatorId == operatorId.Value);
             if (routeType.HasValue)
                 query = query.Where(r => r.RouteType == routeType.Value);
-            if (after > 0)
-                query = query.Where(r => r.Id > after);
 
             if (minLat.HasValue && minLon.HasValue && maxLat.HasValue && maxLon.HasValue)
             {
@@ -60,7 +57,7 @@ public class RoutesController : ControllerBase
                 query = query.Where(r => r.Geometry != null && r.Geometry.Intersects(bbox));
             }
 
-            var routes = await query.OrderBy(r => r.Id).Take(perPage).ToListAsync(ct);
+            var routes = await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).ToListAsync(ct);
 
             var fc = GeoJsonGeometry.ToLineStringCollection(routes,
                 r => r.Geometry,
@@ -77,15 +74,13 @@ public class RoutesController : ControllerBase
             return Ok(fc);
         }
 
-        var result = await _routeService.GetAllAsync(operatorId, routeType, after, perPage, ct);
-        var nextAfter = result.Count > 0 ? result.Last().Id : after;
+        var result = await _routeService.GetAllAsync(operatorId, routeType, page, perPage, ct);
         var total = await _db.CanonicalRoutes.CountAsync(r => r.IsActive, ct);
-        var nextUrl = result.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<RouteDto>>.OkPaginated(result, nextAfter, total, nextUrl));
+        return Ok(new Paginated<RouteDto>(result, total));
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<OperationResult<RouteDto>>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<RouteDto>> GetById(int id, CancellationToken ct = default)
     {
         var route = await _db.CanonicalRoutes
             .Where(r => r.Id == id)
@@ -103,13 +98,13 @@ public class RoutesController : ControllerBase
             .FirstOrDefaultAsync(ct);
 
         if (route is null)
-            return NotFound(OperationResult<RouteDto>.Fail("Route not found."));
+            return NotFound();
 
-        return Ok(OperationResult<RouteDto>.Ok(route));
+        return Ok(route);
     }
 
     [HttpGet("by-onestop/{onestopId}")]
-    public async Task<ActionResult<OperationResult<RouteDto>>> GetByOnestopId(string onestopId, CancellationToken ct = default)
+    public async Task<ActionResult<RouteDto>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var route = await _db.CanonicalRoutes
             .Where(r => r.OnestopId == onestopId)
@@ -127,9 +122,9 @@ public class RoutesController : ControllerBase
             .FirstOrDefaultAsync(ct);
 
         if (route is null)
-            return NotFound(OperationResult<RouteDto>.Fail("Route not found."));
+            return NotFound();
 
-        return Ok(OperationResult<RouteDto>.Ok(route));
+        return Ok(route);
     }
 
     [HttpGet("{id}/shape")]
@@ -156,20 +151,20 @@ public class RoutesController : ControllerBase
     }
 
     [HttpGet("{id}/stops")]
-    public async Task<ActionResult<OperationResult<List<StationDto>>>> GetStops(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationDto>>> GetStops(int id, CancellationToken ct = default)
     {
         var stops = await _scheduleService.GetRouteStopsAsync(id, ct);
-        return Ok(OperationResult<List<StationDto>>.Ok(stops));
+        return Ok(stops);
     }
 
     [HttpGet("{id}/trips")]
-    public async Task<ActionResult<OperationResult<List<TripDto>>>> GetTrips(
+    public async Task<ActionResult<List<TripDto>>> GetTrips(
         int id,
         [FromQuery] string? date = null,
         CancellationToken ct = default)
     {
         var parsedDate = date is not null ? DateOnly.Parse(date) : DateOnly.FromDateTime(DateTime.UtcNow);
         var trips = await _scheduleService.GetRouteTripsAsync(id, parsedDate, ct);
-        return Ok(OperationResult<List<TripDto>>.Ok(trips));
+        return Ok(trips);
     }
 }

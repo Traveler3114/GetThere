@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Algorithm;
 using NetTopologySuite.Geometries;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -33,7 +32,7 @@ public class OperatorsController : ControllerBase
         [FromQuery] int? countryId = null,
         [FromQuery] OperatorType? type = null,
         [FromQuery] string? format = null,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -45,10 +44,8 @@ public class OperatorsController : ControllerBase
                 query = query.Where(o => o.CountryId == countryId.Value);
             if (type.HasValue)
                 query = query.Where(o => o.OperatorType == type.Value);
-            if (after > 0)
-                query = query.Where(o => o.Id > after);
 
-            var operators = await query.OrderBy(o => o.Id).Take(perPage)
+            var operators = await query.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage)
                 .Select(o => new
                 {
                     Operator = o,
@@ -84,15 +81,13 @@ public class OperatorsController : ControllerBase
             return Ok(fc);
         }
 
-        var result = await _operatorService.GetAllAsync(countryId, type, after, perPage, ct);
-        var nextAfter = result.Count > 0 ? result.Last().Id : after;
+        var result = await _operatorService.GetAllAsync(countryId, type, page, perPage, ct);
         var total = await _db.Operators.CountAsync(ct);
-        var nextUrl = result.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<OperatorDto>>.OkPaginated(result, nextAfter, total, nextUrl));
+        return Ok(new Paginated<OperatorDto>(result, total));
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<OperationResult<OperatorDto>>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorDto>> GetById(int id, CancellationToken ct = default)
     {
         var op = await _db.Operators
             .Include(o => o.Country)
@@ -112,12 +107,12 @@ public class OperatorsController : ControllerBase
             })
             .FirstOrDefaultAsync(ct);
 
-        if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
-        return Ok(OperationResult<OperatorDto>.Ok(op));
+        if (op is null) return NotFound();
+        return Ok(op);
     }
 
     [HttpGet("by-onestop/{onestopId}")]
-    public async Task<ActionResult<OperationResult<OperatorDto>>> GetByOnestopId(string onestopId, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorDto>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var op = await _db.Operators
             .Include(o => o.Country)
@@ -137,20 +132,20 @@ public class OperatorsController : ControllerBase
             })
             .FirstOrDefaultAsync(ct);
 
-        if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
-        return Ok(OperationResult<OperatorDto>.Ok(op));
+        if (op is null) return NotFound();
+        return Ok(op);
     }
 
     [HttpGet("{globalId}")]
-    public async Task<ActionResult<OperationResult<OperatorDto>>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorDto>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
         var op = await _operatorService.GetByGlobalIdAsync(globalId, ct);
-        if (op is null) return NotFound(OperationResult<OperatorDto>.Fail("Operator not found."));
-        return Ok(OperationResult<OperatorDto>.Ok(op));
+        if (op is null) return NotFound();
+        return Ok(op);
     }
 
     [HttpGet("types")]
-    public ActionResult<OperationResult<List<object>>> GetTypes()
+    public ActionResult<List<object>> GetTypes()
     {
         var types = new[]
         {
@@ -158,7 +153,7 @@ public class OperatorsController : ControllerBase
             new { Id = 2, Name = "Train", IconFile = "train.png", Color = "#b15928" },
             new { Id = 3, Name = "Bus", IconFile = "bus.png", Color = "#1f78b4" }
         };
-        return Ok(OperationResult<List<object>>.Ok(types.ToList<object>()));
+        return Ok(types.ToList<object>());
     }
 
     [HttpGet("{id:int}/service-area")]
@@ -206,38 +201,38 @@ public class OperatorsController : ControllerBase
     }
 
     [HttpGet("{globalId}/stations")]
-    public async Task<ActionResult<OperationResult<List<StationDto>>>> GetStations(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationDto>>> GetStations(string globalId, CancellationToken ct = default)
     {
         var stations = await _operatorService.GetStationsAsync(globalId, ct);
-        return Ok(OperationResult<List<StationDto>>.Ok(stations));
+        return Ok(stations);
     }
 
     [HttpGet("{globalId}/routes")]
-    public async Task<ActionResult<OperationResult<List<RouteDto>>>> GetRoutes(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<List<RouteDto>>> GetRoutes(string globalId, CancellationToken ct = default)
     {
         var routes = await _operatorService.GetRoutesAsync(globalId, ct);
-        return Ok(OperationResult<List<RouteDto>>.Ok(routes));
+        return Ok(routes);
     }
 
     [HttpGet("{globalId}/feeds")]
-    public async Task<ActionResult<OperationResult<List<FeedDto>>>> GetFeeds(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<List<FeedDto>>> GetFeeds(string globalId, CancellationToken ct = default)
     {
         var feeds = await _operatorService.GetFeedsAsync(globalId, ct);
-        return Ok(OperationResult<List<FeedDto>>.Ok(feeds));
+        return Ok(feeds);
     }
 
     [HttpPost]
-    public async Task<ActionResult<OperationResult<OperatorDto>>> Create([FromBody] CreateOperatorRequest request, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorDto>> Create([FromBody] CreateOperatorRequest request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(OperationResult<OperatorDto>.Fail("Operator name is required."));
+            return Problem(statusCode: 400, title: "Operator name is required.");
 
         if (string.IsNullOrWhiteSpace(request.ShortName))
-            return BadRequest(OperationResult<OperatorDto>.Fail("Short name is required."));
+            return Problem(statusCode: 400, title: "Short name is required.");
 
         var country = await _db.Countries.FindAsync(new object[] { request.CountryId }, ct);
         if (country is null)
-            return BadRequest(OperationResult<OperatorDto>.Fail("Country not found."));
+            return Problem(statusCode: 400, title: "Country not found.");
 
         var globalId = request.GlobalId;
         if (string.IsNullOrWhiteSpace(globalId))
@@ -245,10 +240,10 @@ public class OperatorsController : ControllerBase
 
         var exists = await _db.Operators.AnyAsync(o => o.GlobalId == globalId, ct);
         if (exists)
-            return Conflict(OperationResult<OperatorDto>.Fail($"Operator with GlobalId '{globalId}' already exists."));
+            return Problem(statusCode: 409, title: $"Operator with GlobalId '{globalId}' already exists.");
 
         if (!Enum.TryParse<OperatorType>(request.OperatorType, true, out var operatorType))
-            return BadRequest(OperationResult<OperatorDto>.Fail($"Invalid operator type '{request.OperatorType}'."));
+            return Problem(statusCode: 400, title: $"Invalid operator type '{request.OperatorType}'.");
 
         var op = new Operator
         {
@@ -279,6 +274,6 @@ public class OperatorsController : ControllerBase
             CountryName = country.Name
         };
 
-        return CreatedAtAction(nameof(GetAll), null, OperationResult<OperatorDto>.Ok(dto, "Operator created."));
+        return CreatedAtAction(nameof(GetAll), null, dto);
     }
 }

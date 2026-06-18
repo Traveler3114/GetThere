@@ -5,7 +5,6 @@ using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -49,20 +48,16 @@ public class FeedManager
         _logStore = logStore;
     }
 
-    public async Task<List<FeedDto>> GetAllAsync(int after = 0, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<FeedDto>> GetAllAsync(int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.Feeds
             .Include(f => f.Operator)
             .OrderBy(f => f.Id)
             .AsQueryable();
 
-        if (after > 0)
-            query = query.Where(f => f.Id > after);
-
-        if (perPage > 0)
-            query = query.Take(perPage);
-
         return await query
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
             .Select(f => new FeedDto
             {
                 Id = f.Id,

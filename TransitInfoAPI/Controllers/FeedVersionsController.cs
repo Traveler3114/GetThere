@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Models;
 
@@ -16,9 +15,9 @@ public class FeedVersionsController : ControllerBase
     public FeedVersionsController(TransitDbContext db) { _db = db; }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<FeedVersionDto>>>> GetAll(
+    public async Task<ActionResult<Paginated<FeedVersionDto>>> GetAll(
         [FromQuery] int? feedId = null,
-        [FromQuery] int after = 0,
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -29,10 +28,9 @@ public class FeedVersionsController : ControllerBase
         if (feedId.HasValue)
             query = query.Where(fv => fv.FeedId == feedId.Value);
 
-        if (after > 0)
-            query = query.Where(fv => fv.Id < after);
-
+        var total = await query.CountAsync(ct);
         var versions = await query
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(fv => new FeedVersionDto
             {
@@ -52,14 +50,11 @@ public class FeedVersionsController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var nextAfter = versions.Count > 0 ? versions.Last().Id : after;
-        var total = await _db.FeedVersions.CountAsync(ct);
-        var nextUrl = versions.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<FeedVersionDto>>.OkPaginated(versions, nextAfter, total, nextUrl));
+        return Ok(new Paginated<FeedVersionDto>(versions, total));
     }
 
     [HttpGet("{sha1}")]
-    public async Task<ActionResult<OperationResult<FeedVersionDto>>> GetBySha1(string sha1, CancellationToken ct = default)
+    public async Task<ActionResult<FeedVersionDto>> GetBySha1(string sha1, CancellationToken ct = default)
     {
         var version = await _db.FeedVersions
             .Where(fv => fv.Sha1 == sha1)
@@ -82,20 +77,20 @@ public class FeedVersionsController : ControllerBase
             .FirstOrDefaultAsync(ct);
 
         if (version is null)
-            return NotFound(OperationResult<FeedVersionDto>.Fail("Feed version not found."));
+            return NotFound();
 
-        return Ok(OperationResult<FeedVersionDto>.Ok(version));
+        return Ok(version);
     }
 
     [HttpGet("{sha1}/stops")]
-    public async Task<ActionResult<OperationResult<List<RawStopDto>>>> GetStops(string sha1, CancellationToken ct = default)
+    public async Task<ActionResult<List<RawStopDto>>> GetStops(string sha1, CancellationToken ct = default)
     {
         var version = await _db.FeedVersions
             .Where(fv => fv.Sha1 == sha1)
             .FirstOrDefaultAsync(ct);
 
         if (version is null)
-            return NotFound(OperationResult<List<RawStopDto>>.Fail("Feed version not found."));
+            return NotFound();
 
         var stops = await _db.RawStops
             .Where(rs => rs.FeedVersionId == version.Id)
@@ -114,7 +109,7 @@ public class FeedVersionsController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(OperationResult<List<RawStopDto>>.Ok(stops));
+        return Ok(stops);
     }
 }
 

@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders().AddConsole().AddDebug();
 
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 

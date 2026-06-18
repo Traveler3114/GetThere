@@ -15,7 +15,7 @@ public class RouteManager
         _db = db;
     }
 
-    public async Task<List<RouteDto>> GetAllAsync(int? operatorId, RouteType? routeType, int after = 0, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<RouteDto>> GetAllAsync(int? operatorId, RouteType? routeType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
 
@@ -23,10 +23,8 @@ public class RouteManager
             query = query.Where(r => r.OperatorId == operatorId.Value);
         if (routeType.HasValue)
             query = query.Where(r => r.RouteType == routeType.Value);
-        if (after > 0)
-            query = query.Where(r => r.Id > after);
 
-        return await query.OrderBy(r => r.Id).Take(perPage).Select(r => new RouteDto
+        return await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).Select(r => new RouteDto
         {
             Id = r.Id,
             GlobalId = r.GlobalId,

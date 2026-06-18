@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
+using TransitInfoAPI.Models;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -19,8 +19,8 @@ public class CountriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<Country>>>> GetAll(
-        [FromQuery] int after = 0,
+    public async Task<ActionResult<Paginated<Country>>> GetAll(
+        [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -28,35 +28,31 @@ public class CountriesController : ControllerBase
             .OrderBy(c => c.Id)
             .AsQueryable();
 
-        if (after > 0)
-            query = query.Where(c => c.Id > after);
-
+        var total = await query.CountAsync(ct);
         var countries = await query
+            .Skip((page - 1) * perPage)
             .Take(perPage)
             .ToListAsync(ct);
 
-        var nextAfter = countries.Count > 0 ? countries.Last().Id : after;
-        var total = await _db.Countries.CountAsync(ct);
-        var nextUrl = countries.Count >= perPage ? $"{Request.Path}?after={nextAfter}&perPage={perPage}" : null;
-        return Ok(OperationResult<List<Country>>.OkPaginated(countries, nextAfter, total, nextUrl));
+        return Ok(new Paginated<Country>(countries, total));
     }
 
     [HttpPost]
-    public async Task<ActionResult<OperationResult<Country>>> Create([FromBody] Country country, CancellationToken ct)
+    public async Task<ActionResult<Country>> Create([FromBody] Country country, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(country.Name))
-            return BadRequest(OperationResult<Country>.Fail("Country name is required."));
+            return Problem(statusCode: 400, title: "Country name is required.");
 
         if (string.IsNullOrWhiteSpace(country.IsoCode))
-            return BadRequest(OperationResult<Country>.Fail("ISO code is required."));
+            return Problem(statusCode: 400, title: "ISO code is required.");
 
         var exists = await _db.Countries.AnyAsync(c => c.IsoCode == country.IsoCode, ct);
         if (exists)
-            return Conflict(OperationResult<Country>.Fail($"Country with ISO code '{country.IsoCode}' already exists."));
+            return Problem(statusCode: 409, title: $"Country with ISO code '{country.IsoCode}' already exists.");
 
         _db.Countries.Add(country);
         await _db.SaveChangesAsync(ct);
 
-        return CreatedAtAction(nameof(GetAll), null, OperationResult<Country>.Ok(country, "Country created."));
+        return CreatedAtAction(nameof(GetAll), null, country);
     }
 }
