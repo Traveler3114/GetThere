@@ -1,5 +1,5 @@
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Workers;
 
@@ -44,9 +44,9 @@ public class FeedPollingWorker : BackgroundService
     private async Task PollFeeds(CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
-        var feedService = scope.ServiceProvider.GetRequiredService<FeedService>();
+        var FeedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
 
-        var activeFeeds = await feedService.GetAllAsync(perPage: int.MaxValue, ct: ct);
+        var activeFeeds = await FeedManager.GetAllAsync(perPage: int.MaxValue, ct: ct);
         var staticFeeds = activeFeeds
             .Where(f => f.FeedType == nameof(FeedType.GTFSStatic) && f.IsActive)
             .ToList();
@@ -57,13 +57,13 @@ public class FeedPollingWorker : BackgroundService
         {
             try
             {
-                var newVersion = await feedService.CheckAndFetchAsync(feed.Id, ct);
+                var newVersion = await FeedManager.CheckAndFetchAsync(feed.Id, ct);
                 if (newVersion != null)
                 {
                     _logger.LogInformation(
                         "New feed version detected for {FeedId}: {Sha1}, starting import",
                         feed.FeedId, newVersion.Sha1);
-                    await feedService.ImportFeedVersionAsync(newVersion.Id, ct);
+                    await FeedManager.ImportFeedVersionAsync(newVersion.Id, ct);
                 }
             }
             catch (Exception ex)

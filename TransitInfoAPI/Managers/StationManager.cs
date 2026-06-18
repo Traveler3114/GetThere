@@ -5,14 +5,14 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class StationService
+public class StationManager
 {
     private readonly TransitDbContext _db;
-    private readonly ScheduleService _schedule;
+    private readonly ScheduleManager _schedule;
 
-    public StationService(TransitDbContext db, ScheduleService schedule)
+    public StationManager(TransitDbContext db, ScheduleManager schedule)
     {
         _db = db;
         _schedule = schedule;

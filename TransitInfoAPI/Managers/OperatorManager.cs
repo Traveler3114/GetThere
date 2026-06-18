@@ -4,13 +4,13 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class OperatorService
+public class OperatorManager
 {
     private readonly TransitDbContext _db;
 
-    public OperatorService(TransitDbContext db)
+    public OperatorManager(TransitDbContext db)
     {
         _db = db;
     }

@@ -13,29 +13,29 @@ using TransitInfoAPI.Models;
 
 using NetTopologySuite.Geometries;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class FeedService
+public class FeedManager
 {
     private readonly TransitDbContext _db;
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<FeedService> _logger;
+    private readonly ILogger<FeedManager> _logger;
     private readonly IWebHostEnvironment _env;
-    private readonly GtfsParserService _gtfs;
-    private readonly OnestopIdService _onestopId;
-    private readonly ReconciliationService _reconciliation;
-    private readonly PlaceMatchingService _placeMatching;
+    private readonly GtfsParserManager _gtfs;
+    private readonly OnestopIdManager _onestopId;
+    private readonly ReconciliationManager _reconciliation;
+    private readonly PlaceMatchingManager _placeMatching;
     private readonly ImportLogStore _logStore;
 
-    public FeedService(
+    public FeedManager(
         TransitDbContext db,
         IHttpClientFactory httpFactory,
-        ILogger<FeedService> logger,
+        ILogger<FeedManager> logger,
         IWebHostEnvironment env,
-        GtfsParserService gtfs,
-        OnestopIdService onestopId,
-        ReconciliationService reconciliation,
-        PlaceMatchingService placeMatching,
+        GtfsParserManager gtfs,
+        OnestopIdManager onestopId,
+        ReconciliationManager reconciliation,
+        PlaceMatchingManager placeMatching,
         ImportLogStore logStore)
     {
         _db = db;
@@ -487,8 +487,8 @@ public class FeedService
                     dt.Rows.Add(
                         tripLookup.GetValueOrDefault(st.TripId, 0),
                         st.StopId,
-                        GtfsParserService.ParseGtfsTimeToSeconds(st.ArrivalTime),
-                        GtfsParserService.ParseGtfsTimeToSeconds(st.DepartureTime),
+                        GtfsParserManager.ParseGtfsTimeToSeconds(st.ArrivalTime),
+                        GtfsParserManager.ParseGtfsTimeToSeconds(st.DepartureTime),
                         st.StopSequence,
                         (object?)st.StopHeadsign ?? DBNull.Value,
                         (object?)st.PickupType ?? DBNull.Value,

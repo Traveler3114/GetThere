@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using TransitInfoAPI.Common;
 using TransitInfoAPI.Models;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -10,9 +10,9 @@ namespace TransitInfoAPI.Controllers;
 [Route("realtime")]
 public class RealtimeController : ControllerBase
 {
-    private readonly RealtimeService _realtime;
+    private readonly RealtimeManager _realtime;
 
-    public RealtimeController(RealtimeService realtime) { _realtime = realtime; }
+    public RealtimeController(RealtimeManager realtime) { _realtime = realtime; }
 
     [HttpGet("vehicles")]
     public async Task<ActionResult<OperationResult<List<VehicleDto>>>> GetVehicles(

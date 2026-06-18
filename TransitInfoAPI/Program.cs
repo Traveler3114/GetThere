@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 using TransitInfoAPI.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,18 +21,18 @@ builder.Services.AddHttpClient("gtfsrt", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
-builder.Services.AddScoped<GtfsParserService>();
-builder.Services.AddSingleton<OnestopIdService>();
-builder.Services.AddScoped<ReconciliationService>();
-builder.Services.AddScoped<ScheduleService>();
-builder.Services.AddScoped<PlaceMatchingService>();
-builder.Services.AddScoped<MobilityService>();
-builder.Services.AddScoped<StationService>();
-builder.Services.AddScoped<RouteService>();
-builder.Services.AddScoped<OperatorService>();
-builder.Services.AddScoped<FeedService>();
+builder.Services.AddScoped<GtfsParserManager>();
+builder.Services.AddSingleton<OnestopIdManager>();
+builder.Services.AddScoped<ReconciliationManager>();
+builder.Services.AddScoped<ScheduleManager>();
+builder.Services.AddScoped<PlaceMatchingManager>();
+builder.Services.AddScoped<MobilityManager>();
+builder.Services.AddScoped<StationManager>();
+builder.Services.AddScoped<RouteManager>();
+builder.Services.AddScoped<OperatorManager>();
+builder.Services.AddScoped<FeedManager>();
 builder.Services.AddSingleton<ImportLogStore>();
-builder.Services.AddSingleton<RealtimeService>();
+builder.Services.AddSingleton<RealtimeManager>();
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();
 

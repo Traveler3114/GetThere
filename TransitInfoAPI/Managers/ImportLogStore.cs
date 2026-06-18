@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
 public class ImportLogStore
 {

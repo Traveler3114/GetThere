@@ -3,15 +3,15 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class PlaceMatchingService
+public class PlaceMatchingManager
 {
     private readonly TransitDbContext _db;
-    private readonly ILogger<PlaceMatchingService> _logger;
+    private readonly ILogger<PlaceMatchingManager> _logger;
     private List<Place>? _placeCache;
 
-    public PlaceMatchingService(TransitDbContext db, ILogger<PlaceMatchingService> logger)
+    public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger)
     {
         _db = db;
         _logger = logger;

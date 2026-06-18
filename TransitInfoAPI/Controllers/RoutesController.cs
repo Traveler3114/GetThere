@@ -7,7 +7,7 @@ using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -15,14 +15,14 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class RoutesController : ControllerBase
 {
-    private readonly RouteService _routeService;
-    private readonly ScheduleService _scheduleService;
+    private readonly RouteManager _routeService;
+    private readonly ScheduleManager _scheduleService;
     private readonly TransitDbContext _db;
 
-    public RoutesController(RouteService routeService, ScheduleService scheduleService, TransitDbContext db)
+    public RoutesController(RouteManager RouteManager, ScheduleManager ScheduleManager, TransitDbContext db)
     {
-        _routeService = routeService;
-        _scheduleService = scheduleService;
+        _routeService = RouteManager;
+        _scheduleService = ScheduleManager;
         _db = db;
     }
 

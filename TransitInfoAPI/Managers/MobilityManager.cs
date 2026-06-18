@@ -6,15 +6,15 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class MobilityService
+public class MobilityManager
 {
     private readonly TransitDbContext _db;
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<MobilityService> _logger;
+    private readonly ILogger<MobilityManager> _logger;
 
-    public MobilityService(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityService> logger)
+    public MobilityManager(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityManager> logger)
     {
         _db = db;
         _httpFactory = httpFactory;

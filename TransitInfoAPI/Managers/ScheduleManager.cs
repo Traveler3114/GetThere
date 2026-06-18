@@ -4,13 +4,13 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Models;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class ScheduleService
+public class ScheduleManager
 {
     private readonly TransitDbContext _db;
 
-    public ScheduleService(TransitDbContext db)
+    public ScheduleManager(TransitDbContext db)
     {
         _db = db;
     }

@@ -5,7 +5,7 @@ using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -13,12 +13,12 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class StationsController : ControllerBase
 {
-    private readonly StationService _stationService;
+    private readonly StationManager _stationService;
     private readonly TransitDbContext _db;
 
-    public StationsController(StationService stationService, TransitDbContext db)
+    public StationsController(StationManager StationManager, TransitDbContext db)
     {
-        _stationService = stationService;
+        _stationService = StationManager;
         _db = db;
     }
 

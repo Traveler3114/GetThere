@@ -9,7 +9,7 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -17,15 +17,15 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class OperatorsController : ControllerBase
 {
-    private readonly OperatorService _operatorService;
+    private readonly OperatorManager _operatorService;
     private readonly TransitDbContext _db;
-    private readonly OnestopIdService _onestopIdService;
+    private readonly OnestopIdManager _onestopIdService;
 
-    public OperatorsController(OperatorService operatorService, TransitDbContext db, OnestopIdService onestopIdService)
+    public OperatorsController(OperatorManager OperatorManager, TransitDbContext db, OnestopIdManager OnestopIdManager)
     {
-        _operatorService = operatorService;
+        _operatorService = OperatorManager;
         _db = db;
-        _onestopIdService = onestopIdService;
+        _onestopIdService = OnestopIdManager;
     }
 
     [HttpGet]

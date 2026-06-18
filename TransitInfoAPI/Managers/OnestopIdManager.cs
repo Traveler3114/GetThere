@@ -2,9 +2,9 @@ using System.Text;
 
 using TransitInfoAPI.Enums;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class OnestopIdService
+public class OnestopIdManager
 {
     private const string Base32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 

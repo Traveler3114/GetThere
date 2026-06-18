@@ -6,7 +6,7 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -14,12 +14,12 @@ namespace TransitInfoAPI.Controllers;
 [Route("reconciliation")]
 public class ReconciliationController : ControllerBase
 {
-    private readonly ReconciliationService _reconciliationService;
+    private readonly ReconciliationManager _reconciliationService;
     private readonly TransitDbContext _db;
 
-    public ReconciliationController(ReconciliationService reconciliationService, TransitDbContext db)
+    public ReconciliationController(ReconciliationManager ReconciliationManager, TransitDbContext db)
     {
-        _reconciliationService = reconciliationService;
+        _reconciliationService = ReconciliationManager;
         _db = db;
     }
 

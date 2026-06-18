@@ -12,14 +12,14 @@ using NetTopologySuite.Algorithm;
 
 using TransitInfoAPI.Enums;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class GtfsParserService
+public class GtfsParserManager
 {
     private readonly GeometryFactory _geometryFactory = new(new PrecisionModel(), 4326);
-    private readonly ILogger<GtfsParserService> _logger;
+    private readonly ILogger<GtfsParserManager> _logger;
 
-    public GtfsParserService(ILogger<GtfsParserService> logger)
+    public GtfsParserManager(ILogger<GtfsParserManager> logger)
     {
         _logger = logger;
     }

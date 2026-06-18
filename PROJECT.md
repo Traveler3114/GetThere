@@ -163,11 +163,10 @@ return int.Parse(claim);
 ## Conventions — Architecture
 
 ### Manager pattern
-- All business logic lives in **Manager** (GetThereAPI) or **Service** (TransitInfoAPI) classes — never in controllers
-- Managers/Services inject `AppDbContext` and/or other dependencies via constructor
+- All business logic lives in **Manager** classes — never in controllers
+- Managers inject `AppDbContext` and/or other dependencies via constructor
 - Managers are concrete classes (no interfaces, except when needed for DI swapping)
-- Manager naming: `{Domain}Manager` (e.g., `TicketManager`, `WalletManager`)
-- Service naming: `{Domain}Service` (e.g., `ReconciliationService`)
+- Manager naming: `{Domain}Manager` (e.g., `TicketManager`, `FeedManager`)
 
 ### Controllers
 - Always annotated: `[ApiController]`, `[Route]`, `[Authorize]` (where needed)

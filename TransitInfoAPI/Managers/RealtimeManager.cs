@@ -9,19 +9,19 @@ using TransitInfoAPI.Models;
 
 using TransitRealtime;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class RealtimeService
+public class RealtimeManager
 {
     private readonly IHttpClientFactory _httpFactory;
-    private readonly ILogger<RealtimeService> _logger;
+    private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<string, VehicleDto> _vehicleCache = new();
     private readonly object _alertLock = new();
 
-    public RealtimeService(
+    public RealtimeManager(
         IHttpClientFactory httpFactory,
-        ILogger<RealtimeService> logger,
+        ILogger<RealtimeManager> logger,
         IServiceScopeFactory scopeFactory)
     {
         _httpFactory = httpFactory;

@@ -5,19 +5,19 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 
-namespace TransitInfoAPI.Services;
+namespace TransitInfoAPI.Managers;
 
-public class ReconciliationService
+public class ReconciliationManager
 {
     private readonly TransitDbContext _db;
-    private readonly ILogger<ReconciliationService> _logger;
-    private readonly OnestopIdService _onestopId;
+    private readonly ILogger<ReconciliationManager> _logger;
+    private readonly OnestopIdManager _onestopId;
     private readonly IConfiguration _config;
 
-    public ReconciliationService(
+    public ReconciliationManager(
         TransitDbContext db,
-        ILogger<ReconciliationService> logger,
-        OnestopIdService onestopId,
+        ILogger<ReconciliationManager> logger,
+        OnestopIdManager onestopId,
         IConfiguration config)
     {
         _db = db;

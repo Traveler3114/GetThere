@@ -6,7 +6,7 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -14,16 +14,16 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class FeedsController : ControllerBase
 {
-    private readonly FeedService _feedService;
+    private readonly FeedManager _feedService;
     private readonly TransitDbContext _db;
     private readonly ILogger<FeedsController> _logger;
 
     public FeedsController(
-        FeedService feedService,
+        FeedManager FeedManager,
         TransitDbContext db,
         ILogger<FeedsController> logger)
     {
-        _feedService = feedService;
+        _feedService = FeedManager;
         _db = db;
         _logger = logger;
     }

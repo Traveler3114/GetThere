@@ -1,4 +1,4 @@
-using TransitInfoAPI.Services;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Workers;
 
@@ -27,7 +27,7 @@ public class RealtimePollingWorker : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var realtime = scope.ServiceProvider.GetRequiredService<RealtimeService>();
+                var realtime = scope.ServiceProvider.GetRequiredService<RealtimeManager>();
                 await realtime.PollAllFeedsAsync(ct);
             }
             catch (Exception ex)
