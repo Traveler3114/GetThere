@@ -20,14 +20,32 @@ public class ScheduleManager
     {
         var today = DateOnly.FromDateTime(from);
         var fromTime = (int)from.TimeOfDay.TotalSeconds;
-
-        var activeServiceIds = await GetActiveServiceIdsForDateAsync(today, ct);
+        var dayOfWeek = today.DayOfWeek;
 
         var departures = await _db.StopTimes
             .Where(st => st.CanonicalStationId == canonicalStationId)
             .Where(st => st.Trip.FeedVersion.IsActive)
-            .Where(st => st.Trip != null && activeServiceIds.Contains(st.Trip.ServiceId))
             .Where(st => st.DepartureTime >= fromTime)
+            .Where(st =>
+                (_db.Calendars.Any(c =>
+                    c.FeedVersion.IsActive &&
+                    c.ServiceId == st.Trip.ServiceId &&
+                    c.StartDate <= today && c.EndDate >= today &&
+                    ((dayOfWeek == DayOfWeek.Monday && c.Monday) ||
+                     (dayOfWeek == DayOfWeek.Tuesday && c.Tuesday) ||
+                     (dayOfWeek == DayOfWeek.Wednesday && c.Wednesday) ||
+                     (dayOfWeek == DayOfWeek.Thursday && c.Thursday) ||
+                     (dayOfWeek == DayOfWeek.Friday && c.Friday) ||
+                     (dayOfWeek == DayOfWeek.Saturday && c.Saturday) ||
+                     (dayOfWeek == DayOfWeek.Sunday && c.Sunday))) &&
+                !_db.CalendarDates.Any(cd =>
+                    cd.FeedVersion.IsActive &&
+                    cd.ServiceId == st.Trip.ServiceId &&
+                    cd.Date == today && cd.ExceptionType == 2)) ||
+                _db.CalendarDates.Any(cd =>
+                    cd.FeedVersion.IsActive &&
+                    cd.ServiceId == st.Trip.ServiceId &&
+                    cd.Date == today && cd.ExceptionType == 1))
             .OrderBy(st => st.DepartureTime)
             .Take(count)
             .Select(st => new DepartureDto
@@ -72,12 +90,31 @@ public class ScheduleManager
 
     public async Task<List<TripDto>> GetRouteTripsAsync(int canonicalRouteId, DateOnly date, CancellationToken ct)
     {
-        var activeServiceIds = await GetActiveServiceIdsForDateAsync(date, ct);
+        var dayOfWeek = date.DayOfWeek;
 
         var trips = await _db.Trips
             .Where(t => t.CanonicalRouteId == canonicalRouteId)
             .Where(t => t.FeedVersion.IsActive)
-            .Where(t => activeServiceIds.Contains(t.ServiceId))
+            .Where(t =>
+                (_db.Calendars.Any(c =>
+                    c.FeedVersion.IsActive &&
+                    c.ServiceId == t.ServiceId &&
+                    c.StartDate <= date && c.EndDate >= date &&
+                    ((dayOfWeek == DayOfWeek.Monday && c.Monday) ||
+                     (dayOfWeek == DayOfWeek.Tuesday && c.Tuesday) ||
+                     (dayOfWeek == DayOfWeek.Wednesday && c.Wednesday) ||
+                     (dayOfWeek == DayOfWeek.Thursday && c.Thursday) ||
+                     (dayOfWeek == DayOfWeek.Friday && c.Friday) ||
+                     (dayOfWeek == DayOfWeek.Saturday && c.Saturday) ||
+                     (dayOfWeek == DayOfWeek.Sunday && c.Sunday))) &&
+                !_db.CalendarDates.Any(cd =>
+                    cd.FeedVersion.IsActive &&
+                    cd.ServiceId == t.ServiceId &&
+                    cd.Date == date && cd.ExceptionType == 2)) ||
+                _db.CalendarDates.Any(cd =>
+                    cd.FeedVersion.IsActive &&
+                    cd.ServiceId == t.ServiceId &&
+                    cd.Date == date && cd.ExceptionType == 1))
             .Select(t => new TripDto
             {
                 Id = t.Id,
@@ -89,42 +126,11 @@ public class ScheduleManager
                     ? (t.CanonicalRoute.ShortName ?? t.CanonicalRoute.LongName)
                     : "",
                 RouteType = t.CanonicalRoute != null ? t.CanonicalRoute.RouteType.ToString() : null,
-                ActiveToday = activeServiceIds.Contains(t.ServiceId)
+                ActiveToday = true
             })
             .ToListAsync(ct);
 
         return trips;
-    }
-
-    private async Task<HashSet<string>> GetActiveServiceIdsForDateAsync(DateOnly date, CancellationToken ct)
-    {
-        var dayOfWeek = date.DayOfWeek;
-
-        var calendarServices = await _db.Calendars
-            .Where(c => c.StartDate <= date && c.EndDate >= date)
-            .Where(c => dayOfWeek == DayOfWeek.Monday ? c.Monday :
-                        dayOfWeek == DayOfWeek.Tuesday ? c.Tuesday :
-                        dayOfWeek == DayOfWeek.Wednesday ? c.Wednesday :
-                        dayOfWeek == DayOfWeek.Thursday ? c.Thursday :
-                        dayOfWeek == DayOfWeek.Friday ? c.Friday :
-                        dayOfWeek == DayOfWeek.Saturday ? c.Saturday : c.Sunday)
-            .Select(c => c.ServiceId)
-            .ToListAsync(ct);
-
-        var addedExceptions = await _db.CalendarDates
-            .Where(cd => cd.Date == date && cd.ExceptionType == 1)
-            .Select(cd => cd.ServiceId)
-            .ToListAsync(ct);
-
-        var removedExceptions = await _db.CalendarDates
-            .Where(cd => cd.Date == date && cd.ExceptionType == 2)
-            .Select(cd => cd.ServiceId)
-            .ToHashSetAsync(ct);
-
-        var result = new HashSet<string>(calendarServices);
-        result.UnionWith(addedExceptions);
-        result.ExceptWith(removedExceptions);
-        return result;
     }
 
     public async Task<bool> IsServiceActiveOnAsync(string serviceId, DateOnly date, int feedVersionId, CancellationToken ct)

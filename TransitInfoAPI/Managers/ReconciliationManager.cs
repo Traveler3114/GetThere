@@ -45,7 +45,7 @@ public class ReconciliationManager
         var maxLon = rawStops.Max(r => r.Lon);
         var buffer = 0.005;
         var existingStations = await _db.CanonicalStations
-            .Where(cs => cs.IsActive
+            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop
                 && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
                 && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
             .ToListAsync(ct);
@@ -101,13 +101,14 @@ public class ReconciliationManager
 
             if (nearbyMatch is not null)
             {
+                rawStop.CanonicalStationId = nearbyMatch.Id;
                 onestopToStation[onestopId] = nearbyMatch;
                 continue;
             }
 
             var station = new CanonicalStation
             {
-                GlobalId = $"gt-raw-{rawStop.Id}",
+                GlobalId = $"gt-{onestopId}",
                 OnestopId = onestopId,
                 Name = rawStop.Name,
                 Latitude = rawStop.Lat,
@@ -212,6 +213,13 @@ public class ReconciliationManager
                     Status = ReconciliationStatus.Pending,
                     CreatedAt = DateTime.UtcNow
                 });
+
+                if (addedOperatorLinks.Add((match.Value.Station.Id, feedOperatorId)))
+                    _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                    {
+                        CanonicalStationId = match.Value.Station.Id,
+                        OperatorId = feedOperatorId
+                    });
             }
             else
             {
@@ -257,7 +265,7 @@ public class ReconciliationManager
 
         var station = new CanonicalStation
         {
-            GlobalId = $"gt-raw-{rawStop.Id}",
+            GlobalId = $"gt-{onestopId}",
             OnestopId = onestopId,
             Name = rawStop.Name,
             Latitude = rawStop.Lat,

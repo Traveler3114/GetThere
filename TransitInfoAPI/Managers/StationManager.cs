@@ -184,8 +184,25 @@ public class StationManager
         return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.Now, count, ct);
     }
 
-    public async Task<int> GetTotalCountAsync(CancellationToken ct)
+    public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, CancellationToken ct)
     {
-        return await _db.CanonicalStations.CountAsync(cs => cs.IsActive && cs.StationType == StationType.Stop, ct);
+        var query = _db.CanonicalStations
+            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop);
+
+        if (countryId.HasValue)
+            query = query.Where(cs => cs.CountryId == countryId.Value);
+
+        if (lat is not null && lon is not null && radiusKm is not null)
+        {
+            var latRange = radiusKm.Value / 111.0;
+            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            query = query.Where(cs =>
+                cs.Latitude >= lat.Value - latRange &&
+                cs.Latitude <= lat.Value + latRange &&
+                cs.Longitude >= lon.Value - lonRange &&
+                cs.Longitude <= lon.Value + lonRange);
+        }
+
+        return await query.CountAsync(ct);
     }
 }

@@ -53,7 +53,7 @@ public class StationsController : ControllerBase
             return Ok(fc);
         }
 
-        var total = await _stationService.GetTotalCountAsync(ct);
+        var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, ct);
         return Ok(new Paginated<StationDto>(result, total));
     }
 
@@ -66,7 +66,7 @@ public class StationsController : ControllerBase
         CancellationToken ct = default)
     {
         var result = await _stationService.SearchAsync(q, routeType, page, perPage, ct);
-        var total = await _stationService.GetTotalCountAsync(ct);
+        var total = await _stationService.GetTotalCountAsync(null, null, null, null, ct);
         return Ok(new Paginated<StationDto>(result, total));
     }
 
@@ -92,7 +92,7 @@ public class StationsController : ControllerBase
         var station = await _stationService.GetByIdAsync(id, ct);
         if (station is null) return NotFound();
         var operators = await _stationService.GetOperatorsAsync(station.OnestopId, ct);
-        return Ok(operators);
+        return Ok(new Paginated<StationOperatorDto>(operators, operators.Count));
     }
 
     [HttpGet("{id}/routes")]
@@ -139,6 +139,6 @@ public class StationsController : ControllerBase
         CancellationToken ct = default)
     {
         var departures = await _stationService.GetDeparturesAsync(id, from, count, ct);
-        return Ok(departures);
+        return Ok(new Paginated<DepartureDto>(departures, departures.Count));
     }
 }

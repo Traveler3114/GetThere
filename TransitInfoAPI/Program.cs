@@ -53,7 +53,8 @@ app.UseExceptionHandler(errorApp =>
     errorApp.Run(async context =>
     {
         var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
-        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails { Detail = ex?.Message };
+        app.Logger.LogError(ex, "Unhandled exception");
+        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails { Detail = ex?.InnerException?.Message ?? ex?.Message };
         if (ex is TransitInfoAPI.Exceptions.AppException appEx)
         {
             pd.Status = appEx.StatusCode;
@@ -81,12 +82,20 @@ using (var scope = app.Services.CreateScope())
     var stuck = await db.FeedVersions
         .Where(fv => fv.ImportStatus == FeedImportStatus.Importing)
         .ToListAsync();
+    var stuckIds = stuck.Select(v => v.Id).ToList();
     foreach (var version in stuck)
     {
         version.ImportStatus = FeedImportStatus.Failed;
         version.ImportError = "Import interrupted by application restart";
     }
     await db.SaveChangesAsync();
+
+    if (stuckIds.Count > 0)
+    {
+        await db.StopTimes.Where(st => stuckIds.Contains(st.Trip.FeedVersionId)).ExecuteDeleteAsync();
+        await db.RawStops.Where(rs => stuckIds.Contains(rs.FeedVersionId)).ExecuteDeleteAsync();
+        await db.Trips.Where(t => stuckIds.Contains(t.FeedVersionId)).ExecuteDeleteAsync();
+    }
 
     await db.Database.ExecuteSqlRawAsync(
         "UPDATE cs SET IsActive = 1 FROM CanonicalStations cs WHERE cs.IsActive = 0 AND cs.StationType = 'Stop' AND EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)");

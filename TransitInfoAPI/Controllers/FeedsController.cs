@@ -73,7 +73,7 @@ public class FeedsController : ControllerBase
     public ActionResult<List<string>> GetVersionLogs(int versionId, CancellationToken ct = default)
     {
         var logs = _feedService.GetImportLogs(versionId);
-        return Ok(logs);
+        return Ok(new { data = logs, total = logs.Count });
     }
 
     [HttpPost("{id}/fetch")]
@@ -111,6 +111,6 @@ public class FeedsController : ControllerBase
             RouteCount = v.RouteCount,
             TripCount = v.TripCount
         }).ToList();
-        return Ok(dtos);
+        return Ok(new Paginated<FeedVersionDto>(dtos, dtos.Count));
     }
 }

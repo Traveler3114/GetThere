@@ -487,7 +487,7 @@ internal class CalendarDateMap : ClassMap<RawCalendarDateRecord>
         3 => RouteType.Bus,
         4 => RouteType.Ferry,
         5 => RouteType.CableCar,
-        6 => RouteType.Funicular,
+        6 => RouteType.CableCar,
         7 => RouteType.Funicular,
         11 => RouteType.Trolleybus,
         100 => RouteType.Rail,

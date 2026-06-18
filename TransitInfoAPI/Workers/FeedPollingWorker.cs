@@ -1,6 +1,6 @@
+using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Models;
 
 namespace TransitInfoAPI.Workers;
 
@@ -44,14 +44,11 @@ public class FeedPollingWorker : BackgroundService
 
     private async Task PollFeeds(CancellationToken ct)
     {
-        List<FeedDto> staticFeeds;
+        List<Feed> staticFeeds;
         using (var scope = _scopeFactory.CreateScope())
         {
-            var FeedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
-            var activeFeeds = await FeedManager.GetAllAsync(perPage: int.MaxValue, ct: ct);
-            staticFeeds = activeFeeds
-                .Where(f => f.FeedType == nameof(FeedType.GTFSStatic) && f.IsActive)
-                .ToList();
+            var feedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
+            staticFeeds = await feedManager.GetActiveGtfsFeedsAsync(ct);
         }
 
         _logger.LogInformation("Checking {Count} active GTFS-static feeds", staticFeeds.Count);
@@ -61,14 +58,19 @@ public class FeedPollingWorker : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var FeedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
-                var newVersion = await FeedManager.CheckAndFetchAsync(feed.Id, ct);
+                var feedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
+                var newVersion = await feedManager.CheckAndFetchAsync(feed.Id, ct);
                 if (newVersion != null)
                 {
+                    if (newVersion.ImportStatus == FeedImportStatus.Success)
+                    {
+                        _logger.LogDebug("Feed {FeedId} already up to date, skipping", feed.FeedId);
+                        continue;
+                    }
                     _logger.LogInformation(
                         "New feed version detected for {FeedId}: {Sha1}, starting import",
                         feed.FeedId, newVersion.Sha1);
-                    await FeedManager.ImportFeedVersionAsync(newVersion.Id, ct);
+                    await feedManager.ImportFeedVersionAsync(newVersion.Id, ct);
                 }
             }
             catch (Exception ex)

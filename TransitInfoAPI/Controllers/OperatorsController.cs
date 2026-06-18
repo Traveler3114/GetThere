@@ -204,21 +204,21 @@ public class OperatorsController : ControllerBase
     public async Task<ActionResult<List<StationDto>>> GetStations(string globalId, CancellationToken ct = default)
     {
         var stations = await _operatorService.GetStationsAsync(globalId, ct);
-        return Ok(stations);
+        return Ok(new Paginated<StationDto>(stations, stations.Count));
     }
 
     [HttpGet("{globalId}/routes")]
     public async Task<ActionResult<List<RouteDto>>> GetRoutes(string globalId, CancellationToken ct = default)
     {
         var routes = await _operatorService.GetRoutesAsync(globalId, ct);
-        return Ok(routes);
+        return Ok(new Paginated<RouteDto>(routes, routes.Count));
     }
 
     [HttpGet("{globalId}/feeds")]
     public async Task<ActionResult<List<FeedDto>>> GetFeeds(string globalId, CancellationToken ct = default)
     {
         var feeds = await _operatorService.GetFeedsAsync(globalId, ct);
-        return Ok(feeds);
+        return Ok(new Paginated<FeedDto>(feeds, feeds.Count));
     }
 
     [HttpPost]

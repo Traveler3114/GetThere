@@ -17,7 +17,6 @@ public class RealtimeManager
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<string, VehicleDto> _vehicleCache = new();
-    private readonly object _alertLock = new();
 
     public RealtimeManager(
         IHttpClientFactory httpFactory,
@@ -86,7 +85,7 @@ public class RealtimeManager
                     FeedId = feed.FeedId,
                     RouteId = entity.Vehicle?.Trip?.RouteId,
                     TripId = entity.Vehicle?.Trip?.TripId,
-                    RouteShortName = entity.Vehicle?.Trip?.RouteId,
+                    RouteShortName = null,
                     IsRealtime = true,
                     BlockId = null,
                     Latitude = vp.Position.Latitude,
@@ -98,15 +97,6 @@ public class RealtimeManager
                 };
 
                 _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
-            }
-
-            if (entity.Alert != null)
-            {
-                var alert = entity.Alert;
-                lock (_alertLock)
-                {
-                    // Store in DB via scope later
-                }
             }
         }
 
@@ -149,6 +139,12 @@ public class RealtimeManager
             }
         }
         await db.SaveChangesAsync(ct);
+
+        var cutoff = DateTime.UtcNow.AddDays(-1);
+        var cutoffFetched = DateTime.UtcNow.AddDays(-7);
+        await db.Alerts
+            .Where(a => a.ActivePeriodEnd < cutoff || a.FetchedAt < cutoffFetched)
+            .ExecuteDeleteAsync(ct);
     }
 
     public Task<List<VehicleDto>> GetVehiclesAsync(

@@ -26,7 +26,7 @@ public class FeedManager
     private readonly ReconciliationManager _reconciliation;
     private readonly PlaceMatchingManager _placeMatching;
     private readonly ImportLogStore _logStore;
-    private readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
 
     public FeedManager(
         TransitDbContext db,
@@ -270,7 +270,7 @@ public class FeedManager
         var version = await _db.FeedVersions
             .Include(fv => fv.Feed)
                 .ThenInclude(f => f.Operator)
-            .FirstOrDefaultAsync(fv => fv.Id == feedVersionId, CancellationToken.None);
+            .FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct);
 
         if (version is null) throw new InvalidOperationException("FeedVersion not found.");
 
@@ -280,29 +280,17 @@ public class FeedManager
             version.ImportStatus = FeedImportStatus.Failed;
             version.ImportError = "GTFS zip not found on disk";
             _logStore.AddEntry(feedVersionId, "Error: GTFS zip not found on disk");
-            await _db.SaveChangesAsync(CancellationToken.None);
+            await _db.SaveChangesAsync(ct);
             return;
         }
 
         version.ImportStatus = FeedImportStatus.Importing;
-        await _db.SaveChangesAsync(CancellationToken.None);
+        await _db.SaveChangesAsync(ct);
 
         _logStore.AddEntry(feedVersionId, "Import started");
 
         using var archive = ZipFile.OpenRead(zipPath);
         _logStore.AddEntry(feedVersionId, "Opening GTFS archive...");
-
-        _logStore.AddEntry(feedVersionId, "Cleaning up existing data for this feed version...");
-        _db.Database.SetCommandTimeout(300);
-        await _db.Database.ExecuteSqlAsync($"WHILE 1=1 BEGIN DELETE TOP (50000) StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = {feedVersionId}); IF @@ROWCOUNT = 0 BREAK END", CancellationToken.None);
-        await _db.CalendarDates.Where(cd => cd.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        await _db.Calendars.Where(c => c.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        await _db.Shapes.Where(s => s.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        await _db.Trips.Where(t => t.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        await _db.ReconciliationCandidates.Where(rc => rc.RawStop.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        await _db.RawStops.Where(rs => rs.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        await _db.Agencies.Where(a => a.FeedVersionId == feedVersionId).ExecuteDeleteAsync(CancellationToken.None);
-        _logStore.AddEntry(feedVersionId, "Cleanup complete");
 
         var conn = _db.Database.GetDbConnection();
         if (conn.State != ConnectionState.Open)
@@ -321,10 +309,21 @@ public class FeedManager
                 version.ImportStatus = FeedImportStatus.Failed;
                 version.ImportError = "GTFS validation failed: " + string.Join("; ", validation.Errors);
                 _logStore.AddEntry(feedVersionId, $"Validation failed: {string.Join("; ", validation.Errors)}");
-            await _db.SaveChangesAsync(CancellationToken.None);
-            await sqlTx.CommitAsync(CancellationToken.None);
+            await _db.SaveChangesAsync(ct);
+            await sqlTx.CommitAsync(ct);
             return;
             }
+
+            _logStore.AddEntry(feedVersionId, "Cleaning up existing data for this feed version...");
+            await _db.Database.ExecuteSqlRawAsync("WHILE 1=1 BEGIN DELETE TOP (50000) StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = @p0); IF @@ROWCOUNT = 0 BREAK END", new object[] { feedVersionId }, ct);
+            await _db.CalendarDates.Where(cd => cd.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            await _db.Calendars.Where(c => c.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            await _db.Shapes.Where(s => s.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            await _db.Trips.Where(t => t.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            await _db.ReconciliationCandidates.Where(rc => rc.RawStop.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            await _db.RawStops.Where(rs => rs.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            await _db.Agencies.Where(a => a.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
+            _logStore.AddEntry(feedVersionId, "Cleanup complete");
 
             _logStore.AddEntry(feedVersionId, "Validation passed");
             _logStore.AddEntry(feedVersionId, "Parsing GTFS files...");
@@ -352,7 +351,7 @@ public class FeedManager
             {
                 var globalId = $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}";
                 var existingRoute = await _db.CanonicalRoutes
-                    .FirstOrDefaultAsync(cr => cr.GlobalId == globalId, CancellationToken.None);
+                    .FirstOrDefaultAsync(cr => cr.GlobalId == globalId, ct);
 
                 if (existingRoute is null)
                 {
@@ -370,7 +369,7 @@ public class FeedManager
                         routeName);
 
                     var existingByOnestop = await _db.CanonicalRoutes
-                        .FirstOrDefaultAsync(cr => cr.OnestopId == routeOnestopId, CancellationToken.None);
+                        .FirstOrDefaultAsync(cr => cr.OnestopId == routeOnestopId, ct);
                     if (existingByOnestop is not null)
                         continue;
 
@@ -390,13 +389,13 @@ public class FeedManager
             }
 
             _db.ChangeTracker.DetectChanges();
-            await _db.SaveChangesAsync(CancellationToken.None);
+            await _db.SaveChangesAsync(ct);
             _logStore.AddEntry(feedVersionId, $"Phase 1: {routes.Count} routes saved");
 
             var prefix = $"gt-{version.Feed.FeedId}-";
             var canonicalRouteLookup = await _db.CanonicalRoutes
                 .Where(cr => cr.GlobalId.StartsWith(prefix))
-                .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, CancellationToken.None);
+                .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, ct);
 
             // Phase 2: save trips, shapes, calendars → trip IDs
             _logStore.AddEntry(feedVersionId, $"Phase 2: Saving {trips.Count} trips, {shapes.Count} shapes, {calendar.Count} calendars...");
@@ -449,14 +448,14 @@ public class FeedManager
                 });
 
             _db.ChangeTracker.DetectChanges();
-            await _db.SaveChangesAsync(CancellationToken.None);
+            await _db.SaveChangesAsync(ct);
             _logStore.AddEntry(feedVersionId, "Phase 2: trips, shapes, calendars saved");
 
             // Build trip lookup
             var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var t in await _db.Trips
                 .Where(t => t.FeedVersionId == feedVersionId)
-                .ToListAsync(CancellationToken.None))
+                .ToListAsync(ct))
             {
                 tripLookup.TryAdd(t.TripId, t.Id);
             }
@@ -556,25 +555,36 @@ public class FeedManager
             }
 
             _db.ChangeTracker.DetectChanges();
-            await _db.SaveChangesAsync(CancellationToken.None);
+            await _db.SaveChangesAsync(ct);
             _logStore.AddEntry(feedVersionId, "Phase 4: agencies and stops saved");
 
             // Reconcile raw stops into canonical stations
             _logStore.AddEntry(feedVersionId, "Reconciling stations...");
-            await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, CancellationToken.None);
+            await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, ct);
             _logStore.AddEntry(feedVersionId, "Reconciliation complete");
 
             // Backfill RawStopEntityId and CanonicalStationId on StopTimes
             _logStore.AddEntry(feedVersionId, "Backfilling station references...");
-            await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = @p0",
-                new object[] { feedVersionId }, CancellationToken.None);
+            try
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = @p0",
+                    new object[] { feedVersionId }, ct);
+            }
+            catch (Exception backfillEx)
+            {
+                version.ImportStatus = FeedImportStatus.Failed;
+                version.ImportError = backfillEx.InnerException?.Message ?? backfillEx.Message;
+                await _db.SaveChangesAsync(ct);
+                _logStore.AddEntry(feedVersionId, $"Backfill failed: {version.ImportError}");
+                throw;
+            }
             _logStore.AddEntry(feedVersionId, "Backfill complete");
 
             // Match new canonical stations to places
             _logStore.AddEntry(feedVersionId, "Matching stations to places...");
-            await _placeMatching.LoadPlacesAsync(CancellationToken.None);
-            await _placeMatching.MatchStationsToPlacesAsync(CancellationToken.None);
+            await _placeMatching.LoadPlacesAsync(ct);
+            await _placeMatching.MatchStationsToPlacesAsync(ct);
             _logStore.AddEntry(feedVersionId, "Place matching complete");
 
             // Phase 5: finalize version
@@ -582,13 +592,13 @@ public class FeedManager
 
             var prevActive = await _db.FeedVersions
                 .Where(fv => fv.FeedId == version.FeedId && fv.IsActive && fv.Id != feedVersionId)
-                .ToListAsync(CancellationToken.None);
+                .ToListAsync(ct);
             foreach (var pv in prevActive)
                 pv.IsActive = false;
 
             var prevActiveIds = prevActive.Select(pv => pv.Id).ToList();
             if (prevActiveIds.Count > 0)
-                await _db.Shapes.Where(s => prevActiveIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync(CancellationToken.None);
+                await _db.Shapes.Where(s => prevActiveIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync(ct);
 
             var convexHull = _gtfs.ComputeConvexHull(rawStops);
 
@@ -600,13 +610,17 @@ public class FeedManager
 
             if (calendar.Count > 0)
             {
-                version.ServiceLevelStart = calendar.Min(c => DateOnly.ParseExact(c.StartDate, "yyyyMMdd"));
-                version.ServiceLevelEnd = calendar.Max(c => DateOnly.ParseExact(c.EndDate, "yyyyMMdd"));
+                if (DateOnly.TryParseExact(calendar.Min(c => c.StartDate), "yyyyMMdd", out var start))
+                    version.ServiceLevelStart = start;
+                if (DateOnly.TryParseExact(calendar.Max(c => c.EndDate), "yyyyMMdd", out var end))
+                    version.ServiceLevelEnd = end;
             }
             else if (calendarDates.Count > 0)
             {
-                version.ServiceLevelStart = calendarDates.Min(cd => DateOnly.ParseExact(cd.Date, "yyyyMMdd"));
-                version.ServiceLevelEnd = calendarDates.Max(cd => DateOnly.ParseExact(cd.Date, "yyyyMMdd"));
+                if (DateOnly.TryParseExact(calendarDates.Min(cd => cd.Date), "yyyyMMdd", out var start))
+                    version.ServiceLevelStart = start;
+                if (DateOnly.TryParseExact(calendarDates.Max(cd => cd.Date), "yyyyMMdd", out var end))
+                    version.ServiceLevelEnd = end;
             }
 
             version.IsActive = true;
@@ -614,8 +628,8 @@ public class FeedManager
             version.ImportError = null;
             version.ImportedAt = DateTime.UtcNow;
             _db.ChangeTracker.DetectChanges();
-            await _db.SaveChangesAsync(CancellationToken.None);
-            await sqlTx.CommitAsync(CancellationToken.None);
+            await _db.SaveChangesAsync(ct);
+            await sqlTx.CommitAsync(ct);
 
             _logStore.AddEntry(feedVersionId, $"Import complete: {routes.Count} routes, {rawStops.Count} stops, {trips.Count} trips");
             _logger.LogInformation("Import complete for FeedVersion {VersionId} ({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
@@ -624,24 +638,24 @@ public class FeedManager
             // Deactivate orphan CanonicalStations (Stop-type with no active RawStops from any active FeedVersion)
             var deactivated = await _db.Database.ExecuteSqlRawAsync(
                 "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
-                CancellationToken.None);
+                ct);
             _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
             _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
         }
         catch (Exception ex)
         {
-            try { await sqlTx.RollbackAsync(CancellationToken.None); } catch { }
+            try { using var rollbackCts = CancellationTokenSource.CreateLinkedTokenSource(ct, new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token); await sqlTx.RollbackAsync(rollbackCts.Token); } catch { }
             _logStore.AddEntry(feedVersionId, $"Import failed: {ex.Message}");
             try
             {
                 using var errConn = new Microsoft.Data.SqlClient.SqlConnection(sqlConn.ConnectionString);
-                await errConn.OpenAsync(CancellationToken.None);
+                await errConn.OpenAsync(ct);
                 await using var cmd = errConn.CreateCommand();
                 cmd.CommandText = "UPDATE FeedVersions SET ImportStatus = @status, ImportError = @error WHERE Id = @id";
                 cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@status", (int)FeedImportStatus.Failed));
-                cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@error", ex.Message));
+                cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@error", ex.InnerException?.Message ?? ex.Message));
                 cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@id", feedVersionId));
-                await cmd.ExecuteNonQueryAsync(CancellationToken.None);
+                await cmd.ExecuteNonQueryAsync(ct);
             }
             catch { }
             try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
@@ -659,7 +673,7 @@ public class FeedManager
             if (feed is null) throw new InvalidOperationException("Feed not found.");
 
             var zipPath = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId, "gtfs.zip");
-            var sha1 = "manual-trigger";
+            var sha1 = $"{feed.FeedId}-manual-{DateTime.UtcNow:yyyyMMddHHmmss}";
             if (File.Exists(zipPath))
             {
                 using var archive = ZipFile.OpenRead(zipPath);
