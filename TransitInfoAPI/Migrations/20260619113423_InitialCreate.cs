@@ -19,7 +19,7 @@ namespace TransitInfoAPI.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    IsoCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsoCode = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     Continent = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
@@ -731,6 +731,12 @@ namespace TransitInfoAPI.Migrations
                 name: "IX_Cities_CountryId",
                 table: "Cities",
                 column: "CountryId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Countries_IsoCode",
+                table: "Countries",
+                column: "IsoCode",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Feeds_OperatorId",

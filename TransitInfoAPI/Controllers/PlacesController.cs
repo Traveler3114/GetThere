@@ -44,7 +44,7 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<PlaceDto>(places, total));
+        return Ok(new Paginated<PlaceDto>(places, total, page, perPage));
     }
 
     [HttpGet("{id}")]
@@ -94,7 +94,7 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<OperatorDto>(operators, operators.Count));
+        return Ok(new Paginated<OperatorDto>(operators, operators.Count, 1, operators.Count));
     }
 
     [HttpGet("{id}/stations")]
@@ -116,6 +116,6 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<StationDto>(stations, stations.Count));
+        return Ok(new Paginated<StationDto>(stations, stations.Count, 1, stations.Count));
     }
 }

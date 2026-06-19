@@ -399,13 +399,16 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("IsoCode")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsoCode")
+                        .IsUnique();
 
                     b.ToTable("Countries");
                 });

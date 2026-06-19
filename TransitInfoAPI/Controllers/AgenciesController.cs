@@ -53,7 +53,7 @@ public class AgenciesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<AgencyDto>(agencies, total));
+        return Ok(new Paginated<AgencyDto>(agencies, total, page, perPage));
     }
 }
 

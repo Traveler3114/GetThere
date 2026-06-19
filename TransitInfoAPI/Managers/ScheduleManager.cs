@@ -31,6 +31,7 @@ public class ScheduleManager
             .Where(st =>
                 (_db.Calendars.Any(c =>
                     c.FeedVersion.IsActive &&
+                    c.FeedVersionId == st.Trip.FeedVersionId &&
                     c.ServiceId == st.Trip.ServiceId &&
                     c.StartDate <= today && c.EndDate >= today &&
                     ((dayOfWeek == DayOfWeek.Monday && c.Monday) ||
@@ -42,10 +43,12 @@ public class ScheduleManager
                      (dayOfWeek == DayOfWeek.Sunday && c.Sunday))) &&
                 !_db.CalendarDates.Any(cd =>
                     cd.FeedVersion.IsActive &&
+                    cd.FeedVersionId == st.Trip.FeedVersionId &&
                     cd.ServiceId == st.Trip.ServiceId &&
                     cd.Date == today && cd.ExceptionType == 2)) ||
                 _db.CalendarDates.Any(cd =>
                     cd.FeedVersion.IsActive &&
+                    cd.FeedVersionId == st.Trip.FeedVersionId &&
                     cd.ServiceId == st.Trip.ServiceId &&
                     cd.Date == today && cd.ExceptionType == 1))
             .OrderBy(st => st.DepartureTime)
@@ -111,6 +114,7 @@ public class ScheduleManager
             .Where(t =>
                 (_db.Calendars.Any(c =>
                     c.FeedVersion.IsActive &&
+                    c.FeedVersionId == t.FeedVersionId &&
                     c.ServiceId == t.ServiceId &&
                     c.StartDate <= date && c.EndDate >= date &&
                     ((dayOfWeek == DayOfWeek.Monday && c.Monday) ||
@@ -122,10 +126,12 @@ public class ScheduleManager
                      (dayOfWeek == DayOfWeek.Sunday && c.Sunday))) &&
                 !_db.CalendarDates.Any(cd =>
                     cd.FeedVersion.IsActive &&
+                    cd.FeedVersionId == t.FeedVersionId &&
                     cd.ServiceId == t.ServiceId &&
                     cd.Date == date && cd.ExceptionType == 2)) ||
                 _db.CalendarDates.Any(cd =>
                     cd.FeedVersion.IsActive &&
+                    cd.FeedVersionId == t.FeedVersionId &&
                     cd.ServiceId == t.ServiceId &&
                     cd.Date == date && cd.ExceptionType == 1))
             .Select(t => new TripDto

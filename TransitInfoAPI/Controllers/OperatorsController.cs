@@ -10,6 +10,8 @@ using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 using TransitInfoAPI.Managers;
 
+using Microsoft.Data.SqlClient;
+
 namespace TransitInfoAPI.Controllers;
 
 [ApiController]
@@ -83,7 +85,7 @@ public class OperatorsController : ControllerBase
 
         var result = await _operatorService.GetAllAsync(countryId, type, page, perPage, ct);
         var total = await _db.Operators.CountAsync(ct);
-        return Ok(new Paginated<OperatorDto>(result, total));
+        return Ok(new Paginated<OperatorDto>(result, total, page, perPage));
     }
 
     [HttpGet("{id:int}")]
@@ -204,21 +206,21 @@ public class OperatorsController : ControllerBase
     public async Task<ActionResult<List<StationDto>>> GetStations(string globalId, CancellationToken ct = default)
     {
         var stations = await _operatorService.GetStationsAsync(globalId, ct);
-        return Ok(new Paginated<StationDto>(stations, stations.Count));
+        return Ok(new Paginated<StationDto>(stations, stations.Count, 1, stations.Count));
     }
 
     [HttpGet("{globalId}/routes")]
     public async Task<ActionResult<List<RouteDto>>> GetRoutes(string globalId, CancellationToken ct = default)
     {
         var routes = await _operatorService.GetRoutesAsync(globalId, ct);
-        return Ok(new Paginated<RouteDto>(routes, routes.Count));
+        return Ok(new Paginated<RouteDto>(routes, routes.Count, 1, routes.Count));
     }
 
     [HttpGet("{globalId}/feeds")]
     public async Task<ActionResult<List<FeedDto>>> GetFeeds(string globalId, CancellationToken ct = default)
     {
         var feeds = await _operatorService.GetFeedsAsync(globalId, ct);
-        return Ok(new Paginated<FeedDto>(feeds, feeds.Count));
+        return Ok(new Paginated<FeedDto>(feeds, feeds.Count, 1, feeds.Count));
     }
 
     [HttpPost]
@@ -264,7 +266,14 @@ public class OperatorsController : ControllerBase
         };
 
         _db.Operators.Add(op);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            return Problem(statusCode: 409, title: $"Operator with OnestopId '{onestopId}' already exists.");
+        }
 
         var dto = new OperatorDto
         {

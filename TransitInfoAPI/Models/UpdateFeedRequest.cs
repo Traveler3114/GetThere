@@ -1,10 +1,8 @@
-using TransitInfoAPI.Enums;
-
 namespace TransitInfoAPI.Models;
 
 public class UpdateFeedRequest
 {
-    public FeedType FeedType { get; set; }
+    public string FeedType { get; set; } = string.Empty;
     public string? ExternalUrl { get; set; }
     public string? InternalUrl { get; set; }
     public bool IsActive { get; set; }

@@ -28,6 +28,7 @@
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
   <div id="error" class="alert alert-danger d-none"></div>
   <div id="content" class="d-none"></div>
+  <div id="pagination" class="d-none"></div>
 </div>
 
 <script>
@@ -44,6 +45,8 @@ async function loadPlaces() {
     const j = await r.json();
     allPlaces = j.data || [];
     filterPlaces();
+    paginatedItems = allPlaces;
+    showPage(1);
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
   } catch(e) {
@@ -58,7 +61,36 @@ function filterPlaces() {
   let filtered = allPlaces;
   if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q));
   if (cc) filtered = filtered.filter(p => p.admCountryCode === cc);
-  renderPlaces(filtered);
+  paginatedItems = filtered;
+  showPage(1);
+}
+
+let currentPage = 1;
+const pageSize = 50;
+let paginatedItems = [];
+
+function showPage(page) {
+  currentPage = page;
+  const start = (currentPage - 1) * pageSize;
+  const pageData = paginatedItems.slice(start, start + pageSize);
+  const totalPages = Math.ceil(paginatedItems.length / pageSize) || 1;
+  renderPlaces(pageData);
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && paginatedItems.length <= pageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage - 1})">Previous</button></li>
+    ${currentPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === currentPage ? 'active' : ''}"><button class="page-link" onclick="showPage(${p})">${p}</button></li>`).join('')}
+    ${currentPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage + 1})">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${currentPage} of ${totalPages} (${paginatedItems.length} items)</small></nav>`;
 }
 
 function renderPlaces(list) {

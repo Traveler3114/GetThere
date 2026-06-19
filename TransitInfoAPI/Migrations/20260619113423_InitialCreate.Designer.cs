@@ -13,7 +13,7 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    [Migration("20260619090459_InitialCreate")]
+    [Migration("20260619113423_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -402,13 +402,16 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("IsoCode")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsoCode")
+                        .IsUnique();
 
                     b.ToTable("Countries");
                 });

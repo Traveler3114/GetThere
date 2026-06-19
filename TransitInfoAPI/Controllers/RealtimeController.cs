@@ -23,7 +23,7 @@ public class RealtimeController : ControllerBase
         CancellationToken ct = default)
     {
         var vehicles = await _realtime.GetVehiclesAsync(feedId, minLat, minLon, maxLat, maxLon, ct);
-        return Ok(new Paginated<VehicleDto>(vehicles, vehicles.Count));
+        return Ok(new Paginated<VehicleDto>(vehicles, vehicles.Count, 1, vehicles.Count));
     }
 
     [HttpGet("alerts")]

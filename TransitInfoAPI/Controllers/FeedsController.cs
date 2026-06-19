@@ -35,7 +35,7 @@ public class FeedsController : ControllerBase
     {
         var feeds = await _feedService.GetAllAsync(page, perPage, ct);
         var total = await _db.Feeds.CountAsync(ct);
-        return Ok(new Paginated<FeedDto>(feeds, total));
+        return Ok(new Paginated<FeedDto>(feeds, total, page, perPage));
     }
 
     [HttpPost]
@@ -111,6 +111,6 @@ public class FeedsController : ControllerBase
             RouteCount = v.RouteCount,
             TripCount = v.TripCount
         }).ToList();
-        return Ok(new Paginated<FeedVersionDto>(dtos, dtos.Count));
+        return Ok(new Paginated<FeedVersionDto>(dtos, dtos.Count, 1, dtos.Count));
     }
 }

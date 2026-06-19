@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ public class MobilityManager
     private readonly TransitDbContext _db;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<MobilityManager> _logger;
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _providerLocks = new();
 
     public MobilityManager(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityManager> logger)
     {
@@ -44,14 +46,16 @@ public class MobilityManager
 
     public async Task PollMobilityProviderAsync(int providerId, CancellationToken ct = default)
     {
-        var provider = await _db.MobilityProviders
-            .Include(mp => mp.Operator)
-            .FirstOrDefaultAsync(mp => mp.Id == providerId && mp.IsActive, ct);
-
-        if (provider is null) return;
-
+        var sem = _providerLocks.GetOrAdd(providerId, _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync(ct);
         try
         {
+            var provider = await _db.MobilityProviders
+                .Include(mp => mp.Operator)
+                .FirstOrDefaultAsync(mp => mp.Id == providerId && mp.IsActive, ct);
+
+            if (provider is null) return;
+
             var http = _httpFactory.CreateClient();
             var url = provider.InternalUrl ?? provider.ExternalUrl;
 
@@ -69,6 +73,10 @@ public class MobilityManager
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to poll mobility provider {ProviderId}", providerId);
+        }
+        finally
+        {
+            sem.Release();
         }
     }
 

@@ -67,6 +67,11 @@ public class TransitDbContext : DbContext
             entity.Property(e => e.NameSimilarityScore).HasPrecision(5, 4);
         });
 
+        // Country IsoCode unique index
+        modelBuilder.Entity<Country>()
+            .HasIndex(c => c.IsoCode)
+            .IsUnique();
+
         // OnestopId unique indexes
         modelBuilder.Entity<Operator>()
             .HasIndex(o => o.OnestopId)

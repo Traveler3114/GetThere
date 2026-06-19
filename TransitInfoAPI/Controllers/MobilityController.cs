@@ -58,6 +58,6 @@ public class MobilityController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<MobilityStationDto>(stations, total));
+        return Ok(new Paginated<MobilityStationDto>(stations, total, page, perPage));
     }
 }

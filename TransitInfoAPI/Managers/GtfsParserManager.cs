@@ -88,7 +88,7 @@ public class GtfsParserManager
         });
     }
 
-    public List<RawStopRecord> ParseStops(ZipArchive archive)
+    public (List<RawStopRecord> Stops, int DroppedCount) ParseStops(ZipArchive archive)
     {
         var stops = ParseCsv<RawStopRecord>(archive, "stops.txt", cfg =>
         {
@@ -96,12 +96,14 @@ public class GtfsParserManager
         });
 
         var valid = new List<RawStopRecord>(stops.Count);
+        var dropped = 0;
         foreach (var stop in stops)
         {
             if (stop.StopLat < -90 || stop.StopLat > 90 || stop.StopLon < -180 || stop.StopLon > 180)
             {
                 _logger.LogWarning("Skipping stop {StopId} with invalid coordinates ({Lat}, {Lon})",
                     stop.StopId, stop.StopLat, stop.StopLon);
+                dropped++;
             }
             else
             {
@@ -109,7 +111,7 @@ public class GtfsParserManager
             }
         }
 
-        return valid;
+        return (valid, dropped);
     }
 
     public List<RawRouteRecord> ParseRoutes(ZipArchive archive)
@@ -289,7 +291,7 @@ public record RawStopRecord
     public string? ZoneId { get; set; }
     public string? PlatformCode { get; set; }
     public int? WheelchairBoarding { get; set; }
-    public int LocationType { get; set; }
+    public int? LocationType { get; set; }
     public string? ParentStation { get; set; }
 }
 

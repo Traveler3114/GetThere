@@ -5,6 +5,8 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Models;
 
+using Microsoft.Data.SqlClient;
+
 namespace TransitInfoAPI.Controllers;
 
 [ApiController]
@@ -41,7 +43,7 @@ public class CountriesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<CountryDto>(countries, total));
+        return Ok(new Paginated<CountryDto>(countries, total, page, perPage));
     }
 
     [HttpPost]
@@ -64,7 +66,14 @@ public class CountriesController : ControllerBase
             Continent = request.Continent
         };
         _db.Countries.Add(country);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            return Problem(statusCode: 409, title: $"Country with ISO code '{request.IsoCode}' already exists.");
+        }
 
         return CreatedAtAction(nameof(GetAll), null);
     }

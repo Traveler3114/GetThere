@@ -27,10 +27,8 @@
         <option value="Tram">Tram</option>
         <option value="Metro">Metro</option>
         <option value="Rail">Rail</option>
-        <option value="LightRail">Light Rail</option>
         <option value="Ferry">Ferry</option>
         <option value="CableCar">Cable Car</option>
-        <option value="Gondola">Gondola</option>
         <option value="Funicular">Funicular</option>
         <option value="Trolleybus">Trolleybus</option>
       </select>
@@ -57,6 +55,7 @@
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
   <div id="error" class="alert alert-danger d-none"></div>
   <div id="content" class="d-none"></div>
+  <div id="pagination" class="d-none"></div>
   <div id="statusBar" class="small text-muted mt-2 d-none"></div>
 </div>
 
@@ -98,6 +97,8 @@ async function doSearch() {
     const sel = document.getElementById('filterCountry');
     sel.innerHTML = '<option value="">All Countries</option>' + countries.map(c => `<option value="${c}">${c}</option>`).join('');
     filterStations();
+    paginatedItems = allStations;
+    showPage(1);
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
     document.getElementById('statusBar').classList.remove('d-none');
@@ -120,7 +121,36 @@ function filterStations() {
   let filtered = allStations;
   if (type) filtered = filtered.filter(s => s.stationType === type);
   if (country) filtered = filtered.filter(s => s.countryName === country);
-  renderStations(filtered);
+  paginatedItems = filtered;
+  showPage(1);
+}
+
+let currentPage = 1;
+const pageSize = 50;
+let paginatedItems = [];
+
+function showPage(page) {
+  currentPage = page;
+  const start = (currentPage - 1) * pageSize;
+  const pageData = paginatedItems.slice(start, start + pageSize);
+  const totalPages = Math.ceil(paginatedItems.length / pageSize) || 1;
+  renderStations(pageData);
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && paginatedItems.length <= pageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage - 1})">Previous</button></li>
+    ${currentPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === currentPage ? 'active' : ''}"><button class="page-link" onclick="showPage(${p})">${p}</button></li>`).join('')}
+    ${currentPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage + 1})">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${currentPage} of ${totalPages} (${paginatedItems.length} items)</small></nav>`;
 }
 
 function renderStations(list) {

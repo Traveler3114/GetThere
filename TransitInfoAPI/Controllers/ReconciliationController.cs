@@ -71,7 +71,7 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<ReconciliationDto>(candidates, total));
+        return Ok(new Paginated<ReconciliationDto>(candidates, total, page, perPage));
     }
 
     [HttpGet("auto-merged")]
@@ -119,7 +119,7 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<ReconciliationDto>(candidates, total));
+        return Ok(new Paginated<ReconciliationDto>(candidates, total, page, perPage));
     }
 
     [HttpPost("{id}/approve")]

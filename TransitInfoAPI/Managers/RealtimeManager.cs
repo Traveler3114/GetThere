@@ -96,7 +96,7 @@ public class RealtimeManager
                     BlockId = null,
                     Latitude = vp.Position.Latitude,
                     Longitude = vp.Position.Longitude,
-                    Bearing = vp.Position.Bearing > 0 ? vp.Position.Bearing : null,
+                    Bearing = vp.Position.HasBearing ? vp.Position.Bearing : null,
                     LastUpdated = vp.Timestamp > 0
                         ? DateTime.UnixEpoch.AddSeconds(vp.Timestamp)
                         : DateTime.UtcNow
@@ -126,53 +126,63 @@ public class RealtimeManager
         }
 
         if (tripUpdates.Count > 0)
-            _tripUpdateCache = tripUpdates;
+        {
+            foreach (var kvp in tripUpdates)
+                _tripUpdateCache[kvp.Key] = kvp.Value;
+        }
 
         // Persist alerts
-        using var alertScope = _scopeFactory.CreateScope();
-        var db = alertScope.ServiceProvider.GetRequiredService<TransitDbContext>();
-        foreach (var entity in feedMessage.Entity.Where(e => e.Alert != null))
+        try
         {
-            var alert = entity.Alert;
-            var cause = alert.Cause.ToString();
-            var effect = alert.Effect.ToString();
-            var activePeriodStart = alert.ActivePeriod.Count > 0
-                ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].Start)
-                : (DateTime?)null;
-
-            var existing = await db.Alerts
-                .Where(a => a.FeedId == feed.Id
-                    && a.Cause == cause
-                    && a.Effect == effect
-                    && a.ActivePeriodStart == activePeriodStart)
-                .FirstOrDefaultAsync(ct);
-
-            if (existing is null)
+            using var alertScope = _scopeFactory.CreateScope();
+            var db = alertScope.ServiceProvider.GetRequiredService<TransitDbContext>();
+            foreach (var entity in feedMessage.Entity.Where(e => e.Alert != null))
             {
-                var alertEntity = new Entities.Alert
-                {
-                    FeedId = feed.Id,
-                    HeaderText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text,
-                    DescriptionText = alert.DescriptionText?.Translation?.FirstOrDefault()?.Text,
-                    Url = alert.Url?.Translation?.FirstOrDefault()?.Text,
-                    Cause = cause,
-                    Effect = effect,
-                    ActivePeriodStart = activePeriodStart,
-                    ActivePeriodEnd = alert.ActivePeriod.Count > 0 && alert.ActivePeriod[0].End > 0
-                        ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].End)
-                        : null,
-                    FetchedAt = DateTime.UtcNow
-                };
-                db.Alerts.Add(alertEntity);
-            }
-        }
-        await db.SaveChangesAsync(ct);
+                var alert = entity.Alert;
+                var cause = alert.Cause.ToString();
+                var effect = alert.Effect.ToString();
+                var activePeriodStart = alert.ActivePeriod.Count > 0
+                    ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].Start)
+                    : (DateTime?)null;
 
-        var cutoff = DateTime.UtcNow.AddDays(-1);
-        var cutoffFetched = DateTime.UtcNow.AddDays(-7);
-        await db.Alerts
-            .Where(a => a.ActivePeriodEnd < cutoff || a.FetchedAt < cutoffFetched)
-            .ExecuteDeleteAsync(ct);
+                var existing = await db.Alerts
+                    .Where(a => a.FeedId == feed.Id
+                        && a.Cause == cause
+                        && a.Effect == effect
+                        && a.ActivePeriodStart == activePeriodStart)
+                    .FirstOrDefaultAsync(ct);
+
+                if (existing is null)
+                {
+                    var alertEntity = new Entities.Alert
+                    {
+                        FeedId = feed.Id,
+                        HeaderText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text,
+                        DescriptionText = alert.DescriptionText?.Translation?.FirstOrDefault()?.Text,
+                        Url = alert.Url?.Translation?.FirstOrDefault()?.Text,
+                        Cause = cause,
+                        Effect = effect,
+                        ActivePeriodStart = activePeriodStart,
+                        ActivePeriodEnd = alert.ActivePeriod.Count > 0 && alert.ActivePeriod[0].End > 0
+                            ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].End)
+                            : null,
+                        FetchedAt = DateTime.UtcNow
+                    };
+                    db.Alerts.Add(alertEntity);
+                }
+            }
+            await db.SaveChangesAsync(ct);
+
+            var cutoff = DateTime.UtcNow.AddDays(-1);
+            var cutoffFetched = DateTime.UtcNow.AddDays(-7);
+            await db.Alerts
+                .Where(a => a.ActivePeriodEnd < cutoff || a.FetchedAt < cutoffFetched)
+                .ExecuteDeleteAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist alerts for feed {FeedId}", feed.FeedId);
+        }
     }
 
     public (int? DelaySeconds, DateTime? EstimatedDeparture) GetStopDelay(

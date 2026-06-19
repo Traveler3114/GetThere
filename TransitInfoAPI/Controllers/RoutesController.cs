@@ -76,7 +76,7 @@ public class RoutesController : ControllerBase
 
         var result = await _routeService.GetAllAsync(operatorId, routeType, page, perPage, ct);
         var total = await _db.CanonicalRoutes.CountAsync(r => r.IsActive, ct);
-        return Ok(new Paginated<RouteDto>(result, total));
+        return Ok(new Paginated<RouteDto>(result, total, page, perPage));
     }
 
     [HttpGet("{id}")]

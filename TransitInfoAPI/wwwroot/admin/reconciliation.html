@@ -27,10 +27,8 @@
         <option value="Tram">Tram</option>
         <option value="Metro">Metro</option>
         <option value="Rail">Rail</option>
-        <option value="LightRail">Light Rail</option>
         <option value="Ferry">Ferry</option>
         <option value="CableCar">Cable Car</option>
-        <option value="Gondola">Gondola</option>
         <option value="Funicular">Funicular</option>
         <option value="Trolleybus">Trolleybus</option>
       </select>
@@ -54,6 +52,7 @@
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
   <div id="error" class="alert alert-danger d-none"></div>
   <div id="content" class="d-none"></div>
+  <div id="pagination" class="d-none"></div>
 </div>
 
 <script>
@@ -118,9 +117,43 @@ function getFilteredMerged() {
   return filtered;
 }
 
+let recPage = 1;
+const recPageSize = 25;
+let recItems = [];
+
+function showRecPage(page) {
+  recPage = page;
+  const start = (recPage - 1) * recPageSize;
+  const pageData = recItems.slice(start, start + recPageSize);
+  const totalPages = Math.ceil(recItems.length / recPageSize) || 1;
+  if (currentTab === 'pending') renderPending(pageData);
+  else renderMerged(pageData);
+  renderRecPagination(totalPages);
+}
+
+function renderRecPagination(totalPages) {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && recItems.length <= recPageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, recPage - 2); i <= Math.min(totalPages, recPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${recPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showRecPage(${recPage - 1})">Previous</button></li>
+    ${recPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === recPage ? 'active' : ''}"><button class="page-link" onclick="showRecPage(${p})">${p}</button></li>`).join('')}
+    ${recPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${recPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showRecPage(${recPage + 1})">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${recPage} of ${totalPages} (${recItems.length} items)</small></nav>`;
+}
+
 function renderCurrentTab() {
-  if (currentTab === 'pending') renderPending();
-  else renderMerged();
+  if (currentTab === 'pending') {
+    recItems = getFilteredPending();
+    showRecPage(1);
+  } else {
+    recItems = getFilteredMerged();
+    showRecPage(1);
+  }
 }
 
 function fmtDist(m) {
@@ -129,8 +162,7 @@ function fmtDist(m) {
   return (m / 1000).toFixed(2) + ' km';
 }
 
-function renderPending() {
-  const filtered = getFilteredPending();
+function renderPending(filtered) {
   if (!filtered.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> No pending reconciliation items.</div>';
     return;
@@ -179,11 +211,10 @@ function renderPending() {
       </div>
     </div>`;
   }).join('');
-  document.getElementById('content').innerHTML = `<div>${cards}</div><small class="text-muted">${filtered.length} pending item(s)</small>`;
+  document.getElementById('content').innerHTML = `<div>${cards}</div>`;
 }
 
-function renderMerged() {
-  const filtered = getFilteredMerged();
+function renderMerged(filtered) {
   if (!filtered.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No auto-merged items.</div>';
     return;
@@ -204,7 +235,7 @@ function renderMerged() {
       <td><span class="badge badge-automerged">Auto-Merged</span></td>
     </tr>`;
   }).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Raw Stop</th><th>Raw GTFS ID</th><th>Raw Type</th><th>Matched To</th><th>Canonical Type</th><th>Score</th><th>Name</th><th>Distance</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${filtered.length} item(s)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Raw Stop</th><th>Raw GTFS ID</th><th>Raw Type</th><th>Matched To</th><th>Canonical Type</th><th>Score</th><th>Name</th><th>Distance</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function updateBatchBtn() {

@@ -24,11 +24,34 @@
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
   <div id="error" class="alert alert-danger d-none"></div>
   <div id="content" class="d-none"></div>
+  <div id="pagination" class="d-none"></div>
 </div>
 
 <script>
 const BASE = '';
 let allFeeds = [];
+let feedPage = 1;
+const feedPageSize = 25;
+
+function showFeedPage(page, feeds) {
+  feedPage = page;
+  const start = (feedPage - 1) * feedPageSize;
+  const pageData = feeds.slice(start, start + feedPageSize);
+  const totalPages = Math.ceil(feeds.length / feedPageSize) || 1;
+  renderFeeds(pageData, feeds.length);
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && feeds.length <= feedPageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, feedPage - 2); i <= Math.min(totalPages, feedPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${feedPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showFeedPage(${feedPage - 1}, allFeeds)">Previous</button></li>
+    ${feedPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === feedPage ? 'active' : ''}"><button class="page-link" onclick="showFeedPage(${p}, allFeeds)">${p}</button></li>`).join('')}
+    ${feedPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${feedPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showFeedPage(${feedPage + 1}, allFeeds)">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${feedPage} of ${totalPages} (${feeds.length} items)</small></nav>`;
+}
 
 async function loadFeeds() {
   document.getElementById('loading').classList.remove('d-none');
@@ -40,7 +63,7 @@ async function loadFeeds() {
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allFeeds = j.data || [];
-    renderFeeds();
+    showFeedPage(1, allFeeds);
     checkFeedHealth();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
@@ -89,12 +112,12 @@ function openFeedHealth(feedId) {
   document.getElementById('healthSection').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-function renderFeeds() {
-  if (!allFeeds.length) {
+function renderFeeds(feeds, totalCount) {
+  if (!feeds.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No feeds configured.</div>';
     return;
   }
-  const rows = allFeeds.map(f => `<tr>
+  const rows = feeds.map(f => `<tr>
     <td>${esc(f.feedId)}</td>
     <td><code class="small">${esc(f.onestopId||'-')}</code></td>
     <td><span class="badge bg-info text-dark">${esc(f.feedType)}</span></td>
@@ -109,7 +132,8 @@ function renderFeeds() {
       <button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>
     </td>
   </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${allFeeds.length} feed(s)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById('pagination').classList.add('d-none');
 }
 
 async function expandVersions(feedId, btn) {

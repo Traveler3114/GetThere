@@ -11,6 +11,8 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 
+using Microsoft.Data.SqlClient;
+
 using NetTopologySuite.Geometries;
 
 namespace TransitInfoAPI.Managers;
@@ -137,7 +139,9 @@ public class FeedManager
         var feed = await _db.Feeds.FindAsync([id], ct);
         if (feed is null) return (false, "Feed not found.");
 
-        feed.FeedType = request.FeedType;
+        if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
+            return (false, $"Invalid feed type '{request.FeedType}'.");
+        feed.FeedType = feedType;
         feed.ExternalUrl = request.ExternalUrl;
         feed.InternalUrl = request.InternalUrl;
         feed.IsActive = request.IsActive;
@@ -335,7 +339,9 @@ public class FeedManager
             _logStore.AddEntry(feedVersionId, "Validation passed");
             _logStore.AddEntry(feedVersionId, "Parsing GTFS files...");
             var agencies = _gtfs.ParseAgencies(archive);
-            var rawStops = _gtfs.ParseStops(archive);
+            var (rawStops, droppedStops) = _gtfs.ParseStops(archive);
+            if (droppedStops > 0)
+                _logStore.AddEntry(feedVersionId, $"Skipped {droppedStops} stop(s) with invalid coordinates");
             var routes = _gtfs.ParseRoutes(archive);
             var trips = _gtfs.ParseTrips(archive);
             var calendar = _gtfs.ParseCalendar(archive);
@@ -354,6 +360,7 @@ public class FeedManager
 
             // Phase 1: save routes → canonical IDs
             _logStore.AddEntry(feedVersionId, "Phase 1: Saving canonical routes...");
+            var seenOnestopIds = new HashSet<string>();
             foreach (var r in routes)
             {
                 var globalId = $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}";
@@ -377,7 +384,7 @@ public class FeedManager
 
                     var existingByOnestop = await _db.CanonicalRoutes
                         .FirstOrDefaultAsync(cr => cr.OnestopId == routeOnestopId, ct);
-                    if (existingByOnestop is not null)
+                    if (existingByOnestop is not null || !seenOnestopIds.Add(routeOnestopId))
                         continue;
 
                     _db.CanonicalRoutes.Add(new CanonicalRoute
@@ -584,7 +591,7 @@ public class FeedManager
             _logStore.AddEntry(feedVersionId, "Backfilling station references...");
             try
             {
-                var rows = await _db.Database.ExecuteSqlRawAsync(
+                var rows = await _db.Database.ExecuteSqlInterpolatedAsync(
                     $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", ct);
                 _logStore.AddEntry(feedVersionId, $"Backfill complete: {rows} rows updated");
             }
@@ -653,8 +660,8 @@ public class FeedManager
 
             // Deactivate orphan CanonicalStations (Stop-type with no active RawStops from any active FeedVersion)
             var deactivated = await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
-                ct);
+                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs INNER JOIN CanonicalStationOperators cso ON cso.CanonicalStationId = cs.Id WHERE cso.OperatorId = @p0 AND cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
+                new object[] { operatorId }, ct);
             _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
             _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
 
@@ -675,7 +682,10 @@ public class FeedManager
                 cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@id", feedVersionId));
                 await cmd.ExecuteNonQueryAsync(ct);
             }
-            catch { }
+            catch (Exception innerEx)
+            {
+                _logger.LogError(innerEx, "Failed to write ImportStatus=Failed for FeedVersion {VersionId}", feedVersionId);
+            }
             try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
             _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
             throw;
@@ -746,8 +756,9 @@ public class FeedManager
             .ToListAsync(ct);
     }
 
-    private static StationType MapGtfsLocationType(int locationType) => locationType switch
+    private static StationType MapGtfsLocationType(int? locationType) => locationType switch
     {
+        null => StationType.Stop,
         0 => StationType.Stop,
         1 => StationType.Station,
         2 => StationType.Platform,

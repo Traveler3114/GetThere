@@ -50,7 +50,7 @@ public class FeedVersionsController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<FeedVersionDto>(versions, total));
+        return Ok(new Paginated<FeedVersionDto>(versions, total, page, perPage));
     }
 
     [HttpGet("{sha1}")]
