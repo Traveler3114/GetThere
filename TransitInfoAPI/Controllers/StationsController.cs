@@ -53,7 +53,7 @@ public class StationsController : ControllerBase
             return Ok(fc);
         }
 
-        var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, ct);
+        var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, null, ct);
         return Ok(new Paginated<StationDto>(result, total, page, perPage));
     }
 
@@ -61,12 +61,15 @@ public class StationsController : ControllerBase
     public async Task<ActionResult<Paginated<StationDto>>> Search(
         [FromQuery] string? q,
         [FromQuery] RouteType? routeType,
+        [FromQuery] int? countryId,
+        [FromQuery] string? countryName = null,
+        [FromQuery] string? stationType = null,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
-        var result = await _stationService.SearchAsync(q, routeType, page, perPage, ct);
-        var total = await _stationService.GetTotalCountAsync(null, null, null, null, ct);
+        var result = await _stationService.SearchAsync(q, routeType, countryId, countryName, stationType, page, perPage, ct);
+        var total = await _stationService.GetTotalCountAsync(null, null, null, countryId, countryName, ct);
         return Ok(new Paginated<StationDto>(result, total, page, perPage));
     }
 

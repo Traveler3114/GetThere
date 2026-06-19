@@ -21,19 +21,10 @@ public class CountriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<Paginated<CountryDto>>> GetAll(
-        [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
-        CancellationToken ct = default)
+    public async Task<ActionResult<List<CountryDto>>> GetAll(CancellationToken ct)
     {
-        var query = _db.Countries
+        var countries = await _db.Countries
             .OrderBy(c => c.Id)
-            .AsQueryable();
-
-        var total = await query.CountAsync(ct);
-        var countries = await query
-            .Skip((page - 1) * perPage)
-            .Take(perPage)
             .Select(c => new CountryDto
             {
                 Id = c.Id,
@@ -43,7 +34,7 @@ public class CountriesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<CountryDto>(countries, total, page, perPage));
+        return Ok(countries);
     }
 
     [HttpPost]

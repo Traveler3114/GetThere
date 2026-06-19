@@ -207,8 +207,7 @@ async function showAddModal() {
   let countries = [];
   try {
     const r = await fetch(BASE + '/countries');
-    const j = await r.json();
-    countries = j.data || [];
+    countries = await r.json();
   } catch(e) {}
 
   const countryOptions = countries.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.isoCode)})</option>`).join('');

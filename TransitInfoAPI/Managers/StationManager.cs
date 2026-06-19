@@ -126,7 +126,7 @@ public class StationManager
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<StationDto>> SearchAsync(string? q, RouteType? routeType, int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<StationDto>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
@@ -138,6 +138,15 @@ public class StationManager
 
         if (routeType.HasValue)
             query = query.Where(cs => cs.PrimaryRouteType == routeType.Value);
+
+        if (countryId.HasValue)
+            query = query.Where(cs => cs.CountryId == countryId.Value);
+
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(cs => cs.Country != null && cs.Country.Name == countryName);
+
+        if (!string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out var st))
+            query = query.Where(cs => cs.StationType == st);
 
         return await query
             .OrderBy(cs => cs.Id)
@@ -184,13 +193,16 @@ public class StationManager
         return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.Now, count, ct);
     }
 
-    public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, CancellationToken ct)
+    public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, CancellationToken ct)
     {
         var query = _db.CanonicalStations
             .Where(cs => cs.IsActive && cs.StationType == StationType.Stop);
 
         if (countryId.HasValue)
             query = query.Where(cs => cs.CountryId == countryId.Value);
+
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(cs => cs.Country != null && cs.Country.Name == countryName);
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {

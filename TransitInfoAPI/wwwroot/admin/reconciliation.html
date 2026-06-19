@@ -57,9 +57,12 @@
 
 <script>
 const BASE = '';
-let pendingItems = [];
-let mergedItems = [];
 let currentTab = 'pending';
+let pendingPage = 1;
+let mergedPage = 1;
+let pendingTotal = 0;
+let mergedTotal = 0;
+const recPageSize = 25;
 
 const ROUTE_COLORS = { Tram: '#33a02c', Metro: '#e31a1c', Rail: '#b15928', Bus: '#1f78b4', Ferry: '#33a02c', LightRail: '#ff7f00', CableCar: '#ff7f00', Gondola: '#6a3d9a', Funicular: '#b15928', Trolleybus: '#1f78b4' };
 
@@ -69,24 +72,61 @@ function rtBadge(type) {
 }
 
 async function loadAll() {
+  pendingPage = 1;
+  mergedPage = 1;
+  await loadPendingPage(1);
+  await loadMergedPage(1);
+}
+
+async function loadPendingPage(page) {
+  pendingPage = page;
   document.getElementById('loading').classList.remove('d-none');
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
   try {
-    const pRResp = await fetch(BASE + '/reconciliation/pending');
-    if (!pRResp.ok) { showError('Failed to load: ' + (pRResp.statusText || 'Unknown error')); return; }
-    const pR = await pRResp.json();
-    const mRResp = await fetch(BASE + '/reconciliation/auto-merged');
-    if (!mRResp.ok) { showError('Failed to load: ' + (mRResp.statusText || 'Unknown error')); return; }
-    const mR = await mRResp.json();
-    pendingItems = pR.data || [];
-    mergedItems = mR.data || [];
-    renderCurrentTab();
-    document.getElementById('loading').classList.add('d-none');
-    document.getElementById('content').classList.remove('d-none');
+    const params = new URLSearchParams({ page: page, perPage: recPageSize });
+    const routeType = document.getElementById('filterRouteType').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+    if (routeType) params.set('routeType', routeType);
+    if (statusFilter) params.set('status', statusFilter);
+    const r = await fetch(BASE + '/reconciliation/pending?' + params.toString());
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    const j = await r.json();
+    pendingTotal = j.total || 0;
+    if (currentTab === 'pending') {
+      renderPending(j.data || []);
+      renderRecPagination('pending');
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('content').classList.remove('d-none');
+    }
   } catch(e) {
     document.getElementById('loading').classList.add('d-none');
-    showError('Failed to load reconciliation data: ' + e.message);
+    showError('Failed to load: ' + e.message);
+  }
+}
+
+async function loadMergedPage(page) {
+  mergedPage = page;
+  document.getElementById('loading').classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  try {
+    const params = new URLSearchParams({ page: page, perPage: recPageSize });
+    const routeType = document.getElementById('filterRouteType').value;
+    if (routeType) params.set('routeType', routeType);
+    const r = await fetch(BASE + '/reconciliation/auto-merged?' + params.toString());
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    const j = await r.json();
+    mergedTotal = j.total || 0;
+    if (currentTab === 'merged') {
+      renderMerged(j.data || []);
+      renderRecPagination('merged');
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('content').classList.remove('d-none');
+    }
+  } catch(e) {
+    document.getElementById('loading').classList.add('d-none');
+    showError('Failed to load: ' + e.message);
   }
 }
 
@@ -94,66 +134,34 @@ function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('#tabBar .nav-link').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
   document.getElementById('batchApproveBtn').classList.toggle('d-none', tab !== 'pending');
-  renderCurrentTab();
+  if (tab === 'pending') loadPendingPage(pendingPage);
+  else loadMergedPage(mergedPage);
 }
 
 function filterItems() {
-  renderCurrentTab();
+  if (currentTab === 'pending') loadPendingPage(1);
+  else loadMergedPage(1);
 }
 
-function getFilteredPending() {
-  const routeType = document.getElementById('filterRouteType').value;
-  const status = document.getElementById('filterStatus').value;
-  let filtered = pendingItems;
-  if (routeType) filtered = filtered.filter(i => (i.rawRouteType || '').includes(routeType));
-  if (status) filtered = filtered.filter(i => i.status === status);
-  return filtered;
-}
-
-function getFilteredMerged() {
-  const routeType = document.getElementById('filterRouteType').value;
-  let filtered = mergedItems;
-  if (routeType) filtered = filtered.filter(i => (i.rawRouteType || '').includes(routeType));
-  return filtered;
-}
-
-let recPage = 1;
-const recPageSize = 25;
-let recItems = [];
-
-function showRecPage(page) {
-  recPage = page;
-  const start = (recPage - 1) * recPageSize;
-  const pageData = recItems.slice(start, start + recPageSize);
-  const totalPages = Math.ceil(recItems.length / recPageSize) || 1;
-  if (currentTab === 'pending') renderPending(pageData);
-  else renderMerged(pageData);
-  renderRecPagination(totalPages);
-}
-
-function renderRecPagination(totalPages) {
+function renderRecPagination(tab) {
   const el = document.getElementById('pagination');
-  if (totalPages <= 1 && recItems.length <= recPageSize) { el.classList.add('d-none'); return; }
+  const totalItems = tab === 'pending' ? pendingTotal : mergedTotal;
+  const curPage = tab === 'pending' ? pendingPage : mergedPage;
+  const totalPages = Math.ceil(totalItems / recPageSize) || 1;
+  if (totalPages <= 1) { el.classList.add('d-none'); return; }
   el.classList.remove('d-none');
   let pages = [];
-  for (let i = Math.max(1, recPage - 2); i <= Math.min(totalPages, recPage + 2); i++) pages.push(i);
+  for (let i = Math.max(1, curPage - 2); i <= Math.min(totalPages, curPage + 2); i++) pages.push(i);
+  const goPage = tab === 'pending' ? 'loadPendingPage' : 'loadMergedPage';
+  const prevPage = Math.max(1, curPage - 1);
+  const nextPage = Math.min(totalPages, curPage + 1);
   el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
-    <li class="page-item ${recPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showRecPage(${recPage - 1})">Previous</button></li>
-    ${recPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
-    ${pages.map(p => `<li class="page-item ${p === recPage ? 'active' : ''}"><button class="page-link" onclick="showRecPage(${p})">${p}</button></li>`).join('')}
-    ${recPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
-    <li class="page-item ${recPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showRecPage(${recPage + 1})">Next</button></li>
-  </ul><small class="text-muted d-block text-center">Page ${recPage} of ${totalPages} (${recItems.length} items)</small></nav>`;
-}
-
-function renderCurrentTab() {
-  if (currentTab === 'pending') {
-    recItems = getFilteredPending();
-    showRecPage(1);
-  } else {
-    recItems = getFilteredMerged();
-    showRecPage(1);
-  }
+    <li class="page-item ${curPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="${goPage}(${prevPage})">Previous</button></li>
+    ${curPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === curPage ? 'active' : ''}"><button class="page-link" onclick="${goPage}(${p})">${p}</button></li>`).join('')}
+    ${curPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${curPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="${goPage}(${nextPage})">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${curPage} of ${totalPages} (${totalItems} items)</small></nav>`;
 }
 
 function fmtDist(m) {

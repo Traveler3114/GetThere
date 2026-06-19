@@ -34,7 +34,7 @@
       </select>
     </div>
     <div class="col-auto">
-      <select id="filterType" class="form-select form-select-sm" onchange="filterStations()">
+      <select id="filterType" class="form-select form-select-sm" onchange="applyFilters()">
         <option value="">All Types</option>
         <option value="Station">Station</option>
         <option value="Stop">Stop</option>
@@ -46,7 +46,7 @@
       </select>
     </div>
     <div class="col-auto">
-      <select id="filterCountry" class="form-select form-select-sm" onchange="filterStations()">
+      <select id="filterCountry" class="form-select form-select-sm" onchange="applyFilters()">
         <option value="">All Countries</option>
       </select>
     </div>
@@ -74,52 +74,46 @@ function rtBadge(type) {
 
 function scheduleSearch() {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(doSearch, 250);
-}
-
-async function doSearch() {
-  const q = document.getElementById('search').value.trim();
-  const rt = document.getElementById('filterRouteType').value;
-  document.getElementById('loading').classList.remove('d-none');
-  document.getElementById('error').classList.add('d-none');
-  document.getElementById('content').classList.add('d-none');
-  document.getElementById('statusBar').classList.add('d-none');
-  try {
-    const params = new URLSearchParams();
-    if (q) params.set('q', q);
-    if (rt) params.set('routeType', rt);
-    params.set('perPage', '200');
-    const r = await fetch(BASE + '/stations/search?' + params.toString());
-    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
-    const j = await r.json();
-    allStations = j.data || [];
-    const countries = [...new Set(allStations.filter(s=>s.countryName).map(s=>s.countryName))].sort();
-    const sel = document.getElementById('filterCountry');
-    sel.innerHTML = '<option value="">All Countries</option>' + countries.map(c => `<option value="${c}">${c}</option>`).join('');
-    filterStations();
-    paginatedItems = allStations;
-    showPage(1);
-    document.getElementById('loading').classList.add('d-none');
-    document.getElementById('content').classList.remove('d-none');
-    document.getElementById('statusBar').classList.remove('d-none');
-    document.getElementById('statusBar').textContent = `Found ${allStations.length} station(s) matching search`;
-  } catch(e) {
-    document.getElementById('loading').classList.add('d-none');
-    showError('Failed to search stations: ' + e.message);
-  }
+  searchTimer = setTimeout(applyFilters, 250);
 }
 
 async function loadStations() {
   document.getElementById('search').value = '';
   document.getElementById('filterRouteType').value = '';
-  await doSearch();
+  document.getElementById('filterType').value = '';
+  document.getElementById('filterCountry').value = '';
+  document.getElementById('loading').classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  document.getElementById('statusBar').classList.add('d-none');
+  try {
+    const r = await fetch(BASE + '/stations/search?perPage=10000');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    const j = await r.json();
+    allStations = j.data || [];
+    // Populate country dropdown from station data
+    const names = [...new Set(allStations.filter(s => s.countryName).map(s => s.countryName))].sort();
+    document.getElementById('filterCountry').innerHTML = '<option value="">All Countries</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    applyFilters();
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('content').classList.remove('d-none');
+    document.getElementById('statusBar').classList.remove('d-none');
+    document.getElementById('statusBar').textContent = `Loaded ${allStations.length} station(s)`;
+  } catch(e) {
+    document.getElementById('loading').classList.add('d-none');
+    showError('Failed to load stations: ' + e.message);
+  }
 }
 
-function filterStations() {
-  const type = document.getElementById('filterType').value;
+function applyFilters() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const rt = document.getElementById('filterRouteType').value;
+  const stationType = document.getElementById('filterType').value;
   const country = document.getElementById('filterCountry').value;
   let filtered = allStations;
-  if (type) filtered = filtered.filter(s => s.stationType === type);
+  if (q) filtered = filtered.filter(s => s.name.toLowerCase().includes(q));
+  if (rt) filtered = filtered.filter(s => s.primaryRouteType === rt);
+  if (stationType) filtered = filtered.filter(s => s.stationType === stationType);
   if (country) filtered = filtered.filter(s => s.countryName === country);
   paginatedItems = filtered;
   showPage(1);
@@ -151,6 +145,7 @@ function renderPagination(totalPages) {
     ${currentPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
     <li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage + 1})">Next</button></li>
   </ul><small class="text-muted d-block text-center">Page ${currentPage} of ${totalPages} (${paginatedItems.length} items)</small></nav>`;
+  document.getElementById('statusBar').textContent = `Filtered: ${paginatedItems.length} station(s)`;
 }
 
 function renderStations(list) {
@@ -168,7 +163,7 @@ function renderStations(list) {
     <td>${esc(s.cityName||'-')}</td>
     <td class="small text-nowrap">${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
   </tr><tr class="detail-row" id="detail-${esc(s.globalId)}"><td colspan="8"><div class="detail-inner" id="detailInner-${esc(s.globalId)}"><i class="bi bi-hourglass-split"></i> Loading...</div></td></tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>Global ID</th><th>Onestop ID</th><th>Type</th><th>Route Type</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>Global ID</th><th>Onestop ID</th><th>Type</th><th>Route Type</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s) shown</small>`;
 }
 
 let detailLoading = {};

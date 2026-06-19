@@ -33,6 +33,7 @@ public class OperatorsController : ControllerBase
     public async Task<ActionResult> GetAll(
         [FromQuery] int? countryId = null,
         [FromQuery] OperatorType? type = null,
+        [FromQuery] string? q = null,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
@@ -83,7 +84,7 @@ public class OperatorsController : ControllerBase
             return Ok(fc);
         }
 
-        var result = await _operatorService.GetAllAsync(countryId, type, page, perPage, ct);
+        var result = await _operatorService.GetAllAsync(countryId, type, q, page, perPage, ct);
         var total = await _db.Operators.CountAsync(ct);
         return Ok(new Paginated<OperatorDto>(result, total, page, perPage));
     }
@@ -289,5 +290,54 @@ public class OperatorsController : ControllerBase
         };
 
         return CreatedAtAction(nameof(GetAll), null, dto);
+    }
+
+    [HttpPut("{globalId}")]
+    public async Task<ActionResult<OperatorDto>> Update(string globalId, [FromBody] UpdateOperatorRequest request, CancellationToken ct = default)
+    {
+        var op = await _db.Operators.Include(o => o.Country).FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
+        if (op is null)
+            return NotFound();
+
+        if (request.CountryId.HasValue)
+        {
+            var country = await _db.Countries.FindAsync(new object[] { request.CountryId.Value }, ct);
+            if (country is null)
+                return Problem(statusCode: 400, title: "Country not found.");
+            op.CountryId = request.CountryId.Value;
+        }
+
+        if (request.Name is not null)
+            op.Name = request.Name;
+
+        if (request.ShortName is not null)
+            op.ShortName = request.ShortName;
+
+        if (request.Website is not null)
+            op.Website = request.Website;
+
+        if (request.OperatorType is not null)
+        {
+            if (!Enum.TryParse<OperatorType>(request.OperatorType, true, out var operatorType))
+                return Problem(statusCode: 400, title: $"Invalid operator type '{request.OperatorType}'.");
+            op.OperatorType = operatorType;
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var dto = new OperatorDto
+        {
+            Id = op.Id,
+            GlobalId = op.GlobalId,
+            OnestopId = op.OnestopId,
+            Name = op.Name,
+            ShortName = op.ShortName,
+            Website = op.Website,
+            OperatorType = op.OperatorType.ToString(),
+            IsVerified = op.IsVerified,
+            CountryName = op.Country.Name
+        };
+
+        return Ok(dto);
     }
 }

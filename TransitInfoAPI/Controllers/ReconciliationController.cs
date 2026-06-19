@@ -25,6 +25,8 @@ public class ReconciliationController : ControllerBase
     [HttpGet("pending")]
     public async Task<ActionResult<Paginated<ReconciliationDto>>> GetPending(
         [FromQuery] int? feedVersionId = null,
+        [FromQuery] string? routeType = null,
+        [FromQuery] string? status = null,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
@@ -38,6 +40,13 @@ public class ReconciliationController : ControllerBase
 
         if (feedVersionId.HasValue)
             query = query.Where(rc => rc.RawStop.FeedVersionId == feedVersionId.Value);
+        if (!string.IsNullOrWhiteSpace(routeType))
+            query = query.Where(rc => rc.RawRouteType.ToString() == routeType);
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (Enum.TryParse<ReconciliationStatus>(status, out var st))
+                query = query.Where(rc => rc.Status == st);
+        }
 
         var total = await query.CountAsync(ct);
         var candidates = await query
@@ -76,6 +85,7 @@ public class ReconciliationController : ControllerBase
 
     [HttpGet("auto-merged")]
     public async Task<ActionResult<Paginated<ReconciliationDto>>> GetAutoMerged(
+        [FromQuery] string? routeType = null,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
@@ -86,6 +96,9 @@ public class ReconciliationController : ControllerBase
             .Include(rc => rc.RawStop)
             .Where(rc => rc.Status == ReconciliationStatus.AutoMerged)
             .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(routeType))
+            query = query.Where(rc => rc.RawRouteType.ToString() == routeType);
 
         var total = await query.CountAsync(ct);
         var candidates = await query

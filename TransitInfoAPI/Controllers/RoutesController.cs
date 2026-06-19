@@ -33,6 +33,7 @@ public class RoutesController : ControllerBase
         [FromQuery] double? minLon,
         [FromQuery] double? maxLat,
         [FromQuery] double? maxLon,
+        [FromQuery] string? q = null,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
@@ -74,7 +75,7 @@ public class RoutesController : ControllerBase
             return Ok(fc);
         }
 
-        var result = await _routeService.GetAllAsync(operatorId, routeType, page, perPage, ct);
+        var result = await _routeService.GetAllAsync(operatorId, routeType, q, page, perPage, ct);
         var total = await _db.CanonicalRoutes.CountAsync(r => r.IsActive, ct);
         return Ok(new Paginated<RouteDto>(result, total, page, perPage));
     }
