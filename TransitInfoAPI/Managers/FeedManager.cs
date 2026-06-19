@@ -570,6 +570,11 @@ public class FeedManager
             await _reconciliation.ReconcileFeedVersionAsync(feedVersionId, ct);
             _logStore.AddEntry(feedVersionId, "Reconciliation complete");
 
+            // Persist FK values (CanonicalStationId on RawStops) that reconciliation
+            // set but couldn't save because AutoDetectChangesEnabled is false.
+            _db.ChangeTracker.DetectChanges();
+            await _db.SaveChangesAsync(ct);
+
             // Ensure index exists for the backfill join
             _logStore.AddEntry(feedVersionId, "Ensuring backfill indexes...");
             await _db.Database.ExecuteSqlRawAsync(
@@ -579,9 +584,9 @@ public class FeedManager
             _logStore.AddEntry(feedVersionId, "Backfilling station references...");
             try
             {
-                await _db.Database.ExecuteSqlRawAsync(
-                    "UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = @p0",
-                    new object[] { feedVersionId }, ct);
+                var rows = await _db.Database.ExecuteSqlRawAsync(
+                    $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", ct);
+                _logStore.AddEntry(feedVersionId, $"Backfill complete: {rows} rows updated");
             }
             catch (Exception backfillEx)
             {
@@ -591,7 +596,6 @@ public class FeedManager
                 _logStore.AddEntry(feedVersionId, $"Backfill failed: {version.ImportError}");
                 throw;
             }
-            _logStore.AddEntry(feedVersionId, "Backfill complete");
 
             // Match new canonical stations to places
             _logStore.AddEntry(feedVersionId, "Matching stations to places...");

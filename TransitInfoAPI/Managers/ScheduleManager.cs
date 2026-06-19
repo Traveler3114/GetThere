@@ -9,10 +9,12 @@ namespace TransitInfoAPI.Managers;
 public class ScheduleManager
 {
     private readonly TransitDbContext _db;
+    private readonly RealtimeManager _realtime;
 
-    public ScheduleManager(TransitDbContext db)
+    public ScheduleManager(TransitDbContext db, RealtimeManager realtime)
     {
         _db = db;
+        _realtime = realtime;
     }
 
     public async Task<List<DepartureDto>> GetDeparturesAsync(
@@ -22,7 +24,7 @@ public class ScheduleManager
         var fromTime = (int)from.TimeOfDay.TotalSeconds;
         var dayOfWeek = today.DayOfWeek;
 
-        var departures = await _db.StopTimes
+        var rawDepartures = await _db.StopTimes
             .Where(st => st.CanonicalStationId == canonicalStationId)
             .Where(st => st.Trip.FeedVersion.IsActive)
             .Where(st => st.DepartureTime >= fromTime)
@@ -48,20 +50,31 @@ public class ScheduleManager
                     cd.Date == today && cd.ExceptionType == 1))
             .OrderBy(st => st.DepartureTime)
             .Take(count)
-            .Select(st => new DepartureDto
+            .Select(st => new
             {
-                TripId = st.Trip.TripId,
+                st.Trip.TripId,
+                st.StopSequence,
                 RouteName = st.Trip.CanonicalRoute != null
                     ? (st.Trip.CanonicalRoute.ShortName != "" ? st.Trip.CanonicalRoute.ShortName : st.Trip.CanonicalRoute.LongName)
                     : (st.Trip.TripShortName ?? ""),
                 Headsign = st.StopHeadsign ?? st.Trip.TripHeadsign ?? "",
-                ScheduledDeparture = from.Date.AddSeconds(st.DepartureTime),
-                EstimatedDeparture = null,
-                DelaySeconds = null
+                ScheduledDeparture = from.Date.AddSeconds(st.DepartureTime)
             })
             .ToListAsync(ct);
 
-        return departures;
+        return rawDepartures.Select(d =>
+        {
+            var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, d.ScheduledDeparture);
+            return new DepartureDto
+            {
+                TripId = d.TripId,
+                RouteName = d.RouteName,
+                Headsign = d.Headsign,
+                ScheduledDeparture = d.ScheduledDeparture,
+                EstimatedDeparture = estimated,
+                DelaySeconds = delay
+            };
+        }).ToList();
     }
 
     public async Task<List<StationDto>> GetRouteStopsAsync(int canonicalRouteId, CancellationToken ct)

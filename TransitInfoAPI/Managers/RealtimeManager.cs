@@ -18,6 +18,10 @@ public class RealtimeManager
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<string, VehicleDto> _vehicleCache = new();
 
+    private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
+
+    private volatile ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> _tripUpdateCache = new();
+
     public RealtimeManager(
         IHttpClientFactory httpFactory,
         ILogger<RealtimeManager> logger,
@@ -71,6 +75,8 @@ public class RealtimeManager
         var feedMessage = FeedMessage.Parser.ParseFrom(body);
 
 
+        var tripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
+
         foreach (var entity in feedMessage.Entity)
         {
             if (entity.Vehicle != null)
@@ -98,7 +104,29 @@ public class RealtimeManager
 
                 _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
             }
+
+            if (entity.TripUpdate != null)
+            {
+                var tu = entity.TripUpdate;
+                var tripId = tu.Trip?.TripId;
+                if (string.IsNullOrEmpty(tripId)) continue;
+
+                var stopUpdates = new ConcurrentDictionary<int, StopTimeUpdateData>();
+                foreach (var stu in tu.StopTimeUpdate)
+                {
+                    var delay = stu.Departure?.Delay ?? stu.Arrival?.Delay;
+                    var time = stu.Departure?.Time ?? stu.Arrival?.Time ?? 0;
+                    if (delay.HasValue || time > 0)
+                        stopUpdates[(int)stu.StopSequence] = new StopTimeUpdateData(delay ?? 0, time > 0 ? time : null);
+                }
+
+                if (stopUpdates.Count > 0)
+                    tripUpdates[tripId] = stopUpdates;
+            }
         }
+
+        if (tripUpdates.Count > 0)
+            _tripUpdateCache = tripUpdates;
 
         // Persist alerts
         using var alertScope = _scopeFactory.CreateScope();
@@ -145,6 +173,19 @@ public class RealtimeManager
         await db.Alerts
             .Where(a => a.ActivePeriodEnd < cutoff || a.FetchedAt < cutoffFetched)
             .ExecuteDeleteAsync(ct);
+    }
+
+    public (int? DelaySeconds, DateTime? EstimatedDeparture) GetStopDelay(
+        string tripId, int stopSequence, DateTime scheduledDeparture)
+    {
+        if (_tripUpdateCache.TryGetValue(tripId, out var stops) &&
+            stops.TryGetValue(stopSequence, out var data))
+        {
+            if (data.EstimatedTimeUnix.HasValue)
+                return (data.DelaySeconds, DateTime.UnixEpoch.AddSeconds(data.EstimatedTimeUnix.Value));
+            return (data.DelaySeconds, scheduledDeparture + TimeSpan.FromSeconds(data.DelaySeconds));
+        }
+        return (null, null);
     }
 
     public Task<List<VehicleDto>> GetVehiclesAsync(

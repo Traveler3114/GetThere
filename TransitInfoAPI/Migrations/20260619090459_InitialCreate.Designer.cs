@@ -13,7 +13,7 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    [Migration("20260616100140_InitialCreate")]
+    [Migration("20260619090459_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
