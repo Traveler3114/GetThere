@@ -2,9 +2,10 @@ using Microsoft.EntityFrameworkCore;
 
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+using GetThereAPI.Exceptions;
+using GetThereAPI.Mapping;
 using GetThereAPI.Models;
 using GetThereAPI.Sdk;
-using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
@@ -23,7 +24,7 @@ public class TicketingManager
         _walletManager = walletManager;
     }
 
-    public async Task<OperationResult<List<TicketOptionResponse>>> GetTicketOptionsAsync(CancellationToken ct = default)
+    public async Task<List<TicketOptionResponse>> GetTicketOptionsAsync(CancellationToken ct = default)
     {
         var options = await _db.TicketOptions
             .Include(to => to.Adapter)
@@ -31,11 +32,10 @@ public class TicketingManager
             .OrderBy(to => to.Price)
             .ToListAsync(ct);
 
-        return OperationResult<List<TicketOptionResponse>>.Ok(
-            options.Select(MapOption).ToList());
+        return options.Select(TicketMapper.ToOptionResponse).ToList();
     }
 
-    public async Task<OperationResult<List<TicketResponse>>> GetUserTicketsAsync(string userId, CancellationToken ct = default)
+    public async Task<List<TicketResponse>> GetUserTicketsAsync(string userId, CancellationToken ct = default)
     {
         var tickets = await _db.Tickets
             .Include(t => t.Purchase)
@@ -46,29 +46,24 @@ public class TicketingManager
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
-        return OperationResult<List<TicketResponse>>.Ok(
-            tickets.Select(MapTicket).ToList());
+        return tickets.Select(TicketMapper.ToTicketResponse).ToList();
     }
 
-    public async Task<OperationResult<TicketResponse>> PurchaseTicketAsync(
+    public async Task<TicketResponse> PurchaseTicketAsync(
         string userId, int adapterId, int optionId, CancellationToken ct = default)
     {
-        var adapter = await _db.TicketingAdapters.FindAsync(new object[] { adapterId }, ct);
+        var adapter = await _db.TicketingAdapters.FindAsync([adapterId], ct);
         if (adapter is null || !adapter.IsActive)
-            return OperationResult<TicketResponse>.Fail("Ticketing adapter not found or inactive.");
+            throw new AppException("Ticketing adapter not found or inactive.", 404);
 
         var option = await _db.TicketOptions
             .FirstOrDefaultAsync(to => to.Id == optionId && to.TicketingAdapterId == adapterId && to.IsActive, ct);
         if (option is null)
-            return OperationResult<TicketResponse>.Fail("Ticket option not found.");
+            throw new AppException("Ticket option not found.", 404);
 
-        var walletResult = await _walletManager.EnsureWalletAsync(userId, ct);
-        if (!walletResult.Success)
-            return OperationResult<TicketResponse>.Fail("Could not access wallet.");
-
-        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct);
+        var wallet = await _walletManager.EnsureWalletAsync(userId, ct);
         if (wallet is null || wallet.Balance < option.Price)
-            return OperationResult<TicketResponse>.Fail("Insufficient balance.");
+            throw new AppException("Insufficient balance.", 400);
 
         var balanceBefore = wallet.Balance;
         wallet.Balance -= option.Price;
@@ -129,58 +124,20 @@ public class TicketingManager
                 _db.Tickets.Add(ticket);
                 await _db.SaveChangesAsync(ct);
 
-                return OperationResult<TicketResponse>.Ok(MapTicket(ticket));
+                return TicketMapper.ToTicketResponse(ticket);
             }
 
             purchase.FailureReason = purchaseResult.ErrorMessage ?? "Adapter returned no ticket.";
             purchase.Status = PaymentStatus.Failed;
             await _db.SaveChangesAsync(ct);
 
-            return OperationResult<TicketResponse>.Fail(purchase.FailureReason);
+            throw new AppException(purchase.FailureReason, 400);
         }
 
         purchase.FailureReason = "No ticketing adapter registered for this adapter type.";
         purchase.Status = PaymentStatus.Failed;
         await _db.SaveChangesAsync(ct);
 
-        return OperationResult<TicketResponse>.Fail(purchase.FailureReason);
+        throw new AppException(purchase.FailureReason, 400);
     }
-
-    private static TicketOptionResponse MapOption(TicketOption to) => new()
-    {
-        Id = to.Id,
-        AdapterId = to.TicketingAdapterId,
-        AdapterName = to.Adapter.Name,
-        ExternalProductId = to.ExternalProductId,
-        Name = to.Name,
-        Description = to.Description,
-        Price = to.Price,
-        Currency = to.Currency,
-        TicketFormat = to.TicketFormat,
-        DurationMinutes = to.DurationMinutes
-    };
-
-    private static TicketResponse MapTicket(Ticket t) => new()
-    {
-        Id = t.Id,
-        PurchaseId = t.PurchaseId,
-        ExternalTicketId = t.ExternalTicketId,
-        Format = t.Format,
-        Data = t.Data,
-        ValidFrom = t.ValidFrom,
-        ValidTo = t.ValidTo,
-        Status = t.Status,
-        Option = new TicketOptionResponse
-        {
-            Id = t.Purchase.TicketOption.Id,
-            AdapterId = t.Purchase.TicketingAdapterId,
-            AdapterName = t.Purchase.Adapter.Name,
-            ExternalProductId = t.Purchase.TicketOption.ExternalProductId,
-            Name = t.Purchase.TicketOption.Name,
-            Price = t.Purchase.TicketOption.Price,
-            Currency = t.Purchase.TicketOption.Currency,
-            TicketFormat = t.Purchase.TicketOption.TicketFormat,
-            DurationMinutes = t.Purchase.TicketOption.DurationMinutes
-        }
-    };
 }

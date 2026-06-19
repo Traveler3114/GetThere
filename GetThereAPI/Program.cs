@@ -1,15 +1,18 @@
-using GetThereAPI.Data;
-using GetThereAPI.Entities;
-using GetThereAPI.Managers;
-using GetThereAPI.Sdk;
-using GetThereShared.Common;
+using System.Reflection;
+using System.Text;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using System.Text;
+
+using GetThereAPI.Data;
+using GetThereAPI.Entities;
+using GetThereAPI.Exceptions;
+using GetThereAPI.Managers;
+using GetThereAPI.Sdk;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,11 +41,11 @@ builder.Services.AddHttpClient("TransitInfoApi", client =>
 
 builder.Services.AddSingleton<AdapterRegistry>();
 builder.Services.AddScoped<TokenManager>();
-builder.Services.AddScoped<WalletManager>();
-builder.Services.AddScoped<TicketingManager>();
-builder.Services.AddScoped<UserSettingsManager>();
-builder.Services.AddScoped<ProfileManager>();
-builder.Services.AddScoped<AdminManager>();
+
+var managerTypes = typeof(Program).Assembly.GetTypes()
+    .Where(t => t.Namespace == "GetThereAPI.Managers" && t is { IsClass: true, IsAbstract: false });
+foreach (var mt in managerTypes)
+    builder.Services.AddScoped(mt);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -89,20 +92,35 @@ app.UseExceptionHandler(errorApp =>
         var error = context.Features.Get<IExceptionHandlerFeature>();
         var isDev = app.Environment.IsDevelopment();
 
-        if (error != null)
+        if (error is not null)
         {
             logger.LogError(error.Error, "Unhandled exception on {Method} {Path}",
                 context.Request.Method, context.Request.Path);
         }
 
-        context.Response.ContentType = "application/json";
-        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/problem+json";
 
-        var message = isDev && error?.Error != null
-            ? $"Unexpected error ({error.Error.GetType().Name}): {error.Error.Message}"
-            : "An unexpected error occurred. Please try again later.";
+        var statusCode = 500;
+        var title = "Internal Server Error";
 
-        await context.Response.WriteAsJsonAsync(OperationResult<string>.Fail(message));
+        if (error?.Error is AppException appEx)
+        {
+            statusCode = appEx.StatusCode;
+            title = appEx.ErrorCode ?? appEx.Message;
+        }
+
+        if (isDev && error?.Error is not null && error.Error is not AppException)
+        {
+            title = $"Unexpected error ({error.Error.GetType().Name}): {error.Error.Message}";
+        }
+
+        context.Response.StatusCode = statusCode;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+            title,
+            status = statusCode
+        });
     });
 });
 

@@ -116,6 +116,10 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasOne(p => p.TicketOption)
                   .WithMany()
                   .HasForeignKey(p => p.TicketOptionId);
+            entity.HasOne(p => p.WalletTransaction)
+                  .WithMany()
+                  .HasForeignKey(p => p.WalletTransactionId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Ticket>(entity =>

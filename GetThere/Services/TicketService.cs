@@ -23,8 +23,15 @@ public class TicketService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<TicketOptionResponse>>>("tickets/options", JsonOptions);
-            return result ?? OperationResult<List<TicketOptionResponse>>.Fail("Could not load ticket options");
+            var response = await _http.GetAsync("tickets/options");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<TicketOptionResponse>>(JsonOptions);
+                return OperationResult<List<TicketOptionResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<TicketOptionResponse>>.Fail(problem ?? "Could not load ticket options");
         }
         catch (Exception ex)
         {
@@ -37,8 +44,14 @@ public class TicketService
         try
         {
             var response = await _http.PostAsJsonAsync("tickets/purchase", request, JsonOptions);
-            var result = await response.Content.ReadFromJsonAsync<OperationResult<TicketResponse>>(JsonOptions);
-            return result ?? OperationResult<TicketResponse>.Fail("Purchase failed");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<TicketResponse>(JsonOptions);
+                return OperationResult<TicketResponse>.Ok(data!);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<TicketResponse>.Fail(problem ?? "Purchase failed");
         }
         catch (Exception ex)
         {
@@ -50,12 +63,31 @@ public class TicketService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<TicketResponse>>>("tickets", JsonOptions);
-            return result ?? OperationResult<List<TicketResponse>>.Fail("Could not load tickets");
+            var response = await _http.GetAsync("tickets");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<TicketResponse>>(JsonOptions);
+                return OperationResult<List<TicketResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<TicketResponse>>.Fail(problem ?? "Could not load tickets");
         }
         catch (Exception ex)
         {
             return OperationResult<List<TicketResponse>>.Fail(ex.Message);
         }
+    }
+
+    private static async Task<string?> TryReadProblemAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            if (doc.RootElement.TryGetProperty("title", out var title))
+                return title.GetString();
+        }
+        catch { }
+        return null;
     }
 }

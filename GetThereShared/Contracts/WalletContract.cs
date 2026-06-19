@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using GetThereShared.Enums;
 
 namespace GetThereShared.Contracts;
@@ -16,6 +18,9 @@ public class WalletTransactionResponse
     public WalletTransactionType Type { get; set; }
     public string? Description { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    [JsonIgnore]
+    public string FormattedAmount => $"€{Amount:N2}";
 }
 
 public class TopUpRequest

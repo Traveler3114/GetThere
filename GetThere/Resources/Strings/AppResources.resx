@@ -239,6 +239,8 @@
   <data name="Profile_SubSettings_UpdateButton" xml:space="preserve"><value>Update Password</value></data>
   <data name="Profile_SubSettings_PasswordMismatch" xml:space="preserve"><value>Passwords do not match.</value></data>
   <data name="Profile_SubSettings_PasswordSuccess" xml:space="preserve"><value>Password updated successfully.</value></data>
+  <data name="Profile_SubSettings_ComingSoon" xml:space="preserve"><value>Coming Soon</value></data>
+  <data name="Profile_SubSettings_PasswordComingSoon" xml:space="preserve"><value>Password change is not yet available through the app.</value></data>
 
   <!-- Profile top-up -->
   <data name="Profile_TopUp_Title" xml:space="preserve"><value>Top Up</value></data>

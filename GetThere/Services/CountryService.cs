@@ -23,12 +23,31 @@ public class CountryService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<CountryResponse>>>("countries", JsonOptions);
-            return result ?? OperationResult<List<CountryResponse>>.Fail("Could not load countries");
+            var response = await _http.GetAsync("countries");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<CountryResponse>>(JsonOptions);
+                return OperationResult<List<CountryResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<CountryResponse>>.Fail(problem ?? "Could not load countries");
         }
         catch
         {
             return OperationResult<List<CountryResponse>>.Fail("Network error loading countries");
         }
+    }
+
+    private static async Task<string?> TryReadProblemAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            if (doc.RootElement.TryGetProperty("title", out var title))
+                return title.GetString();
+        }
+        catch { }
+        return null;
     }
 }

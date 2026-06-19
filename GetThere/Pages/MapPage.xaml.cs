@@ -140,7 +140,7 @@ public partial class MapPage : ContentPage
                 ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) => true
             };
             using var http = new HttpClient(handler);
-            var apiBase = "https://localhost:7230";
+            var apiBase = GetApiBaseUrl();
 
             var uniqueFiles = types.Select(t => t.IconFile).Distinct();
             foreach (var file in uniqueFiles)

@@ -26,8 +26,15 @@ public class OperatorService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<TransportTypeResponse>>>("api/map/operators/types", JsonOptions);
-            return result ?? OperationResult<List<TransportTypeResponse>>.Fail("Could not load transport types");
+            var response = await _http.GetAsync("api/map/operators/types");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<TransportTypeResponse>>(JsonOptions);
+                return OperationResult<List<TransportTypeResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<TransportTypeResponse>>.Fail(problem ?? "Could not load transport types");
         }
         catch (Exception ex)
         {
@@ -40,8 +47,15 @@ public class OperatorService
         try
         {
             var url = countryId.HasValue ? $"api/map/stations?countryId={countryId.Value}" : "api/map/stations";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<MapStationResponse>>>(url, JsonOptions);
-            return result ?? OperationResult<List<MapStationResponse>>.Fail("Could not load stops");
+            var response = await _http.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<MapStationResponse>>(JsonOptions);
+                return OperationResult<List<MapStationResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<MapStationResponse>>.Fail(problem ?? "Could not load stops");
         }
         catch (Exception ex)
         {
@@ -53,9 +67,15 @@ public class OperatorService
     {
         try
         {
-            var url = "api/map/routes";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<MapRouteResponse>>>(url, JsonOptions);
-            return result ?? OperationResult<List<MapRouteResponse>>.Fail("Could not load routes");
+            var response = await _http.GetAsync("api/map/routes");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<MapRouteResponse>>(JsonOptions);
+                return OperationResult<List<MapRouteResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<MapRouteResponse>>.Fail(problem ?? "Could not load routes");
         }
         catch (Exception ex)
         {
@@ -67,9 +87,15 @@ public class OperatorService
     {
         try
         {
-            var url = "api/map/mobility/stations";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<MapMobilityStationResponse>>>(url, JsonOptions);
-            return result ?? OperationResult<List<MapMobilityStationResponse>>.Fail("Could not load bike stations");
+            var response = await _http.GetAsync("api/map/mobility/stations");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<MapMobilityStationResponse>>(JsonOptions);
+                return OperationResult<List<MapMobilityStationResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<MapMobilityStationResponse>>.Fail(problem ?? "Could not load bike stations");
         }
         catch (Exception ex)
         {
@@ -81,8 +107,15 @@ public class OperatorService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<MapDepartureResponse>>>($"api/map/stations/{globalId}/departures", JsonOptions);
-            return result ?? OperationResult<List<MapDepartureResponse>>.Fail("Could not load departures");
+            var response = await _http.GetAsync($"api/map/stations/{globalId}/departures");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<MapDepartureResponse>>(JsonOptions);
+                return OperationResult<List<MapDepartureResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<MapDepartureResponse>>.Fail(problem ?? "Could not load departures");
         }
         catch (Exception ex)
         {
@@ -94,8 +127,15 @@ public class OperatorService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<List<MapOperatorResponse>>>($"api/map/stations/{globalId}/operators", JsonOptions);
-            return result ?? OperationResult<List<MapOperatorResponse>>.Fail("Could not load operators");
+            var response = await _http.GetAsync($"api/map/stations/{globalId}/operators");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<MapOperatorResponse>>(JsonOptions);
+                return OperationResult<List<MapOperatorResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<MapOperatorResponse>>.Fail(problem ?? "Could not load operators");
         }
         catch (Exception ex)
         {
@@ -112,13 +152,32 @@ public class OperatorService
             if (lon.HasValue) parts.Add($"lon={lon.Value}");
             if (radiusKm.HasValue) parts.Add($"radiusKm={radiusKm.Value}");
             var qs = parts.Count > 0 ? "?" + string.Join("&", parts) : "";
-            var result = await _http.GetFromJsonAsync<OperationResult<List<MapVehicleResponse>>>("api/map/realtime/vehicles" + qs, JsonOptions);
-            return result ?? OperationResult<List<MapVehicleResponse>>.Fail("Could not load vehicles");
+            var response = await _http.GetAsync("api/map/realtime/vehicles" + qs);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<MapVehicleResponse>>(JsonOptions);
+                return OperationResult<List<MapVehicleResponse>>.Ok(data ?? []);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<List<MapVehicleResponse>>.Fail(problem ?? "Could not load vehicles");
         }
         catch (Exception ex)
         {
             return OperationResult<List<MapVehicleResponse>>.Fail(ex.Message);
         }
+    }
+
+    private static async Task<string?> TryReadProblemAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            if (doc.RootElement.TryGetProperty("title", out var title))
+                return title.GetString();
+        }
+        catch { }
+        return null;
     }
 }
 

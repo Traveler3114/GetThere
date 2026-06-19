@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
-using GetThereShared.Common;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Controllers;
@@ -20,14 +19,14 @@ public class TicketingController : ControllerBase
     }
 
     [HttpGet("options")]
-    public async Task<ActionResult<OperationResult<List<TicketOptionResponse>>>> GetOptions(CancellationToken ct = default)
+    public async Task<ActionResult<List<TicketOptionResponse>>> GetOptions(CancellationToken ct = default)
     {
         var result = await _ticketingManager.GetTicketOptionsAsync(ct);
         return Ok(result);
     }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<List<TicketResponse>>>> GetMyTickets(CancellationToken ct = default)
+    public async Task<ActionResult<List<TicketResponse>>> GetMyTickets(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
@@ -37,13 +36,13 @@ public class TicketingController : ControllerBase
     }
 
     [HttpPost("purchase")]
-    public async Task<ActionResult<OperationResult<TicketResponse>>> Purchase(
+    public async Task<ActionResult<TicketResponse>> Purchase(
         TicketPurchaseRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _ticketingManager.PurchaseTicketAsync(userId, request.AdapterId, request.OptionId, ct);
-        return result.Success ? Ok(result) : BadRequest(result);
+        return Ok(result);
     }
 }

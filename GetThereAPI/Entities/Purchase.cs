@@ -16,6 +16,7 @@ public class Purchase
     public TicketOption TicketOption { get; set; } = null!;
 
     public int? WalletTransactionId { get; set; }
+    public WalletTransaction? WalletTransaction { get; set; }
 
     public string? ExternalPurchaseId { get; set; }
     public decimal Amount { get; set; }

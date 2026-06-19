@@ -20,18 +20,18 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<OperationResult<PagedResult<UserListItem>>>> GetUsers(
+    public async Task<ActionResult<PagedResult<UserListItem>>> GetUsers(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
         var result = await _adminManager.GetUsersAsync(page, pageSize);
-        return Ok(OperationResult<PagedResult<UserListItem>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("audit")]
-    public async Task<ActionResult<OperationResult<PagedResult<AuditLogEntry>>>> GetAuditLogs(
+    public async Task<ActionResult<PagedResult<AuditLogEntry>>> GetAuditLogs(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
     {
         var result = await _adminManager.GetAuditLogsAsync(page, pageSize);
-        return Ok(OperationResult<PagedResult<AuditLogEntry>>.Ok(result));
+        return Ok(result);
     }
 }

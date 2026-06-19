@@ -239,6 +239,8 @@
   <data name="Profile_SubSettings_UpdateButton" xml:space="preserve"><value>Ažuriraj lozinku</value></data>
   <data name="Profile_SubSettings_PasswordMismatch" xml:space="preserve"><value>Lozinke se ne podudaraju.</value></data>
   <data name="Profile_SubSettings_PasswordSuccess" xml:space="preserve"><value>Lozinka je uspješno ažurirana.</value></data>
+  <data name="Profile_SubSettings_ComingSoon" xml:space="preserve"><value>Uskoro</value></data>
+  <data name="Profile_SubSettings_PasswordComingSoon" xml:space="preserve"><value>Promjena lozinke nije još dostupna u aplikaciji.</value></data>
 
   <!-- Dopuna novčanika -->
   <data name="Profile_TopUp_Title" xml:space="preserve"><value>Dopuna</value></data>

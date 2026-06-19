@@ -504,7 +504,7 @@ public partial class ProfilePage : ContentPage
                 await DisplayAlertAsync(LocalizationService.Instance["App_Error"], LocalizationService.Instance["Profile_SubSettings_PasswordMismatch"], LocalizationService.Instance["App_Ok"]);
                 return;
             }
-            await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_Success"], LocalizationService.Instance["Profile_SubSettings_PasswordSuccess"], LocalizationService.Instance["App_Ok"]);
+            await DisplayAlertAsync(LocalizationService.Instance["Profile_SubSettings_ComingSoon"], LocalizationService.Instance["Profile_SubSettings_PasswordComingSoon"], LocalizationService.Instance["App_Ok"]);
             SubSettingsView.IsVisible = false;
         };
 

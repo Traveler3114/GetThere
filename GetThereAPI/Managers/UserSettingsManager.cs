@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
-using GetThereShared.Common;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Managers;
@@ -13,7 +12,7 @@ public class UserSettingsManager
 
     public UserSettingsManager(AppDbContext db) { _db = db; }
 
-    public async Task<OperationResult<UserSettingsResponse>> GetSettingsAsync(string userId, CancellationToken ct = default)
+    public async Task<UserSettingsResponse> GetSettingsAsync(string userId, CancellationToken ct = default)
     {
         var settings = await _db.UserSettings
             .FirstOrDefaultAsync(us => us.UserId == userId, ct);
@@ -25,16 +24,10 @@ public class UserSettingsManager
             await _db.SaveChangesAsync(ct);
         }
 
-        return OperationResult<UserSettingsResponse>.Ok(new UserSettingsResponse
-        {
-            Theme = settings.Theme,
-            Language = settings.Language,
-            NotificationsEnabled = settings.NotificationsEnabled,
-            MapStyle = settings.MapStyle
-        });
+        return MapResponse(settings);
     }
 
-    public async Task<OperationResult<UserSettingsResponse>> UpdateSettingsAsync(string userId, UpdateSettingsRequest request, CancellationToken ct = default)
+    public async Task<UserSettingsResponse> UpdateSettingsAsync(string userId, UpdateSettingsRequest request, CancellationToken ct = default)
     {
         var settings = await _db.UserSettings
             .FirstOrDefaultAsync(us => us.UserId == userId, ct);
@@ -53,12 +46,14 @@ public class UserSettingsManager
         settings.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        return OperationResult<UserSettingsResponse>.Ok(new UserSettingsResponse
-        {
-            Theme = settings.Theme,
-            Language = settings.Language,
-            NotificationsEnabled = settings.NotificationsEnabled,
-            MapStyle = settings.MapStyle
-        });
+        return MapResponse(settings);
     }
+
+    private static UserSettingsResponse MapResponse(UserSettings settings) => new()
+    {
+        Theme = settings.Theme,
+        Language = settings.Language,
+        NotificationsEnabled = settings.NotificationsEnabled,
+        MapStyle = settings.MapStyle
+    };
 }

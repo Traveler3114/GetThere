@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
-using GetThereShared.Common;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Controllers;
@@ -17,7 +16,7 @@ public class SettingsController : ControllerBase
     public SettingsController(UserSettingsManager settingsManager) { _settingsManager = settingsManager; }
 
     [HttpGet]
-    public async Task<ActionResult<OperationResult<UserSettingsResponse>>> Get(CancellationToken ct = default)
+    public async Task<ActionResult<UserSettingsResponse>> Get(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
@@ -27,7 +26,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPut]
-    public async Task<ActionResult<OperationResult<UserSettingsResponse>>> Update(UpdateSettingsRequest request, CancellationToken ct = default)
+    public async Task<ActionResult<UserSettingsResponse>> Update(UpdateSettingsRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();

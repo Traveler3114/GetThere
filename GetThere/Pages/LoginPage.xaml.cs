@@ -134,9 +134,4 @@ public partial class LoginPage : ContentPage
         RememberMeCheckbox.IsChecked = !RememberMeCheckbox.IsChecked;
     }
 
-    private async void GuestButton_Clicked(object? sender, EventArgs e)
-    {
-        await _authService.Logout();
-        App.GoToApp();
-    }
 }

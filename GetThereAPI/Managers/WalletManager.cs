@@ -2,7 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
-using GetThereShared.Common;
+using GetThereAPI.Exceptions;
+using GetThereAPI.Mapping;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
@@ -14,40 +15,25 @@ public class WalletManager
 
     public WalletManager(AppDbContext db) { _db = db; }
 
-    public async Task<OperationResult<WalletResponse>> GetWalletAsync(string userId, CancellationToken ct = default)
+    public async Task<WalletResponse?> GetWalletAsync(string userId, CancellationToken ct = default)
     {
         var wallet = await _db.Wallets
             .Include(w => w.Transactions.OrderByDescending(t => t.CreatedAt).Take(20))
             .FirstOrDefaultAsync(w => w.UserId == userId, ct);
 
-        if (wallet is null)
-            return OperationResult<WalletResponse>.Fail("Wallet not found");
-
-        return OperationResult<WalletResponse>.Ok(new WalletResponse
-        {
-            Balance = wallet.Balance,
-            Currency = wallet.Currency,
-            RecentTransactions = wallet.Transactions.Select(t => new WalletTransactionResponse
-            {
-                Id = t.Id,
-                Amount = t.Amount,
-                Type = t.Type,
-                Description = t.Description,
-                CreatedAt = t.CreatedAt
-            }).ToList()
-        });
+        return wallet is null ? null : WalletMapper.ToResponse(wallet);
     }
 
-    public async Task<OperationResult<WalletResponse>> TopUpAsync(string userId, decimal amount, string paymentMethod, CancellationToken ct = default)
+    public async Task<WalletResponse> TopUpAsync(string userId, decimal amount, string paymentMethod, CancellationToken ct = default)
     {
         if (amount <= 0)
-            return OperationResult<WalletResponse>.Fail("Amount must be greater than zero.");
+            throw new AppException("Amount must be greater than zero.");
 
         var wallet = await _db.Wallets
             .FirstOrDefaultAsync(w => w.UserId == userId, ct);
 
         if (wallet is null)
-            return OperationResult<WalletResponse>.Fail("Wallet not found");
+            throw new AppException("Wallet not found", 404);
 
         var balanceBefore = wallet.Balance;
         wallet.Balance += amount;
@@ -66,10 +52,10 @@ public class WalletManager
 
         await _db.SaveChangesAsync(ct);
 
-        return await GetWalletAsync(userId, ct);
+        return WalletMapper.ToResponse(wallet);
     }
 
-    public async Task<OperationResult<WalletResponse>> EnsureWalletAsync(string userId, CancellationToken ct = default)
+    public async Task<Wallet> EnsureWalletAsync(string userId, CancellationToken ct = default)
     {
         var wallet = await _db.Wallets
             .FirstOrDefaultAsync(w => w.UserId == userId, ct);
@@ -81,6 +67,6 @@ public class WalletManager
             await _db.SaveChangesAsync(ct);
         }
 
-        return await GetWalletAsync(userId, ct);
+        return wallet;
     }
 }

@@ -23,8 +23,15 @@ public class WalletService
     {
         try
         {
-            var result = await _http.GetFromJsonAsync<OperationResult<WalletResponse>>("wallet", JsonOptions);
-            return result ?? OperationResult<WalletResponse>.Fail("Could not load wallet");
+            var response = await _http.GetAsync("wallet");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<WalletResponse>(JsonOptions);
+                return OperationResult<WalletResponse>.Ok(data!);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<WalletResponse>.Fail(problem ?? "Could not load wallet");
         }
         catch (Exception ex)
         {
@@ -38,12 +45,30 @@ public class WalletService
         {
             var request = new TopUpRequest { Amount = amount, PaymentMethod = paymentMethod };
             var response = await _http.PostAsJsonAsync("wallet/topup", request, JsonOptions);
-            var result = await response.Content.ReadFromJsonAsync<OperationResult<WalletResponse>>(JsonOptions);
-            return result ?? OperationResult<WalletResponse>.Fail("Top-up failed");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<WalletResponse>(JsonOptions);
+                return OperationResult<WalletResponse>.Ok(data!);
+            }
+
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult<WalletResponse>.Fail(problem ?? "Top-up failed");
         }
         catch (Exception ex)
         {
             return OperationResult<WalletResponse>.Fail(ex.Message);
         }
+    }
+
+    private static async Task<string?> TryReadProblemAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            if (doc.RootElement.TryGetProperty("title", out var title))
+                return title.GetString();
+        }
+        catch { }
+        return null;
     }
 }

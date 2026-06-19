@@ -29,7 +29,8 @@ public class TokenManager
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         // When should this token stop being valid?
-        var expiry = DateTime.UtcNow.AddMinutes(double.Parse(_config["Jwt:ExpiryMinutes"]!));
+        var expiry = DateTime.UtcNow.AddMinutes(
+            double.TryParse(_config["Jwt:ExpiryMinutes"], out var expiryMin) ? expiryMin : 60);
 
         // Claims = facts about the user baked into the token
         // These get decoded on every request — no database lookup needed!
@@ -75,15 +76,15 @@ public class TokenManager
     public DateTime GetRefreshTokenExpiry(bool rememberMe)
     {
         var days = rememberMe
-            ? int.Parse(_config["Jwt:RefreshTokenDaysRememberMe"]!)
-            : int.Parse(_config["Jwt:RefreshTokenDays"]!);
+            ? (int.TryParse(_config["Jwt:RefreshTokenDaysRememberMe"], out var remDays) ? remDays : 30)
+            : (int.TryParse(_config["Jwt:RefreshTokenDays"], out var stdDays) ? stdDays : 1);
 
         return DateTime.UtcNow.AddDays(days);
     }
 
     public bool IsRememberMeRefreshToken(DateTime createdAt, DateTime expiresAt)
     {
-        var standardDays = int.Parse(_config["Jwt:RefreshTokenDays"]!);
+        var standardDays = int.TryParse(_config["Jwt:RefreshTokenDays"], out var days) ? days : 1;
         return (expiresAt - createdAt) > TimeSpan.FromDays(standardDays);
     }
 }

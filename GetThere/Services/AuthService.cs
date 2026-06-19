@@ -25,24 +25,32 @@ public class AuthService
     public async Task<OperationResult> RegisterAsync(RegisterRequest request)
     {
         var response = await _http.PostAsJsonAsync("auth/register", request, JsonOptions);
-        var result = await response.Content.ReadFromJsonAsync<OperationResult>(JsonOptions);
-        return result ?? OperationResult.Fail("Failed to register");
+        if (response.IsSuccessStatusCode)
+            return OperationResult.Ok("USER_REGISTERED");
+
+        var problem = await TryReadProblemAsync(response);
+        return OperationResult.Fail(problem ?? "Registration failed");
     }
 
     public async Task<OperationResult<LoginResponse>> LoginAsync(LoginRequest request, bool rememberMe)
     {
         var url = rememberMe ? "auth/login?rememberMe=true" : "auth/login";
         var response = await _http.PostAsJsonAsync(url, request, JsonOptions);
-        var result = await response.Content.ReadFromJsonAsync<OperationResult<LoginResponse>>(JsonOptions);
 
-        if (result?.Success == true && result.Data is not null)
+        if (response.IsSuccessStatusCode)
         {
-            await SecureStorage.Default.SetAsync(TokenKey, result.Data.AccessToken);
-            await SecureStorage.Default.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
-            await StoreRememberMeAsync(rememberMe);
+            var data = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions);
+            if (data is not null)
+            {
+                await SecureStorage.Default.SetAsync(TokenKey, data.AccessToken);
+                await SecureStorage.Default.SetAsync(RefreshTokenKey, data.RefreshToken);
+                await StoreRememberMeAsync(rememberMe);
+                return OperationResult<LoginResponse>.Ok(data);
+            }
         }
 
-        return result ?? OperationResult<LoginResponse>.Fail("Login failed");
+        var problem = await TryReadProblemAsync(response);
+        return OperationResult<LoginResponse>.Fail(problem ?? "Login failed");
     }
 
     public async Task<bool> TryRefreshTokenAsync()
@@ -51,13 +59,16 @@ public class AuthService
         if (string.IsNullOrWhiteSpace(refreshToken)) return false;
 
         var response = await _http.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest(refreshToken), JsonOptions);
-        var result = await response.Content.ReadFromJsonAsync<OperationResult<RefreshTokenResponse>>(JsonOptions);
 
-        if (result?.Success == true && result.Data is not null)
+        if (response.IsSuccessStatusCode)
         {
-            await SecureStorage.Default.SetAsync(TokenKey, result.Data.AccessToken);
-            await SecureStorage.Default.SetAsync(RefreshTokenKey, result.Data.RefreshToken);
-            return true;
+            var data = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(JsonOptions);
+            if (data is not null)
+            {
+                await SecureStorage.Default.SetAsync(TokenKey, data.AccessToken);
+                await SecureStorage.Default.SetAsync(RefreshTokenKey, data.RefreshToken);
+                return true;
+            }
         }
 
         return false;
@@ -108,7 +119,8 @@ public class AuthService
         catch { return null; }
     }
 
-    public bool IsLoggedIn => SecureStorage.Default.GetAsync(TokenKey).Result is not null;
+    public async Task<bool> IsLoggedInAsync() =>
+        await SecureStorage.Default.GetAsync(TokenKey) is not null;
 
     public bool GetRememberMe() => Preferences.Default.Get("remember_me", false);
 
@@ -118,6 +130,18 @@ public class AuthService
             Preferences.Default.Set("remember_me", true);
         else
             Preferences.Default.Remove("remember_me");
+    }
+
+    private static async Task<string?> TryReadProblemAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            if (doc.RootElement.TryGetProperty("title", out var title))
+                return title.GetString();
+        }
+        catch { }
+        return null;
     }
 
     private class JwtPayloadReader(string token)

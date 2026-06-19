@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using GetThereAPI.Data;
-using GetThereShared.Common;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Controllers;
@@ -15,38 +14,20 @@ namespace GetThereAPI.Controllers;
 public class MapProxyController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly AppDbContext _db;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public MapProxyController(IHttpClientFactory httpClientFactory, IServiceScopeFactory scopeFactory)
+    public MapProxyController(IHttpClientFactory httpClientFactory, AppDbContext db)
     {
         _httpClientFactory = httpClientFactory;
-        _scopeFactory = scopeFactory;
+        _db = db;
     }
 
     private HttpClient CreateClient() =>
         _httpClientFactory.CreateClient("TransitInfoApi");
 
-    private static async Task<List<JsonElement>?> ExtractDataArrayAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
-            return JsonSerializer.Deserialize<List<JsonElement>>(doc.RootElement.GetRawText(), JsonOptions);
-        return doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
-            ? JsonSerializer.Deserialize<List<JsonElement>>(data.GetRawText(), JsonOptions)
-            : null;
-    }
-
-    private static async Task<JsonElement?> ExtractDataObjectAsync(HttpResponseMessage response, CancellationToken ct)
-    {
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
-            return data;
-        return null;
-    }
-
     [HttpGet("stations")]
-    public async Task<ActionResult<OperationResult<List<MapStationResponse>>>> GetStations(
+    public async Task<ActionResult> GetStations(
         [FromQuery] double? lat, [FromQuery] double? lon,
         [FromQuery] double? radiusKm, [FromQuery] int? countryId,
         CancellationToken ct = default)
@@ -55,10 +36,10 @@ public class MapProxyController : ControllerBase
         var query = BuildQuery(("lat", lat), ("lon", lon), ("radiusKm", radiusKm), ("countryId", countryId));
         var response = await client.GetAsync($"/stations{query}", ct);
         if (!response.IsSuccessStatusCode)
-            return StatusCode((int)response.StatusCode, OperationResult<List<MapStationResponse>>.Fail("TransitInfoAPI error."));
+            return StatusCode((int)response.StatusCode);
 
         var stations = await ExtractDataArrayAsync(response, ct);
-        if (stations is null) return Ok(OperationResult<List<MapStationResponse>>.Ok([]));
+        if (stations is null) return Ok(new List<MapStationResponse>());
 
         var result = stations.Select(s => new MapStationResponse
         {
@@ -70,11 +51,11 @@ public class MapProxyController : ControllerBase
             StationType = s.TryGetProperty("stationType", out var st) ? st.GetString() : null
         }).ToList();
 
-        return Ok(OperationResult<List<MapStationResponse>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("routes")]
-    public async Task<ActionResult<OperationResult<List<MapRouteResponse>>>> GetRoutes(
+    public async Task<ActionResult> GetRoutes(
         [FromQuery] int? operatorId, [FromQuery] string? routeType,
         CancellationToken ct = default)
     {
@@ -82,10 +63,10 @@ public class MapProxyController : ControllerBase
         var query = BuildQuery(("operatorId", operatorId), ("routeType", routeType));
         var response = await client.GetAsync($"/routes{query}", ct);
         if (!response.IsSuccessStatusCode)
-            return StatusCode((int)response.StatusCode, OperationResult<List<MapRouteResponse>>.Fail("TransitInfoAPI error."));
+            return StatusCode((int)response.StatusCode);
 
         var routes = await ExtractDataArrayAsync(response, ct);
-        if (routes is null) return Ok(OperationResult<List<MapRouteResponse>>.Ok([]));
+        if (routes is null) return Ok(new List<MapRouteResponse>());
 
         var result = routes.Select(r => new MapRouteResponse
         {
@@ -96,11 +77,11 @@ public class MapProxyController : ControllerBase
             OperatorName = string.Empty
         }).ToList();
 
-        return Ok(OperationResult<List<MapRouteResponse>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("mobility/stations")]
-    public async Task<ActionResult<OperationResult<List<MapMobilityStationResponse>>>> GetMobilityStations(
+    public async Task<ActionResult> GetMobilityStations(
         [FromQuery] double? lat, [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
         CancellationToken ct = default)
@@ -109,10 +90,10 @@ public class MapProxyController : ControllerBase
         var query = BuildQuery(("lat", lat), ("lon", lon), ("radiusKm", radiusKm));
         var response = await client.GetAsync($"/mobility/stations{query}", ct);
         if (!response.IsSuccessStatusCode)
-            return StatusCode((int)response.StatusCode, OperationResult<List<MapMobilityStationResponse>>.Fail("TransitInfoAPI error."));
+            return StatusCode((int)response.StatusCode);
 
         var stations = await ExtractDataArrayAsync(response, ct);
-        if (stations is null) return Ok(OperationResult<List<MapMobilityStationResponse>>.Ok([]));
+        if (stations is null) return Ok(new List<MapMobilityStationResponse>());
 
         var result = stations.Select(s => new MapMobilityStationResponse
         {
@@ -125,11 +106,11 @@ public class MapProxyController : ControllerBase
             ProviderName = s.GetProperty("providerName").GetString() ?? string.Empty
         }).ToList();
 
-        return Ok(OperationResult<List<MapMobilityStationResponse>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("realtime/vehicles")]
-    public async Task<ActionResult<OperationResult<List<MapVehicleResponse>>>> GetVehicles(
+    public async Task<ActionResult> GetVehicles(
         [FromQuery] string? feedId, [FromQuery] double? lat,
         [FromQuery] double? lon, [FromQuery] double? radiusKm,
         CancellationToken ct = default)
@@ -148,10 +129,10 @@ public class MapProxyController : ControllerBase
         var query = BuildQuery(("feedId", feedId), ("minLat", minLat), ("minLon", minLon), ("maxLat", maxLat), ("maxLon", maxLon));
         var response = await client.GetAsync($"/realtime/vehicles{query}", ct);
         if (!response.IsSuccessStatusCode)
-            return StatusCode((int)response.StatusCode, OperationResult<List<MapVehicleResponse>>.Fail("TransitInfoAPI error."));
+            return StatusCode((int)response.StatusCode);
 
         var vehicles = await ExtractDataArrayAsync(response, ct);
-        if (vehicles is null) return Ok(OperationResult<List<MapVehicleResponse>>.Ok([]));
+        if (vehicles is null) return Ok(new List<MapVehicleResponse>());
 
         var result = vehicles.Select(v => new MapVehicleResponse
         {
@@ -167,19 +148,18 @@ public class MapProxyController : ControllerBase
             LastUpdated = v.TryGetProperty("lastUpdated", out var lu) ? lu.GetDateTime() : null
         }).ToList();
 
-        return Ok(OperationResult<List<MapVehicleResponse>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("stations/{globalId}/departures")]
-    public async Task<ActionResult<OperationResult<List<MapDepartureResponse>>>> GetDepartures(
+    public async Task<ActionResult> GetDepartures(
         string globalId, CancellationToken ct = default)
     {
         var client = CreateClient();
 
-        // Resolve globalId → numeric id
         var stationResponse = await client.GetAsync($"/stations/by-global/{globalId}", ct);
         if (!stationResponse.IsSuccessStatusCode)
-            return StatusCode((int)stationResponse.StatusCode, OperationResult<List<MapDepartureResponse>>.Fail("Station not found."));
+            return StatusCode((int)stationResponse.StatusCode);
 
         int stationId;
         {
@@ -189,10 +169,10 @@ public class MapProxyController : ControllerBase
 
         var response = await client.GetAsync($"/stations/{stationId}/departures", ct);
         if (!response.IsSuccessStatusCode)
-            return StatusCode((int)response.StatusCode, OperationResult<List<MapDepartureResponse>>.Fail("TransitInfoAPI error."));
+            return StatusCode((int)response.StatusCode);
 
         var departures = await ExtractDataArrayAsync(response, ct);
-        if (departures is null) return Ok(OperationResult<List<MapDepartureResponse>>.Ok([]));
+        if (departures is null) return Ok(new List<MapDepartureResponse>());
 
         var result = departures.Select(d => new MapDepartureResponse
         {
@@ -204,18 +184,18 @@ public class MapProxyController : ControllerBase
             DelaySeconds = d.TryGetProperty("delaySeconds", out var ds) ? ds.GetInt32() : null
         }).ToList();
 
-        return Ok(OperationResult<List<MapDepartureResponse>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("stations/{globalId}/operators")]
-    public async Task<ActionResult<OperationResult<List<MapOperatorResponse>>>> GetStationOperators(
+    public async Task<ActionResult> GetStationOperators(
         string globalId, CancellationToken ct = default)
     {
         var client = CreateClient();
 
         var stationResponse = await client.GetAsync($"/stations/by-global/{globalId}", ct);
         if (!stationResponse.IsSuccessStatusCode)
-            return StatusCode((int)stationResponse.StatusCode, OperationResult<List<MapOperatorResponse>>.Fail("Station not found."));
+            return StatusCode((int)stationResponse.StatusCode);
 
         int stationId;
         {
@@ -225,19 +205,16 @@ public class MapProxyController : ControllerBase
 
         var response = await client.GetAsync($"/stations/{stationId}/operators", ct);
         if (!response.IsSuccessStatusCode)
-            return StatusCode((int)response.StatusCode, OperationResult<List<MapOperatorResponse>>.Fail("TransitInfoAPI error."));
+            return StatusCode((int)response.StatusCode);
 
         var operators = await ExtractDataArrayAsync(response, ct);
-        if (operators is null) return Ok(OperationResult<List<MapOperatorResponse>>.Ok([]));
+        if (operators is null) return Ok(new List<MapOperatorResponse>());
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var result = new List<MapOperatorResponse>();
+        List<MapOperatorResponse> result = [];
         foreach (var op in operators)
         {
             var opGlobalId = op.GetProperty("globalId").GetString() ?? string.Empty;
-            var hasTicketing = await db.TicketingAdapters
+            var hasTicketing = await _db.TicketingAdapters
                 .AnyAsync(a => a.TransitInfoGlobalId == opGlobalId && a.IsActive, ct);
 
             result.Add(new MapOperatorResponse
@@ -249,20 +226,29 @@ public class MapProxyController : ControllerBase
             });
         }
 
-        return Ok(OperationResult<List<MapOperatorResponse>>.Ok(result));
+        return Ok(result);
     }
 
     [HttpGet("operators/types")]
-    public async Task<ActionResult<JsonElement>> GetTransportTypes(CancellationToken ct = default)
+    public async Task<ActionResult> GetTransportTypes(CancellationToken ct = default)
     {
         var client = CreateClient();
         var response = await client.GetAsync("/operators/types", ct);
         if (!response.IsSuccessStatusCode)
             return StatusCode((int)response.StatusCode);
 
-        var content = await response.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(content);
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         return Ok(doc.RootElement.Clone());
+    }
+
+    private static async Task<List<JsonElement>?> ExtractDataArrayAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            return JsonSerializer.Deserialize<List<JsonElement>>(doc.RootElement.GetRawText(), JsonOptions);
+        return doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+            ? JsonSerializer.Deserialize<List<JsonElement>>(data.GetRawText(), JsonOptions)
+            : null;
     }
 
     private static string BuildQuery(params (string key, object? value)[] parameters)

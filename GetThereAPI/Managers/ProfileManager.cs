@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 
 using GetThereAPI.Entities;
-using GetThereAPI.Mapping;
+using GetThereAPI.Exceptions;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Managers;
@@ -20,12 +20,7 @@ public class ProfileManager
         return await _userManager.FindByIdAsync(userId);
     }
 
-    public UserResponse ToResponse(AppUser user)
-    {
-        return AuthMapper.ToResponse(user);
-    }
-
-    public async Task<(bool Success, string? Error)> UpdateProfileAsync(AppUser user, UpdateProfileRequest request)
+    public async Task UpdateProfileAsync(AppUser user, UpdateProfileRequest request)
     {
         if (!string.IsNullOrWhiteSpace(request.FullName))
             user.FullName = request.FullName;
@@ -34,13 +29,11 @@ public class ProfileManager
         {
             var setEmailResult = await _userManager.SetEmailAsync(user, request.Email);
             if (!setEmailResult.Succeeded)
-                return (false, string.Join(", ", setEmailResult.Errors.Select(e => e.Description)));
+                throw new AppException(string.Join(", ", setEmailResult.Errors.Select(e => e.Description)));
         }
 
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
-            return (false, string.Join(", ", result.Errors.Select(e => e.Description)));
-
-        return (true, null);
+            throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
     }
 }
