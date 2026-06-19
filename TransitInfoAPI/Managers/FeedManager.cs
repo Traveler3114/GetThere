@@ -29,6 +29,7 @@ public class FeedManager
     private readonly PlaceMatchingManager _placeMatching;
     private readonly ImportLogStore _logStore;
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _importLocks = new();
 
     public FeedManager(
         TransitDbContext db,
@@ -278,6 +279,11 @@ public class FeedManager
 
         if (version is null) throw new InvalidOperationException("FeedVersion not found.");
 
+        var feedLock = _importLocks.GetOrAdd(version.Feed.Id, _ => new SemaphoreSlim(1, 1));
+        await feedLock.WaitAsync(ct);
+        try
+        {
+
         var zipPath = Path.Combine(_env.ContentRootPath, "feeds", version.Feed.FeedId, "gtfs.zip");
         if (!File.Exists(zipPath))
         {
@@ -384,13 +390,18 @@ public class FeedManager
 
                     var existingByOnestop = await _db.CanonicalRoutes
                         .FirstOrDefaultAsync(cr => cr.OnestopId == routeOnestopId, ct);
-                    if (existingByOnestop is not null || !seenOnestopIds.Add(routeOnestopId))
+                    if (existingByOnestop is not null)
                         continue;
+
+                    var uniqueOnestopId = routeOnestopId;
+                    var dedupSuffix = 2;
+                    while (!seenOnestopIds.Add(uniqueOnestopId))
+                        uniqueOnestopId = $"{routeOnestopId}-{dedupSuffix++}";
 
                     _db.CanonicalRoutes.Add(new CanonicalRoute
                     {
                         GlobalId = globalId,
-                        OnestopId = routeOnestopId,
+                        OnestopId = uniqueOnestopId,
                         ShortName = r.RouteShortName,
                         LongName = r.RouteLongName,
                         RouteType = r.RouteTypeEnum,
@@ -689,6 +700,11 @@ public class FeedManager
             try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
             _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
             throw;
+        }
+        }
+        finally
+        {
+            feedLock.Release();
         }
     }
 
