@@ -74,7 +74,16 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.CacheControl = "no-cache, no-store";
+        }
+    }
+});
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
