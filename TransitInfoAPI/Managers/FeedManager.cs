@@ -730,7 +730,7 @@ public class FeedManager
 
             // Deactivate orphan CanonicalStations (Stop-type with no active RawStops from any active FeedVersion)
             var deactivated = await _db.Database.ExecuteSqlRawAsync(
-                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs INNER JOIN CanonicalStationOperators cso ON cso.CanonicalStationId = cs.Id WHERE cso.OperatorId = @p0 AND cs.IsActive = 1 AND cs.StationType = 'Stop' AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
+                "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND (EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = cs.Id AND OperatorId = @p0) OR NOT EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = cs.Id)) AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
                 new object[] { operatorId }, ct);
             _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
             _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);

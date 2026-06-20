@@ -151,6 +151,13 @@ public class ReconciliationManager
             .Where(cso => cso.OperatorId == feedOperatorId)
             .Select(cso => cso.CanonicalStationId)
             .ToHashSetAsync(ct);
+
+        // Exclude stations already linked to this operator from auto-merge candidates.
+        // Within-operator platforms (different tracks/stops at the same station) should
+        // keep distinct CanonicalStations. Auto-merge is only for cross-operator dedup,
+        // e.g. OBB's "Zagreb Glavni Kolodvor" merging with HZPP's.
+        existingStations = existingStations.Where(s => !existingLinkedStationIds.Contains(s.Id)).ToList();
+
         var addedOperatorLinks = new HashSet<(int CanonicalStationId, int OperatorId)>(
             existingLinkedStationIds.Select(id => (id, feedOperatorId)));
 

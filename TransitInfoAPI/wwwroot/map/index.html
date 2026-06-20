@@ -45,7 +45,7 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 
 <script>
 const ROUTE_COLORS = {
-  Tram: '#33a02c', Bus: '#1f78b4', Trolleybus: '#1f78b4',
+  Tram: '#1f78b4', Bus: '#33a02c', Trolleybus: '#33a02c',
   Metro: '#e31a1c', Rail: '#b15928', Ferry: '#006994', Flight: '#888',
   CableCar: '#ff7f00', Funicular: '#ff7f00', Coach: '#6a3d9a',
   BikeShare: '#6a3d9a', ScooterShare: '#ff7f00',
@@ -140,9 +140,9 @@ map.on('load', () => {
     paint: {
       'line-color': [
         'match', ['get', 'routeType'],
-        'Tram', '#33a02c',
-        'Bus', '#1f78b4',
-        'Trolleybus', '#1f78b4',
+        'Tram', '#1f78b4',
+        'Bus', '#33a02c',
+        'Trolleybus', '#33a02c',
         'Metro', '#e31a1c',
         'Rail', '#b15928',
         'Ferry', '#006994',
