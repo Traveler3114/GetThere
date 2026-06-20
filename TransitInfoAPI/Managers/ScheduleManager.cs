@@ -24,63 +24,47 @@ public class ScheduleManager
         var fromTime = (int)from.TimeOfDay.TotalSeconds;
         var dayOfWeek = today.DayOfWeek;
 
+        var validServices = await GetValidServiceIdsAsync(today, dayOfWeek, ct);
+
         var rawDepartures = await _db.StopTimes
             .Where(st => st.CanonicalStationId == canonicalStationId)
             .Where(st => st.Trip.FeedVersion.IsActive)
             .Where(st => st.DepartureTime >= fromTime)
-            .Where(st =>
-                (_db.Calendars.Any(c =>
-                    c.FeedVersion.IsActive &&
-                    c.FeedVersionId == st.Trip.FeedVersionId &&
-                    c.ServiceId == st.Trip.ServiceId &&
-                    c.StartDate <= today && c.EndDate >= today &&
-                    ((dayOfWeek == DayOfWeek.Monday && c.Monday) ||
-                     (dayOfWeek == DayOfWeek.Tuesday && c.Tuesday) ||
-                     (dayOfWeek == DayOfWeek.Wednesday && c.Wednesday) ||
-                     (dayOfWeek == DayOfWeek.Thursday && c.Thursday) ||
-                     (dayOfWeek == DayOfWeek.Friday && c.Friday) ||
-                     (dayOfWeek == DayOfWeek.Saturday && c.Saturday) ||
-                     (dayOfWeek == DayOfWeek.Sunday && c.Sunday))) &&
-                !_db.CalendarDates.Any(cd =>
-                    cd.FeedVersion.IsActive &&
-                    cd.FeedVersionId == st.Trip.FeedVersionId &&
-                    cd.ServiceId == st.Trip.ServiceId &&
-                    cd.Date == today && cd.ExceptionType == 2)) ||
-                _db.CalendarDates.Any(cd =>
-                    cd.FeedVersion.IsActive &&
-                    cd.FeedVersionId == st.Trip.FeedVersionId &&
-                    cd.ServiceId == st.Trip.ServiceId &&
-                    cd.Date == today && cd.ExceptionType == 1))
-            .OrderBy(st => st.DepartureTime)
-            .Take(count)
             .Select(st => new
             {
                 st.Trip.TripId,
                 st.StopSequence,
+                st.Trip.FeedVersionId,
+                st.Trip.ServiceId,
+                st.DepartureTime,
                 RouteName = st.Trip.CanonicalRoute != null
                     ? (st.Trip.CanonicalRoute.ShortName != "" ? st.Trip.CanonicalRoute.ShortName : st.Trip.CanonicalRoute.LongName)
                     : (st.Trip.TripShortName ?? ""),
-                Headsign = st.StopHeadsign ?? st.Trip.TripHeadsign ?? "",
-                ScheduledDeparture = from.Date.AddSeconds(st.DepartureTime)
+                Headsign = st.StopHeadsign ?? st.Trip.TripHeadsign ?? ""
             })
             .ToListAsync(ct);
 
-        return rawDepartures.Select(d =>
-        {
-            var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, d.ScheduledDeparture);
-            return new DepartureDto
+        return rawDepartures
+            .Where(d => validServices.Contains((d.FeedVersionId, d.ServiceId)))
+            .OrderBy(d => d.DepartureTime)
+            .Take(count)
+            .Select(d =>
             {
-                TripId = d.TripId,
-                RouteName = d.RouteName,
-                Headsign = d.Headsign,
-                ScheduledDeparture = d.ScheduledDeparture,
-                EstimatedDeparture = estimated,
-                DelaySeconds = delay
-            };
-        }).ToList();
+                var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, from.Date.AddSeconds(d.DepartureTime));
+                return new DepartureDto
+                {
+                    TripId = d.TripId,
+                    RouteName = d.RouteName,
+                    Headsign = d.Headsign,
+                    ScheduledDeparture = from.Date.AddSeconds(d.DepartureTime),
+                    EstimatedDeparture = estimated,
+                    DelaySeconds = delay
+                };
+            })
+            .ToList();
     }
 
-    private async Task<HashSet<(int FeedVersionId, string ServiceId)>> BuildValidServiceSetAsync(
+    private async Task<HashSet<(int FeedVersionId, string ServiceId)>> GetValidServiceIdsAsync(
         DateOnly date, DayOfWeek dayOfWeek, CancellationToken ct)
     {
         var activeFvIds = await _db.FeedVersions
@@ -129,7 +113,7 @@ public class ScheduleManager
             .Where(st => st.Trip.CanonicalRouteId == canonicalRouteId)
             .Where(st => st.CanonicalStationId.HasValue)
             .GroupBy(st => st.CanonicalStationId)
-            .Select(g => g.First())
+            .Select(g => g.OrderBy(st => st.StopSequence).First())
             .OrderBy(st => st.StopSequence)
             .Select(st => new StationDto
             {
@@ -151,7 +135,7 @@ public class ScheduleManager
     {
         var dayOfWeek = date.DayOfWeek;
 
-        var validServices = await BuildValidServiceSetAsync(date, dayOfWeek, ct);
+        var validServices = await GetValidServiceIdsAsync(date, dayOfWeek, ct);
 
         var trips = await _db.Trips
             .Where(t => t.CanonicalRouteId == canonicalRouteId)

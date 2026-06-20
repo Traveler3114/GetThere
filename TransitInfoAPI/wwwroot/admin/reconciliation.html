@@ -177,9 +177,13 @@ function renderPending(filtered) {
   }
   const cards = filtered.map(item => {
     const score = item.confidenceScore;
+    const isNewStation = item.status === "NewStation";
     const scorePct = (score * 100).toFixed(0);
     const scoreClass = score >= 0.8 ? 'bg-success' : score >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
     const hasStation = item.suggestedStationName;
+    const scoreBadge = isNewStation
+      ? '<span class="badge bg-secondary fs-6">New</span>'
+      : `<span class="badge ${scoreClass} fs-6">${scorePct}%</span>`;
     return `<div class="card mb-3 shadow-sm" id="rec-${item.id}">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
@@ -191,7 +195,7 @@ function renderPending(filtered) {
             </div>
             <small class="text-muted">Feed: ${esc(item.feedId||'-')} | Raw GTFS ID: <code>${esc(item.rawStopGtfsId||'-')}</code></small>
           </div>
-          <span class="badge ${scoreClass} fs-6">${scorePct}%</span>
+          ${scoreBadge}
         </div>
         <div class="row mt-2 g-2">
           <div class="col-sm-6">
@@ -256,11 +260,14 @@ function updateBatchBtn() {
 async function batchApprove() {
   const ids = [...document.querySelectorAll('.batch-check:checked')].map(cb => parseInt(cb.value));
   if (!ids.length || !confirm('Approve ' + ids.length + ' selected items?')) return;
+  let ok = 0, fail = 0;
   for (const id of ids) {
     try {
-      await fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' });
-    } catch(e) {}
+      const r = await fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' });
+      if (r.ok) ok++; else fail++;
+    } catch(e) { fail++; }
   }
+  if (fail > 0) showError(`${ok} of ${ids.length} approved, ${fail} failed`);
   loadAll();
 }
 

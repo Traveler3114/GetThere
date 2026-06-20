@@ -20,7 +20,7 @@ public class RawStop
     public string? PlatformCode { get; set; }
     public bool? WheelchairBoarding { get; set; }
 
-    public RouteType RouteType { get; set; }
+    public RouteType? RouteType { get; set; }
     public bool IsActive { get; set; } = true;
 
     public int? CanonicalStationId { get; set; }

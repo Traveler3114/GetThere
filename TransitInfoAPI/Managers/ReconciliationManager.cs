@@ -1,4 +1,8 @@
+using System.Text.RegularExpressions;
+
 using Microsoft.EntityFrameworkCore;
+
+using Microsoft.Data.SqlClient;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -9,6 +13,11 @@ namespace TransitInfoAPI.Managers;
 
 public class ReconciliationManager
 {
+    private static readonly Regex KolPattern = new(@"(?<!\w)kol\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex UlPattern = new(@"(?<!\w)ul\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex StPattern = new(@"(?<!\w)st\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex SvPattern = new(@"(?<!\w)sv\.(?=\s|$)", RegexOptions.Compiled);
+
     private readonly TransitDbContext _db;
     private readonly ILogger<ReconciliationManager> _logger;
     private readonly OnestopIdManager _onestopId;
@@ -70,7 +79,10 @@ public class ReconciliationManager
 
         foreach (var rawStop in rawStops)
         {
-            var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
+            if (rawStop.RouteType is null)
+                continue;
+
+            var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType!.Value);
 
             if (!onestopSeen.Add(onestopId))
             {
@@ -86,7 +98,7 @@ public class ReconciliationManager
                 inactiveStation.Latitude = rawStop.Lat;
                 inactiveStation.Longitude = rawStop.Lon;
                 inactiveStation.Name = rawStop.Name;
-                inactiveStation.PrimaryRouteType = rawStop.RouteType;
+                inactiveStation.PrimaryRouteType = rawStop.RouteType.Value;
                 inactiveStation.StationType = rawStop.StationType;
                 rawStop.CanonicalStationId = inactiveStation.Id;
                 onestopToStation[onestopId] = inactiveStation;
@@ -95,7 +107,7 @@ public class ReconciliationManager
             }
 
             var nearbyMatch = existingStations
-                .FirstOrDefault(s => s.PrimaryRouteType == rawStop.RouteType
+                .FirstOrDefault(s => rawStop.RouteType is not null && s.PrimaryRouteType == rawStop.RouteType
                     && CalculateDistanceMeters(rawStop.Lat, rawStop.Lon, s.Latitude, s.Longitude) <= 20
                     && CalculateNameSimilarity(rawStop.Name, s.Name) >= 0.85);
 
@@ -114,7 +126,7 @@ public class ReconciliationManager
                 Latitude = rawStop.Lat,
                 Longitude = rawStop.Lon,
                 StationType = rawStop.StationType,
-                PrimaryRouteType = rawStop.RouteType,
+                PrimaryRouteType = rawStop.RouteType.Value,
                 IsActive = true,
                 CountryId = feedVersion.Feed.Operator.CountryId,
                 CreatedAt = DateTime.UtcNow
@@ -144,12 +156,37 @@ public class ReconciliationManager
 
         foreach (var rawStop in rawStops)
         {
-            var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
+            // Stops with null RouteType cannot be matched reliably — route to manual review
+            if (rawStop.RouteType is null)
+            {
+                _db.ReconciliationCandidates.Add(new ReconciliationCandidate
+                {
+                    RawStopId = rawStop.Id,
+                    RawStopName = rawStop.Name,
+                    RawStopLat = rawStop.Lat,
+                    RawStopLon = rawStop.Lon,
+                    FeedId = feedVersion.FeedId,
+                    SuggestedCanonicalStationId = null,
+                    RawRouteType = RouteType.Bus,
+                    ConfidenceScore = 0,
+                    NameSimilarityScore = 0,
+                    DistanceMeters = 0,
+                    NameMatched = false,
+                    DistanceMatched = false,
+                    RouteTypeMatched = false,
+                    AutoReconciled = false,
+                    Status = ReconciliationStatus.Pending,
+                    CreatedAt = DateTime.UtcNow
+                });
+                continue;
+            }
+
+            var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType!.Value);
             var station = onestopToStation[onestopId];
             rawStop.CanonicalStationId = station.Id;
 
             var match = FindBestMatch(
-                rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType,
+                rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType!.Value,
                 existingStations, autoDistThreshold * 2);
 
             if (match is not null &&
@@ -166,7 +203,7 @@ public class ReconciliationManager
                     RawStopName = rawStop.Name,
                     RawStopLat = rawStop.Lat,
                     RawStopLon = rawStop.Lon,
-                    RawRouteType = rawStop.RouteType,
+                    RawRouteType = rawStop.RouteType.Value,
                     CanonicalRouteType = match.Value.Station.PrimaryRouteType,
                     FeedId = feedVersion.FeedId,
                     SuggestedCanonicalStationId = match.Value.Station.Id,
@@ -199,7 +236,7 @@ public class ReconciliationManager
                     RawStopName = rawStop.Name,
                     RawStopLat = rawStop.Lat,
                     RawStopLon = rawStop.Lon,
-                    RawRouteType = rawStop.RouteType,
+                    RawRouteType = rawStop.RouteType.Value,
                     CanonicalRouteType = match.Value.Station.PrimaryRouteType,
                     FeedId = feedVersion.FeedId,
                     SuggestedCanonicalStationId = match.Value.Station.Id,
@@ -232,7 +269,7 @@ public class ReconciliationManager
                     RawStopName = rawStop.Name,
                     RawStopLat = rawStop.Lat,
                     RawStopLon = rawStop.Lon,
-                    RawRouteType = rawStop.RouteType,
+                    RawRouteType = rawStop.RouteType.Value,
                     FeedId = feedVersion.FeedId,
                     SuggestedCanonicalStationId = station.Id,
                     ConfidenceScore = 1.0m,
@@ -257,11 +294,65 @@ public class ReconciliationManager
 
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Reconciled {Count} raw stops for FeedVersion {FeedVersionId}", rawStops.Count, feedVersionId);
+
+        // Link stops of different route types at the same interchange (multimodal linking)
+        // Only sets ParentStationId — never merges stations of different types
+        var multimodalDist = _config.GetValue<double>("Reconciliation:MultimodalLinkDistanceMeters", 30);
+        await LinkAdjacentMultimodalStationsAsync(rawStops, multimodalDist, ct);
+    }
+
+    private async Task LinkAdjacentMultimodalStationsAsync(List<RawStop> rawStops, double maxDistance, CancellationToken ct)
+    {
+        var affectedStationIds = rawStops
+            .Where(rs => rs.CanonicalStationId.HasValue)
+            .Select(rs => rs.CanonicalStationId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (affectedStationIds.Count == 0) return;
+
+        var minLat = rawStops.Min(r => r.Lat);
+        var maxLat = rawStops.Max(r => r.Lat);
+        var minLon = rawStops.Min(r => r.Lon);
+        var maxLon = rawStops.Max(r => r.Lon);
+        var buffer = 0.005;
+
+        var nearbyStations = await _db.CanonicalStations
+            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop
+                && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
+                && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
+            .ToListAsync(ct);
+
+        var stationsToUpdate = await _db.CanonicalStations
+            .Where(cs => affectedStationIds.Contains(cs.Id))
+            .ToListAsync(ct);
+
+        foreach (var station in stationsToUpdate)
+        {
+            if (station.ParentStationId is not null) continue;
+
+            var nearestDiff = nearbyStations
+                .Where(cs => cs.Id != station.Id && cs.PrimaryRouteType != station.PrimaryRouteType)
+                .Select(cs => new
+                {
+                    Station = cs,
+                    Distance = CalculateDistanceMeters(station.Latitude, station.Longitude, cs.Latitude, cs.Longitude)
+                })
+                .Where(x => x.Distance <= maxDistance)
+                .OrderBy(x => x.Distance)
+                .FirstOrDefault();
+
+            if (nearestDiff is not null)
+                station.ParentStationId = nearestDiff.Station.Id;
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, int countryId, CancellationToken ct)
     {
-        var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType);
+        var routeType = rawStop.RouteType ?? RouteType.Bus;
+        var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, routeType);
 
         var station = new CanonicalStation
         {
@@ -271,7 +362,7 @@ public class ReconciliationManager
             Latitude = rawStop.Lat,
             Longitude = rawStop.Lon,
             StationType = rawStop.StationType,
-            PrimaryRouteType = rawStop.RouteType,
+            PrimaryRouteType = routeType,
             IsActive = true,
             CountryId = countryId,
             CreatedAt = DateTime.UtcNow
@@ -294,7 +385,14 @@ public class ReconciliationManager
                 CanonicalStationId = canonicalStationId,
                 OperatorId = operatorId
             });
-            await _db.SaveChangesAsync(ct);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+            {
+                // Unique constraint violation — link already exists, treat as success
+            }
         }
     }
 
@@ -344,6 +442,12 @@ public class ReconciliationManager
                 rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
             }
         }
+        else
+        {
+            var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
+            if (rawStop is not null)
+                rawStop.ReconciliationStatus = ReconciliationStatus.Rejected;
+        }
 
         candidate.Status = ReconciliationStatus.Rejected;
         candidate.ReviewedAt = DateTime.UtcNow;
@@ -360,11 +464,19 @@ public class ReconciliationManager
         if (station is null)
             throw new AppException("Station not found", 404);
 
+        if (!station.IsActive)
+            throw new AppException("Cannot reassign to an inactive station", 400);
+
+        var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
+        if (rawStop is not null && rawStop.RouteType is not null && rawStop.RouteType.Value != station.PrimaryRouteType)
+            _logger.LogWarning(
+                "Reassigning raw stop {RawStopId} (RouteType={RawType}) to station {StationId} (PrimaryRouteType={StationType}) with mismatched route type",
+                candidate.RawStopId, rawStop.RouteType.Value, station.Id, station.PrimaryRouteType);
+
         candidate.SuggestedCanonicalStationId = canonicalStationId;
         candidate.Status = ReconciliationStatus.ManuallyApproved;
         candidate.ReviewedAt = DateTime.UtcNow;
 
-        var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
         if (rawStop is not null)
         {
             rawStop.CanonicalStationId = canonicalStationId;
@@ -418,7 +530,7 @@ public class ReconciliationManager
         var n2 = NormalizeName(name2);
 
         if (n1 == n2) return 1.0;
-        if (n1.Contains(n2) || n2.Contains(n1)) return 0.85;
+        if (n1.Length >= 5 && n2.Length >= 5 && (n1.Contains(n2) || n2.Contains(n1))) return 0.85;
 
         var dist = LevenshteinDistance(n1, n2);
         var maxLen = Math.Max(n1.Length, n2.Length);
@@ -431,12 +543,10 @@ public class ReconciliationManager
     {
         var lower = name.ToLowerInvariant().Trim();
 
-        lower = lower
-            .Replace("kol.", "kolodvor")
-            .Replace("trg", "trg")
-            .Replace("ul.", "ulica")
-            .Replace("st.", "sveti")
-            .Replace("sv.", "sveti");
+        lower = KolPattern.Replace(lower, "kolodvor");
+        lower = UlPattern.Replace(lower, "ulica");
+        lower = StPattern.Replace(lower, "sveti");
+        lower = SvPattern.Replace(lower, "sveti");
 
         var sb = new System.Text.StringBuilder(lower.Length);
         foreach (var c in lower)

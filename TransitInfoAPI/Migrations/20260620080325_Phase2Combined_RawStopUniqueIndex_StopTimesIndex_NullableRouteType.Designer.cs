@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260620080325_Phase2Combined_RawStopUniqueIndex_StopTimesIndex_NullableRouteType")]
+    partial class Phase2Combined_RawStopUniqueIndex_StopTimesIndex_NullableRouteType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -237,8 +240,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("RouteType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ShortName")
                         .IsRequired()
@@ -315,13 +317,11 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("PrimaryRouteType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StationType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SupersedesIds")
                         .HasColumnType("nvarchar(max)");
@@ -349,6 +349,9 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<int>("OperatorId")
                         .HasColumnType("int");
+
+                    b.Property<string>("PlatformInfo")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("CanonicalStationId", "OperatorId");
 
@@ -433,8 +436,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("FeedType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InternalUrl")
                         .HasColumnType("nvarchar(max)");
@@ -469,8 +471,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("SourceType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SupersedesIds")
                         .HasColumnType("nvarchar(max)");
@@ -507,8 +508,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("ImportStatus")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ImportedAt")
                         .HasColumnType("datetime2");
@@ -567,8 +567,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("FeedFormat")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InternalUrl")
                         .HasColumnType("nvarchar(max)");
@@ -674,8 +673,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("OperatorType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ShortName")
                         .IsRequired()
@@ -775,17 +773,14 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("ReconciliationStatus")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RouteType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StationType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StopCode")
                         .HasColumnType("nvarchar(max)");
@@ -821,8 +816,7 @@ namespace TransitInfoAPI.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("CanonicalRouteType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("ConfidenceScore")
                         .HasPrecision(5, 4)
@@ -850,8 +844,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("RawRouteType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("RawStopId")
                         .HasColumnType("int");
@@ -877,8 +870,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("SuggestedCanonicalStationId")
                         .HasColumnType("int");
@@ -892,6 +884,28 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("SuggestedCanonicalStationId");
 
                     b.ToTable("ReconciliationCandidates");
+                });
+
+            modelBuilder.Entity("TransitInfoAPI.Entities.Region", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CountryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountryId");
+
+                    b.ToTable("Regions");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Shape", b =>
@@ -1265,6 +1279,17 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("SuggestedCanonicalStation");
                 });
 
+            modelBuilder.Entity("TransitInfoAPI.Entities.Region", b =>
+                {
+                    b.HasOne("TransitInfoAPI.Entities.Country", "Country")
+                        .WithMany("Regions")
+                        .HasForeignKey("CountryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Country");
+                });
+
             modelBuilder.Entity("TransitInfoAPI.Entities.Shape", b =>
                 {
                     b.HasOne("TransitInfoAPI.Entities.FeedVersion", "FeedVersion")
@@ -1337,6 +1362,8 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("MobilityStations");
 
                     b.Navigation("Operators");
+
+                    b.Navigation("Regions");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>

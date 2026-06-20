@@ -46,6 +46,8 @@ public class CountriesController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.IsoCode))
             return Problem(statusCode: 400, title: "ISO code is required.");
 
+        request.IsoCode = request.IsoCode.ToUpperInvariant();
+
         var exists = await _db.Countries.AnyAsync(c => c.IsoCode == request.IsoCode, ct);
         if (exists)
             return Problem(statusCode: 409, title: $"Country with ISO code '{request.IsoCode}' already exists.");

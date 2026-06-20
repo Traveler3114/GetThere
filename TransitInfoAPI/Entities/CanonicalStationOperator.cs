@@ -8,5 +8,4 @@ public class CanonicalStationOperator
     public int OperatorId { get; set; }
     public Operator Operator { get; set; } = null!;
 
-    public string? PlatformInfo { get; set; }
 }

@@ -40,6 +40,8 @@
 
 <script>
 const BASE = '';
+const urlParams = new URLSearchParams(window.location.search);
+const feedIdParam = urlParams.get('feedId');
 let allVersions = [];
 
 function statusBadge(status) {
@@ -52,7 +54,9 @@ async function loadVersions() {
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
   try {
-    const r = await fetch(BASE + '/feed-versions?perPage=200');
+    const params = new URLSearchParams({ perPage: 200 });
+    if (feedIdParam) params.set('feedId', feedIdParam);
+    const r = await fetch(BASE + '/feed-versions?' + params.toString());
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allVersions = j.data || [];

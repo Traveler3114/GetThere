@@ -231,12 +231,17 @@ public class GtfsParserManager
             yield return batch;
     }
 
-    private static CsvConfiguration CsvConfig() => new(CultureInfo.InvariantCulture)
+    private CsvConfiguration CsvConfig() => new(CultureInfo.InvariantCulture)
     {
         HasHeaderRecord = true,
         MissingFieldFound = null,
         HeaderValidated = null,
-        BadDataFound = null,
+        BadDataFound = ctx => _logger.LogWarning("Bad CSV data in row: {Raw}", ctx.RawRecord),
+        ReadingExceptionOccurred = args =>
+        {
+            _logger.LogWarning(args.Exception, "Skipping CSV row due to conversion error");
+            return false;
+        },
         TrimOptions = TrimOptions.Trim,
         AllowComments = true
     };

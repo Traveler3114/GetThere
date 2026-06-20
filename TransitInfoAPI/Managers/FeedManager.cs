@@ -183,6 +183,13 @@ public class FeedManager
             }
         }
 
+        // Remove CanonicalStationOperator links that no longer have any active RawStop support
+        var operatorId = feed.OperatorId;
+        await _db.CanonicalStationOperators
+            .Where(cso => cso.OperatorId == operatorId
+                && !_db.RawStops.Any(rs => rs.CanonicalStationId == cso.CanonicalStationId && rs.IsActive))
+            .ExecuteDeleteAsync(ct);
+
         var candidates = await _db.ReconciliationCandidates
             .Where(rc => rc.FeedId == id)
             .ToListAsync(ct);
@@ -464,6 +471,12 @@ public class FeedManager
                 });
 
             foreach (var cd in calendarDates)
+            {
+                if (cd.ExceptionType < 1 || cd.ExceptionType > 2)
+                {
+                    _logger.LogWarning("Skipping calendar_date with invalid exception_type {Type} for service {ServiceId}", cd.ExceptionType, cd.ServiceId);
+                    continue;
+                }
                 _db.CalendarDates.Add(new CalendarDate
                 {
                     FeedVersionId = feedVersionId,
@@ -471,10 +484,48 @@ public class FeedManager
                     Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd"),
                     ExceptionType = cd.ExceptionType
                 });
+            }
 
             _db.ChangeTracker.DetectChanges();
             await _db.SaveChangesAsync(ct);
             _logStore.AddEntry(feedVersionId, "Phase 2: trips, shapes, calendars saved");
+
+            // Backfill CanonicalRoute.Geometry from most common trip shape per route
+            // Heuristic: pick the shape used by the most trips for that route
+            var routeIds = canonicalRouteLookup.Values.ToList();
+            var routeShapes = await _db.Trips
+                .Where(t => t.FeedVersionId == feedVersionId && t.CanonicalRouteId.HasValue && t.ShapeId != null)
+                .GroupBy(t => t.CanonicalRouteId!.Value)
+                .Select(g => new
+                {
+                    RouteId = g.Key,
+                    MostCommonShapeId = g.GroupBy(t => t.ShapeId)
+                        .OrderByDescending(sg => sg.Count())
+                        .Select(sg => sg.Key)
+                        .First()
+                })
+                .ToListAsync(ct);
+
+            var shapeGeometries = await _db.Shapes
+                .Where(s => s.FeedVersionId == feedVersionId)
+                .ToDictionaryAsync(s => s.ShapeId, s => s.Geometry, ct);
+
+            var canonicalRoutes = await _db.CanonicalRoutes
+                .Where(cr => routeIds.Contains(cr.Id))
+                .ToListAsync(ct);
+            var routeLookup = canonicalRoutes.ToDictionary(r => r.Id);
+
+            foreach (var rs in routeShapes)
+            {
+                if (routeLookup.TryGetValue(rs.RouteId, out var cr) &&
+                    shapeGeometries.TryGetValue(rs.MostCommonShapeId!, out var geom))
+                {
+                    cr.Geometry = geom;
+                }
+            }
+
+            await _db.SaveChangesAsync(ct);
+            _logStore.AddEntry(feedVersionId, "Phase 2: route geometries backfilled from trip shapes");
 
             // Build trip lookup
             var tripLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -532,15 +583,23 @@ public class FeedManager
                         routeTypesPerStop[st.StopId] = rt;
                     }
 
+                    if (!tripLookup.TryGetValue(st.TripId, out var resolvedTripId))
+                    {
+                        _logger.LogWarning("Skipping stop_times row referencing unknown trip_id {TripId}", st.TripId);
+                        continue;
+                    }
+
+                    var pickupType = st.PickupType is >= 0 and <= 3 ? (object?)st.PickupType : DBNull.Value;
+                    var dropOffType = st.DropOffType is >= 0 and <= 3 ? (object?)st.DropOffType : DBNull.Value;
                     dt.Rows.Add(
-                        tripLookup.GetValueOrDefault(st.TripId, 0),
+                        resolvedTripId,
                         st.StopId,
                         GtfsParserManager.ParseGtfsTimeToSeconds(st.ArrivalTime),
                         GtfsParserManager.ParseGtfsTimeToSeconds(st.DepartureTime),
                         st.StopSequence,
                         (object?)st.StopHeadsign ?? DBNull.Value,
-                        (object?)st.PickupType ?? DBNull.Value,
-                        (object?)st.DropOffType ?? DBNull.Value,
+                        pickupType,
+                        dropOffType,
                         st.Timepoint.HasValue ? (object)(st.Timepoint == 1) : DBNull.Value
                     );
                 }
@@ -560,9 +619,14 @@ public class FeedManager
                     FareUrl = a.AgencyFareUrl, Email = a.AgencyEmail, OperatorId = operatorId
                 });
 
+            var seenStopIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in rawStops)
             {
-                routeTypesPerStop.TryGetValue(s.StopId, out var rt);
+                if (!seenStopIds.Add(s.StopId))
+                {
+                    _logger.LogWarning("Skipping duplicate stop_id {StopId} in FeedVersion {FeedVersionId}", s.StopId, feedVersionId);
+                    continue;
+                }
                 _db.RawStops.Add(new RawStop
                 {
                     FeedVersionId = feedVersionId,
@@ -573,7 +637,7 @@ public class FeedManager
                     StopCode = s.StopCode, StopDesc = s.StopDesc, ZoneId = s.ZoneId,
                     PlatformCode = s.PlatformCode,
                     WheelchairBoarding = s.WheelchairBoarding.HasValue ? s.WheelchairBoarding == 1 : null,
-                    RouteType = rt,
+                    RouteType = routeTypesPerStop.TryGetValue(s.StopId, out var rt) ? rt : null,
                     IsActive = true,
                     ReconciliationStatus = ReconciliationStatus.Pending
                 });
@@ -592,11 +656,6 @@ public class FeedManager
             // set but couldn't save because AutoDetectChangesEnabled is false.
             _db.ChangeTracker.DetectChanges();
             await _db.SaveChangesAsync(ct);
-
-            // Ensure index exists for the backfill join
-            _logStore.AddEntry(feedVersionId, "Ensuring backfill indexes...");
-            await _db.Database.ExecuteSqlRawAsync(
-                "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StopTimes_RawStopId') CREATE INDEX IX_StopTimes_RawStopId ON StopTimes (RawStopId) INCLUDE (CanonicalStationId, RawStopEntityId)", ct);
 
             // Backfill RawStopEntityId and CanonicalStationId on StopTimes
             _logStore.AddEntry(feedVersionId, "Backfilling station references...");
@@ -675,6 +734,17 @@ public class FeedManager
                 new object[] { operatorId }, ct);
             _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
             _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
+
+            // Reactivate CanonicalStations for this operator that now have active RawStops again.
+            // This is operator-scoped (not a global sweep) because a crash mid-import can only corrupt
+            // the operator whose import was interrupted, so repair is scoped to that operator's next
+            // import cycle rather than a global pass that could incorrectly reactivate based on
+            // unrelated operators' data.
+            var reactivated = await _db.Database.ExecuteSqlRawAsync(
+                "UPDATE cs SET IsActive = 1 FROM CanonicalStations cs INNER JOIN CanonicalStationOperators cso ON cso.CanonicalStationId = cs.Id WHERE cso.OperatorId = @p0 AND cs.IsActive = 0 AND cs.StationType = 'Stop' AND EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
+                new object[] { operatorId }, ct);
+            if (reactivated > 0)
+                _logger.LogInformation("Reactivated {Count} CanonicalStations for FeedVersion {VersionId}", reactivated, feedVersionId);
 
             try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
         }

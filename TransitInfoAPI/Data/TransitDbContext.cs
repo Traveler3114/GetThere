@@ -10,7 +10,6 @@ public class TransitDbContext : DbContext
     public TransitDbContext(DbContextOptions<TransitDbContext> options) : base(options) { }
 
     public DbSet<Country> Countries { get; set; }
-    public DbSet<Region> Regions { get; set; }
     public DbSet<City> Cities { get; set; }
     public DbSet<Operator> Operators { get; set; }
     public DbSet<Feed> Feeds { get; set; }
@@ -47,6 +46,7 @@ public class TransitDbContext : DbContext
                     var converterType = typeof(EnumToStringConverter<>).MakeGenericType(underlying);
                     var converter = (ValueConverter)Activator.CreateInstance(converterType)!;
                     property.SetValueConverter(converter);
+                    property.SetMaxLength(50);
                 }
             }
 
@@ -93,7 +93,8 @@ public class TransitDbContext : DbContext
 
         // RawStop
         modelBuilder.Entity<RawStop>()
-            .HasIndex(rs => new { rs.FeedVersionId, rs.RawStopId });
+            .HasIndex(rs => new { rs.FeedVersionId, rs.RawStopId })
+            .IsUnique();
         modelBuilder.Entity<RawStop>()
             .HasIndex(rs => rs.CanonicalStationId);
 

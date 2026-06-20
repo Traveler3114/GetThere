@@ -7,7 +7,6 @@ public class Country
     public string IsoCode { get; set; } = string.Empty;
     public string Continent { get; set; } = string.Empty;
 
-    public ICollection<Region> Regions { get; set; } = [];
     public ICollection<City> Cities { get; set; } = [];
     public ICollection<Operator> Operators { get; set; } = [];
     public ICollection<CanonicalStation> CanonicalStations { get; set; } = [];

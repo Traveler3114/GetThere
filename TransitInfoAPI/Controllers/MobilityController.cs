@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
+using TransitInfoAPI.Managers;
 using TransitInfoAPI.Models;
 
 namespace TransitInfoAPI.Controllers;
@@ -11,8 +12,9 @@ namespace TransitInfoAPI.Controllers;
 public class MobilityController : ControllerBase
 {
     private readonly TransitDbContext _db;
+    private readonly MobilityManager _mobility;
 
-    public MobilityController(TransitDbContext db) { _db = db; }
+    public MobilityController(TransitDbContext db, MobilityManager mobility) { _db = db; _mobility = mobility; }
 
     [HttpGet("stations")]
     public async Task<ActionResult<Paginated<MobilityStationDto>>> GetStations(
@@ -59,5 +61,12 @@ public class MobilityController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(new Paginated<MobilityStationDto>(stations, total, page, perPage));
+    }
+
+    [HttpPost("providers/{id}/poll")]
+    public async Task<IActionResult> PollProvider(int id, CancellationToken ct = default)
+    {
+        await _mobility.PollMobilityProviderAsync(id, ct);
+        return NoContent();
     }
 }

@@ -68,6 +68,32 @@ public class PlaceMatchingManager
         _logger.LogInformation("Matched {Count} stations to places", matched);
     }
 
+    public async Task RematchStationAsync(int stationId, CancellationToken ct)
+    {
+        if (_placeCache is null || _placeCache.Count == 0)
+            await LoadPlacesAsync(ct);
+
+        var station = await _db.CanonicalStations.FindAsync([stationId], ct);
+        if (station is null) return;
+
+        var place = FindNearestPlace(station.Latitude, station.Longitude);
+        if (place is not null)
+        {
+            station.PlaceId = place.Id;
+            station.AdmCountryCode = place.AdmCountryCode;
+            station.AdmRegionCode = place.AdmRegionCode;
+        }
+        else
+        {
+            station.PlaceId = null;
+            station.AdmCountryCode = null;
+            station.AdmRegionCode = null;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Re-matched station {StationId} to place {PlaceId}", stationId, station.PlaceId?.ToString() ?? "null");
+    }
+
     public async Task MatchOperatorsToPlacesAsync(CancellationToken ct)
     {
         // TODO: implement when Operator gets PlaceId

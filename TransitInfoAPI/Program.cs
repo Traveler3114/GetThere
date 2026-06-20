@@ -22,6 +22,9 @@ builder.Services.AddHttpClient("gtfsrt", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
+builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
+
 builder.Services.AddScoped<GtfsParserManager>();
 builder.Services.AddSingleton<OnestopIdManager>();
 builder.Services.AddScoped<ReconciliationManager>();
@@ -97,8 +100,6 @@ using (var scope = app.Services.CreateScope())
         await db.Trips.Where(t => stuckIds.Contains(t.FeedVersionId)).ExecuteDeleteAsync();
     }
 
-    await db.Database.ExecuteSqlRawAsync(
-        "UPDATE cs SET IsActive = 1 FROM CanonicalStations cs WHERE cs.IsActive = 0 AND cs.StationType = 'Stop' AND EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)");
 }
 
 await app.RunAsync();

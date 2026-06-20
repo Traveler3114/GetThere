@@ -182,8 +182,7 @@ public class StationManager
             {
                 GlobalId = cso.Operator.GlobalId,
                 Name = cso.Operator.Name,
-                OperatorType = cso.Operator.OperatorType.ToString(),
-                PlatformInfo = cso.PlatformInfo
+                OperatorType = cso.Operator.OperatorType.ToString()
             })
             .ToListAsync(ct);
     }

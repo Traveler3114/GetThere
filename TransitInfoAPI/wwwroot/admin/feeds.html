@@ -85,6 +85,7 @@ async function checkFeedHealth() {
         const j = await r.json();
         const versions = j.data || [];
         const latest = versions[0];
+        if (feed.feedType !== 'GTFSStatic') return null;
         if (!latest) return feed;
         if (latest.importStatus === 'Success' && latest.importedAt && new Date(latest.importedAt) >= sevenDaysAgo) return null;
         return feed;
@@ -181,7 +182,7 @@ async function fetchFeed(id) {
 
   function closeModal() {
     const el = document.getElementById(modalId);
-    if (el) { bootstrap.Modal.getInstance(el)?.hide(); el.remove(); }
+    if (el) bootstrap.Modal.getInstance(el)?.hide();
   }
 
   function showImportModal() {
@@ -208,7 +209,7 @@ async function fetchFeed(id) {
     const modal = new bootstrap.Modal(document.getElementById(modalId));
     modal.show();
     document.getElementById(modalId).addEventListener('hidden.bs.modal', () => {
-      document.getElementById(modalId).remove();
+      document.getElementById(modalId)?.remove();
       importInFlight = false;
     });
   }

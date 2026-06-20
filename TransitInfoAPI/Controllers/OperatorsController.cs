@@ -178,7 +178,7 @@ public class OperatorsController : ControllerBase
             var coords = await _db.CanonicalStationOperators
                 .Where(cso => cso.OperatorId == id)
                 .Select(cso => cso.CanonicalStation)
-                .Where(cs => cs != null)
+                .Where(cs => cs != null && cs.IsActive)
                 .Select(cs => new Coordinate(cs.Longitude, cs.Latitude))
                 .ToListAsync(ct);
 

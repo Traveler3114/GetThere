@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260620080900_Phase3_RemovePlatformInfoAndRegion")]
+    partial class Phase3_RemovePlatformInfoAndRegion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -237,8 +240,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("RouteType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ShortName")
                         .IsRequired()
@@ -315,13 +317,11 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("PrimaryRouteType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StationType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SupersedesIds")
                         .HasColumnType("nvarchar(max)");
@@ -433,8 +433,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("FeedType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InternalUrl")
                         .HasColumnType("nvarchar(max)");
@@ -469,8 +468,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("SourceType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SupersedesIds")
                         .HasColumnType("nvarchar(max)");
@@ -507,8 +505,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("ImportStatus")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ImportedAt")
                         .HasColumnType("datetime2");
@@ -567,8 +564,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("FeedFormat")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InternalUrl")
                         .HasColumnType("nvarchar(max)");
@@ -674,8 +670,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("OperatorType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ShortName")
                         .IsRequired()
@@ -775,17 +770,14 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("ReconciliationStatus")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RouteType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StationType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StopCode")
                         .HasColumnType("nvarchar(max)");
@@ -821,8 +813,7 @@ namespace TransitInfoAPI.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("CanonicalRouteType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("ConfidenceScore")
                         .HasPrecision(5, 4)
@@ -850,8 +841,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("RawRouteType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("RawStopId")
                         .HasColumnType("int");
@@ -877,8 +867,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("SuggestedCanonicalStationId")
                         .HasColumnType("int");

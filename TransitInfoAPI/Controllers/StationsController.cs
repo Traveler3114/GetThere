@@ -134,6 +134,16 @@ public class StationsController : ControllerBase
         return Ok(station);
     }
 
+    [HttpPost("{id}/rematch-place")]
+    public async Task<IActionResult> RematchPlace(int id, CancellationToken ct = default)
+    {
+        var station = await _db.CanonicalStations.FindAsync([id], ct);
+        if (station is null) return NotFound();
+        var placeMatching = HttpContext.RequestServices.GetRequiredService<PlaceMatchingManager>();
+        await placeMatching.RematchStationAsync(id, ct);
+        return NoContent();
+    }
+
     [HttpGet("{id}/departures")]
     public async Task<ActionResult<List<DepartureDto>>> GetDepartures(
         int id,

@@ -34,12 +34,11 @@ public class ReconciliationController : ControllerBase
         var query = _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
-            .Include(rc => rc.RawStop)
             .Where(rc => rc.Status == ReconciliationStatus.Pending)
             .AsQueryable();
 
         if (feedVersionId.HasValue)
-            query = query.Where(rc => rc.RawStop.FeedVersionId == feedVersionId.Value);
+            query = query.Where(rc => _db.RawStops.Any(rs => rs.Id == rc.RawStopId && rs.FeedVersionId == feedVersionId.Value));
         if (!string.IsNullOrWhiteSpace(routeType))
             query = query.Where(rc => rc.RawRouteType.ToString() == routeType);
         if (!string.IsNullOrWhiteSpace(status))
@@ -60,7 +59,7 @@ public class ReconciliationController : ControllerBase
                 RawStopName = rc.RawStopName,
                 RawStopLat = rc.RawStopLat,
                 RawStopLon = rc.RawStopLon,
-                RawStopGtfsId = rc.RawStop.RawStopId,
+                RawStopGtfsId = null,
                 RawRouteType = rc.RawRouteType.ToString(),
                 CanonicalRouteType = rc.CanonicalRouteType.ToString(),
                 ConfidenceScore = rc.ConfidenceScore,
@@ -93,7 +92,6 @@ public class ReconciliationController : ControllerBase
         var query = _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
-            .Include(rc => rc.RawStop)
             .Where(rc => rc.Status == ReconciliationStatus.AutoMerged)
             .AsQueryable();
 
@@ -112,7 +110,7 @@ public class ReconciliationController : ControllerBase
                 RawStopName = rc.RawStopName,
                 RawStopLat = rc.RawStopLat,
                 RawStopLon = rc.RawStopLon,
-                RawStopGtfsId = rc.RawStop.RawStopId,
+                RawStopGtfsId = null,
                 RawRouteType = rc.RawRouteType.ToString(),
                 CanonicalRouteType = rc.CanonicalRouteType.ToString(),
                 ConfidenceScore = rc.ConfidenceScore,
