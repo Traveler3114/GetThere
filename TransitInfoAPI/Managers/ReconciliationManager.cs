@@ -546,7 +546,7 @@ public class ReconciliationManager
         return 1.0 - (double)dist / maxLen;
     }
 
-    private static string NormalizeName(string name)
+    internal static string NormalizeName(string name)
     {
         var lower = name.ToLowerInvariant().Trim();
 
@@ -602,5 +602,89 @@ public class ReconciliationManager
         }
 
         return d[m, n];
+    }
+
+    internal static string ComputeMatchExplanation(
+        decimal nameSimilarity, decimal distanceMeters,
+        bool nameMatched, bool distanceMatched, bool routeTypeMatched,
+        double autoNameThreshold, double autoDistThreshold,
+        double manualNameThreshold, double manualDistThreshold)
+    {
+        var parts = new List<string>();
+        var namePct = (nameSimilarity * 100).ToString("F0");
+        var distStr = distanceMeters < 1000
+            ? distanceMeters.ToString("F0") + " m"
+            : (distanceMeters / 1000).ToString("F2") + " km";
+
+        parts.Add($"Name: {namePct}% match");
+        if (nameSimilarity >= (decimal)autoNameThreshold)
+            parts.Add($"(≥{autoNameThreshold * 100:F0}% auto-merge threshold ✓)");
+        else if (nameSimilarity >= (decimal)manualNameThreshold)
+            parts.Add($"(≥{manualNameThreshold * 100:F0}% manual-review threshold ✓, <{autoNameThreshold * 100:F0}% auto-merge)");
+        else
+            parts.Add($"(<{manualNameThreshold * 100:F0}% manual-review threshold ❌)");
+
+        parts.Add($"Distance: {distStr}");
+        if (distanceMeters <= (decimal)autoDistThreshold)
+            parts.Add($"(≤{autoDistThreshold:F0}m auto-merge threshold ✓)");
+        else if (distanceMeters <= (decimal)manualDistThreshold)
+            parts.Add($"(≤{manualDistThreshold:F0}m manual-review threshold ✓, >{autoDistThreshold:F0}m auto-merge)");
+        else
+            parts.Add($"(>{manualDistThreshold:F0}m manual-review threshold ❌)");
+
+        parts.Add(routeTypeMatched ? "Route type: Match ✓" : "Route type: Mismatch ❌");
+
+        parts.Add($"Overall: {(nameMatched && distanceMatched && routeTypeMatched ? "All criteria met" : "Some criteria not met")}");
+
+        return string.Join(" | ", parts);
+    }
+
+    internal static string ComputeAutoMergeVerdict(
+        decimal nameSimilarity, decimal distanceMeters,
+        bool nameMatched, bool distanceMatched, bool routeTypeMatched,
+        string? rawRouteType, string? canonicalRouteType,
+        double autoNameThreshold, double autoDistThreshold,
+        string status)
+    {
+        if (status == "AutoMerged")
+            return "\u2705 AUTO-MERGED \u2014 all 3 criteria met";
+
+        if (status == "NewStation")
+            return "\u2139 NEW STATION \u2014 no suitable match found nearby";
+
+        if (status == "ManuallyApproved")
+            return "\u2705 MANUALLY APPROVED";
+
+        if (status == "Rejected")
+            return "\u2717 REJECTED";
+
+        var failures = new List<string>();
+
+        if (!nameMatched)
+        {
+            var pct = (nameSimilarity * 100).ToString("F0");
+            failures.Add($"name {pct}% < {(autoNameThreshold * 100):F0}%");
+        }
+
+        if (!distanceMatched)
+        {
+            var d = distanceMeters < 1000
+                ? distanceMeters.ToString("F0") + "m"
+                : (distanceMeters / 1000).ToString("F2") + "km";
+            failures.Add($"distance {d} > {autoDistThreshold:F0}m");
+        }
+
+        if (!routeTypeMatched)
+        {
+            if (rawRouteType is not null && canonicalRouteType is not null)
+                failures.Add($"route type mismatch ({rawRouteType} vs {canonicalRouteType})");
+            else
+                failures.Add("route type mismatch");
+        }
+
+        if (failures.Count == 0)
+            return "\u26A0 PENDING \u2014 unknown reason";
+
+        return "\u274C PENDING \u2014 " + string.Join(", ", failures);
     }
 }

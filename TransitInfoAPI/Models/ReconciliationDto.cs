@@ -24,4 +24,11 @@ public class ReconciliationDto
     public string? SuggestedStationName { get; set; }
     public double? SuggestedStationLat { get; set; }
     public double? SuggestedStationLon { get; set; }
+    public string? NormalizedRawName { get; set; }
+    public string? NormalizedStationName { get; set; }
+    public string? MatchExplanation { get; set; }
+    public double? AutoMergeNameThreshold { get; set; }
+    public double? AutoMergeDistanceMeters { get; set; }
+    public double? ManualReviewNameThreshold { get; set; }
+    public double? ManualReviewDistanceMeters { get; set; }
 }

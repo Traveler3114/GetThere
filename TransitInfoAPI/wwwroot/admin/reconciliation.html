@@ -19,8 +19,13 @@
     </div>
   </div>
 
-  <div class="row mb-3 g-2">
+  <div class="row mb-3 g-2 align-items-end">
+    <div class="col-12 col-sm">
+      <label class="form-label small text-muted mb-1">Search</label>
+      <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search by name, GTFS ID, or feed..." oninput="onSearchInput()">
+    </div>
     <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Route Type</label>
       <select id="filterRouteType" class="form-select form-select-sm" onchange="filterItems()">
         <option value="">All Route Types</option>
         <option value="Bus">Bus</option>
@@ -34,6 +39,7 @@
       </select>
     </div>
     <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Status</label>
       <select id="filterStatus" class="form-select form-select-sm" onchange="filterItems()">
         <option value="">All Statuses</option>
         <option value="Pending">Pending</option>
@@ -63,12 +69,22 @@ let mergedPage = 1;
 let pendingTotal = 0;
 let mergedTotal = 0;
 const recPageSize = 25;
+let searchDebounce = null;
 
 const ROUTE_COLORS = { Tram: '#33a02c', Metro: '#e31a1c', Rail: '#b15928', Bus: '#1f78b4', Ferry: '#33a02c', LightRail: '#ff7f00', CableCar: '#ff7f00', Gondola: '#6a3d9a', Funicular: '#b15928', Trolleybus: '#1f78b4' };
 
 function rtBadge(type) {
   const color = ROUTE_COLORS[type] || '#888';
   return `<span class="rt-badge" style="background:${color}">${type || '-'}</span>`;
+}
+
+function getSearchQ() {
+  return document.getElementById('searchInput').value.trim();
+}
+
+function onSearchInput() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => filterItems(), 300);
 }
 
 async function loadAll() {
@@ -85,8 +101,10 @@ async function loadPendingPage(page) {
   document.getElementById('content').classList.add('d-none');
   try {
     const params = new URLSearchParams({ page: page, perPage: recPageSize });
+    const q = getSearchQ();
     const routeType = document.getElementById('filterRouteType').value;
     const statusFilter = document.getElementById('filterStatus').value;
+    if (q) params.set('q', q);
     if (routeType) params.set('routeType', routeType);
     if (statusFilter) params.set('status', statusFilter);
     const r = await fetch(BASE + '/reconciliation/pending?' + params.toString());
@@ -112,7 +130,9 @@ async function loadMergedPage(page) {
   document.getElementById('content').classList.add('d-none');
   try {
     const params = new URLSearchParams({ page: page, perPage: recPageSize });
+    const q = getSearchQ();
     const routeType = document.getElementById('filterRouteType').value;
+    if (q) params.set('q', q);
     if (routeType) params.set('routeType', routeType);
     const r = await fetch(BASE + '/reconciliation/auto-merged?' + params.toString());
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
@@ -170,6 +190,130 @@ function fmtDist(m) {
   return (m / 1000).toFixed(2) + ' km';
 }
 
+function threshBar(value, threshold, label) {
+  const pct = Math.min(value / threshold * 100, 200);
+  const color = value >= threshold ? 'bg-success' : value >= threshold * 0.7 ? 'bg-warning' : 'bg-danger';
+  return `<div class="d-flex align-items-center gap-2 mb-1">
+    <span class="small" style="min-width:70px">${label}</span>
+    <div class="progress flex-grow-1" style="height:6px">
+      <div class="progress-bar ${color}" style="width:${pct}%;transition:width 0.3s"></div>
+    </div>
+    <span class="small text-nowrap ${value >= threshold ? 'text-success' : value >= threshold * 0.7 ? 'text-warning' : 'text-danger'}">
+      <strong>${(value*100).toFixed(0)}%</strong> / ${(threshold*100).toFixed(0)}%
+    </span>
+  </div>`;
+}
+
+function computeVerdict(item) {
+  // Mirrors ReconciliationManager.ComputeAutoMergeVerdict on the server
+  if (item.status === 'AutoMerged') return '\u2705 AUTO-MERGED \u2014 all 3 criteria met';
+  if (item.status === 'NewStation') return '\u2139 NEW STATION \u2014 no suitable match found nearby';
+  if (item.status === 'ManuallyApproved') return '\u2705 MANUALLY APPROVED';
+  if (item.status === 'Rejected') return '\u2717 REJECTED';
+
+  var failures = [];
+  var nameThresh = item.autoMergeNameThreshold || 0.90;
+  var distThresh = item.autoMergeDistanceMeters || 100;
+
+  if (!item.nameMatched) {
+    var pct = (item.nameSimilarityScore * 100).toFixed(0);
+    failures.push('name ' + pct + '% < ' + (nameThresh * 100).toFixed(0) + '%');
+  }
+  if (!item.distanceMatched) {
+    var d = item.distanceMeters < 1000
+      ? item.distanceMeters.toFixed(0) + 'm'
+      : (item.distanceMeters / 1000).toFixed(2) + 'km';
+    failures.push('distance ' + d + ' > ' + distThresh.toFixed(0) + 'm');
+  }
+  if (!item.routeTypeMatched) {
+    if (item.rawRouteType && item.canonicalRouteType)
+      failures.push('route type mismatch (' + item.rawRouteType + ' vs ' + item.canonicalRouteType + ')');
+    else
+      failures.push('route type mismatch');
+  }
+  if (failures.length === 0) return '\u26A0 PENDING \u2014 unknown reason';
+  return '\u274C PENDING \u2014 ' + failures.join(', ');
+}
+
+function renderMatchExplanation(item) {
+  let html = '<div class="match-detail mt-2 p-2 bg-light rounded small border">';
+  html += '<strong class="d-block mb-1"><i class="bi bi-info-circle"></i> Why this match?</strong>';
+
+  // Verdict banner: use server verdict if available, otherwise compute client-side
+  const verdict = item.autoMergeVerdict || computeVerdict(item);
+  let verdictClass = 'text-success';
+  if (verdict.startsWith('\u274C')) verdictClass = 'text-danger fw-bold';
+  else if (verdict.startsWith('\u26A0') || verdict.startsWith('\u2139')) verdictClass = 'text-warning fw-bold';
+  if (verdict) {
+    html += `<div class="mb-2 p-1 rounded ${verdictClass}">${esc(verdict)}</div>`;
+  }
+
+  if (item.suggestedStationName) {
+    html += `<div class="mb-2">
+      <span class="text-muted">Raw: </span><strong>${esc(item.rawStopName)}</strong>
+      ${rtBadge(item.rawRouteType)}
+      <span class="mx-1 text-muted">&rarr;</span>
+      <span class="text-muted">Match: </span><strong>${esc(item.suggestedStationName)}</strong>
+      ${item.canonicalRouteType ? rtBadge(item.canonicalRouteType) : ''}
+    </div>`;
+  }
+
+  const s = item.confidenceScore;
+  const sClass = s >= 0.8 ? 'bg-success' : s >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
+
+  if (item.nameSimilarityScore != null) {
+    const ns = item.nameSimilarityScore;
+    const nsClass = ns >= 0.9 ? 'text-success' : ns >= 0.7 ? 'text-warning' : 'text-danger';
+    html += `<div class="mb-1"><span class="text-muted">Name: </span>
+      <strong class="${nsClass}">${(ns*100).toFixed(0)}%</strong>
+      ${item.nameMatched ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Pass</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Fail</span>'}</div>`;
+  }
+
+  if (item.distanceMeters != null) {
+    const dm = item.distanceMeters;
+    const dmClass = dm <= 100 ? 'text-success' : dm <= 300 ? 'text-warning' : 'text-danger';
+    html += `<div class="mb-1"><span class="text-muted">Distance: </span>
+      <strong class="${dmClass}">${fmtDist(dm)}</strong>
+      ${item.distanceMatched ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Pass</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Fail</span>'}</div>`;
+  }
+
+  html += `<div class="mb-1"><span class="text-muted">Route type: </span>
+    ${item.routeTypeMatched
+      ? '<strong class="text-success">Match</strong> <span class="badge bg-success-subtle text-success border border-success-subtle">Pass</span>'
+      : '<strong class="text-danger">Mismatch</strong> <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Fail</span>'}</div>`;
+
+  // Raw stop routes & operators
+  if (item.rawStopDetail && item.rawStopDetail.routes && item.rawStopDetail.routes.length > 0) {
+    html += '<div class="mt-2"><span class="text-danger small fw-bold">Raw stop routes: </span>';
+    html += item.rawStopDetail.routes.map(r =>
+      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+    ).join(' ');
+    html += '</div>';
+  }
+  if (item.rawStopDetail && item.rawStopDetail.operators && item.rawStopDetail.operators.length > 0) {
+    html += '<div class="mt-1"><span class="text-muted small">Raw operator: </span>';
+    html += item.rawStopDetail.operators.map(o => `<strong>${esc(o.name)}</strong> <span class="text-muted">(${o.operatorType})</span>`).join(', ');
+    html += '</div>';
+  }
+
+  // Suggested station routes & operators
+  if (item.suggestedStationDetail && item.suggestedStationDetail.routes && item.suggestedStationDetail.routes.length > 0) {
+    html += '<div class="mt-2"><span class="text-success small fw-bold">Matched station routes: </span>';
+    html += item.suggestedStationDetail.routes.map(r =>
+      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+    ).join(' ');
+    html += '</div>';
+  }
+  if (item.suggestedStationDetail && item.suggestedStationDetail.operators && item.suggestedStationDetail.operators.length > 0) {
+    html += '<div class="mt-1"><span class="text-muted small">Matched operators: </span>';
+    html += item.suggestedStationDetail.operators.map(o => `<strong>${esc(o.name)}</strong> <span class="text-muted">(${o.operatorType})</span>`).join(', ');
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
 function renderPending(filtered) {
   if (!filtered.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> No pending reconciliation items.</div>';
@@ -184,6 +328,7 @@ function renderPending(filtered) {
     const scoreBadge = isNewStation
       ? '<span class="badge bg-secondary fs-6">New</span>'
       : `<span class="badge ${scoreClass} fs-6">${scorePct}%</span>`;
+    const detailId = `detail-${item.id}`;
     return `<div class="card mb-3 shadow-sm" id="rec-${item.id}">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
@@ -192,6 +337,7 @@ function renderPending(filtered) {
               <input type="checkbox" class="batch-check" value="${item.id}" onchange="updateBatchBtn()">
               <h6 class="mb-0">${esc(item.rawStopName)}</h6>
               ${rtBadge(item.rawRouteType)}
+              ${isNewStation ? '<span class="badge bg-secondary">New Station</span>' : ''}
             </div>
             <small class="text-muted">Feed: ${esc(item.feedId||'-')} | Raw GTFS ID: <code>${esc(item.rawStopGtfsId||'-')}</code></small>
           </div>
@@ -211,19 +357,28 @@ function renderPending(filtered) {
           </div>
         </div>
         <div class="d-flex flex-wrap gap-3 mt-1 small text-muted">
-          <span>Name match: <strong>${(item.nameSimilarityScore*100).toFixed(0)}%</strong> ${item.nameMatched ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</span>
+          <span>Name: <strong>${(item.nameSimilarityScore*100).toFixed(0)}%</strong> ${item.nameMatched ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</span>
           <span>Distance: <strong>${fmtDist(item.distanceMeters)}</strong> ${item.distanceMatched ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</span>
           <span>RouteType: ${item.routeTypeMatched ? '<strong class="text-success">Match</strong>' : '<strong class="text-danger">Mismatch</strong>'}</span>
         </div>
-        <div class="mt-2">
-          <button class="btn btn-success btn-sm me-1" onclick="approve(${item.id})"><i class="bi bi-check-lg"></i> Approve</button>
+        <div id="${detailId}" class="detail-collapse" style="display:none">
+          ${renderMatchExplanation(item)}
+        </div>
+        <div class="mt-2 d-flex flex-wrap gap-1">
+          <button class="btn btn-success btn-sm" onclick="approve(${item.id})"><i class="bi bi-check-lg"></i> Approve</button>
           <button class="btn btn-danger btn-sm" onclick="reject(${item.id})"><i class="bi bi-x-lg"></i> Reject</button>
-          <a href="/map/" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-map"></i> View on Map</a>
+          <button class="btn btn-outline-info btn-sm" onclick="toggleDetail('${detailId}')"><i class="bi bi-question-circle"></i> Why?</button>
+          <a href="/admin/reconciliation-map.html?candidateId=${item.id}" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-map"></i> View on Map</a>
         </div>
       </div>
     </div>`;
   }).join('');
   document.getElementById('content').innerHTML = `<div>${cards}</div>`;
+}
+
+function toggleDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 function renderMerged(filtered) {
@@ -234,7 +389,8 @@ function renderMerged(filtered) {
   const rows = filtered.map(item => {
     const score = item.confidenceScore;
     const scoreClass = score >= 0.8 ? 'bg-success' : score >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
-    return `<tr>
+    const expId = `exp-${item.id}`;
+    return `<tr class="table-clickable" onclick="toggleRowExpansion('${expId}')">
       <td>${esc(item.rawStopName)}</td>
       <td><code>${esc(item.rawStopGtfsId||'-')}</code></td>
       <td>${rtBadge(item.rawRouteType)}</td>
@@ -245,9 +401,24 @@ function renderMerged(filtered) {
       <td class="small">${fmtDist(item.distanceMeters)}</td>
       <td class="small">${item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
       <td><span class="badge badge-automerged">Auto-Merged</span></td>
+      <td><a href="/admin/reconciliation-map.html?candidateId=${item.id}" target="_blank" class="btn btn-outline-secondary btn-sm py-0 px-1"><i class="bi bi-map"></i></a></td>
+    </tr>
+    <tr id="${expId}" class="detail-row" style="display:none">
+      <td colspan="11">
+        <div class="detail-inner">
+          ${renderMatchExplanation(item)}
+        </div>
+      </td>
     </tr>`;
   }).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Raw Stop</th><th>Raw GTFS ID</th><th>Raw Type</th><th>Matched To</th><th>Canonical Type</th><th>Score</th><th>Name</th><th>Distance</th><th>Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr>
+    <th>Raw Stop</th><th>Raw GTFS ID</th><th>Raw Type</th><th>Matched To</th><th>Canonical Type</th><th>Score</th><th>Name</th><th>Distance</th><th>Date</th><th>Status</th><th>Map</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function toggleRowExpansion(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
 }
 
 function updateBatchBtn() {

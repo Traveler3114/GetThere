@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Reconciliation Map</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+#map { height: 100%; width: 100%; }
+#sidebar {
+  position: fixed; top: 0; right: -420px; width: 420px; height: 100%;
+  background: #fff; box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+  transition: right 0.3s ease; z-index: 1000; overflow-y: auto; padding: 20px;
+}
+#sidebar.open { right: 0; }
+#sidebar h2 { margin-bottom: 4px; font-size: 1.2rem; }
+#sidebar .close-btn {
+  float: right; cursor: pointer; font-size: 1.5rem; border: none;
+  background: none; color: #666; line-height: 1;
+}
+#sidebar .close-btn:hover { color: #000; }
+.sidebar-section { margin-bottom: 16px; }
+.sidebar-section h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 8px; }
+.marker-label { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.marker-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); flex-shrink: 0; }
+.marker-dot.raw { background: #e74c3c; }
+.marker-dot.match { background: #27ae60; }
+.score-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.9rem; border-bottom: 1px solid #f0f0f0; }
+.score-row:last-child { border-bottom: none; }
+.score-value { font-weight: 600; }
+.score-pass { color: #27ae60; }
+.score-fail { color: #e74c3c; }
+.explanation-text { font-size: 0.9rem; line-height: 1.5; color: #333; background: #f8f9fa; padding: 12px; border-radius: 6px; }
+.explanation-text .part { margin-bottom: 6px; }
+.explanation-text .part:last-child { margin-bottom: 0; }
+.route-type-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; color: #fff; font-size: 0.75rem; font-weight: 600; }
+.distance-label {
+  background: rgba(0,0,0,0.7); color: #fff; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.8rem; font-weight: 600; white-space: nowrap;
+}
+.loading { color: #999; font-style: italic; padding: 20px; text-align: center; }
+.error { color: #e74c3c; padding: 20px; text-align: center; }
+.status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+.status-badge.AutoMerged { background: #dbeafe; color: #1d4ed8; }
+.status-badge.Pending { background: #fef3c7; color: #92400e; }
+.status-badge.NewStation { background: #f3e8ff; color: #6b21a8; }
+.status-badge.ManuallyApproved { background: #d1fae5; color: #065f46; }
+.status-badge.Rejected { background: #fee2e2; color: #991b1b; }
+.back-link { display: inline-block; margin-bottom: 12px; color: #666; text-decoration: none; font-size: 0.85rem; }
+.back-link:hover { color: #333; }
+#legend {
+  position: fixed; bottom: 24px; left: 24px; z-index: 100;
+  background: rgba(255,255,255,0.95); padding: 10px 14px; border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 0.8rem;
+}
+#legend .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+#legend .legend-item:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="sidebar">
+  <button class="close-btn" onclick="closeSidebar()">&times;</button>
+  <a href="/admin/reconciliation.html" class="back-link">&larr; Back to Reconciliation</a>
+  <div id="sidebar-content"><p class="loading">Loading candidate data...</p></div>
+</div>
+<div id="legend" class="d-none">
+  <div class="legend-item"><span class="marker-dot raw"></span> Raw stop (incoming)</div>
+  <div class="legend-item"><span class="marker-dot match"></span> Matched station</div>
+  <div class="legend-item" id="legend-distance" style="display:none"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #f39c12;vertical-align:middle"></span> Connector</div>
+</div>
+
+<script>
+const ROUTE_COLORS = {
+  Tram: '#33a02c', Bus: '#1f78b4', Trolleybus: '#1f78b4',
+  Metro: '#e31a1c', Rail: '#b15928', Ferry: '#006994',
+  CableCar: '#ff7f00', Funicular: '#ff7f00', Coach: '#6a3d9a',
+  default: '#888'
+};
+
+const params = new URLSearchParams(window.location.search);
+const candidateId = params.get('candidateId');
+
+if (!candidateId) {
+  document.getElementById('sidebar-content').innerHTML = '<p class="error">No candidateId specified. <a href="/admin/reconciliation.html">Go back</a></p>';
+  document.getElementById('sidebar').classList.add('open');
+}
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: '/map/style.json',
+  center: [16.0, 45.8],
+  zoom: 5
+});
+
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+let rawMarker = null;
+let matchMarker = null;
+let lineMarker = null;
+let distancePopup = null;
+
+function getRouteColor(type) {
+  return ROUTE_COLORS[type] || ROUTE_COLORS.default;
+}
+
+function fmtDist(m) {
+  if (m == null) return '-';
+  if (m < 1000) return m.toFixed(0) + ' m';
+  return (m / 1000).toFixed(2) + ' km';
+}
+
+function createMarkerElement(color, label, size) {
+  const el = document.createElement('div');
+  el.style.cssText = `width:${size}px;height:${size}px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);cursor:pointer;position:relative;`;
+  if (label) {
+    const lbl = document.createElement('div');
+    lbl.style.cssText = `position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;font-weight:600;`;
+    lbl.textContent = label;
+    el.appendChild(lbl);
+  }
+  return el;
+}
+
+function renderSidebar(data) {
+  const rtColor = getRouteColor(data.rawRouteType);
+  const ctColor = data.canonicalRouteType ? getRouteColor(data.canonicalRouteType) : '#888';
+
+  // Verdict styling
+  const verdict = data.autoMergeVerdict || '';
+  let verdictStyle = '';
+  if (verdict.startsWith('\u2705')) verdictStyle = 'color:#27ae60;font-weight:700';
+  else if (verdict.startsWith('\u274C')) verdictStyle = 'color:#e74c3c;font-weight:700';
+  else if (verdict.startsWith('\u26A0') || verdict.startsWith('\u2139')) verdictStyle = 'color:#f39c12;font-weight:700';
+
+  let html = `
+    <h2>${esc(data.rawStopName)}</h2>
+    <div class="sidebar-section">
+      <span class="status-badge ${data.status}">${data.status}</span>
+      <span style="margin-left:8px;font-size:0.85rem;color:#666">${(data.confidenceScore*100).toFixed(0)}% confidence</span>
+    </div>
+
+    ${verdict ? `<div class="sidebar-section" style="padding:8px 12px;background:#f8f9fa;border-radius:6px;border-left:4px solid ${verdict.startsWith('\u2705') ? '#27ae60' : '#e74c3c'};${verdictStyle};font-size:0.95rem">${esc(verdict)}</div>` : ''}
+
+    <div class="sidebar-section">
+      <h3>Stations</h3>
+      <div class="marker-label">
+        <span class="marker-dot raw"></span>
+        <div><strong>Raw stop</strong><br>
+          <span style="font-size:0.85rem">${esc(data.rawStopName)}</span>
+          <span class="route-type-badge" style="background:${rtColor}">${data.rawRouteType||'-'}</span><br>
+          <span style="font-size:0.8rem;color:#888">${data.rawStopLat.toFixed(5)}, ${data.rawStopLon.toFixed(5)}</span>
+          ${data.rawStopGtfsId ? `<br><span style="font-size:0.8rem;color:#888">GTFS ID: <code>${esc(data.rawStopGtfsId)}</code></span>` : ''}
+        </div>
+      </div>
+      ${data.suggestedStationName ? `
+      <div class="marker-label" style="margin-top:8px">
+        <span class="marker-dot match"></span>
+        <div><strong>Matched station</strong><br>
+          <span style="font-size:0.85rem">${esc(data.suggestedStationName)}</span>
+          ${data.canonicalRouteType ? `<span class="route-type-badge" style="background:${ctColor}">${data.canonicalRouteType}</span>` : ''}<br>
+          <span style="font-size:0.8rem;color:#888">${data.suggestedStationLat.toFixed(5)}, ${data.suggestedStationLon.toFixed(5)}</span>
+          ${data.suggestedStationId ? `<br><span style="font-size:0.8rem;color:#888">ID: <code>${data.suggestedStationId}</code></span>` : ''}
+        </div>
+      </div>` : '<p class="small text-muted mt-2">No matched station — this was created as a new station.</p>'}
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Match Scores</h3>
+      <div class="score-row">
+        <span>Name similarity</span>
+        <span class="score-value ${data.nameMatched ? 'score-pass' : 'score-fail'}">${(data.nameSimilarityScore*100).toFixed(0)}% ${data.nameMatched ? '&#10003;' : '&#10007;'}</span>
+      </div>
+      <div class="score-row">
+        <span>Distance</span>
+        <span class="score-value ${data.distanceMatched ? 'score-pass' : 'score-fail'}">${fmtDist(data.distanceMeters)} ${data.distanceMatched ? '&#10003;' : '&#10007;'}</span>
+      </div>
+      <div class="score-row">
+        <span>Route type</span>
+        <span class="score-value ${data.routeTypeMatched ? 'score-pass' : 'score-fail'}">${data.routeTypeMatched ? 'Match &#10003;' : 'Mismatch &#10007;'}</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Why this match?</h3>
+      <div class="explanation-text">`;
+
+  if (data.nameSimilarityScore != null) {
+    const namePct = (data.nameSimilarityScore * 100).toFixed(0);
+    html += `<div class="part"><strong>Name:</strong> ${namePct}% match`;
+    if (data.autoMergeNameThreshold && data.nameSimilarityScore >= data.autoMergeNameThreshold * 0.99) {
+      html += ` (≥${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge threshold)`;
+    } else if (data.manualReviewNameThreshold && data.nameSimilarityScore >= data.manualReviewNameThreshold * 0.99) {
+      html += ` (≥${(data.manualReviewNameThreshold * 100).toFixed(0)}% manual-review threshold, <${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge)`;
+    } else {
+      html += ` (<${(data.manualReviewNameThreshold * 100).toFixed(0)}% review threshold)`;
+    }
+    html += '</div>';
+  }
+
+  if (data.distanceMeters != null) {
+    html += `<div class="part"><strong>Distance:</strong> ${fmtDist(data.distanceMeters)}`;
+    if (data.autoMergeDistanceMeters && data.distanceMeters <= data.autoMergeDistanceMeters) {
+      html += ` (≤${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge threshold)`;
+    } else if (data.manualReviewDistanceMeters && data.distanceMeters <= data.manualReviewDistanceMeters * 0.99) {
+      html += ` (≤${data.manualReviewDistanceMeters.toFixed(0)}m manual-review threshold, >${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge)`;
+    } else {
+      html += ` (>${data.manualReviewDistanceMeters.toFixed(0)}m review threshold)`;
+    }
+    html += '</div>';
+  }
+
+  html += `<div class="part"><strong>Route type:</strong> ${data.routeTypeMatched ? 'Match' : 'Mismatch'}</div>`;
+
+  if (data.feedId) {
+    html += `<div class="part" style="margin-top:6px;color:#888;font-size:0.8rem">
+      Feed: ${esc(data.feedId)}</div>`;
+  }
+
+  html += `</div></div>`;
+
+  // Raw stop routes & operators
+  if (data.rawStopDetail && data.rawStopDetail.routes && data.rawStopDetail.routes.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Raw Stop Routes</h3>
+      <div class="d-flex flex-wrap gap-1">`;
+    data.rawStopDetail.routes.forEach(r => {
+      const color = getRouteColor(r.routeType);
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  if (data.rawStopDetail && data.rawStopDetail.operators && data.rawStopDetail.operators.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Raw Stop Operators</h3>
+      <div style="font-size:0.9rem">`;
+    data.rawStopDetail.operators.forEach(o => {
+      html += `<div><strong>${esc(o.name)}</strong> <span class="text-muted">(${o.operatorType})</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Suggested station routes & operators
+  if (data.suggestedStationDetail && data.suggestedStationDetail.routes && data.suggestedStationDetail.routes.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Matched Station Routes</h3>
+      <div class="d-flex flex-wrap gap-1">`;
+    data.suggestedStationDetail.routes.forEach(r => {
+      const color = getRouteColor(r.routeType);
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  if (data.suggestedStationDetail && data.suggestedStationDetail.operators && data.suggestedStationDetail.operators.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Matched Station Operators</h3>
+      <div style="font-size:0.9rem">`;
+    data.suggestedStationDetail.operators.forEach(o => {
+      html += `<div><strong>${esc(o.name)}</strong> <span class="text-muted">(${o.operatorType})</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  if (data.normalizedRawName && data.normalizedStationName) {
+    html += `<div class="sidebar-section">
+      <h3>Normalized names (for comparison)</h3>
+      <div style="font-size:0.85rem">
+        <div><span class="text-muted">Raw:</span> <code>${esc(data.normalizedRawName)}</code></div>
+        <div><span class="text-muted">Match:</span> <code>${esc(data.normalizedStationName)}</code></div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('sidebar-content').innerHTML = html;
+  document.getElementById('sidebar').classList.add('open');
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+map.on('load', () => {
+  if (!candidateId) return;
+
+  fetch('/reconciliation/' + candidateId)
+    .then(r => {
+      if (!r.ok) throw new Error('Failed to load candidate (status ' + r.status + ')');
+      return r.json();
+    })
+    .then(data => {
+      renderSidebar(data);
+
+      const hasMatch = data.suggestedStationLat != null && data.suggestedStationLon != null;
+
+      // Add raw stop marker
+      const rawEl = createMarkerElement('#e74c3c', 'RAW', 24);
+      rawMarker = new maplibregl.Marker({ element: rawEl })
+        .setLngLat([data.rawStopLon, data.rawStopLat])
+        .addTo(map);
+
+      // Add matched station marker
+      if (hasMatch) {
+        const matchEl = createMarkerElement('#27ae60', 'MATCH', 24);
+        matchMarker = new maplibregl.Marker({ element: matchEl })
+          .setLngLat([data.suggestedStationLon, data.suggestedStationLat])
+          .addTo(map);
+
+        // Add dashed connector line
+        const lineCoords = [
+          [data.rawStopLon, data.rawStopLat],
+          [data.suggestedStationLon, data.suggestedStationLat]
+        ];
+
+        map.addSource('connector', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: lineCoords },
+            properties: {}
+          }
+        });
+
+        map.addLayer({
+          id: 'connector-line',
+          type: 'line',
+          source: 'connector',
+          paint: {
+            'line-color': '#f39c12',
+            'line-width': 2.5,
+            'line-dasharray': [3, 3],
+            'line-opacity': 0.8
+          }
+        });
+
+        // Distance label at midpoint
+        if (data.distanceMeters != null) {
+          const midLon = (data.rawStopLon + data.suggestedStationLon) / 2;
+          const midLat = (data.rawStopLat + data.suggestedStationLat) / 2;
+          distancePopup = new maplibregl.Marker({
+            element: (() => {
+              const el = document.createElement('div');
+              el.className = 'distance-label';
+              el.textContent = fmtDist(data.distanceMeters);
+              return el;
+            })()
+          })
+            .setLngLat([midLon, midLat])
+            .addTo(map);
+        }
+
+        // Show legend distance
+        document.getElementById('legend-distance').style.display = 'block';
+
+        // Fit bounds to both markers
+        const bounds = new maplibregl.LngLatBounds();
+        bounds.extend([data.rawStopLon, data.rawStopLat]);
+        bounds.extend([data.suggestedStationLon, data.suggestedStationLat]);
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+      } else {
+        // Only raw stop — center on it
+        map.flyTo({ center: [data.rawStopLon, data.rawStopLat], zoom: 14 });
+      }
+
+      document.getElementById('legend').classList.remove('d-none');
+    })
+    .catch(err => {
+      document.getElementById('sidebar-content').innerHTML =
+        '<p class="error">Failed to load candidate: ' + esc(err.message) + '</p>';
+      document.getElementById('sidebar').classList.add('open');
+    });
+});
+</script>
+</body>
+</html>
