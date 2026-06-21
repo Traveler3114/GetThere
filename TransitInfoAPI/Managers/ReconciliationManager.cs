@@ -173,32 +173,10 @@ public class ReconciliationManager
 
         foreach (var rawStop in rawStops)
         {
-            // Stops with null RouteType cannot be matched reliably — route to manual review
+            // Stops with null RouteType cannot be matched reliably — mark as Inactive
             if (rawStop.RouteType is null)
             {
-                _db.ReconciliationCandidates.Add(new ReconciliationCandidate
-                {
-                    RawStopId = rawStop.Id,
-                    RawStopName = rawStop.Name,
-                    RawStopLat = rawStop.Lat,
-                    RawStopLon = rawStop.Lon,
-                    FeedId = feedVersion.FeedId,
-                    SuggestedCanonicalStationId = null,
-                    RawRouteType = RouteType.Bus,
-                    ConfidenceScore = 0,
-                    NameSimilarityScore = 0,
-                    DistanceMeters = 0,
-                    NameMatched = false,
-                    DistanceMatched = false,
-                    RouteTypeMatched = false,
-                    AutoReconciled = false,
-                    Status = ReconciliationStatus.Pending,
-                    CreatedAt = DateTime.UtcNow,
-                    AutoMergeNameThresholdAtDecision = (decimal)autoNameThreshold,
-                    AutoMergeDistanceMetersAtDecision = (decimal)autoDistThreshold,
-                    ManualReviewNameThresholdAtDecision = (decimal)manualNameThreshold,
-                    ManualReviewDistanceMetersAtDecision = (decimal)manualDistThreshold
-                });
+                rawStop.ReconciliationStatus = ReconciliationStatus.Inactive;
                 continue;
             }
 

@@ -43,7 +43,7 @@ public class ReconciliationController : ControllerBase
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
-            .Where(rc => rc.Status == ReconciliationStatus.Pending)
+            .Where(rc => rc.Status == ReconciliationStatus.Pending || rc.Status == ReconciliationStatus.NewStation)
             .AsQueryable();
 
         if (feedVersionId.HasValue)
@@ -75,7 +75,7 @@ public class ReconciliationController : ControllerBase
                 RawStopLon = rc.RawStopLon,
                 RawStopGtfsId = rc.RawStop.RawStopId,
                 RawRouteType = rc.RawRouteType.ToString(),
-                CanonicalRouteType = rc.CanonicalRouteType.ToString(),
+                CanonicalRouteType = rc.CanonicalRouteType != null ? rc.CanonicalRouteType.Value.ToString() : null,
                 ConfidenceScore = rc.ConfidenceScore,
                 NameSimilarityScore = rc.NameSimilarityScore,
                 DistanceMeters = rc.DistanceMeters,
@@ -142,7 +142,7 @@ public class ReconciliationController : ControllerBase
                 RawStopLon = rc.RawStopLon,
                 RawStopGtfsId = rc.RawStop.RawStopId,
                 RawRouteType = rc.RawRouteType.ToString(),
-                CanonicalRouteType = rc.CanonicalRouteType.ToString(),
+                CanonicalRouteType = rc.CanonicalRouteType != null ? rc.CanonicalRouteType.Value.ToString() : null,
                 ConfidenceScore = rc.ConfidenceScore,
                 NameSimilarityScore = rc.NameSimilarityScore,
                 DistanceMeters = rc.DistanceMeters,
