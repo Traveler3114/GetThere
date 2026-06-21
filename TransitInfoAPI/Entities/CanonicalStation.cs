@@ -14,7 +14,6 @@ public class CanonicalStation
     public double Longitude { get; set; }
     public StationType StationType { get; set; }
     public RouteType PrimaryRouteType { get; set; }
-    public int? ParentStationId { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -32,8 +31,6 @@ public class CanonicalStation
     public int? PlaceId { get; set; }
     public Place? Place { get; set; }
 
-    public CanonicalStation? ParentStation { get; set; }
-    public ICollection<CanonicalStation> ChildStations { get; set; } = [];
     public ICollection<CanonicalStationOperator> StationOperators { get; set; } = [];
     public ICollection<RawStop> RawStops { get; set; } = [];
 }

@@ -34,6 +34,26 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   color: #fff; font-size: 0.75rem; font-weight: 600;
 }
 .loading { color: #999; font-style: italic; }
+#sidebar .rec-section { margin-top: 16px; border-top: 1px solid #ddd; padding-top: 12px; }
+#sidebar .rec-section h3 { font-size: 1rem; margin-bottom: 6px; }
+#sidebar .rec-entry { padding: 8px; border-radius: 6px; margin-bottom: 8px; font-size: 0.82rem; border: 1px solid #e0e0e0; }
+#sidebar .rec-entry.merged { border-left: 3px solid #33a02c; background: #f0faf0; }
+#sidebar .rec-entry.pending { border-left: 3px solid #ff7f00; background: #fff8f0; }
+#sidebar .rec-entry.rejected { border-left: 3px solid #e31a1c; background: #fef0f0; }
+#sidebar .rec-entry.newstation { border-left: 3px solid #1f78b4; background: #f0f5ff; }
+#sidebar .rec-entry.approved { border-left: 3px solid #6a3d9a; background: #f5f0fa; }
+.rec-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  color: #fff; font-size: 0.7rem; font-weight: 600;
+}
+.rec-verdict { font-size: 0.8rem; font-weight: 600; margin: 4px 0; }
+.rec-score { font-weight: 600; }
+.rec-score.pass { color: #33a02c; }
+.rec-score.fail { color: #e31a1c; }
+.rec-route-badge {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  color: #fff; font-size: 0.7rem; margin: 1px;
+}
 </style>
 </head>
 <body>
@@ -317,6 +337,12 @@ function showStationDetails(id, props) {
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${rt || '-'}</span></div>
     <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>
     <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
+    <!-- TODO: Before Phase 3 (public launch), the reconciliation-detail fetch below exposes
+         reconciliation internals on the public-facing map. Must be restricted to admin-only. -->
+    <div class="rec-section" id="rec-section" style="display:none">
+      <h3>Reconciliation History</h3>
+      <div id="rec-content"><p class="loading">Loading...</p></div>
+    </div>
   `;
 
   document.getElementById('sidebar').classList.add('open');
@@ -339,6 +365,130 @@ function showStationDetails(id, props) {
   }).catch(() => {
     document.querySelector('.departures .loading').textContent = 'Failed to load departures';
   });
+
+  // Fetch reconciliation detail
+  fetch(`/stations/${id}/reconciliation-detail`).then(r => r.json()).then(data => {
+    const section = document.getElementById('rec-section');
+    const recContent = document.getElementById('rec-content');
+    if (!section || !recContent) return;
+
+    if (!data.entries || data.entries.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    // Summarize by status
+    const byStatus = {};
+    data.entries.forEach(e => {
+      const s = e.status || 'Unknown';
+      if (!byStatus[s]) byStatus[s] = [];
+      byStatus[s].push(e);
+    });
+
+    let recHtml = `<div class="small text-muted mb-2">${data.entries.length} raw stops linked</div>`;
+
+    // Status summary badges
+    recHtml += '<div class="d-flex flex-wrap gap-1 mb-2">';
+    const statusLabels = { AutoMerged: 'Auto-Merged', NewStation: 'New Station', ManuallyApproved: 'Approved', Pending: 'Pending', Rejected: 'Rejected' };
+    const statusColors = { AutoMerged: '#33a02c', NewStation: '#1f78b4', ManuallyApproved: '#6a3d9a', Pending: '#ff7f00', Rejected: '#e31a1c' };
+    Object.keys(byStatus).sort().forEach(s => {
+      const label = statusLabels[s] || s;
+      const color = statusColors[s] || '#888';
+      recHtml += `<span class="rec-badge" style="background:${color}">${label}: ${byStatus[s].length}</span>`;
+    });
+    recHtml += '</div>';
+
+    // Entries, with auto-merged ones expanded
+    data.entries.forEach(e => {
+      const statusClass = (e.status || '').toLowerCase().replace(/\s/g, '');
+      recHtml += `<div class="rec-entry ${statusClass}">
+        <div class="d-flex justify-content-between align-items-start">
+          <strong>${esc(e.rawStopName)}</strong>
+          <span class="rec-badge" style="background:${statusColors[e.status] || '#888'}">${statusLabels[e.status] || e.status}</span>
+        </div>
+        <div class="small text-muted">${e.rawStopGtfsId ? 'GTFS: ' + esc(e.rawStopGtfsId) : ''}${e.feedId ? ' &middot; Feed: ' + esc(e.feedId) : ''}${e.operatorName ? ' &middot; ' + esc(e.operatorName) : ''}</div>
+        <div class="small text-muted">${e.rawRouteType ? esc(e.rawRouteType) : ''}${e.createdAt ? ' &middot; ' + new Date(e.createdAt).toLocaleDateString() : ''}</div>
+    `;
+
+      // For auto-merged / matched entries, show match details
+      if (e.status === 'AutoMerged' || e.status === 'ManuallyApproved' || e.status === 'Pending') {
+        recHtml += renderMapRecExplanation(e);
+      }
+
+      // Route/direction results from Part 1
+      if (e.matchedLines && e.matchedLines.length > 0) {
+        recHtml += '<div class="mt-1"><span class="text-success small">Matched lines:</span> ';
+        e.matchedLines.forEach(line => {
+          recHtml += `<span class="rec-route-badge" style="background:#33a02c">${esc(line)}</span> `;
+        });
+        recHtml += '</div>';
+      }
+      if (e.unmatchedLines && e.unmatchedLines.length > 0) {
+        recHtml += '<div class="mt-1"><span class="text-muted small">Raw-only lines:</span> ';
+        e.unmatchedLines.forEach(line => {
+          recHtml += `<span class="rec-route-badge" style="background:#999">${esc(line)}</span> `;
+        });
+        recHtml += '</div>';
+      }
+      if (e.directionDisagreements && e.directionDisagreements.length > 0) {
+        recHtml += '<div class="mt-1"><span class="text-danger small">Direction mismatch:</span> ';
+        e.directionDisagreements.forEach(d => {
+          recHtml += `<span class="small text-danger">${esc(d)}</span> `;
+        });
+        recHtml += '</div>';
+      }
+
+      recHtml += '</div>';
+    });
+
+    recContent.innerHTML = recHtml;
+    section.style.display = 'block';
+  }).catch(() => {
+    const section = document.getElementById('rec-section');
+    const recContent = document.getElementById('rec-content');
+    if (recContent) recContent.innerHTML = '<p class="small text-muted">Reconciliation history unavailable</p>';
+    if (section) section.style.display = 'block';
+  });
+}
+
+function renderMapRecExplanation(e) {
+  let html = '';
+
+  if (e.autoMergeVerdict) {
+    const vClass = e.autoMergeVerdict.startsWith('\u2705') ? 'text-success'
+      : e.autoMergeVerdict.startsWith('\u274C') ? 'text-danger'
+      : 'text-warning';
+    html += `<div class="rec-verdict ${vClass}">${esc(e.autoMergeVerdict)}</div>`;
+  }
+
+  if (e.matchExplanation) {
+    html += `<div class="small text-muted">${esc(e.matchExplanation)}</div>`;
+  }
+
+  // Score indicators
+  if (e.nameSimilarityScore != null) {
+    const nsClass = e.nameMatched ? 'pass' : 'fail';
+    html += `<div class="small"><span class="text-muted">Name:</span> <span class="rec-score ${nsClass}">${(e.nameSimilarityScore * 100).toFixed(0)}%</span>`;
+    html += e.nameMatched ? ' <span style="color:#33a02c">&#10003;</span>' : ' <span style="color:#e31a1c">&#10007;</span>';
+    html += ` <span class="text-muted">Distance:</span> <span class="rec-score ${e.distanceMatched ? 'pass' : 'fail'}">${fmtDist(e.distanceMeters)}</span>`;
+    html += e.distanceMatched ? ' <span style="color:#33a02c">&#10003;</span>' : ' <span style="color:#e31a1c">&#10007;</span>';
+    html += ` <span class="text-muted">Route:</span> ${e.routeTypeMatched ? '<span style="color:#33a02c">Match &#10003;</span>' : '<span style="color:#e31a1c">Mismatch &#10007;</span>'}</div>`;
+  }
+
+  return html;
+}
+
+function fmtDist(m) {
+  if (m == null) return '-';
+  if (m < 1000) return m.toFixed(0) + ' m';
+  return (m / 1000).toFixed(2) + ' km';
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
 }
 
 function closeSidebar() {

@@ -146,6 +146,16 @@ public class ReconciliationManager
                 && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
             .ToListAsync(ct);
 
+        // Phase 1.5: build route/direction lookup for route-set and direction matching (Tasks 1.1–1.3)
+        var routeLookup = await BuildRouteLookupAsync(feedVersionId, ct);
+
+        var existingStationIds = existingStations.Select(s => s.Id).ToHashSet();
+        var stationToRawStopIds = await _db.RawStops
+            .Where(rs => rs.FeedVersionId == feedVersionId && rs.CanonicalStationId.HasValue
+                && existingStationIds.Contains(rs.CanonicalStationId.Value))
+            .GroupBy(rs => rs.CanonicalStationId!.Value)
+            .ToDictionaryAsync(g => g.Key, g => g.Select(rs => rs.RawStopId).Distinct().ToList(), ct);
+
         // Phase 2: match raw stops to stations and create candidates
         var existingLinkedStationIds = await _db.CanonicalStationOperators
             .Where(cso => cso.OperatorId == feedOperatorId)
@@ -194,7 +204,8 @@ public class ReconciliationManager
 
             var match = FindBestMatch(
                 rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType!.Value,
-                existingStations, autoDistThreshold * 2);
+                rawStop.RawStopId, existingStations, autoDistThreshold * 2,
+                routeLookup, stationToRawStopIds);
 
             if (match is not null &&
                 match.Value.NameScore >= autoNameThreshold &&
@@ -301,59 +312,42 @@ public class ReconciliationManager
 
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Reconciled {Count} raw stops for FeedVersion {FeedVersionId}", rawStops.Count, feedVersionId);
-
-        // Link stops of different route types at the same interchange (multimodal linking)
-        // Only sets ParentStationId — never merges stations of different types
-        var multimodalDist = _config.GetValue<double>("Reconciliation:MultimodalLinkDistanceMeters", 30);
-        await LinkAdjacentMultimodalStationsAsync(rawStops, multimodalDist, ct);
     }
 
-    private async Task LinkAdjacentMultimodalStationsAsync(List<RawStop> rawStops, double maxDistance, CancellationToken ct)
+    private async Task<Dictionary<string, List<(string LineIdentity, int? DirectionId)>>> BuildRouteLookupAsync(
+        int feedVersionId, CancellationToken ct)
     {
-        var affectedStationIds = rawStops
-            .Where(rs => rs.CanonicalStationId.HasValue)
-            .Select(rs => rs.CanonicalStationId!.Value)
-            .Distinct()
-            .ToList();
-
-        if (affectedStationIds.Count == 0) return;
-
-        var minLat = rawStops.Min(r => r.Lat);
-        var maxLat = rawStops.Max(r => r.Lat);
-        var minLon = rawStops.Min(r => r.Lon);
-        var maxLon = rawStops.Max(r => r.Lon);
-        var buffer = 0.005;
-
-        var nearbyStations = await _db.CanonicalStations
-            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop
-                && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
-                && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
+        var stopRoutes = await _db.StopTimes
+            .Where(st => st.Trip.FeedVersionId == feedVersionId && st.RawStopId != string.Empty)
+            .Select(st => new
+            {
+                st.RawStopId,
+                st.Trip.DirectionId,
+                ShortName = st.Trip.CanonicalRoute != null ? st.Trip.CanonicalRoute.ShortName : null,
+                LongName = st.Trip.CanonicalRoute != null ? st.Trip.CanonicalRoute.LongName : null,
+                st.Trip.RouteId
+            })
             .ToListAsync(ct);
 
-        var stationsToUpdate = await _db.CanonicalStations
-            .Where(cs => affectedStationIds.Contains(cs.Id))
-            .ToListAsync(ct);
-
-        foreach (var station in stationsToUpdate)
+        var lookup = new Dictionary<string, List<(string LineIdentity, int? DirectionId)>>();
+        foreach (var row in stopRoutes)
         {
-            if (station.ParentStationId is not null) continue;
+            var line = !string.IsNullOrEmpty(row.ShortName) ? row.ShortName
+                : !string.IsNullOrEmpty(row.LongName) ? row.LongName
+                : row.RouteId;
 
-            var nearestDiff = nearbyStations
-                .Where(cs => cs.Id != station.Id && cs.PrimaryRouteType != station.PrimaryRouteType)
-                .Select(cs => new
-                {
-                    Station = cs,
-                    Distance = CalculateDistanceMeters(station.Latitude, station.Longitude, cs.Latitude, cs.Longitude)
-                })
-                .Where(x => x.Distance <= maxDistance)
-                .OrderBy(x => x.Distance)
-                .FirstOrDefault();
+            if (!lookup.TryGetValue(row.RawStopId, out var list))
+            {
+                list = [];
+                lookup[row.RawStopId] = list;
+            }
 
-            if (nearestDiff is not null)
-                station.ParentStationId = nearestDiff.Station.Id;
+            var pair = (LineIdentity: line, DirectionId: row.DirectionId);
+            if (!list.Any(p => p.LineIdentity == pair.LineIdentity && p.DirectionId == pair.DirectionId))
+                list.Add(pair);
         }
 
-        await _db.SaveChangesAsync(ct);
+        return lookup;
     }
 
     public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, int countryId, CancellationToken ct)
@@ -495,7 +489,9 @@ public class ReconciliationManager
 
     private (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? FindBestMatch(
         string rawName, double rawLat, double rawLon, RouteType rawRouteType,
-        List<CanonicalStation> stations, double searchRadiusMeters)
+        string rawStopId, List<CanonicalStation> stations, double searchRadiusMeters,
+        Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
+        Dictionary<int, List<string>> stationToRawStopIds)
     {
         (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? best = null;
 
@@ -507,6 +503,14 @@ public class ReconciliationManager
             var nameScore = CalculateNameSimilarity(rawName, station.Name);
             if (nameScore < 0.3) continue;
 
+            // Route-set check (Task 1.2) — skip candidate if no route overlap
+            if (!HasRouteOverlap(rawStopId, station.Id, routeLookup, stationToRawStopIds))
+                continue;
+
+            // Direction check (Task 1.3) — skip candidate if direction mismatch on any shared line
+            if (HasDirectionMismatch(rawStopId, station.Id, routeLookup, stationToRawStopIds))
+                continue;
+
             if (best is null || nameScore > best.Value.NameScore)
             {
                 best = (station, nameScore, dist, true);
@@ -514,6 +518,115 @@ public class ReconciliationManager
         }
 
         return best;
+    }
+
+    private static bool HasRouteOverlap(
+        string rawStopId, int stationId,
+        Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
+        Dictionary<int, List<string>> stationToRawStopIds)
+    {
+        if (!routeLookup.TryGetValue(rawStopId, out var incomingRoutes))
+            return false;
+
+        if (!stationToRawStopIds.TryGetValue(stationId, out var linkedRawStopIds))
+            return false;
+
+        var stationLineIds = new HashSet<string>();
+        foreach (var linkedId in linkedRawStopIds)
+        {
+            if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
+            {
+                foreach (var (line, _) in linkedRoutes)
+                    stationLineIds.Add(line);
+            }
+        }
+
+        if (stationLineIds.Count == 0)
+            return false;
+
+        var incomingLineIds = new HashSet<string>();
+        foreach (var (line, _) in incomingRoutes)
+            incomingLineIds.Add(line);
+
+        return incomingLineIds.Overlaps(stationLineIds);
+    }
+
+    private static bool HasDirectionMismatch(
+        string rawStopId, int stationId,
+        Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
+        Dictionary<int, List<string>> stationToRawStopIds)
+    {
+        var incomingRoutes = routeLookup[rawStopId];
+        var linkedRawStopIds = stationToRawStopIds[stationId];
+
+        var incomingByLine = GroupByLineIdentity(incomingRoutes);
+        var stationByLine = new Dictionary<string, HashSet<int?>>();
+        foreach (var linkedId in linkedRawStopIds)
+        {
+            if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
+            {
+                foreach (var (line, dir) in linkedRoutes)
+                {
+                    if (!stationByLine.TryGetValue(line, out var dirs))
+                    {
+                        dirs = [];
+                        stationByLine[line] = dirs;
+                    }
+                    dirs.Add(dir);
+                }
+            }
+        }
+
+        var sharedLines = new HashSet<string>();
+        foreach (var line in incomingByLine.Keys)
+        {
+            if (stationByLine.ContainsKey(line))
+                sharedLines.Add(line);
+        }
+
+        foreach (var line in sharedLines)
+        {
+            var inDirs = incomingByLine[line];
+            var stDirs = stationByLine[line];
+
+            if (inDirs.Count == 0 || stDirs.Count == 0)
+                return true;
+
+            if (inDirs.Any(d => d is null) || stDirs.Any(d => d is null))
+                return true;
+
+            if (inDirs.Contains(0) && inDirs.Contains(1))
+                continue;
+
+            if (stDirs.Contains(0) && stDirs.Contains(1))
+                continue;
+
+            if (inDirs.Count == 1 && stDirs.Count == 1)
+            {
+                var inDir = inDirs.Single()!.Value;
+                var stDir = stDirs.Single()!.Value;
+                if (inDir != stDir)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Dictionary<string, HashSet<int?>> GroupByLineIdentity(
+        List<(string LineIdentity, int? DirectionId)> routes)
+    {
+        var result = new Dictionary<string, HashSet<int?>>();
+        foreach (var (line, dir) in routes)
+        {
+            if (!result.TryGetValue(line, out var dirs))
+            {
+                dirs = [];
+                result[line] = dirs;
+            }
+            dirs.Add(dir);
+        }
+        return result;
     }
 
     public double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)
