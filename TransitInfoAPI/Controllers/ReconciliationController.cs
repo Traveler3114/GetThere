@@ -419,14 +419,31 @@ public class ReconciliationController : ControllerBase
             {
                 Id = ml.Id,
                 SourceStationId = ml.SourceStationId,
+                SourceStationName = ml.Source.Name,
                 SourceStationGlobalId = ml.SourceStationGlobalId,
                 TargetStationId = ml.TargetStationId,
+                TargetStationName = ml.Target.Name,
                 RawStopsMovedCount = ml.RawStopsMovedCount,
-                MergedAt = ml.MergedAt
+                MergedAt = ml.MergedAt,
+                Unmerged = ml.Source.IsActive
             })
             .ToListAsync(ct);
 
         return Ok(logs);
+    }
+
+    [HttpGet("merge-preview")]
+    public async Task<ActionResult<object>> MergePreview([FromQuery] int stationAId, [FromQuery] int stationBId, CancellationToken ct = default)
+    {
+        var preview = await _reconciliationService.GetMergePreviewAsync(stationAId, stationBId, ct);
+        return Ok(preview);
+    }
+
+    [HttpPost("unmerge/{mergeLogId}")]
+    public async Task<IActionResult> Unmerge(int mergeLogId, CancellationToken ct = default)
+    {
+        await _reconciliationService.UnmergeStationsAsync(mergeLogId, ct);
+        return NoContent();
     }
 
     // TODO: Before Phase 3 (public launch), this endpoint checks route-set and

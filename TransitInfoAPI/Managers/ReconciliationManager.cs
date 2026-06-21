@@ -643,6 +643,7 @@ public class ReconciliationManager
             SourceStationGlobalId = source.GlobalId,
             TargetStationId = targetStationId,
             RawStopsMovedCount = rawStops.Count,
+            MovedRawStopIds = "[" + string.Join(",", rawStops.Select(rs => rs.Id)) + "]",
             MergedAt = DateTime.UtcNow
         });
 
@@ -658,6 +659,118 @@ public class ReconciliationManager
         _logger.LogInformation(
             "Merged station {SourceId} into {TargetId}: {RawCount} raw stops moved, {OpCount} operators merged",
             sourceStationId, targetStationId, rawStops.Count, operatorsMerged);
+    }
+
+    public async Task UnmergeStationsAsync(int mergeLogId, CancellationToken ct)
+    {
+        var log = await _db.StationMergeLogs
+            .FirstOrDefaultAsync(ml => ml.Id == mergeLogId, ct);
+        if (log is null)
+            throw new AppException("Merge log entry not found", 404);
+
+        var source = await _db.CanonicalStations.FindAsync([log.SourceStationId], ct);
+        if (source is null)
+            throw new AppException("Source station not found", 404);
+        if (source.IsActive)
+            throw new AppException("Source station is already active — unmerge was already performed or never needed", 400);
+
+        var target = await _db.CanonicalStations.FindAsync([log.TargetStationId], ct);
+        if (target is null)
+            throw new AppException("Target station not found", 404);
+
+        // Reactivate source station
+        source.IsActive = true;
+
+        // Parse stored raw stop IDs from merge log
+        var rawStopIds = (log.MovedRawStopIds ?? "[]")
+            .Trim('[', ']')
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s.Trim(), out var id) ? id : (int?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+
+        if (rawStopIds.Count == 0)
+            throw new AppException("No raw stop IDs recorded in merge log — cannot unmerge", 400);
+
+        var movedRawStops = await _db.RawStops
+            .Where(rs => rawStopIds.Contains(rs.Id))
+            .ToListAsync(ct);
+
+        foreach (var rs in movedRawStops)
+        {
+            rs.CanonicalStationId = log.SourceStationId;
+            rs.ReconciliationStatus = ReconciliationStatus.Pending;
+        }
+
+        // Update StopTimes CanonicalStationId back to source
+        if (rawStopIds.Count > 0)
+        {
+            await _db.StopTimes
+                .Where(st => st.RawStopEntityId.HasValue && rawStopIds.Contains(st.RawStopEntityId.Value))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(st => st.CanonicalStationId, log.SourceStationId), ct);
+        }
+
+        // Move reconciliation candidates back to source
+        var candidates = await _db.ReconciliationCandidates
+            .Where(rc => rc.SuggestedCanonicalStationId == log.TargetStationId
+                && rawStopIds.Contains(rc.RawStopId))
+            .ToListAsync(ct);
+        foreach (var c in candidates)
+            c.SuggestedCanonicalStationId = log.SourceStationId;
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Unmerged station {SourceId} from {TargetId}: {RawCount} raw stops returned",
+            log.SourceStationId, log.TargetStationId, movedRawStops.Count);
+    }
+
+    public async Task<object> GetMergePreviewAsync(int stationAId, int stationBId, CancellationToken ct)
+    {
+        var a = await _db.CanonicalStations.FindAsync([stationAId], ct);
+        var b = await _db.CanonicalStations.FindAsync([stationBId], ct);
+
+        if (a is null || b is null)
+            throw new AppException("One or both stations not found", 404);
+
+        var aOpCount = await _db.CanonicalStationOperators
+            .CountAsync(cso => cso.CanonicalStationId == stationAId, ct);
+        var bOpCount = await _db.CanonicalStationOperators
+            .CountAsync(cso => cso.CanonicalStationId == stationBId, ct);
+
+        var aRsCount = await _db.RawStops
+            .CountAsync(rs => rs.CanonicalStationId == stationAId, ct);
+        var bRsCount = await _db.RawStops
+            .CountAsync(rs => rs.CanonicalStationId == stationBId, ct);
+
+        string? warning = null;
+        if (a.PrimaryRouteType != b.PrimaryRouteType)
+            warning = $"Route type mismatch: {a.PrimaryRouteType} vs {b.PrimaryRouteType}";
+
+        return new
+        {
+            StationA = new
+            {
+                a.Id,
+                a.Name,
+                PrimaryRouteType = a.PrimaryRouteType.ToString(),
+                a.IsActive,
+                OperatorCount = aOpCount,
+                RawStopCount = aRsCount
+            },
+            StationB = new
+            {
+                b.Id,
+                b.Name,
+                PrimaryRouteType = b.PrimaryRouteType.ToString(),
+                b.IsActive,
+                OperatorCount = bOpCount,
+                RawStopCount = bRsCount
+            },
+            CanMerge = a.IsActive && b.IsActive && a.PrimaryRouteType == b.PrimaryRouteType,
+            Warning = warning
+        };
     }
 
     private (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? FindBestMatch(

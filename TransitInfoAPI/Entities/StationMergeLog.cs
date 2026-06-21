@@ -7,5 +7,9 @@ public class StationMergeLog
     public string SourceStationGlobalId { get; set; } = string.Empty;
     public int TargetStationId { get; set; }
     public int RawStopsMovedCount { get; set; }
+    public string? MovedRawStopIds { get; set; }
     public DateTime MergedAt { get; set; } = DateTime.UtcNow;
+
+    public CanonicalStation Source { get; set; } = null!;
+    public CanonicalStation Target { get; set; } = null!;
 }

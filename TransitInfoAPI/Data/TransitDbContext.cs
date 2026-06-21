@@ -114,6 +114,16 @@ public class TransitDbContext : DbContext
 
         // StationMergeLog
         modelBuilder.Entity<StationMergeLog>()
+            .HasOne(ml => ml.Source)
+            .WithMany()
+            .HasForeignKey(ml => ml.SourceStationId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<StationMergeLog>()
+            .HasOne(ml => ml.Target)
+            .WithMany()
+            .HasForeignKey(ml => ml.TargetStationId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<StationMergeLog>()
             .HasIndex(ml => ml.SourceStationId);
         modelBuilder.Entity<StationMergeLog>()
             .HasIndex(ml => ml.TargetStationId);
