@@ -94,6 +94,9 @@ public class StationsController : ControllerBase
         return Ok(new Paginated<StationDto>(result, total, page, perPage));
     }
 
+    // TODO: Before Phase 3 (public launch), this endpoint is used by the
+    // reconciliation-map.html search UI (Task 4.4) and exposes station data
+    // used to locate reconciliation candidates. Must be restricted to admin-only.
     [HttpGet("search")]
     public async Task<ActionResult<Paginated<StationDto>>> Search(
         [FromQuery] string? q,

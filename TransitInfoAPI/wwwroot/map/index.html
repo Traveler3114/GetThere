@@ -58,6 +58,22 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 </head>
 <body>
 <div id="map"></div>
+<div id="top-bar" style="position:fixed;top:12px;right:12px;z-index:999;display:flex;gap:8px;align-items:center">
+  <button id="merge-toggle" onclick="toggleMergeMode()" style="padding:8px 14px;background:#e0e0e0;color:#333;border:2px solid #ccc;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:all 0.2s">Merge Stations</button>
+  <a href="/admin/reconciliation-map.html" style="display:inline-block;padding:8px 14px;background:#1f78b4;color:#fff;border-radius:6px;text-decoration:none;font-size:0.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.2)">Reconciliation</a>
+</div>
+<div id="merge-banner" style="position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:999;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:8px 20px;display:none;font-size:0.9rem;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,0.15)"></div>
+<div id="merge-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2000;background:rgba(0,0,0,0.4);display:none;justify-content:center;align-items:center">
+  <div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,0.25);font-size:0.9rem">
+    <h3 id="merge-modal-title" style="margin:0 0 8px;font-size:1.1rem"></h3>
+    <div id="merge-modal-body" style="margin:12px 0;line-height:1.5"></div>
+    <div id="merge-modal-warning" style="margin:8px 0;padding:10px 14px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;display:none;font-size:0.85rem;color:#856404"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button onclick="closeMergeModal()" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:0.85rem;font-weight:500">Cancel</button>
+      <button id="merge-confirm-btn" onclick="doMerge()" style="padding:8px 16px;border:none;border-radius:6px;background:#27ae60;color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600">Merge</button>
+    </div>
+  </div>
+</div>
 <div id="sidebar">
   <button class="close-btn" onclick="closeSidebar()">&times;</button>
   <div id="sidebar-content"><p class="loading">Click a stop to view details</p></div>
@@ -310,8 +326,12 @@ map.on('click', 'stations-cluster', (e) => {
   });
 });
 
-// Click individual stop -> show details
+// Click individual stop -> show details or merge-selection
 map.on('click', 'stations-circle', (e) => {
+  if (mergeModeActive) {
+    handleMergeClick(e);
+    return;
+  }
   const props = e.features[0].properties;
   showStationDetails(props.id, props);
 });
@@ -339,6 +359,9 @@ function showStationDetails(id, props) {
     <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
     <!-- TODO: Before Phase 3 (public launch), the reconciliation-detail fetch below exposes
          reconciliation internals on the public-facing map. Must be restricted to admin-only. -->
+    <div class="admin-link" style="margin-top:12px">
+      <a href="/admin/reconciliation-map.html?stationId=${id}" target="_blank" style="font-size:0.85rem;color:#1f78b4;text-decoration:none">&rarr; View in Reconciliation Map</a>
+    </div>
     <div class="rec-section" id="rec-section" style="display:none">
       <h3>Reconciliation History</h3>
       <div id="rec-content"><p class="loading">Loading...</p></div>
@@ -495,6 +518,143 @@ function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   sidebarOpen = false;
 }
+
+// ---- Edit/Merge Mode (Task 4.13) ----
+// TODO: Before Phase 3 (public launch), the merge mode UI and its API calls
+// (merge-stations, check-action-warning) expose reconciliation internals on
+// the public-facing map. Must be restricted to admin-only access.
+let mergeModeActive = false;
+let mergeSource = null;  // { id, name, lat, lon }
+let mergeTargetId = null;
+let mergeWarningText = null;
+let mergeSourceMarker = null;
+
+function toggleMergeMode() {
+  mergeModeActive = !mergeModeActive;
+  const btn = document.getElementById('merge-toggle');
+  const banner = document.getElementById('merge-banner');
+  if (mergeModeActive) {
+    btn.style.background = '#27ae60';
+    btn.style.borderColor = '#27ae60';
+    btn.style.color = '#fff';
+    btn.textContent = 'Exit Merge Mode';
+    banner.style.display = 'block';
+    banner.textContent = 'Click a station to select as source, then click another as target.';
+  } else {
+    clearMergeSelection();
+    mergeSource = null;
+    btn.style.background = '#e0e0e0';
+    btn.style.borderColor = '#ccc';
+    btn.style.color = '#333';
+    btn.textContent = 'Merge Stations';
+    banner.style.display = 'none';
+  }
+}
+
+function clearMergeSelection() {
+  if (mergeSourceMarker) {
+    mergeSourceMarker.remove();
+    mergeSourceMarker = null;
+  }
+}
+
+function handleMergeClick(e) {
+  if (!mergeModeActive) return;
+  e.preventDefault();
+
+  const props = e.features[0].properties;
+  const coords = e.features[0].geometry.coordinates;
+  const stId = props.id;
+  const stName = props.name || 'Unknown';
+
+  if (!mergeSource) {
+    // Select as source
+    mergeSource = { id: stId, name: stName, lon: coords[0], lat: coords[1] };
+    clearMergeSelection();
+    const el = document.createElement('div');
+    el.style.width = '18px';
+    el.style.height = '18px';
+    el.style.background = '#27ae60';
+    el.style.border = '3px solid #fff';
+    el.style.borderRadius = '50%';
+    el.style.boxShadow = '0 0 0 3px #27ae60';
+    el.style.cursor = 'pointer';
+    mergeSourceMarker = new maplibregl.Marker({ element: el })
+      .setLngLat([mergeSource.lon, mergeSource.lat])
+      .addTo(map);
+    document.getElementById('merge-banner').textContent = `Source: "${stName}". Now click the target station.`;
+    return;
+  }
+
+  // Clicked target station
+  const targetName = stName;
+  const targetId = stId;
+
+  if (targetId === mergeSource.id) {
+    document.getElementById('merge-banner').textContent = 'Source and target cannot be the same station. Click a different station.';
+    return;
+  }
+
+  document.getElementById('merge-banner').textContent = 'Checking for conflicts...';
+
+  // Fetch warning
+  fetch('/reconciliation/check-action-warning?stationAId=' + mergeSource.id + '&stationBId=' + targetId)
+    .then(r => r.json())
+    .then(result => {
+      mergeWarningText = result.warning || null;
+      mergeTargetId = targetId;
+      showMergeConfirmDialog(mergeSource.name, targetName, mergeWarningText);
+    })
+    .catch(err => {
+      mergeWarningText = null;
+      mergeTargetId = targetId;
+      showMergeConfirmDialog(mergeSource.name, targetName, null);
+    });
+}
+
+function showMergeConfirmDialog(sourceName, targetName, warning) {
+  // TODO: Before Phase 3 (public launch), the merge-stations API call below
+  // exposes reconciliation internals on the public-facing map. Must be
+  // restricted to admin-only access.
+  document.getElementById('merge-modal-title').textContent = 'Merge Stations';
+  document.getElementById('merge-modal-body').innerHTML = `Merge "<strong>${esc(sourceName)}</strong>" into "<strong>${esc(targetName)}</strong>"?`;
+  const warningEl = document.getElementById('merge-modal-warning');
+  if (warning) {
+    warningEl.textContent = 'Warning: ' + warning;
+    warningEl.style.display = 'block';
+  } else {
+    warningEl.style.display = 'none';
+  }
+  document.getElementById('merge-modal').style.display = 'flex';
+}
+
+function closeMergeModal() {
+  document.getElementById('merge-modal').style.display = 'none';
+  mergeTargetId = null;
+  mergeWarningText = null;
+}
+
+function doMerge() {
+  if (!mergeSource || !mergeTargetId) return;
+  document.getElementById('merge-modal').style.display = 'none';
+
+  fetch('/reconciliation/merge-stations?sourceStationId=' + mergeSource.id + '&targetStationId=' + mergeTargetId, { method: 'POST' })
+    .then(r => {
+      if (!r.ok) throw new Error('Merge failed (status ' + r.status + ')');
+      clearMergeSelection();
+      mergeSource = null;
+      mergeTargetId = null;
+      mergeWarningText = null;
+      document.getElementById('merge-banner').textContent = 'Merge completed. Click a station to select as source.';
+      // Refresh map data to show deactivated source
+      loadMapData();
+    })
+    .catch(err => {
+      alert('Merge failed: ' + err.message);
+      document.getElementById('merge-banner').textContent = 'Merge failed. Try again.';
+    });
+}
+
 </script>
 </body>
 </html>

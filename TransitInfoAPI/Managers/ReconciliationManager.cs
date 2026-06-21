@@ -193,7 +193,11 @@ public class ReconciliationManager
                     RouteTypeMatched = false,
                     AutoReconciled = false,
                     Status = ReconciliationStatus.Pending,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AutoMergeNameThresholdAtDecision = (decimal)autoNameThreshold,
+                    AutoMergeDistanceMetersAtDecision = (decimal)autoDistThreshold,
+                    ManualReviewNameThresholdAtDecision = (decimal)manualNameThreshold,
+                    ManualReviewDistanceMetersAtDecision = (decimal)manualDistThreshold
                 });
                 continue;
             }
@@ -233,7 +237,11 @@ public class ReconciliationManager
                     RouteTypeMatched = true,
                     AutoReconciled = true,
                     Status = ReconciliationStatus.AutoMerged,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AutoMergeNameThresholdAtDecision = (decimal)autoNameThreshold,
+                    AutoMergeDistanceMetersAtDecision = (decimal)autoDistThreshold,
+                    ManualReviewNameThresholdAtDecision = (decimal)manualNameThreshold,
+                    ManualReviewDistanceMetersAtDecision = (decimal)manualDistThreshold
                 });
 
                 if (addedOperatorLinks.Add((match.Value.Station.Id, feedOperatorId)))
@@ -266,7 +274,11 @@ public class ReconciliationManager
                     RouteTypeMatched = true,
                     AutoReconciled = false,
                     Status = ReconciliationStatus.Pending,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AutoMergeNameThresholdAtDecision = (decimal)autoNameThreshold,
+                    AutoMergeDistanceMetersAtDecision = (decimal)autoDistThreshold,
+                    ManualReviewNameThresholdAtDecision = (decimal)manualNameThreshold,
+                    ManualReviewDistanceMetersAtDecision = (decimal)manualDistThreshold
                 });
 
                 if (addedOperatorLinks.Add((match.Value.Station.Id, feedOperatorId)))
@@ -279,34 +291,72 @@ public class ReconciliationManager
             else
             {
                 rawStop.CanonicalStationId = station.Id;
-                rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
 
-                _db.ReconciliationCandidates.Add(new ReconciliationCandidate
+                var hasExistingLinkedStops = stationToRawStopIds.TryGetValue(station.Id, out var linkedIds) && linkedIds.Count > 0;
+                var routeMismatch = hasExistingLinkedStops && !HasRouteOverlap(rawStop.RawStopId, station.Id, routeLookup, stationToRawStopIds);
+                var dirMismatch = hasExistingLinkedStops && !routeMismatch && HasDirectionMismatch(rawStop.RawStopId, station.Id, routeLookup, stationToRawStopIds);
+
+                if (routeMismatch || dirMismatch)
                 {
-                    RawStopId = rawStop.Id,
-                    RawStopName = rawStop.Name,
-                    RawStopLat = rawStop.Lat,
-                    RawStopLon = rawStop.Lon,
-                    RawRouteType = rawStop.RouteType.Value,
-                    FeedId = feedVersion.FeedId,
-                    SuggestedCanonicalStationId = station.Id,
-                    ConfidenceScore = 1.0m,
-                    NameSimilarityScore = 1.0m,
-                    DistanceMeters = 0,
-                    NameMatched = false,
-                    DistanceMatched = false,
-                    RouteTypeMatched = true,
-                    AutoReconciled = true,
-                    Status = ReconciliationStatus.NewStation,
-                    CreatedAt = DateTime.UtcNow
-                });
+                    rawStop.ReconciliationStatus = ReconciliationStatus.AutoMerged;
 
-                if (addedOperatorLinks.Add((station.Id, feedOperatorId)))
-                    _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                    var reason = routeMismatch ? "RouteSetMismatch" : "DirectionMismatch";
+                    var detail = routeMismatch
+                        ? BuildRouteSetMismatchDetail(rawStop.RawStopId, station.Id, routeLookup, stationToRawStopIds)
+                        : BuildDirectionMismatchDetail(rawStop.RawStopId, station.Id, routeLookup, stationToRawStopIds);
+
+                    _db.StationSplitLogs.Add(new StationSplitLog
                     {
-                        CanonicalStationId = station.Id,
-                        OperatorId = feedOperatorId
+                        RawStopId = rawStop.Id,
+                        FeedVersionId = feedVersionId,
+                        CandidateStationId = station.Id,
+                        Reason = reason,
+                        Detail = detail,
+                        CreatedAt = DateTime.UtcNow
                     });
+
+                    if (addedOperatorLinks.Add((station.Id, feedOperatorId)))
+                        _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                        {
+                            CanonicalStationId = station.Id,
+                            OperatorId = feedOperatorId
+                        });
+                }
+                else
+                {
+                    rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
+
+                    _db.ReconciliationCandidates.Add(new ReconciliationCandidate
+                    {
+                        RawStopId = rawStop.Id,
+                        RawStopName = rawStop.Name,
+                        RawStopLat = rawStop.Lat,
+                        RawStopLon = rawStop.Lon,
+                        RawRouteType = rawStop.RouteType.Value,
+                        FeedId = feedVersion.FeedId,
+                        SuggestedCanonicalStationId = station.Id,
+                        ConfidenceScore = 1.0m,
+                        NameSimilarityScore = 1.0m,
+                        DistanceMeters = 0,
+                        NameMatched = false,
+                        DistanceMatched = false,
+                        RouteTypeMatched = true,
+                        AutoReconciled = true,
+                        Status = ReconciliationStatus.NewStation,
+                        CreatedAt = DateTime.UtcNow,
+                        AutoMergeNameThresholdAtDecision = (decimal)autoNameThreshold,
+                        AutoMergeDistanceMetersAtDecision = (decimal)autoDistThreshold,
+                        ManualReviewNameThresholdAtDecision = (decimal)manualNameThreshold,
+                        ManualReviewDistanceMetersAtDecision = (decimal)manualDistThreshold
+                    });
+
+                    if (addedOperatorLinks.Add((station.Id, feedOperatorId)))
+                        _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                        {
+                            CanonicalStationId = station.Id,
+                            OperatorId = feedOperatorId
+                        });
+                }
             }
         }
 
@@ -455,7 +505,7 @@ public class ReconciliationManager
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct)
+    public async Task<string?> ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct)
     {
         var candidate = await _db.ReconciliationCandidates.FindAsync([id], ct);
         if (candidate is null)
@@ -474,6 +524,10 @@ public class ReconciliationManager
                 "Reassigning raw stop {RawStopId} (RouteType={RawType}) to station {StationId} (PrimaryRouteType={StationType}) with mismatched route type",
                 candidate.RawStopId, rawStop.RouteType.Value, station.Id, station.PrimaryRouteType);
 
+        var warning = candidate.SuggestedCanonicalStationId.HasValue
+            ? await CheckManualActionWarningAsync(candidate.SuggestedCanonicalStationId.Value, canonicalStationId, ct)
+            : null;
+
         candidate.SuggestedCanonicalStationId = canonicalStationId;
         candidate.Status = ReconciliationStatus.ManuallyApproved;
         candidate.ReviewedAt = DateTime.UtcNow;
@@ -485,6 +539,163 @@ public class ReconciliationManager
         }
 
         await _db.SaveChangesAsync(ct);
+        return warning;
+    }
+
+    public async Task<string?> CheckManualActionWarningAsync(int stationAId, int stationBId, CancellationToken ct)
+    {
+        if (stationAId == stationBId) return null;
+
+        var stationA = await _db.CanonicalStations.FindAsync([stationAId], ct);
+        var stationB = await _db.CanonicalStations.FindAsync([stationBId], ct);
+        if (stationA is null || stationB is null) return null;
+
+        var linesA = new HashSet<string>();
+        var linesB = new HashSet<string>();
+        var dirsA = new Dictionary<string, HashSet<int?>>();
+        var dirsB = new Dictionary<string, HashSet<int?>>();
+
+        await LoadStationRouteDataAsync(stationAId, linesA, dirsA, ct);
+        await LoadStationRouteDataAsync(stationBId, linesB, dirsB, ct);
+
+        if (linesA.Count == 0 || linesB.Count == 0)
+            return null;
+
+        if (!HasRouteSetOverlap(linesA, linesB))
+        {
+            var aList = string.Join(", ", linesA.OrderBy(x => x));
+            var bList = string.Join(", ", linesB.OrderBy(x => x));
+            return $"Route-set mismatch: station {stationAId} has lines [{aList}], station {stationBId} has lines [{bList}], no overlap.";
+        }
+
+        if (DirectionSetsConflict(dirsA, dirsB))
+        {
+            var shared = dirsA.Keys.Intersect(dirsB.Keys).OrderBy(x => x);
+            var details = new List<string>();
+            foreach (var line in shared)
+            {
+                var aStr = string.Join(",", dirsA[line].Select(d => d?.ToString() ?? "null"));
+                var bStr = string.Join(",", dirsB[line].Select(d => d?.ToString() ?? "null"));
+                details.Add($"{line} (A: [{aStr}], B: [{bStr}])");
+            }
+            return $"Direction mismatch on shared lines: {string.Join("; ", details)}.";
+        }
+
+        return null;
+    }
+
+    private async Task LoadStationRouteDataAsync(
+        int stationId, HashSet<string> lines,
+        Dictionary<string, HashSet<int?>> dirs, CancellationToken ct)
+    {
+        var rawStopIds = await _db.RawStops
+            .Where(rs => rs.CanonicalStationId == stationId)
+            .Select(rs => rs.RawStopId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (rawStopIds.Count == 0) return;
+
+        var stopRoutes = await _db.StopTimes
+            .Where(st => rawStopIds.Contains(st.RawStopId) && st.Trip.CanonicalRoute != null)
+            .Select(st => new
+            {
+                st.RawStopId,
+                st.Trip.DirectionId,
+                Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
+                    ? st.Trip.CanonicalRoute!.ShortName
+                    : st.Trip.CanonicalRoute!.LongName
+            })
+            .Distinct()
+            .ToListAsync(ct);
+
+        foreach (var row in stopRoutes)
+        {
+            lines.Add(row.Line);
+            if (!dirs.TryGetValue(row.Line, out var lineDirs))
+            {
+                lineDirs = [];
+                dirs[row.Line] = lineDirs;
+            }
+            lineDirs.Add(row.DirectionId);
+        }
+    }
+
+    public async Task MergeStationsAsync(int sourceStationId, int targetStationId, CancellationToken ct)
+    {
+        if (sourceStationId == targetStationId)
+            throw new AppException("Cannot merge a station with itself", 400);
+
+        var source = await _db.CanonicalStations.FindAsync([sourceStationId], ct);
+        var target = await _db.CanonicalStations.FindAsync([targetStationId], ct);
+
+        if (source is null)
+            throw new AppException("Source station not found", 404);
+        if (target is null)
+            throw new AppException("Target station not found", 404);
+        if (!source.IsActive)
+            throw new AppException("Source station is already inactive", 400);
+        if (!target.IsActive)
+            throw new AppException("Target station is inactive", 400);
+        if (source.PrimaryRouteType != target.PrimaryRouteType)
+            throw new AppException(
+                $"Cannot merge stations with different primary route types ({source.PrimaryRouteType} vs {target.PrimaryRouteType})", 400);
+
+        // Reassign raw stops from source to target
+        var rawStops = await _db.RawStops
+            .Where(rs => rs.CanonicalStationId == sourceStationId)
+            .ToListAsync(ct);
+        foreach (var rs in rawStops)
+        {
+            rs.CanonicalStationId = targetStationId;
+            rs.ReconciliationStatus = ReconciliationStatus.ManuallyApproved;
+        }
+
+        // Carry over operator links (dedup)
+        var sourceOps = await _db.CanonicalStationOperators
+            .Where(cso => cso.CanonicalStationId == sourceStationId)
+            .ToListAsync(ct);
+        var targetOpIds = await _db.CanonicalStationOperators
+            .Where(cso => cso.CanonicalStationId == targetStationId)
+            .Select(cso => cso.OperatorId)
+            .ToHashSetAsync(ct);
+        var operatorsMerged = 0;
+        foreach (var link in sourceOps)
+        {
+            if (!targetOpIds.Contains(link.OperatorId))
+            {
+                _db.CanonicalStationOperators.Add(new CanonicalStationOperator
+                {
+                    CanonicalStationId = targetStationId,
+                    OperatorId = link.OperatorId
+                });
+                operatorsMerged++;
+            }
+        }
+
+        // Update reconciliation candidates pointing to source
+        var candidates = await _db.ReconciliationCandidates
+            .Where(rc => rc.SuggestedCanonicalStationId == sourceStationId)
+            .ToListAsync(ct);
+        foreach (var c in candidates)
+            c.SuggestedCanonicalStationId = targetStationId;
+
+        // Deactivate source
+        source.IsActive = false;
+
+        _db.StationMergeLogs.Add(new StationMergeLog
+        {
+            SourceStationId = sourceStationId,
+            SourceStationGlobalId = source.GlobalId,
+            TargetStationId = targetStationId,
+            RawStopsMovedCount = rawStops.Count,
+            MergedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation(
+            "Merged station {SourceId} into {TargetId}: {RawCount} raw stops moved, {OpCount} operators merged",
+            sourceStationId, targetStationId, rawStops.Count, operatorsMerged);
     }
 
     private (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? FindBestMatch(
@@ -548,7 +759,12 @@ public class ReconciliationManager
         foreach (var (line, _) in incomingRoutes)
             incomingLineIds.Add(line);
 
-        return incomingLineIds.Overlaps(stationLineIds);
+        return HasRouteSetOverlap(incomingLineIds, stationLineIds);
+    }
+
+    private static bool HasRouteSetOverlap(HashSet<string> linesA, HashSet<string> linesB)
+    {
+        return linesA.Overlaps(linesB);
     }
 
     private static bool HasDirectionMismatch(
@@ -577,35 +793,42 @@ public class ReconciliationManager
             }
         }
 
+        return DirectionSetsConflict(incomingByLine, stationByLine);
+    }
+
+    private static bool DirectionSetsConflict(
+        Dictionary<string, HashSet<int?>> dirsA,
+        Dictionary<string, HashSet<int?>> dirsB)
+    {
         var sharedLines = new HashSet<string>();
-        foreach (var line in incomingByLine.Keys)
+        foreach (var line in dirsA.Keys)
         {
-            if (stationByLine.ContainsKey(line))
+            if (dirsB.ContainsKey(line))
                 sharedLines.Add(line);
         }
 
         foreach (var line in sharedLines)
         {
-            var inDirs = incomingByLine[line];
-            var stDirs = stationByLine[line];
+            var aDirs = dirsA[line];
+            var bDirs = dirsB[line];
 
-            if (inDirs.Count == 0 || stDirs.Count == 0)
+            if (aDirs.Count == 0 || bDirs.Count == 0)
                 return true;
 
-            if (inDirs.Any(d => d is null) || stDirs.Any(d => d is null))
+            if (aDirs.Any(d => d is null) || bDirs.Any(d => d is null))
                 return true;
 
-            if (inDirs.Contains(0) && inDirs.Contains(1))
+            if (aDirs.Contains(0) && aDirs.Contains(1))
                 continue;
 
-            if (stDirs.Contains(0) && stDirs.Contains(1))
+            if (bDirs.Contains(0) && bDirs.Contains(1))
                 continue;
 
-            if (inDirs.Count == 1 && stDirs.Count == 1)
+            if (aDirs.Count == 1 && bDirs.Count == 1)
             {
-                var inDir = inDirs.Single()!.Value;
-                var stDir = stDirs.Single()!.Value;
-                if (inDir != stDir)
+                var aDir = aDirs.Single()!.Value;
+                var bDir = bDirs.Single()!.Value;
+                if (aDir != bDir)
                     return true;
             }
         }
@@ -627,6 +850,91 @@ public class ReconciliationManager
             dirs.Add(dir);
         }
         return result;
+    }
+
+    private static string BuildRouteSetMismatchDetail(
+        string rawStopId, int stationId,
+        Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
+        Dictionary<int, List<string>> stationToRawStopIds)
+    {
+        if (!routeLookup.TryGetValue(rawStopId, out var incomingRoutes))
+            return "No incoming routes";
+
+        var incomingLines = incomingRoutes.Select(r => r.LineIdentity).Distinct().OrderBy(x => x).ToList();
+
+        var stationLines = new HashSet<string>();
+        if (stationToRawStopIds.TryGetValue(stationId, out var linkedIds))
+        {
+            foreach (var linkedId in linkedIds)
+            {
+                if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
+                {
+                    foreach (var (line, _) in linkedRoutes)
+                        stationLines.Add(line);
+                }
+            }
+        }
+
+        var incomingOnly = incomingLines.Except(stationLines).OrderBy(x => x).ToList();
+        var stationOnly = stationLines.Except(incomingLines).OrderBy(x => x).ToList();
+
+        var parts = new List<string>();
+        if (incomingOnly.Count > 0)
+            parts.Add($"raw-only lines: [{string.Join(", ", incomingOnly)}]");
+        if (stationOnly.Count > 0)
+            parts.Add($"station-only lines: [{string.Join(", ", stationOnly)}]");
+
+        return string.Join("; ", parts);
+    }
+
+    private static string BuildDirectionMismatchDetail(
+        string rawStopId, int stationId,
+        Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
+        Dictionary<int, List<string>> stationToRawStopIds)
+    {
+        var incomingRoutes = routeLookup[rawStopId];
+        var linkedRawStopIds = stationToRawStopIds[stationId];
+
+        var incomingByLine = GroupByLineIdentity(incomingRoutes);
+        var stationByLine = new Dictionary<string, HashSet<int?>>();
+        foreach (var linkedId in linkedRawStopIds)
+        {
+            if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
+            {
+                foreach (var (line, dir) in linkedRoutes)
+                {
+                    if (!stationByLine.TryGetValue(line, out var dirs))
+                    {
+                        dirs = [];
+                        stationByLine[line] = dirs;
+                    }
+                    dirs.Add(dir);
+                }
+            }
+        }
+
+        var conflicts = new List<string>();
+        foreach (var line in incomingByLine.Keys.Intersect(stationByLine.Keys).OrderBy(x => x))
+        {
+            var inDirs = incomingByLine[line];
+            var stDirs = stationByLine[line];
+
+            if (inDirs.Count == 1 && stDirs.Count == 1)
+            {
+                var inDir = inDirs.Single();
+                var stDir = stDirs.Single();
+                if (inDir != stDir)
+                    conflicts.Add($"{line} (raw: dir {inDir?.ToString() ?? "null"}, station: dir {stDir?.ToString() ?? "null"})");
+            }
+            else if (inDirs.Count == 0 || stDirs.Count == 0 || inDirs.Any(d => d is null) || stDirs.Any(d => d is null))
+            {
+                var inStr = string.Join(",", inDirs.Select(d => d?.ToString() ?? "null"));
+                var stStr = string.Join(",", stDirs.Select(d => d?.ToString() ?? "null"));
+                conflicts.Add($"{line} (raw: [{inStr}], station: [{stStr}])");
+            }
+        }
+
+        return conflicts.Count > 0 ? string.Join("; ", conflicts) : "Direction mismatch detected";
     }
 
     public double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)

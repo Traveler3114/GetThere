@@ -167,6 +167,34 @@ public class ReconciliationController : ControllerBase
         return Ok(new Paginated<ReconciliationDto>(candidates, total, page, perPage));
     }
 
+    // TODO: Before Phase 3 (public launch), this endpoint exposes reconciliation
+    // candidates for a given station (Task 4.1). Must be restricted to admin-only.
+    [HttpGet("by-station/{stationId:int}")]
+    public async Task<ActionResult<List<ReconciliationDetailDto>>> GetByStation(int stationId, CancellationToken ct = default)
+    {
+        var stationExists = await _db.CanonicalStations.AnyAsync(cs => cs.Id == stationId, ct);
+        if (!stationExists)
+            return NotFound();
+
+        var candidates = await _db.ReconciliationCandidates
+            .Include(rc => rc.Feed)
+            .ThenInclude(f => f.Operator)
+            .ThenInclude(o => o.Country)
+            .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
+            .Where(rc => rc.SuggestedCanonicalStationId == stationId)
+            .OrderBy(rc => rc.CreatedAt)
+            .ToListAsync(ct);
+
+        var results = new List<ReconciliationDetailDto>(candidates.Count);
+        foreach (var candidate in candidates)
+            results.Add(await MapToDetailDto(candidate, ct));
+
+        return Ok(results);
+    }
+
+    // TODO: Before Phase 3 (public launch), this endpoint exposes individual
+    // reconciliation candidate details (Task 4.1). Must be restricted to admin-only.
     [HttpGet("{id}")]
     public async Task<ActionResult<ReconciliationDetailDto>> GetById(int id, CancellationToken ct = default)
     {
@@ -181,10 +209,19 @@ public class ReconciliationController : ControllerBase
         if (candidate is null)
             return NotFound();
 
-        var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
-        var autoDistThreshold = _config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100);
-        var manualNameThreshold = _config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70);
-        var manualDistThreshold = _config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300);
+        return Ok(await MapToDetailDto(candidate, ct));
+    }
+
+    private async Task<ReconciliationDetailDto> MapToDetailDto(ReconciliationCandidate candidate, CancellationToken ct)
+    {
+        var autoNameThreshold = (double)(candidate.AutoMergeNameThresholdAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90));
+        var autoDistThreshold = (double)(candidate.AutoMergeDistanceMetersAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100));
+        var manualNameThreshold = (double)(candidate.ManualReviewNameThresholdAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70));
+        var manualDistThreshold = (double)(candidate.ManualReviewDistanceMetersAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300));
 
         var normalizedRaw = ReconciliationManager.NormalizeName(candidate.RawStopName);
         var normalizedStation = candidate.SuggestedCanonicalStation != null
@@ -197,7 +234,6 @@ public class ReconciliationController : ControllerBase
             autoNameThreshold, autoDistThreshold,
             manualNameThreshold, manualDistThreshold);
 
-        // Fetch raw stop route detail
         StationDetailDto? rawDetail = null;
         if (candidate.RawStop is not null)
         {
@@ -241,7 +277,6 @@ public class ReconciliationController : ControllerBase
             };
         }
 
-        // Fetch suggested station detail
         StationDetailDto? suggestedDetail = null;
         if (candidate.SuggestedCanonicalStationId.HasValue && candidate.SuggestedCanonicalStation is not null)
         {
@@ -292,7 +327,7 @@ public class ReconciliationController : ControllerBase
             autoNameThreshold, autoDistThreshold,
             candidate.Status.ToString());
 
-        var dto = new ReconciliationDetailDto
+        return new ReconciliationDetailDto
         {
             Id = candidate.Id,
             RawStopId = candidate.RawStopId,
@@ -330,10 +365,33 @@ public class ReconciliationController : ControllerBase
             SuggestedStationDetail = suggestedDetail,
             AutoMergeVerdict = verdict
         };
-
-        return Ok(dto);
     }
 
+    // TODO: Before Phase 3 (public launch), this endpoint exposes station split
+    // audit records (Task 4.18). Must be restricted to admin-only.
+    [HttpGet("split-log")]
+    public async Task<ActionResult<List<StationSplitLogDto>>> GetSplitLog([FromQuery] int candidateStationId, CancellationToken ct = default)
+    {
+        var logs = await _db.StationSplitLogs
+            .Where(sl => sl.CandidateStationId == candidateStationId)
+            .OrderBy(sl => sl.CreatedAt)
+            .Select(sl => new StationSplitLogDto
+            {
+                Id = sl.Id,
+                RawStopId = sl.RawStopId,
+                FeedVersionId = sl.FeedVersionId,
+                CandidateStationId = sl.CandidateStationId,
+                Reason = sl.Reason,
+                Detail = sl.Detail,
+                CreatedAt = sl.CreatedAt
+            })
+            .ToListAsync(ct);
+
+        return Ok(logs);
+    }
+
+    // TODO: Before Phase 3 (public launch), this endpoint allows approving
+    // reconciliation candidates (Task 4.11). Must be restricted to admin-only.
     [HttpPost("{id}/approve")]
     public async Task<IActionResult> Approve(int id, CancellationToken ct = default)
     {
@@ -341,6 +399,8 @@ public class ReconciliationController : ControllerBase
         return NoContent();
     }
 
+    // TODO: Before Phase 3 (public launch), this endpoint allows rejecting
+    // reconciliation candidates (Task 4.11). Must be restricted to admin-only.
     [HttpPost("{id}/reject")]
     public async Task<IActionResult> Reject(int id, [FromQuery] bool createNewStation = false, CancellationToken ct = default)
     {
@@ -348,10 +408,55 @@ public class ReconciliationController : ControllerBase
         return NoContent();
     }
 
+    // TODO: Before Phase 3 (public launch), this endpoint exposes station merge
+    // audit records (Task 4.15). Must be restricted to admin-only.
+    [HttpGet("merge-log")]
+    public async Task<ActionResult<List<StationMergeLogDto>>> GetMergeLog(CancellationToken ct = default)
+    {
+        var logs = await _db.StationMergeLogs
+            .OrderByDescending(ml => ml.MergedAt)
+            .Select(ml => new StationMergeLogDto
+            {
+                Id = ml.Id,
+                SourceStationId = ml.SourceStationId,
+                SourceStationGlobalId = ml.SourceStationGlobalId,
+                TargetStationId = ml.TargetStationId,
+                RawStopsMovedCount = ml.RawStopsMovedCount,
+                MergedAt = ml.MergedAt
+            })
+            .ToListAsync(ct);
+
+        return Ok(logs);
+    }
+
+    // TODO: Before Phase 3 (public launch), this endpoint checks route-set and
+    // direction conflicts between two stations before merge/reassign (Task 4.16).
+    // Must be restricted to admin-only.
+    [HttpGet("check-action-warning")]
+    public async Task<ActionResult<object>> CheckActionWarning([FromQuery] int stationAId, [FromQuery] int stationBId, CancellationToken ct = default)
+    {
+        var warning = await _reconciliationService.CheckManualActionWarningAsync(stationAId, stationBId, ct);
+        return Ok(new { warning });
+    }
+
+    // TODO: Before Phase 3 (public launch), this endpoint reassigns a
+    // reconciliation candidate to a different station (Task 4.13). Must be
+    // restricted to admin-only.
     [HttpPost("{id}/reassign")]
     public async Task<IActionResult> Reassign(int id, [FromQuery] int canonicalStationId, CancellationToken ct = default)
     {
-        await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
+        var warning = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
+        if (warning is not null)
+            return Ok(new { warning });
+        return NoContent();
+    }
+
+    // TODO: Before Phase 3 (public launch), this endpoint merges two stations
+    // and deactivates the source (Task 4.12). Must be restricted to admin-only.
+    [HttpPost("merge-stations")]
+    public async Task<IActionResult> MergeStations([FromQuery] int sourceStationId, [FromQuery] int targetStationId, CancellationToken ct = default)
+    {
+        await _reconciliationService.MergeStationsAsync(sourceStationId, targetStationId, ct);
         return NoContent();
     }
 }

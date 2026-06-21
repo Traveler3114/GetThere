@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621131238_SnapshotReconciliationThresholds")]
+    partial class SnapshotReconciliationThresholds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -929,73 +932,6 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("FeedVersionId");
 
                     b.ToTable("Shapes");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.StationMergeLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("MergedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("RawStopsMovedCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SourceStationGlobalId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("SourceStationId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TargetStationId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SourceStationId");
-
-                    b.HasIndex("TargetStationId");
-
-                    b.ToTable("StationMergeLogs");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.StationSplitLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CandidateStationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Detail")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("FeedVersionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RawStopId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CandidateStationId");
-
-                    b.ToTable("StationSplitLogs");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.StopTime", b =>

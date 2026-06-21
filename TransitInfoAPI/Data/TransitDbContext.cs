@@ -29,6 +29,8 @@ public class TransitDbContext : DbContext
     public DbSet<Calendar> Calendars { get; set; }
     public DbSet<CalendarDate> CalendarDates { get; set; }
     public DbSet<Shape> Shapes { get; set; }
+    public DbSet<StationSplitLog> StationSplitLogs { get; set; }
+    public DbSet<StationMergeLog> StationMergeLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +67,10 @@ public class TransitDbContext : DbContext
             entity.Property(e => e.ConfidenceScore).HasPrecision(5, 4);
             entity.Property(e => e.DistanceMeters).HasPrecision(14, 4);
             entity.Property(e => e.NameSimilarityScore).HasPrecision(5, 4);
+            entity.Property(e => e.AutoMergeNameThresholdAtDecision).HasPrecision(5, 4);
+            entity.Property(e => e.AutoMergeDistanceMetersAtDecision).HasPrecision(14, 4);
+            entity.Property(e => e.ManualReviewNameThresholdAtDecision).HasPrecision(5, 4);
+            entity.Property(e => e.ManualReviewDistanceMetersAtDecision).HasPrecision(14, 4);
         });
 
         // Country IsoCode unique index
@@ -101,6 +107,16 @@ public class TransitDbContext : DbContext
         // ReconciliationCandidate
         modelBuilder.Entity<ReconciliationCandidate>()
             .HasIndex(rc => rc.RawStopId);
+
+        // StationSplitLog
+        modelBuilder.Entity<StationSplitLog>()
+            .HasIndex(sl => sl.CandidateStationId);
+
+        // StationMergeLog
+        modelBuilder.Entity<StationMergeLog>()
+            .HasIndex(ml => ml.SourceStationId);
+        modelBuilder.Entity<StationMergeLog>()
+            .HasIndex(ml => ml.TargetStationId);
 
         // Trip
         modelBuilder.Entity<Trip>()

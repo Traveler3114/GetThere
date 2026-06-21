@@ -33,4 +33,9 @@ public class ReconciliationCandidate
     public Feed Feed { get; set; } = null!;
 
     public CanonicalStation? SuggestedCanonicalStation { get; set; }
+
+    public decimal? AutoMergeNameThresholdAtDecision { get; set; }
+    public decimal? AutoMergeDistanceMetersAtDecision { get; set; }
+    public decimal? ManualReviewNameThresholdAtDecision { get; set; }
+    public decimal? ManualReviewDistanceMetersAtDecision { get; set; }
 }

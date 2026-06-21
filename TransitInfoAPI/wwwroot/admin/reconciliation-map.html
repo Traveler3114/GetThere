@@ -58,6 +58,31 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 }
 #legend .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 #legend .legend-item:last-child { margin-bottom: 0; }
+.d-none { display: none; }
+.timeline-entry { padding: 12px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #e5e7eb; cursor: pointer; transition: background 0.15s; }
+.timeline-entry:hover { background: #f3f4f6; }
+.timeline-entry .entry-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.timeline-entry .entry-meta { font-size: 0.8rem; color: #888; }
+.timeline-entry .entry-summary { font-size: 0.85rem; margin-top: 4px; }
+.timeline-entry + .timeline-connector { width: 2px; height: 12px; background: #d1d5db; margin: 0 auto; }
+.search-container { padding: 8px 0; }
+.search-container input { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; outline: none; }
+.search-container input:focus { border-color: #1f78b4; box-shadow: 0 0 0 2px rgba(31,120,180,0.15); }
+.search-result { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; }
+.search-result:hover { background: #f3f4f6; }
+.search-result:last-child { border-bottom: none; }
+.search-result .sr-name { font-weight: 600; font-size: 0.9rem; }
+.search-result .sr-meta { font-size: 0.8rem; color: #888; margin-top: 2px; }
+.action-bar { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.action-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s, border-color 0.15s; background: #fff; }
+.action-btn:hover { background: #f3f4f6; }
+.action-btn.approve { border-color: #27ae60; color: #27ae60; }
+.action-btn.approve:hover { background: #d1fae5; }
+.action-btn.reject { border-color: #e74c3c; color: #e74c3c; }
+.action-btn.reject:hover { background: #fee2e2; }
+.action-btn.reassign { border-color: #1f78b4; color: #1f78b4; }
+.action-btn.reassign:hover { background: #dbeafe; }
+.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -75,7 +100,7 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 
 <script>
 const ROUTE_COLORS = {
-  Tram: '#33a02c', Bus: '#1f78b4', Trolleybus: '#1f78b4',
+  Tram: '#1f78b4', Bus: '#33a02c', Trolleybus: '#33a02c',
   Metro: '#e31a1c', Rail: '#b15928', Ferry: '#006994',
   CableCar: '#ff7f00', Funicular: '#ff7f00', Coach: '#6a3d9a',
   default: '#888'
@@ -83,10 +108,16 @@ const ROUTE_COLORS = {
 
 const params = new URLSearchParams(window.location.search);
 const candidateId = params.get('candidateId');
+const stationId = params.get('stationId');
 
-if (!candidateId) {
-  document.getElementById('sidebar-content').innerHTML = '<p class="error">No candidateId specified. <a href="/admin/reconciliation.html">Go back</a></p>';
+if (!candidateId && !stationId) {
   document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-content').innerHTML = `
+    <h2>Station Search</h2>
+    <div class="search-container">
+      <input type="text" id="station-search-input" placeholder="Search stations by name..." autofocus>
+    </div>
+    <div id="search-results"></div>`;
 }
 
 const map = new maplibregl.Map({
@@ -103,6 +134,8 @@ let rawMarker = null;
 let matchMarker = null;
 let lineMarker = null;
 let distancePopup = null;
+let stationModeMarkers = [];
+let stationModeLayers = [];
 
 function getRouteColor(type) {
   return ROUTE_COLORS[type] || ROUTE_COLORS.default;
@@ -145,6 +178,11 @@ function renderSidebar(data) {
     </div>
 
     ${verdict ? `<div class="sidebar-section" style="padding:8px 12px;background:#f8f9fa;border-radius:6px;border-left:4px solid ${verdict.startsWith('\u2705') ? '#27ae60' : '#e74c3c'};${verdictStyle};font-size:0.95rem">${esc(verdict)}</div>` : ''}
+
+    <div class="sidebar-section">
+      <h3>Review</h3>
+      ${data.reviewedAt ? `<div style="font-size:0.85rem">Reviewed by <strong>${esc(data.reviewedByAdminId || '?')}</strong> on ${new Date(data.reviewedAt).toLocaleString()}</div>` : '<div style="font-size:0.85rem;color:#888">Awaiting review</div>'}
+    </div>
 
     <div class="sidebar-section">
       <h3>Stations</h3>
@@ -275,6 +313,66 @@ function renderSidebar(data) {
     </div>`;
   }
 
+  currentCandidateData = data;
+
+  html += `<div class="action-bar" data-candidate-id="${data.id}">
+    <button class="action-btn approve" data-cid="${data.id}" onclick="performAction(${data.id},'approve')">Approve</button>
+    <button class="action-btn reject" data-cid="${data.id}" onclick="performAction(${data.id},'reject')">Reject</button>
+    <button class="action-btn reassign" data-cid="${data.id}" onclick="promptReassign(${data.id},${data.suggestedStationId ?? null})">Reassign</button>
+  </div>`;
+
+  document.getElementById('sidebar-content').innerHTML = html;
+  document.getElementById('sidebar').classList.add('open');
+}
+
+function clearStationMode() {
+  stationModeMarkers.forEach(m => m.remove());
+  stationModeMarkers = [];
+  stationModeLayers.forEach(id => { try { map.removeLayer(id); } catch (e) {} });
+  stationModeLayers.forEach(id => { try { map.removeSource(id); } catch (e) {} });
+  stationModeLayers = [];
+}
+
+function renderStationTimeline(station, candidates) {
+  let html = `
+    <h2>${esc(station.name)}</h2>
+    <div class="sidebar-section">
+      <span style="font-size:0.85rem;color:#666">Station ID: ${station.id}</span>
+      ${station.primaryRouteType ? `<span class="route-type-badge" style="background:${getRouteColor(station.primaryRouteType)};margin-left:8px">${station.primaryRouteType}</span>` : ''}
+    </div>
+    <div class="sidebar-section">
+      <h3>Candidates (${candidates.length})</h3>`;
+
+  candidates.forEach((c, i) => {
+    const dateStr = c.createdAt ? new Date(c.createdAt).toLocaleString() : '';
+    const confidence = c.confidenceScore != null ? (c.confidenceScore * 100).toFixed(0) + '%' : '-';
+    const distStr = c.distanceMeters != null ? fmtDist(c.distanceMeters) : '-';
+    const rtColor = getRouteColor(c.rawRouteType || 'default');
+
+    html += `
+      <div class="timeline-entry">
+        <div onclick="location.search='?candidateId=${c.id}'" style="cursor:pointer">
+          <div class="entry-header">
+            <span class="status-badge ${c.status}">${c.status}</span>
+            <strong style="font-size:0.9rem">${esc(c.rawStopName)}</strong>
+          </div>
+          <div class="entry-summary">
+            <span class="route-type-badge" style="background:${rtColor}">${c.rawRouteType || '-'}</span>
+            <span style="margin-left:8px;font-size:0.85rem;color:#666">${confidence} confidence</span>
+            <span style="margin-left:8px;font-size:0.85rem;color:#666">${distStr}</span>
+          </div>
+          <div class="entry-meta">${dateStr}${c.reviewedAt ? ` &middot; Reviewed by ${esc(c.reviewedByAdminId || '?')}` : ' &middot; <span style="color:#888">Awaiting review</span>'}</div>
+        </div>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="action-btn approve" data-cid="${c.id}" style="padding:3px 10px;font-size:0.75rem" onclick="event.stopPropagation();performAction(${c.id},'approve')">Approve</button>
+          <button class="action-btn reject" data-cid="${c.id}" style="padding:3px 10px;font-size:0.75rem" onclick="event.stopPropagation();performAction(${c.id},'reject')">Reject</button>
+          <button class="action-btn reassign" data-cid="${c.id}" style="padding:3px 10px;font-size:0.75rem" onclick="event.stopPropagation();promptReassign(${c.id},${c.suggestedStationId ?? null})">Reassign</button>
+        </div>
+      </div>`;
+  });
+
+  html += `</div>`;
+
   document.getElementById('sidebar-content').innerHTML = html;
   document.getElementById('sidebar').classList.add('open');
 }
@@ -290,7 +388,255 @@ function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
 }
 
+// Station search (Task 4.4)
+// TODO: Before Phase 3 (public launch), this search UI lets admins find
+// stations for reconciliation. It calls /stations/search and the results
+// link into the reconciliation timeline view. Must be restricted to admin-only.
+let searchTimer = null;
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('station-search-input');
+  if (input) {
+    input.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const q = input.value.trim();
+      if (q.length < 2) { document.getElementById('search-results').innerHTML = ''; return; }
+      searchTimer = setTimeout(() => {
+        fetch('/stations/search?q=' + encodeURIComponent(q) + '&perPage=20')
+          .then(r => r.json())
+          .then(resp => {
+            const results = resp.data || [];
+            let html = '';
+            results.forEach(s => {
+              const color = getRouteColor(s.primaryRouteType || 'default');
+              html += `<div class="search-result" onclick="location.search='?stationId=${s.id}'">
+                <div class="sr-name">${esc(s.name)} <span class="route-type-badge" style="background:${color}">${s.primaryRouteType || '-'}</span></div>
+                <div class="sr-meta">${s.cityName ? esc(s.cityName) + ' &middot; ' : ''}${s.countryName || ''} &middot; ID: ${s.id}</div>
+              </div>`;
+            });
+            if (!html) html = '<p class="small" style="color:#888;padding:8px">No stations found</p>';
+            document.getElementById('search-results').innerHTML = html;
+          })
+          .catch(() => {});
+      }, 300);
+    });
+  }
+});
+
+function showStationRoutes(stationId, stationName, lat, lon) {
+  fetch('/stations/' + stationId + '/routes')
+    .then(r => { if (!r.ok) throw new Error('Failed to load routes'); return r.json(); })
+    .then(routes => {
+      let html = `
+        <h2>${esc(stationName)}</h2>
+        <div class="sidebar-section">
+          <h3>Routes (${routes.length})</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+      routes.forEach(r => {
+        const color = getRouteColor(r.routeType || 'default');
+        html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+      });
+      html += `</div></div>`;
+      document.getElementById('sidebar-content').innerHTML = html;
+      document.getElementById('sidebar').classList.add('open');
+    })
+    .catch(err => {
+      document.getElementById('sidebar-content').innerHTML = '<p class="error">' + esc(err.message) + '</p>';
+      document.getElementById('sidebar').classList.add('open');
+    });
+
+  fetch('/stations/' + stationId + '/routes')
+    .then(r => r.json())
+    .then(routes => {
+      routes.forEach(route => {
+        fetch('/routes/' + route.id + '/shape')
+          .then(r => r.json())
+          .then(shapeData => {
+            if (!shapeData || !shapeData.features || shapeData.features.length === 0) return;
+            const layerId = 'route-shape-' + route.id;
+            const sourceId = 'route-source-' + route.id;
+            if (map.getSource(sourceId)) return;
+            map.addSource(sourceId, { type: 'geojson', data: shapeData });
+            map.addLayer({
+              id: layerId,
+              type: 'line',
+              source: sourceId,
+              paint: {
+                'line-color': getRouteColor(route.routeType || 'default'),
+                'line-width': 2.5,
+                'line-opacity': 0.7
+              }
+            });
+            stationModeLayers.push(sourceId, layerId);
+          })
+          .catch(() => {});
+      });
+    })
+    .catch(() => {});
+}
+
+let currentCandidateData = null;
+
+function disableActionBtns(id, disable) {
+  document.querySelectorAll(`.action-btn[data-cid="${id}"]`).forEach(b => b.disabled = disable);
+}
+
+// TODO: Before Phase 3 (public launch), these action functions call
+// approve/reject/reassign endpoints exposed in Tasks 4.11/4.13. They
+// also call check-action-warning (Task 4.16) and re-fetch via by-station
+// (Task 4.1) and /reconciliation/{id}. Must all be restricted to admin-only.
+function performAction(id, action) {
+  disableActionBtns(id, true);
+
+  let url;
+  if (action === 'reject') {
+    url = '/reconciliation/' + id + '/reject?createNewStation=false';
+  } else {
+    url = '/reconciliation/' + id + '/' + action;
+  }
+
+  fetch(url, { method: 'POST' })
+    .then(r => {
+      if (!r.ok) throw new Error(action + ' failed (status ' + r.status + ')');
+      return r.json().catch(() => ({}));
+    })
+    .then(() => {
+      if (stationId) reFetchStationTimeline(stationId);
+      else if (candidateId) reFetchCandidate(candidateId);
+      else document.getElementById('sidebar-content').innerHTML = '<p class="loading">Action completed.</p>';
+    })
+    .catch(err => {
+      disableActionBtns(id, false);
+      alert('Error: ' + err.message);
+    });
+}
+
+function promptReassign(candidateId, currentStationId) {
+  const targetStr = prompt('Enter target station ID for reassignment:');
+  if (!targetStr) return;
+  const targetId = parseInt(targetStr, 10);
+  if (isNaN(targetId)) { alert('Invalid station ID'); return; }
+
+  if (currentStationId == null) {
+    alert('Cannot check warning: no current station assigned.');
+    doReassign(candidateId, targetId);
+    return;
+  }
+
+  fetch('/reconciliation/check-action-warning?stationAId=' + currentStationId + '&stationBId=' + targetId)
+    .then(r => r.json())
+    .then(result => {
+      if (result.warning && !confirm('Warning:\n' + result.warning + '\n\nProceed with reassignment anyway?')) return;
+      doReassign(candidateId, targetId);
+    })
+    .catch(err => {
+      alert('Warning check failed: ' + err.message + '\nProceeding anyway.');
+      doReassign(candidateId, targetId);
+    });
+}
+
+function doReassign(candidateId, targetStationId) {
+  disableActionBtns(candidateId, true);
+  fetch('/reconciliation/' + candidateId + '/reassign?canonicalStationId=' + targetStationId, { method: 'POST' })
+    .then(r => {
+      if (!r.ok) throw new Error('Reassign failed (status ' + r.status + ')');
+      return r.json().catch(() => ({}));
+    })
+    .then(() => {
+      if (stationId) reFetchStationTimeline(stationId);
+      else if (candidateId) reFetchCandidate(candidateId);
+    })
+    .catch(err => { disableActionBtns(candidateId, false); alert('Error: ' + err.message); });
+}
+
+function reFetchCandidate(id) {
+  fetch('/reconciliation/' + id)
+    .then(r => { if (!r.ok) throw new Error('Failed to re-fetch'); return r.json(); })
+    .then(data => renderSidebar(data))
+    .catch(() => {});
+}
+
+function reFetchStationTimeline(id) {
+  clearStationMode();
+  Promise.all([
+    fetch('/stations/' + id).then(r => { if (!r.ok) throw new Error('Station not found'); return r.json(); }),
+    fetch('/reconciliation/by-station/' + id).then(r => { if (!r.ok) throw new Error('Failed to load candidates'); return r.json(); })
+  ])
+    .then(([station, candidates]) => {
+      renderStationTimeline(station, candidates);
+
+      const stationEl = createMarkerElement('#27ae60', 'STATION', 28);
+      stationEl.addEventListener('click', () => showStationRoutes(station.id, station.name, station.latitude, station.longitude));
+      const stationMarker = new maplibregl.Marker({ element: stationEl })
+        .setLngLat([station.longitude, station.latitude])
+        .addTo(map);
+      stationModeMarkers.push(stationMarker);
+
+      const plottedRaw = new Set();
+      const bounds = new maplibregl.LngLatBounds();
+      bounds.extend([station.longitude, station.latitude]);
+      candidates.forEach(c => {
+        if (!plottedRaw.has(c.rawStopId)) {
+          plottedRaw.add(c.rawStopId);
+          const rawEl = createMarkerElement('#e74c3c', 'RAW', 24);
+          const rawMarkerM = new maplibregl.Marker({ element: rawEl })
+            .setLngLat([c.rawStopLon, c.rawStopLat])
+            .addTo(map);
+          stationModeMarkers.push(rawMarkerM);
+          bounds.extend([c.rawStopLon, c.rawStopLat]);
+        }
+      });
+      map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+    })
+    .catch(() => {});
+}
+
 map.on('load', () => {
+  if (stationId) {
+    clearStationMode();
+
+    Promise.all([
+      fetch('/stations/' + stationId).then(r => { if (!r.ok) throw new Error('Station not found (status ' + r.status + ')'); return r.json(); }),
+      fetch('/reconciliation/by-station/' + stationId).then(r => { if (!r.ok) throw new Error('Failed to load candidates (status ' + r.status + ')'); return r.json(); })
+    ])
+      .then(([station, candidates]) => {
+        renderStationTimeline(station, candidates);
+
+        // Plot station marker (green)
+        const stationEl = createMarkerElement('#27ae60', 'STATION', 28);
+        stationEl.addEventListener('click', () => showStationRoutes(station.id, station.name, station.latitude, station.longitude));
+        const stationMarker = new maplibregl.Marker({ element: stationEl })
+          .setLngLat([station.longitude, station.latitude])
+          .addTo(map);
+        stationModeMarkers.push(stationMarker);
+
+        // Plot distinct raw stop markers (red)
+        const plottedRaw = new Set();
+        const bounds = new maplibregl.LngLatBounds();
+        bounds.extend([station.longitude, station.latitude]);
+
+        candidates.forEach(c => {
+          if (!plottedRaw.has(c.rawStopId)) {
+            plottedRaw.add(c.rawStopId);
+            const rawEl = createMarkerElement('#e74c3c', 'RAW', 24);
+            const rawMarkerM = new maplibregl.Marker({ element: rawEl })
+              .setLngLat([c.rawStopLon, c.rawStopLat])
+              .addTo(map);
+            stationModeMarkers.push(rawMarkerM);
+            bounds.extend([c.rawStopLon, c.rawStopLat]);
+          }
+        });
+
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+        document.getElementById('legend').classList.remove('d-none');
+      })
+      .catch(err => {
+        document.getElementById('sidebar-content').innerHTML =
+          '<p class="error">' + esc(err.message) + '</p>';
+        document.getElementById('sidebar').classList.add('open');
+      });
+    return;
+  }
+
   if (!candidateId) return;
 
   fetch('/reconciliation/' + candidateId)

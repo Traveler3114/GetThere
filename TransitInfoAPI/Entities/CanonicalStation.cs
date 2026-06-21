@@ -4,6 +4,11 @@ using NetTopologySuite.Geometries;
 
 namespace TransitInfoAPI.Entities;
 
+// Decision (Task 4.17): Stations relate to each other in exactly two ways:
+//   - Fully merged (source deactivated via IsActive=false, recorded in StationMergeLog)
+//   - Fully independent
+// No "related but separate" linking concept (e.g. parent/child, related stops)
+// exists. SupersedesIds is for legacy ID migration only, not reconciliation merges.
 public class CanonicalStation
 {
     public int Id { get; set; }
