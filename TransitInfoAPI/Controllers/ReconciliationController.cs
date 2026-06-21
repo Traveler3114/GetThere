@@ -43,7 +43,7 @@ public class ReconciliationController : ControllerBase
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
-            .Where(rc => rc.Status == ReconciliationStatus.Pending || rc.Status == ReconciliationStatus.NewStation)
+            .Where(rc => rc.Status == ReconciliationStatus.Pending)
             .AsQueryable();
 
         if (feedVersionId.HasValue)

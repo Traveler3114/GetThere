@@ -304,30 +304,6 @@ public class ReconciliationManager
                 {
                     rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
 
-                    _db.ReconciliationCandidates.Add(new ReconciliationCandidate
-                    {
-                        RawStopId = rawStop.Id,
-                        RawStopName = rawStop.Name,
-                        RawStopLat = rawStop.Lat,
-                        RawStopLon = rawStop.Lon,
-                        RawRouteType = rawStop.RouteType.Value,
-                        FeedId = feedVersion.FeedId,
-                        SuggestedCanonicalStationId = station.Id,
-                        ConfidenceScore = 1.0m,
-                        NameSimilarityScore = 1.0m,
-                        DistanceMeters = 0,
-                        NameMatched = false,
-                        DistanceMatched = false,
-                        RouteTypeMatched = true,
-                        AutoReconciled = true,
-                        Status = ReconciliationStatus.NewStation,
-                        CreatedAt = DateTime.UtcNow,
-                        AutoMergeNameThresholdAtDecision = (decimal)autoNameThreshold,
-                        AutoMergeDistanceMetersAtDecision = (decimal)autoDistThreshold,
-                        ManualReviewNameThresholdAtDecision = (decimal)manualNameThreshold,
-                        ManualReviewDistanceMetersAtDecision = (decimal)manualDistThreshold
-                    });
-
                     if (addedOperatorLinks.Add((station.Id, feedOperatorId)))
                         _db.CanonicalStationOperators.Add(new CanonicalStationOperator
                         {
@@ -671,6 +647,14 @@ public class ReconciliationManager
         });
 
         await _db.SaveChangesAsync(ct);
+
+        // Update StopTimes.CanonicalStationId for moved raw stops
+        // so schedule queries find departures from both operators
+        var rawStopIds = rawStops.Select(rs => rs.Id).ToList();
+        await _db.StopTimes
+            .Where(st => st.RawStopEntityId.HasValue && rawStopIds.Contains(st.RawStopEntityId.Value))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(st => st.CanonicalStationId, targetStationId), ct);
+
         _logger.LogInformation(
             "Merged station {SourceId} into {TargetId}: {RawCount} raw stops moved, {OpCount} operators merged",
             sourceStationId, targetStationId, rawStops.Count, operatorsMerged);
