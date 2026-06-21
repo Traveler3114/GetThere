@@ -58,7 +58,7 @@ public class RoutesController : ControllerBase
                 query = query.Where(r => r.Geometry != null && r.Geometry.Intersects(bbox));
             }
 
-            var routes = await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).ToListAsync(ct);
+            var routes = await query.OrderBy(r => r.Id).ToListAsync(ct);
 
             var fc = GeoJsonGeometry.ToLineStringCollection(routes,
                 r => r.Geometry,

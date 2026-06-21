@@ -32,11 +32,45 @@ public class StationsController : ControllerBase
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
-        var result = await _stationService.GetAllAsync(lat, lon, radiusKm, countryId, page, perPage, ct);
-
         if (format == "geojson")
         {
-            var fc = GeoJsonGeometry.ToPointCollection(result,
+            var query = _db.CanonicalStations
+                .Include(cs => cs.Country)
+                .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
+                .AsQueryable();
+
+            if (countryId.HasValue)
+                query = query.Where(cs => cs.CountryId == countryId.Value);
+
+            if (lat is not null && lon is not null && radiusKm is not null)
+            {
+                var latRange = radiusKm.Value / 111.0;
+                var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+                query = query.Where(cs =>
+                    cs.Latitude >= lat.Value - latRange &&
+                    cs.Latitude <= lat.Value + latRange &&
+                    cs.Longitude >= lon.Value - lonRange &&
+                    cs.Longitude <= lon.Value + lonRange);
+            }
+
+            var allStations = await query
+                .OrderBy(cs => cs.Id)
+                .Select(cs => new StationDto
+                {
+                    Id = cs.Id,
+                    GlobalId = cs.GlobalId,
+                    OnestopId = cs.OnestopId,
+                    Name = cs.Name,
+                    Latitude = cs.Latitude,
+                    Longitude = cs.Longitude,
+                    StationType = cs.StationType.ToString(),
+                    PrimaryRouteType = cs.PrimaryRouteType.ToString(),
+                    CountryName = cs.Country.Name,
+                    CityName = cs.City != null ? cs.City.Name : null
+                })
+                .ToListAsync(ct);
+
+            var fc = GeoJsonGeometry.ToPointCollection(allStations,
                 s => s.Latitude, s => s.Longitude,
                 s => new Dictionary<string, object?>
                 {
@@ -53,6 +87,7 @@ public class StationsController : ControllerBase
             return Ok(fc);
         }
 
+        var result = await _stationService.GetAllAsync(lat, lon, radiusKm, countryId, page, perPage, ct);
         var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, null, ct);
         return Ok(new Paginated<StationDto>(result, total, page, perPage));
     }
