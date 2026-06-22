@@ -6,6 +6,7 @@
 <title>Transit Map</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="/route-colors.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
@@ -116,14 +117,6 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 </div>
 
 <script>
-const ROUTE_COLORS = {
-  Tram: '#1f78b4', Bus: '#33a02c', Trolleybus: '#33a02c',
-  Metro: '#e31a1c', Rail: '#b15928', Ferry: '#006994', Flight: '#888',
-  CableCar: '#ff7f00', Funicular: '#ff7f00', Coach: '#6a3d9a',
-  BikeShare: '#6a3d9a', ScooterShare: '#ff7f00',
-  default: '#888'
-};
-
 const map = new maplibregl.Map({
   container: 'map',
   style: '/map/style.json',
@@ -139,10 +132,6 @@ let sidebarOpen = false;
 const stationsSource = 'gt-stops';
 const routesSource = 'routes';
 const vehiclesSource = 'vehicles';
-
-function getRouteColor(type) {
-  return ROUTE_COLORS[type] || ROUTE_COLORS.default;
-}
 
 function loadMapData() {
   const bounds = map.getBounds();
@@ -213,15 +202,19 @@ map.on('load', () => {
     paint: {
       'line-color': [
         'match', ['get', 'routeType'],
-        'Tram', '#1f78b4',
-        'Bus', '#33a02c',
+        'Tram', '#126400',
+        'Subway', '#e31a1c',
+        'Train', '#b15928',
+        'Bus', '#1f78b4',
+        'Ferry', '#6a3d9a',
+        'CableTram', '#fb9a99',
+        'CableCar', '#fb9a99',
+        'Funicular', '#fdbf6f',
         'Trolleybus', '#33a02c',
-        'Metro', '#e31a1c',
-        'Rail', '#b15928',
-        'Ferry', '#006994',
-        'CableCar', '#ff7f00',
-        'Funicular', '#ff7f00',
-        'Coach', '#6a3d9a',
+        'Monorail', '#cab2d6',
+        'Bicycle', '#a6cee3',
+        'Scooter', '#ff7f00',
+        'Airplane', '#b2df8a',
         '#888'
       ],
       'line-width': 2,
@@ -265,9 +258,9 @@ map.on('load', () => {
 
   // Load stop icons
   const STOP_ICONS = [
-    { id: 'stop-bus', file: '/images/bus.png', types: ['Bus', 'Trolleybus', 'Coach'] },
+    { id: 'stop-bus', file: '/images/bus.png', types: ['Bus', 'Trolleybus'] },
     { id: 'stop-tram', file: '/images/tram.png', types: ['Tram'] },
-    { id: 'stop-train', file: '/images/train.png', types: ['Rail', 'Metro', 'Ferry', 'CableCar', 'Funicular'] },
+    { id: 'stop-train', file: '/images/train.png', types: ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail'] },
     { id: 'stop-default', file: '/images/bus.png', types: [] }
   ];
 
@@ -287,9 +280,9 @@ map.on('load', () => {
   });
 
   const _stationIconExpr = ['case',
-    ['in', ['get', 'primaryRouteType'], ['literal', ['Bus', 'Trolleybus', 'Coach']]], 'stop-bus',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Bus', 'Trolleybus']]], 'stop-bus',
     ['in', ['get', 'primaryRouteType'], ['literal', ['Tram']]], 'stop-tram',
-    ['in', ['get', 'primaryRouteType'], ['literal', ['Rail', 'Metro', 'Ferry', 'CableCar', 'Funicular']]], 'stop-train',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail']]], 'stop-train',
     'stop-bus'
   ];
 
@@ -404,7 +397,7 @@ function showStationDetails(id, props) {
 
   let html = `
     <h2>${props.name || 'Unknown'}</h2>
-    <div class="info-row"><strong>Type</strong> ${type}</div>
+    <div class="info-row"><strong>Type</strong> ${formatEnumName(type)}</div>
     <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${rt || '-'}</span></div>
     <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>

@@ -32,7 +32,6 @@ public class OperatorsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult> GetAll(
         [FromQuery] int? countryId = null,
-        [FromQuery] OperatorType? type = null,
         [FromQuery] string? q = null,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
@@ -45,8 +44,6 @@ public class OperatorsController : ControllerBase
 
             if (countryId.HasValue)
                 query = query.Where(o => o.CountryId == countryId.Value);
-            if (type.HasValue)
-                query = query.Where(o => o.OperatorType == type.Value);
 
             var operators = await query.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage)
                 .Select(o => new
@@ -74,15 +71,14 @@ public class OperatorsController : ControllerBase
                         ["globalId"] = item.Operator.GlobalId,
                         ["onestopId"] = item.Operator.OnestopId,
                         ["name"] = item.Operator.Name,
-                        ["shortName"] = item.Operator.ShortName,
-                        ["operatorType"] = item.Operator.OperatorType.ToString()
+                        ["shortName"] = item.Operator.ShortName
                     }
                 }).ToList()
             };
             return Ok(fc);
         }
 
-        var result = await _operatorService.GetAllAsync(countryId, type, q, page, perPage, ct);
+        var result = await _operatorService.GetAllAsync(countryId, q, page, perPage, ct);
         var total = await _db.Operators.CountAsync(ct);
         return Ok(new Paginated<OperatorDto>(result, total, page, perPage));
     }
@@ -101,7 +97,6 @@ public class OperatorsController : ControllerBase
                 Name = o.Name,
                 ShortName = o.ShortName,
                 Website = o.Website,
-                OperatorType = o.OperatorType.ToString(),
                 CountryName = o.Country != null ? o.Country.Name : null
             })
             .FirstOrDefaultAsync(ct);
@@ -124,7 +119,6 @@ public class OperatorsController : ControllerBase
                 Name = o.Name,
                 ShortName = o.ShortName,
                 Website = o.Website,
-                OperatorType = o.OperatorType.ToString(),
                 CountryName = o.Country != null ? o.Country.Name : null
             })
             .FirstOrDefaultAsync(ct);
@@ -147,17 +141,18 @@ public class OperatorsController : ControllerBase
         var icons = new Dictionary<int, (string Icon, string Color)>
         {
             { 0, ("tram.png", "#126400") },
-            { 1, ("bus.png", "#1f78b4") },
-            { 2, ("trolleybus.png", "#33a02c") },
-            { 3, ("metro.png", "#e31a1c") },
-            { 4, ("train.png", "#b15928") },
-            { 5, ("ferry.png", "#6a3d9a") },
-            { 6, ("flight.png", "#b2df8a") },
-            { 7, ("cablecar.png", "#fb9a99") },
-            { 8, ("funicular.png", "#fdbf6f") },
-            { 9, ("coach.png", "#cab2d6") },
-            { 10, ("bikeshare.png", "#a6cee3") },
-            { 11, ("scootershare.png", "#ff7f00") }
+            { 1, ("subway.png", "#e31a1c") },
+            { 2, ("train.png", "#b15928") },
+            { 3, ("bus.png", "#1f78b4") },
+            { 4, ("ferry.png", "#6a3d9a") },
+            { 5, ("cabletram.png", "#fb9a99") },
+            { 6, ("cablecar.png", "#fb9a99") },
+            { 7, ("funicular.png", "#fdbf6f") },
+            { 11, ("trolleybus.png", "#33a02c") },
+            { 12, ("monorail.png", "#cab2d6") },
+            { 100, ("bicycle.png", "#a6cee3") },
+            { 101, ("scooter.png", "#ff7f00") },
+            { 200, ("airplane.png", "#b2df8a") }
         };
 
         var types = Enum.GetValues<RouteType>()
@@ -166,18 +161,19 @@ public class OperatorsController : ControllerBase
                 var id = (int)rt;
                 var name = rt switch
                 {
-                    RouteType.Bus => "Bus",
                     RouteType.Tram => "Tram",
-                    RouteType.Trolleybus => "Trolleybus",
-                    RouteType.Metro => "Metro",
-                    RouteType.Rail => "Train",
+                    RouteType.Subway => "Subway",
+                    RouteType.Train => "Train",
+                    RouteType.Bus => "Bus",
                     RouteType.Ferry => "Ferry",
-                    RouteType.Flight => "Flight",
+                    RouteType.CableTram => "Cable Tram",
                     RouteType.CableCar => "Cable Car",
                     RouteType.Funicular => "Funicular",
-                    RouteType.Coach => "Coach",
-                    RouteType.BikeShare => "Bike Share",
-                    RouteType.ScooterShare => "Scooter Share",
+                    RouteType.Trolleybus => "Trolleybus",
+                    RouteType.Monorail => "Monorail",
+                    RouteType.Bicycle => "Bicycle",
+                    RouteType.Scooter => "Scooter",
+                    RouteType.Airplane => "Airplane",
                     _ => rt.ToString()
                 };
                 icons.TryGetValue(id, out var meta);
@@ -273,9 +269,6 @@ public class OperatorsController : ControllerBase
         if (exists)
             return Problem(statusCode: 409, title: $"Operator with GlobalId '{globalId}' already exists.");
 
-        if (!Enum.TryParse<OperatorType>(request.OperatorType, true, out var operatorType))
-            return Problem(statusCode: 400, title: $"Invalid operator type '{request.OperatorType}'.");
-
         var onestopId = _onestopIdService.GenerateOperatorOnestopId(country.IsoCode, request.ShortName);
         var onestopExists = await _db.Operators.AnyAsync(o => o.OnestopId == onestopId, ct);
         if (onestopExists)
@@ -288,7 +281,6 @@ public class OperatorsController : ControllerBase
             Name = request.Name,
             ShortName = request.ShortName,
             Website = request.Website,
-            OperatorType = operatorType,
             CountryId = request.CountryId,
             CreatedAt = DateTime.UtcNow
         };
@@ -311,7 +303,6 @@ public class OperatorsController : ControllerBase
             Name = op.Name,
             ShortName = op.ShortName,
             Website = op.Website,
-            OperatorType = op.OperatorType.ToString(),
             CountryName = country.Name
         };
 
@@ -342,13 +333,6 @@ public class OperatorsController : ControllerBase
         if (request.Website is not null)
             op.Website = request.Website;
 
-        if (request.OperatorType is not null)
-        {
-            if (!Enum.TryParse<OperatorType>(request.OperatorType, true, out var operatorType))
-                return Problem(statusCode: 400, title: $"Invalid operator type '{request.OperatorType}'.");
-            op.OperatorType = operatorType;
-        }
-
         await _db.SaveChangesAsync(ct);
 
         var dto = new OperatorDto
@@ -359,7 +343,6 @@ public class OperatorsController : ControllerBase
             Name = op.Name,
             ShortName = op.ShortName,
             Website = op.Website,
-            OperatorType = op.OperatorType.ToString(),
             CountryName = op.Country.Name
         };
 

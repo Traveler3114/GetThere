@@ -87,7 +87,6 @@ public class PlacesController : ControllerBase
                 Name = o.Name,
                 ShortName = o.ShortName,
                 Website = o.Website,
-                OperatorType = o.OperatorType.ToString(),
                 CountryName = o.Country != null ? o.Country.Name : null
             })
             .ToListAsync(ct);

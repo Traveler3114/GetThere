@@ -7,6 +7,7 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <link rel="stylesheet" href="style.css">
+<script src="/route-colors.js"></script>
 </head>
 <body>
 <div class="container">
@@ -23,19 +24,7 @@
     <div class="col-auto">
       <input type="text" id="search" class="form-control form-control-sm" placeholder="Search by name..." oninput="filterOperators()">
     </div>
-    <div class="col-auto">
-      <select id="filterType" class="form-select form-select-sm" onchange="filterOperators()">
-        <option value="">All Types</option>
-        <option value="Transit">Transit</option>
-        <option value="Rail">Rail</option>
-        <option value="Ferry">Ferry</option>
-        <option value="Air">Air</option>
-        <option value="Coach">Coach</option>
-        <option value="BikeShare">Bike Share</option>
-        <option value="ScooterShare">Scooter Share</option>
-        <option value="CableCarFunicular">Cable Car</option>
-      </select>
-    </div>
+
     <div class="col-auto">
       <select id="filterCountry" class="form-select form-select-sm" onchange="filterOperators()">
         <option value="">All Countries</option>
@@ -83,11 +72,9 @@ function populateCountryFilter(ops) {
 
 function filterOperators() {
   const q = document.getElementById('search').value.toLowerCase();
-  const typeFilter = document.getElementById('filterType').value;
   const countryId = document.getElementById('filterCountry').value;
   let filtered = allOperators;
   if (countryId) filtered = filtered.filter(o => o.countryId === countryId || o.countryName === countryId);
-  if (typeFilter) filtered = filtered.filter(o => o.operatorType === typeFilter);
   if (q) filtered = filtered.filter(o => (o.name || '').toLowerCase().includes(q) || (o.shortName || '').toLowerCase().includes(q) || (o.globalId || '').toLowerCase().includes(q));
   paginatedItems = filtered;
   showPage(1);
@@ -155,8 +142,8 @@ async function showDetail(globalId) {
     const stations = sR.data || [];
     const routes = rR.data || [];
     const feeds = fR.data || [];
-    stationsHtml = stations.length ? '<h6>Stations</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th><th>Location</th></tr></thead><tbody>' + stations.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.stationType)}</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No stations.</p>';
-    routesHtml = routes.length ? '<h6>Routes</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>' + routes.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.routeType)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No routes.</p>';
+    stationsHtml = stations.length ? '<h6>Stations</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th><th>Location</th></tr></thead><tbody>' + stations.map(s => `<tr><td>${esc(s.name)}</td><td>${formatEnumName(s.stationType)}</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No stations.</p>';
+    routesHtml = routes.length ? '<h6>Routes</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>' + routes.map(r => `<tr><td>${esc(r.name)}</td><td>${rtBadge(r.routeType)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No routes.</p>';
     feedsHtml = feeds.length ? '<h6>Feeds</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Feed ID</th><th>Type</th><th>Active</th></tr></thead><tbody>' + feeds.map(f => `<tr><td>${esc(f.feedId)}</td><td>${esc(f.feedType)}</td><td>${f.isActive ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No feeds.</p>';
   } catch(e) { stationsHtml = '<p class="text-danger small">Error loading details.</p>'; }
 
@@ -166,7 +153,6 @@ async function showDetail(globalId) {
       <dl class="row mb-3">
         <dt class="col-sm-3">Global ID</dt><dd class="col-sm-9">${esc(o.globalId)}</dd>
         <dt class="col-sm-3">Onestop ID</dt><dd class="col-sm-9"><code>${esc(o.onestopId||'-')}</code></dd>
-        <dt class="col-sm-3">Type</dt><dd class="col-sm-9">${esc(o.operatorType)}</dd>
         <dt class="col-sm-3">Country</dt><dd class="col-sm-9">${o.countryName || '-'}</dd>
         <dt class="col-sm-3">Website</dt><dd class="col-sm-9">${o.website ? '<a href="'+esc(o.website)+'" target="_blank">'+esc(o.website)+'</a>' : '-'}</dd>
       </dl>
@@ -211,19 +197,6 @@ async function showAddModal() {
         <select id="addCountryId" class="form-select form-select-sm">${countryOptions}</select>
       </div>
       <div class="mb-3">
-        <label class="form-label">Type</label>
-        <select id="addOperatorType" class="form-select form-select-sm">
-          <option value="Transit">Transit</option>
-          <option value="Rail">Rail</option>
-          <option value="Ferry">Ferry</option>
-          <option value="Air">Air</option>
-          <option value="Coach">Coach</option>
-          <option value="BikeShare">Bike Share</option>
-          <option value="ScooterShare">Scooter Share</option>
-          <option value="CableCarFunicular">Cable Car</option>
-        </select>
-      </div>
-      <div class="mb-3">
         <label class="form-label">Website</label>
         <input type="url" id="addWebsite" class="form-control form-control-sm" placeholder="https://...">
       </div>
@@ -251,7 +224,6 @@ async function addOperator() {
   const name = document.getElementById('addName').value.trim();
   const shortName = document.getElementById('addShortName').value.trim();
   const countryId = parseInt(document.getElementById('addCountryId').value);
-  const operatorType = document.getElementById('addOperatorType').value;
   const website = document.getElementById('addWebsite').value.trim() || null;
   const globalId = document.getElementById('addGlobalId').value.trim() || null;
   if (!name || !shortName) { alert('Name and Short Name are required.'); btn.disabled = false; return; }
@@ -259,7 +231,7 @@ async function addOperator() {
     const r = await fetch(BASE + '/operators', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, shortName, countryId, operatorType, website, globalId})
+      body: JSON.stringify({name, shortName, countryId, website, globalId})
     });
     if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
@@ -297,19 +269,6 @@ async function showEditModal(globalId) {
         <select id="editCountryId" class="form-select form-select-sm">${countryOptions}</select>
       </div>
       <div class="mb-3">
-        <label class="form-label">Type</label>
-        <select id="editOperatorType" class="form-select form-select-sm">
-          <option value="Transit" ${o.operatorType === 'Transit' ? 'selected' : ''}>Transit</option>
-          <option value="Rail" ${o.operatorType === 'Rail' ? 'selected' : ''}>Rail</option>
-          <option value="Ferry" ${o.operatorType === 'Ferry' ? 'selected' : ''}>Ferry</option>
-          <option value="Air" ${o.operatorType === 'Air' ? 'selected' : ''}>Air</option>
-          <option value="Coach" ${o.operatorType === 'Coach' ? 'selected' : ''}>Coach</option>
-          <option value="BikeShare" ${o.operatorType === 'BikeShare' ? 'selected' : ''}>Bike Share</option>
-          <option value="ScooterShare" ${o.operatorType === 'ScooterShare' ? 'selected' : ''}>Scooter Share</option>
-          <option value="CableCarFunicular" ${o.operatorType === 'CableCarFunicular' ? 'selected' : ''}>Cable Car</option>
-        </select>
-      </div>
-      <div class="mb-3">
         <label class="form-label">Website</label>
         <input type="url" id="editWebsite" class="form-control form-control-sm" value="${esc(o.website||'')}">
       </div>
@@ -333,14 +292,13 @@ async function editOperator(globalId) {
   const name = document.getElementById('editName').value.trim();
   const shortName = document.getElementById('editShortName').value.trim();
   const countryId = parseInt(document.getElementById('editCountryId').value);
-  const operatorType = document.getElementById('editOperatorType').value;
   const website = document.getElementById('editWebsite').value.trim() || null;
   if (!name || !shortName) { alert('Name and Short Name are required.'); btn.disabled = false; return; }
   try {
     const r = await fetch(BASE + '/operators/' + globalId, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, shortName, countryId, operatorType, website})
+      body: JSON.stringify({name, shortName, countryId, website})
     });
     if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();

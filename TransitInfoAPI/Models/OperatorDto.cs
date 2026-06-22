@@ -8,6 +8,5 @@ public class OperatorDto
     public string Name { get; set; } = string.Empty;
     public string ShortName { get; set; } = string.Empty;
     public string? Website { get; set; }
-    public string OperatorType { get; set; } = string.Empty;
     public string? CountryName { get; set; }
 }

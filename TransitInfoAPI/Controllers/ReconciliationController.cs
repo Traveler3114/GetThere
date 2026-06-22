@@ -260,8 +260,7 @@ public class ReconciliationController : ControllerBase
                 {
                     GlobalId = feedOp.GlobalId,
                     Name = feedOp.Name,
-                    ShortName = feedOp.ShortName,
-                    OperatorType = feedOp.OperatorType.ToString()
+                    ShortName = feedOp.ShortName
                 });
             }
 
@@ -288,8 +287,7 @@ public class ReconciliationController : ControllerBase
                 {
                     GlobalId = cso.Operator.GlobalId,
                     Name = cso.Operator.Name,
-                    ShortName = cso.Operator.ShortName,
-                    OperatorType = cso.Operator.OperatorType.ToString()
+                    ShortName = cso.Operator.ShortName
                 })
                 .ToListAsync(ct);
 

@@ -181,8 +181,7 @@ public class StationManager
             .Select(cso => new StationOperatorDto
             {
                 GlobalId = cso.Operator.GlobalId,
-                Name = cso.Operator.Name,
-                OperatorType = cso.Operator.OperatorType.ToString()
+                Name = cso.Operator.Name
             })
             .ToListAsync(ct);
     }

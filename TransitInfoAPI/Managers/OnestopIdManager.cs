@@ -125,17 +125,18 @@ public class OnestopIdManager
     private static string RouteTypeToOnestopSuffix(RouteType rt) => rt switch
     {
         RouteType.Tram => "tram",
+        RouteType.Subway => "subway",
+        RouteType.Train => "train",
         RouteType.Bus => "bus",
-        RouteType.Trolleybus => "trolleybus",
-        RouteType.Metro => "metro",
-        RouteType.Rail => "rail",
         RouteType.Ferry => "ferry",
-        RouteType.Flight => "flight",
+        RouteType.CableTram => "cabletram",
         RouteType.CableCar => "cablecar",
         RouteType.Funicular => "funicular",
-        RouteType.Coach => "coach",
-        RouteType.BikeShare => "bikeshare",
-        RouteType.ScooterShare => "scootershare",
+        RouteType.Trolleybus => "trolleybus",
+        RouteType.Monorail => "monorail",
+        RouteType.Bicycle => "bicycle",
+        RouteType.Scooter => "scooter",
+        RouteType.Airplane => "airplane",
         _ => "unknown"
     };
 }

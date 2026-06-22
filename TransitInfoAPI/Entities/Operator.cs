@@ -1,5 +1,3 @@
-using TransitInfoAPI.Enums;
-
 namespace TransitInfoAPI.Entities;
 
 public class Operator
@@ -10,7 +8,6 @@ public class Operator
     public string Name { get; set; } = string.Empty;
     public string ShortName { get; set; } = string.Empty;
     public string? Website { get; set; }
-    public OperatorType OperatorType { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public string? SupersedesIds { get; set; }

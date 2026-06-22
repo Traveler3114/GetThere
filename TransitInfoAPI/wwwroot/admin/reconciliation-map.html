@@ -6,6 +6,7 @@
 <title>Reconciliation Map</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="/route-colors.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
@@ -99,13 +100,6 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 </div>
 
 <script>
-const ROUTE_COLORS = {
-  Tram: '#1f78b4', Bus: '#33a02c', Trolleybus: '#33a02c',
-  Metro: '#e31a1c', Rail: '#b15928', Ferry: '#006994',
-  CableCar: '#ff7f00', Funicular: '#ff7f00', Coach: '#6a3d9a',
-  default: '#888'
-};
-
 const params = new URLSearchParams(window.location.search);
 const candidateId = params.get('candidateId');
 const stationId = params.get('stationId');
@@ -136,10 +130,6 @@ let lineMarker = null;
 let distancePopup = null;
 let stationModeMarkers = [];
 let stationModeLayers = [];
-
-function getRouteColor(type) {
-  return ROUTE_COLORS[type] || ROUTE_COLORS.default;
-}
 
 function fmtDist(m) {
   if (m == null) return '-';

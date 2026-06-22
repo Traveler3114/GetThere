@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
-using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
 
 namespace TransitInfoAPI.Managers;
@@ -15,14 +14,12 @@ public class OperatorManager
         _db = db;
     }
 
-    public async Task<List<OperatorDto>> GetAllAsync(int? countryId, OperatorType? type, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<OperatorDto>> GetAllAsync(int? countryId, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.Operators.Include(o => o.Country).AsQueryable();
 
         if (countryId.HasValue)
             query = query.Where(o => o.CountryId == countryId.Value);
-        if (type.HasValue)
-            query = query.Where(o => o.OperatorType == type.Value);
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(o => o.Name.Contains(q) || o.ShortName.Contains(q));
 
@@ -34,7 +31,6 @@ public class OperatorManager
             Name = o.Name,
             ShortName = o.ShortName,
             Website = o.Website,
-            OperatorType = o.OperatorType.ToString(),
             CountryName = o.Country.Name
         }).ToListAsync(ct);
     }
@@ -52,7 +48,6 @@ public class OperatorManager
                 Name = o.Name,
                 ShortName = o.ShortName,
                 Website = o.Website,
-                OperatorType = o.OperatorType.ToString(),
                 CountryName = o.Country.Name
             })
             .FirstOrDefaultAsync(ct);

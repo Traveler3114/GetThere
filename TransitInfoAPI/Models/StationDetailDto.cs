@@ -16,5 +16,4 @@ public class OperatorBriefDto
     public string GlobalId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string ShortName { get; set; } = string.Empty;
-    public string OperatorType { get; set; } = string.Empty;
 }

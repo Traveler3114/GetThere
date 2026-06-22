@@ -286,6 +286,30 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 - Android: `dotnet build -t:Run -f net10.0-android`
 - Windows: `dotnet build -t:Run -f net10.0-windows10.0.19041.0`
 
+## RouteType enum (GTFS-aligned)
+
+The `RouteType` enum in `TransitInfoAPI.Enums` follows the [GTFS `route_type`](https://gtfs.org/documentation/schedule/reference/#routestxt) standard:
+
+| Value | Name | GTFS | Notes |
+|-------|------|------|-------|
+| 0 | Tram | ✓ | Streetcar, light rail |
+| 1 | Subway | ✓ | Metro, U-Bahn |
+| 2 | Train | ✓ | Intercity, commuter rail |
+| 3 | Bus | ✓ | Coach merged here |
+| 4 | Ferry | ✓ | |
+| 5 | CableTram | ✓ | Street-level cable cars |
+| 6 | CableCar | ✓ | Aerial lift, gondola |
+| 7 | Funicular | ✓ | |
+| 11 | Trolleybus | ✓ | |
+| 12 | Monorail | ✓ | |
+| 100 | Bicycle | — | Mobility (100+) |
+| 101 | Scooter | — | Mobility (100+) |
+| 200 | Airplane | — | Air (200+) |
+
+Stored as strings in DB via `HasConversion<string>()`. Numeric values match GTFS `route_type` codes where defined. Custom types use reserved ranges: 100+ for mobility, 200+ for air.
+
+`OperatorType` was removed — operators can serve multiple modes; their transport types are inferred from associated routes.
+
 ## Adding new features
 - New API endpoint (GetThereAPI): Controller → Manager → Mapper → Contract → MAUI Service
 - New transit operator: insert row in `Operators` (core identity) + `TransitFeedConfigs` (GTFS feeds) — see `README.md` for the 3-concern operator model
