@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
@@ -14,7 +15,7 @@ public class RealtimeController : ControllerBase
     public RealtimeController(RealtimeManager realtime) { _realtime = realtime; }
 
     [HttpGet("vehicles")]
-    public async Task<ActionResult<List<VehicleDto>>> GetVehicles(
+    public async Task<ActionResult<List<VehicleResponse>>> GetVehicles(
         [FromQuery] string? feedId = null,
         [FromQuery] double? minLat = null,
         [FromQuery] double? minLon = null,
@@ -23,11 +24,11 @@ public class RealtimeController : ControllerBase
         CancellationToken ct = default)
     {
         var vehicles = await _realtime.GetVehiclesAsync(feedId, minLat, minLon, maxLat, maxLon, ct);
-        return Ok(new Paginated<VehicleDto>(vehicles, vehicles.Count, 1, vehicles.Count));
+        return Ok(new Paginated<VehicleResponse>(vehicles, vehicles.Count, 1, vehicles.Count));
     }
 
     [HttpGet("alerts")]
-    public async Task<List<AlertDto>> GetAlerts(
+    public async Task<List<AlertResponse>> GetAlerts(
         [FromQuery] string? stopOnestopId = null,
         [FromQuery] string? routeOnestopId = null,
         CancellationToken ct = default)

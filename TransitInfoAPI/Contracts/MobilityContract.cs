@@ -1,6 +1,6 @@
-namespace TransitInfoAPI.Models;
+namespace TransitInfoAPI.Contracts;
 
-public class MobilityStationDto
+public class MobilityStationResponse
 {
     public int Id { get; set; }
     public string StationId { get; set; } = string.Empty;

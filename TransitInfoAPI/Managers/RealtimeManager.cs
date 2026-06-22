@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Workers;
 
 using TransitRealtime;
@@ -20,7 +20,7 @@ public class RealtimeManager
     private readonly int _vehicleStaleCutoffMinutes;
     // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
     // Revisit for Phase 2 multi-instance deployment.
-    private readonly ConcurrentDictionary<string, VehicleDto> _vehicleCache = new();
+    private readonly ConcurrentDictionary<string, VehicleResponse> _vehicleCache = new();
 
     private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
 
@@ -100,7 +100,7 @@ public class RealtimeManager
                 if (vp.Position == null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
 
                 var vehicleId = vp.Vehicle?.Id ?? entity.Id;
-                var vehicleDto = new VehicleDto
+                var vehicleDto = new VehicleResponse
                 {
                     VehicleId = vehicleId,
                     FeedId = feed.FeedId,
@@ -218,7 +218,7 @@ public class RealtimeManager
         return (null, null);
     }
 
-    public Task<List<VehicleDto>> GetVehiclesAsync(
+    public Task<List<VehicleResponse>> GetVehiclesAsync(
         string? feedId, double? minLat, double? minLon, double? maxLat, double? maxLon, CancellationToken ct)
     {
         var vehicles = _vehicleCache.Values.AsEnumerable();
@@ -236,7 +236,7 @@ public class RealtimeManager
         return Task.FromResult(vehicles.ToList());
     }
 
-    public async Task<List<AlertDto>> GetAlertsAsync(
+    public async Task<List<AlertResponse>> GetAlertsAsync(
         string? stopOnestopId, string? routeOnestopId, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -253,7 +253,7 @@ public class RealtimeManager
         return await query
             .OrderByDescending(a => a.FetchedAt)
             .Take(50)
-            .Select(a => new AlertDto
+            .Select(a => new AlertResponse
             {
                 Id = a.Id,
                 HeaderText = a.HeaderText,

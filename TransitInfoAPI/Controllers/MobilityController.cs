@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -17,7 +19,7 @@ public class MobilityController : ControllerBase
     public MobilityController(TransitDbContext db, MobilityManager mobility) { _db = db; _mobility = mobility; }
 
     [HttpGet("stations")]
-    public async Task<ActionResult<Paginated<MobilityStationDto>>> GetStations(
+    public async Task<ActionResult<Paginated<MobilityStationResponse>>> GetStations(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
@@ -46,21 +48,11 @@ public class MobilityController : ControllerBase
         var stations = await query
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(ms => new MobilityStationDto
-            {
-                Id = ms.Id,
-                StationId = ms.StationId,
-                Name = ms.Name,
-                Latitude = ms.Latitude,
-                Longitude = ms.Longitude,
-                AvailableVehicles = ms.AvailableVehicles,
-                Capacity = ms.Capacity,
-                ProviderName = ms.MobilityProvider.Operator.Name,
-                LastUpdated = ms.LastUpdated
-            })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<MobilityStationDto>(stations, total, page, perPage));
+        var dtos = stations.Select(MobilityStationMapper.ToResponse).ToList();
+
+        return Ok(new Paginated<MobilityStationResponse>(dtos, total, page, perPage));
     }
 
     [HttpPost("providers/{id}/poll")]

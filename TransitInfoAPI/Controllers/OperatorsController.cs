@@ -7,7 +7,9 @@ using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Managers;
 
 using Microsoft.Data.SqlClient;
@@ -80,25 +82,16 @@ public class OperatorsController : ControllerBase
 
         var result = await _operatorService.GetAllAsync(countryId, q, page, perPage, ct);
         var total = await _db.Operators.CountAsync(ct);
-        return Ok(new Paginated<OperatorDto>(result, total, page, perPage));
+        return Ok(new Paginated<OperatorResponse>(result, total, page, perPage));
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<OperatorDto>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorResponse>> GetById(int id, CancellationToken ct = default)
     {
         var op = await _db.Operators
             .Include(o => o.Country)
             .Where(o => o.Id == id)
-            .Select(o => new OperatorDto
-            {
-                Id = o.Id,
-                GlobalId = o.GlobalId,
-                OnestopId = o.OnestopId,
-                Name = o.Name,
-                ShortName = o.ShortName,
-                Website = o.Website,
-                CountryName = o.Country != null ? o.Country.Name : null
-            })
+            .Select(OperatorMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
 
         if (op is null) return NotFound();
@@ -106,21 +99,12 @@ public class OperatorsController : ControllerBase
     }
 
     [HttpGet("by-onestop/{onestopId}")]
-    public async Task<ActionResult<OperatorDto>> GetByOnestopId(string onestopId, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var op = await _db.Operators
             .Include(o => o.Country)
             .Where(o => o.OnestopId == onestopId)
-            .Select(o => new OperatorDto
-            {
-                Id = o.Id,
-                GlobalId = o.GlobalId,
-                OnestopId = o.OnestopId,
-                Name = o.Name,
-                ShortName = o.ShortName,
-                Website = o.Website,
-                CountryName = o.Country != null ? o.Country.Name : null
-            })
+            .Select(OperatorMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
 
         if (op is null) return NotFound();
@@ -128,7 +112,7 @@ public class OperatorsController : ControllerBase
     }
 
     [HttpGet("{globalId}")]
-    public async Task<ActionResult<OperatorDto>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorResponse>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
         var op = await _operatorService.GetByGlobalIdAsync(globalId, ct);
         if (op is null) return NotFound();
@@ -228,28 +212,28 @@ public class OperatorsController : ControllerBase
     }
 
     [HttpGet("{globalId}/stations")]
-    public async Task<ActionResult<List<StationDto>>> GetStations(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationResponse>>> GetStations(string globalId, CancellationToken ct = default)
     {
         var stations = await _operatorService.GetStationsAsync(globalId, ct);
-        return Ok(new Paginated<StationDto>(stations, stations.Count, 1, stations.Count));
+        return Ok(new Paginated<StationResponse>(stations, stations.Count, 1, stations.Count));
     }
 
     [HttpGet("{globalId}/routes")]
-    public async Task<ActionResult<List<RouteDto>>> GetRoutes(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<List<RouteResponse>>> GetRoutes(string globalId, CancellationToken ct = default)
     {
         var routes = await _operatorService.GetRoutesAsync(globalId, ct);
-        return Ok(new Paginated<RouteDto>(routes, routes.Count, 1, routes.Count));
+        return Ok(new Paginated<RouteResponse>(routes, routes.Count, 1, routes.Count));
     }
 
     [HttpGet("{globalId}/feeds")]
-    public async Task<ActionResult<List<FeedDto>>> GetFeeds(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<List<FeedResponse>>> GetFeeds(string globalId, CancellationToken ct = default)
     {
         var feeds = await _operatorService.GetFeedsAsync(globalId, ct);
-        return Ok(new Paginated<FeedDto>(feeds, feeds.Count, 1, feeds.Count));
+        return Ok(new Paginated<FeedResponse>(feeds, feeds.Count, 1, feeds.Count));
     }
 
     [HttpPost]
-    public async Task<ActionResult<OperatorDto>> Create([FromBody] CreateOperatorRequest request, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorResponse>> Create([FromBody] CreateOperatorRequest request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
             return Problem(statusCode: 400, title: "Operator name is required.");
@@ -295,22 +279,13 @@ public class OperatorsController : ControllerBase
             return Problem(statusCode: 409, title: $"Operator with OnestopId '{onestopId}' already exists.");
         }
 
-        var dto = new OperatorDto
-        {
-            Id = op.Id,
-            GlobalId = op.GlobalId,
-            OnestopId = op.OnestopId,
-            Name = op.Name,
-            ShortName = op.ShortName,
-            Website = op.Website,
-            CountryName = country.Name
-        };
+        var dto = OperatorMapper.ToResponse(op);
 
         return CreatedAtAction(nameof(GetAll), null, dto);
     }
 
     [HttpPut("{globalId}")]
-    public async Task<ActionResult<OperatorDto>> Update(string globalId, [FromBody] UpdateOperatorRequest request, CancellationToken ct = default)
+    public async Task<ActionResult<OperatorResponse>> Update(string globalId, [FromBody] UpdateOperatorRequest request, CancellationToken ct = default)
     {
         var op = await _db.Operators.Include(o => o.Country).FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
         if (op is null)
@@ -335,16 +310,7 @@ public class OperatorsController : ControllerBase
 
         await _db.SaveChangesAsync(ct);
 
-        var dto = new OperatorDto
-        {
-            Id = op.Id,
-            GlobalId = op.GlobalId,
-            OnestopId = op.OnestopId,
-            Name = op.Name,
-            ShortName = op.ShortName,
-            Website = op.Website,
-            CountryName = op.Country.Name
-        };
+        var dto = OperatorMapper.ToResponse(op);
 
         return Ok(dto);
     }

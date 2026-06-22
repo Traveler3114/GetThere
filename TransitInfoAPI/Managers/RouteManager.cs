@@ -2,7 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 
@@ -15,7 +16,7 @@ public class RouteManager
         _db = db;
     }
 
-    public async Task<List<RouteDto>> GetAllAsync(int? operatorId, RouteType? routeType, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<RouteResponse>> GetAllAsync(int? operatorId, RouteType? routeType, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
 
@@ -26,34 +27,14 @@ public class RouteManager
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(r => r.LongName.Contains(q) || r.ShortName.Contains(q));
 
-        return await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).Select(r => new RouteDto
-        {
-            Id = r.Id,
-            GlobalId = r.GlobalId,
-            OnestopId = r.OnestopId,
-            Name = r.LongName,
-            ShortName = r.ShortName,
-            RouteType = r.RouteType.ToString(),
-            OperatorId = r.OperatorId,
-            OperatorName = r.Operator.Name
-        }).ToListAsync(ct);
+        return await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).Select(RouteMapper.ToResponseExpression).ToListAsync(ct);
     }
 
-    public async Task<RouteDto?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
+    public async Task<RouteResponse?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
     {
         return await _db.CanonicalRoutes
             .Where(r => r.GlobalId == globalId && r.IsActive)
-            .Select(r => new RouteDto
-            {
-                Id = r.Id,
-                GlobalId = r.GlobalId,
-                OnestopId = r.OnestopId,
-                Name = r.LongName,
-                ShortName = r.ShortName,
-                RouteType = r.RouteType.ToString(),
-                OperatorId = r.OperatorId,
-                OperatorName = r.Operator.Name
-            })
+            .Select(RouteMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
     }
 }

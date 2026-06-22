@@ -2,7 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 
@@ -17,7 +18,7 @@ public class ScheduleManager
         _realtime = realtime;
     }
 
-    public async Task<List<DepartureDto>> GetDeparturesAsync(
+    public async Task<List<DepartureResponse>> GetDeparturesAsync(
         int canonicalStationId, DateTime from, int count, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(from);
@@ -54,7 +55,7 @@ public class ScheduleManager
             .Select(d =>
             {
                 var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, from.Date.AddSeconds(d.DepartureTime));
-                return new DepartureDto
+                return new DepartureResponse
                 {
                     TripId = d.TripId,
                     RouteName = d.RouteName,
@@ -112,7 +113,7 @@ public class ScheduleManager
 
     // Groups by CanonicalStationId, orders by first trip's StopSequence. Display-only —
     // not a clean representation of bidirectional routes.
-    public async Task<List<StationDto>> GetRouteStopsAsync(int canonicalRouteId, CancellationToken ct)
+    public async Task<List<StationResponse>> GetRouteStopsAsync(int canonicalRouteId, CancellationToken ct)
     {
         var stops = await _db.StopTimes
             .Where(st => st.Trip.CanonicalRouteId == canonicalRouteId)
@@ -120,23 +121,14 @@ public class ScheduleManager
             .GroupBy(st => st.CanonicalStationId)
             .Select(g => g.OrderBy(st => st.StopSequence).First())
             .OrderBy(st => st.StopSequence)
-            .Select(st => new StationDto
-            {
-                Id = st.CanonicalStation!.Id,
-                GlobalId = st.CanonicalStation.GlobalId,
-                OnestopId = st.CanonicalStation.OnestopId,
-                Name = st.CanonicalStation.Name,
-                Latitude = st.CanonicalStation.Latitude,
-                Longitude = st.CanonicalStation.Longitude,
-                StationType = st.CanonicalStation.StationType.ToString(),
-                PrimaryRouteType = st.CanonicalStation.PrimaryRouteType.ToString()
-            })
+            .Select(st => st.CanonicalStation!)
+            .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
 
         return stops;
     }
 
-    public async Task<List<TripDto>> GetRouteTripsAsync(int canonicalRouteId, DateOnly date, CancellationToken ct)
+    public async Task<List<TripResponse>> GetRouteTripsAsync(int canonicalRouteId, DateOnly date, CancellationToken ct)
     {
         var dayOfWeek = date.DayOfWeek;
 
@@ -158,7 +150,7 @@ public class ScheduleManager
 
         return trips
             .Where(t => validServices.Contains((t.FeedVersionId, t.ServiceId)))
-            .Select(t => new TripDto
+            .Select(t => new TripResponse
             {
                 Id = t.Id,
                 TripId = t.TripId,

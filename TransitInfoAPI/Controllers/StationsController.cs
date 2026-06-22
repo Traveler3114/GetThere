@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
@@ -57,19 +59,7 @@ public class StationsController : ControllerBase
 
             var allStations = await query
                 .OrderBy(cs => cs.Id)
-                .Select(cs => new StationDto
-                {
-                    Id = cs.Id,
-                    GlobalId = cs.GlobalId,
-                    OnestopId = cs.OnestopId,
-                    Name = cs.Name,
-                    Latitude = cs.Latitude,
-                    Longitude = cs.Longitude,
-                    StationType = cs.StationType.ToString(),
-                    PrimaryRouteType = cs.PrimaryRouteType.ToString(),
-                    CountryName = cs.Country.Name,
-                    CityName = cs.City != null ? cs.City.Name : null
-                })
+                .Select(StationMapper.ToResponseExpression)
                 .ToListAsync(ct);
 
             var fc = GeoJsonGeometry.ToPointCollection(allStations,
@@ -91,14 +81,14 @@ public class StationsController : ControllerBase
 
         var result = await _stationService.GetAllAsync(lat, lon, radiusKm, countryId, page, perPage, ct);
         var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, null, ct);
-        return Ok(new Paginated<StationDto>(result, total, page, perPage));
+        return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
     // TODO: Before Phase 3 (public launch), this endpoint is used by the
     // reconciliation-map.html search UI (Task 4.4) and exposes station data
     // used to locate reconciliation candidates. Must be restricted to admin-only.
     [HttpGet("search")]
-    public async Task<ActionResult<Paginated<StationDto>>> Search(
+    public async Task<ActionResult<Paginated<StationResponse>>> Search(
         [FromQuery] string? q,
         [FromQuery] RouteType? routeType,
         [FromQuery] int? countryId,
@@ -110,11 +100,11 @@ public class StationsController : ControllerBase
     {
         var result = await _stationService.SearchAsync(q, routeType, countryId, countryName, stationType, page, perPage, ct);
         var total = await _stationService.GetTotalCountAsync(null, null, null, countryId, countryName, ct);
-        return Ok(new Paginated<StationDto>(result, total, page, perPage));
+        return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<StationDto>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<StationResponse>> GetById(int id, CancellationToken ct = default)
     {
         var station = await _stationService.GetByIdAsync(id, ct);
         if (station is null) return NotFound();
@@ -122,7 +112,7 @@ public class StationsController : ControllerBase
     }
 
     [HttpGet("by-onestop/{onestopId}")]
-    public async Task<ActionResult<StationDto>> GetByOnestopId(string onestopId, CancellationToken ct = default)
+    public async Task<ActionResult<StationResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var station = await _stationService.GetByOnestopIdAsync(onestopId, ct);
         if (station is null) return NotFound();
@@ -130,16 +120,16 @@ public class StationsController : ControllerBase
     }
 
     [HttpGet("{id}/operators")]
-    public async Task<ActionResult<List<StationOperatorDto>>> GetOperators(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationOperatorResponse>>> GetOperators(int id, CancellationToken ct = default)
     {
         var station = await _stationService.GetByIdAsync(id, ct);
         if (station is null) return NotFound();
         var operators = await _stationService.GetOperatorsAsync(station.OnestopId, ct);
-        return Ok(new Paginated<StationOperatorDto>(operators, operators.Count, 1, operators.Count));
+        return Ok(new Paginated<StationOperatorResponse>(operators, operators.Count, 1, operators.Count));
     }
 
     [HttpGet("{id}/routes")]
-    public async Task<ActionResult<List<RouteDto>>> GetRoutes(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<RouteResponse>>> GetRoutes(int id, CancellationToken ct = default)
     {
         var routeIds = await _db.StopTimes
             .Where(st => st.CanonicalStationId == id)
@@ -150,24 +140,14 @@ public class StationsController : ControllerBase
 
         var routes = await _db.CanonicalRoutes
             .Where(r => routeIds.Contains(r.Id))
-            .Select(r => new RouteDto
-            {
-                Id = r.Id,
-                GlobalId = r.GlobalId,
-                OnestopId = r.OnestopId,
-                Name = r.LongName,
-                ShortName = r.ShortName,
-                RouteType = r.RouteType.ToString(),
-                OperatorId = r.OperatorId,
-                OperatorName = r.Operator.Name
-            })
+            .Select(RouteMapper.ToResponseExpression)
             .ToListAsync(ct);
 
         return Ok(routes);
     }
 
     [HttpGet("by-global/{globalId}")]
-    public async Task<ActionResult<StationDto>> GetByGlobalId(string globalId, CancellationToken ct = default)
+    public async Task<ActionResult<StationResponse>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
         var station = await _stationService.GetByGlobalIdAsync(globalId, ct);
         if (station is null) return NotFound();
@@ -185,20 +165,20 @@ public class StationsController : ControllerBase
     }
 
     [HttpGet("{id}/departures")]
-    public async Task<ActionResult<List<DepartureDto>>> GetDepartures(
+    public async Task<ActionResult<List<DepartureResponse>>> GetDepartures(
         int id,
         [FromQuery] DateTime? from = null,
         [FromQuery] int count = 10,
         CancellationToken ct = default)
     {
         var departures = await _stationService.GetDeparturesAsync(id, from, count, ct);
-        return Ok(new Paginated<DepartureDto>(departures, departures.Count, 1, departures.Count));
+        return Ok(new Paginated<DepartureResponse>(departures, departures.Count, 1, departures.Count));
     }
 
     // TODO: Before Phase 3 (public launch), this endpoint exposes reconciliation
     // internals on the public-facing API. It must be restricted to admin-only access.
     [HttpGet("{id}/reconciliation-detail")]
-    public async Task<ActionResult<StationReconciliationDetailDto>> GetReconciliationDetail(int id, CancellationToken ct = default)
+    public async Task<ActionResult<StationReconciliationDetailResponse>> GetReconciliationDetail(int id, CancellationToken ct = default)
     {
         var station = await _db.CanonicalStations.FindAsync([id], ct);
         if (station is null) return NotFound();
@@ -223,7 +203,7 @@ public class StationsController : ControllerBase
 
         var allRawStopIds = rawStopIds.Union(candidateRawStopIds).Distinct().ToList();
 
-        var entries = new List<ReconciliationEntryDto>();
+        var entries = new List<ReconciliationEntryResponse>();
 
         if (allRawStopIds.Count > 0)
         {
@@ -340,7 +320,7 @@ public class StationsController : ControllerBase
                     }
                 }
 
-                entries.Add(new ReconciliationEntryDto
+                entries.Add(new ReconciliationEntryResponse
                 {
                     RawStopId = candidate.RawStopId,
                     RawStopName = candidate.RawStopName,
@@ -367,7 +347,7 @@ public class StationsController : ControllerBase
 
             foreach (var rawStop in extraRawStops)
             {
-                entries.Add(new ReconciliationEntryDto
+                entries.Add(new ReconciliationEntryResponse
                 {
                     RawStopId = rawStop.Id,
                     RawStopName = rawStop.Name,
@@ -382,7 +362,7 @@ public class StationsController : ControllerBase
 
         entries = entries.OrderByDescending(e => e.CreatedAt).ThenBy(e => e.RawStopName).ToList();
 
-        var result = new StationReconciliationDetailDto
+        var result = new StationReconciliationDetailResponse
         {
             StationId = station.Id,
             StationName = station.Name,

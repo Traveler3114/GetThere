@@ -1,6 +1,6 @@
-namespace TransitInfoAPI.Models;
+namespace TransitInfoAPI.Contracts;
 
-public class AgencyDto
+public class AgencyResponse
 {
     public int Id { get; set; }
     public string AgencyId { get; set; } = string.Empty;

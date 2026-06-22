@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 
@@ -18,7 +19,7 @@ public class StationManager
         _schedule = schedule;
     }
 
-    public async Task<List<StationDto>> GetAllAsync(
+    public async Task<List<StationResponse>> GetAllAsync(
         double? lat, double? lon, double? radiusKm, int? countryId, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations
@@ -44,89 +45,41 @@ public class StationManager
             .OrderBy(cs => cs.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(cs => new StationDto
-            {
-                Id = cs.Id,
-                GlobalId = cs.GlobalId,
-                OnestopId = cs.OnestopId,
-                Name = cs.Name,
-                Latitude = cs.Latitude,
-                Longitude = cs.Longitude,
-                StationType = cs.StationType.ToString(),
-                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
-                CountryName = cs.Country.Name,
-                CityName = cs.City != null ? cs.City.Name : null
-            })
+            .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
     }
 
-    public async Task<StationDto?> GetByOnestopIdAsync(string onestopId, CancellationToken ct)
+    public async Task<StationResponse?> GetByOnestopIdAsync(string onestopId, CancellationToken ct)
     {
         return await _db.CanonicalStations
             .Include(cs => cs.Country)
             .Include(cs => cs.City)
             .Where(cs => cs.OnestopId == onestopId && cs.IsActive && cs.StationType == StationType.Stop)
-            .Select(cs => new StationDto
-            {
-                Id = cs.Id,
-                GlobalId = cs.GlobalId,
-                OnestopId = cs.OnestopId,
-                Name = cs.Name,
-                Latitude = cs.Latitude,
-                Longitude = cs.Longitude,
-                StationType = cs.StationType.ToString(),
-                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
-                CountryName = cs.Country.Name,
-                CityName = cs.City != null ? cs.City.Name : null
-            })
+            .Select(StationMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<StationDto?> GetByIdAsync(int id, CancellationToken ct)
+    public async Task<StationResponse?> GetByIdAsync(int id, CancellationToken ct)
     {
         return await _db.CanonicalStations
             .Include(cs => cs.Country)
             .Include(cs => cs.City)
             .Where(cs => cs.Id == id && cs.IsActive && cs.StationType == StationType.Stop)
-            .Select(cs => new StationDto
-            {
-                Id = cs.Id,
-                GlobalId = cs.GlobalId,
-                OnestopId = cs.OnestopId,
-                Name = cs.Name,
-                Latitude = cs.Latitude,
-                Longitude = cs.Longitude,
-                StationType = cs.StationType.ToString(),
-                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
-                CountryName = cs.Country.Name,
-                CityName = cs.City != null ? cs.City.Name : null
-            })
+            .Select(StationMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<StationDto?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
+    public async Task<StationResponse?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
     {
         return await _db.CanonicalStations
             .Include(cs => cs.Country)
             .Include(cs => cs.City)
             .Where(cs => cs.GlobalId == globalId && cs.IsActive && cs.StationType == StationType.Stop)
-            .Select(cs => new StationDto
-            {
-                Id = cs.Id,
-                GlobalId = cs.GlobalId,
-                OnestopId = cs.OnestopId,
-                Name = cs.Name,
-                Latitude = cs.Latitude,
-                Longitude = cs.Longitude,
-                StationType = cs.StationType.ToString(),
-                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
-                CountryName = cs.Country.Name,
-                CityName = cs.City != null ? cs.City.Name : null
-            })
+            .Select(StationMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<StationDto>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<StationResponse>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
@@ -152,23 +105,11 @@ public class StationManager
             .OrderBy(cs => cs.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(cs => new StationDto
-            {
-                Id = cs.Id,
-                GlobalId = cs.GlobalId,
-                OnestopId = cs.OnestopId,
-                Name = cs.Name,
-                Latitude = cs.Latitude,
-                Longitude = cs.Longitude,
-                StationType = cs.StationType.ToString(),
-                PrimaryRouteType = cs.PrimaryRouteType.ToString(),
-                CountryName = cs.Country.Name,
-                CityName = cs.City != null ? cs.City.Name : null
-            })
+            .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
     }
 
-    public async Task<List<StationOperatorDto>> GetOperatorsAsync(string onestopId, CancellationToken ct)
+    public async Task<List<StationOperatorResponse>> GetOperatorsAsync(string onestopId, CancellationToken ct)
     {
         var station = await _db.CanonicalStations
             .FirstOrDefaultAsync(cs => cs.OnestopId == onestopId && cs.IsActive && cs.StationType == StationType.Stop, ct);
@@ -178,15 +119,11 @@ public class StationManager
         return await _db.CanonicalStationOperators
             .Include(cso => cso.Operator)
             .Where(cso => cso.CanonicalStationId == station.Id)
-            .Select(cso => new StationOperatorDto
-            {
-                GlobalId = cso.Operator.GlobalId,
-                Name = cso.Operator.Name
-            })
+            .Select(cso => StationMapper.ToOperatorResponse(cso))
             .ToListAsync(ct);
     }
 
-    public async Task<List<DepartureDto>> GetDeparturesAsync(int stationId, DateTime? from, int count, CancellationToken ct)
+    public async Task<List<DepartureResponse>> GetDeparturesAsync(int stationId, DateTime? from, int count, CancellationToken ct)
     {
         return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.UtcNow, count, ct);
     }

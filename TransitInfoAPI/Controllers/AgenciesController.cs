@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -16,7 +18,7 @@ public class AgenciesController : ControllerBase
     public AgenciesController(TransitDbContext db) { _db = db; }
 
     [HttpGet]
-    public async Task<ActionResult<Paginated<AgencyDto>>> GetAll(
+    public async Task<ActionResult<Paginated<AgencyResponse>>> GetAll(
         [FromQuery] int? feedId = null,
         [FromQuery] int? operatorId = null,
         [FromQuery] int page = 1,
@@ -39,21 +41,10 @@ public class AgenciesController : ControllerBase
         var agencies = await query
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(a => new AgencyDto
-            {
-                Id = a.Id,
-                AgencyId = a.AgencyId,
-                Name = a.Name,
-                Url = a.Url,
-                Timezone = a.Timezone,
-                Phone = a.Phone,
-                OperatorId = a.OperatorId,
-                OperatorName = a.Operator != null ? a.Operator.Name : null,
-                FeedVersionId = a.FeedVersionId
-            })
+            .Select(AgencyMapper.ToResponseExpression)
             .ToListAsync(ct);
 
-        return Ok(new Paginated<AgencyDto>(agencies, total, page, perPage));
+        return Ok(new Paginated<AgencyResponse>(agencies, total, page, perPage));
     }
 }
 

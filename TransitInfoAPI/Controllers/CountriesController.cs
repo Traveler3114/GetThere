@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Mapping;
 
 using Microsoft.Data.SqlClient;
 
@@ -21,17 +22,11 @@ public class CountriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<CountryDto>>> GetAll(CancellationToken ct)
+    public async Task<ActionResult<List<CountryResponse>>> GetAll(CancellationToken ct)
     {
         var countries = await _db.Countries
             .OrderBy(c => c.Id)
-            .Select(c => new CountryDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                IsoCode = c.IsoCode,
-                Continent = c.Continent
-            })
+            .Select(CountryMapper.ToResponseExpression)
             .ToListAsync(ct);
 
         return Ok(countries);

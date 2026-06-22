@@ -48,14 +48,15 @@ GetThereShared/
 
 TransitInfoAPI/
 ├── Program.cs          # Startup, DI, middleware
-├── Common/             # OperationResult
+├── Common/             # OperationResult, GeoJsonGeometry, Paginated
+├── Contracts/          # Request/response DTOs by domain (StationContract, etc.)
 ├── Controllers/        # REST API endpoints (reconciliation, feeds, stations)
 ├── Services/           # Business logic (ReconciliationService)
 ├── Core/               # Domain logic interfaces/abstractions
 ├── Data/               # TransitDbContext
 ├── Entities/           # EF Core entity classes (CanonicalStation, Feed, etc.)
 ├── Enums/              # StationType, ReconciliationStatus
-├── Models/             # DTOs (ReconciliationDto)
+├── Mapping/            # Static DTO mappers (StationMapper, OperatorMapper, etc.)
 ├── Migrations/         # EF Core migrations
 ├── Proto/              # Protobuf definitions
 └── wwwroot/            # Static files
@@ -142,14 +143,36 @@ Order: `System.*` → `Microsoft.*` → third-party → project (`GetThereAPI.*`
 | Element | Convention | Example |
 |---------|-----------|---------|
 | Request DTOs | `{Action}{Domain}Request` (records) | `PurchaseTicketRequest` |
-| Response DTOs | `{Domain}Response` (classes) | `TicketResponse` |
+| Response DTOs | `{Domain}Response` (classes) | `TicketResponse`, `StationResponse` |
 | Contracts file | `{Domain}Contract.cs` | `TicketContract.cs` |
 
 ### Mappers
-- Static classes in `GetThereAPI/Mapping/` folder: `{Domain}Mapper` (e.g., `TicketMapper`)
+- Static classes in `Mapping/` folder: `{Domain}Mapper` (e.g., `TicketMapper`, `StationMapper`)
 - Manual field mapping methods (no AutoMapper)
 - Names: `ToResponse()`, `ToEntity()`, `ToDto()` depending on direction
 - Every source field must be explicitly mapped or commented why excluded
+
+### Expression projections for SQL efficiency
+Mappers provide two overloads for EF-backed DTOs to balance SQL performance with DRY code:
+
+- **`Expression<Func<Entity, Response>>`** — use inside `.Select()` to generate column-level
+  SQL (`SELECT Id, Name, ...`). Supports property copies and conditional null checks
+  (`!= null ? x : null`). Named `{Name}Expression` (e.g., `ToResponseExpression`) to
+  avoid name collision with the in-memory method.
+- **`Response ToResponse(Entity)`** — use after materialization for complex or nested
+  mappings that can't be expressed as a lambda.
+
+Simple property-copy mappers provide both. Complex mappers provide only the in-memory
+method. Example from `StationMapper.cs`:
+
+```csharp
+// SQL-efficient: use in .Select()
+public static Expression<Func<CanonicalStation, StationResponse>> ToResponseExpression =>
+    s => new StationResponse { Id = s.Id, Name = s.Name, ... };
+
+// In-memory: use on materialized entities
+public static StationResponse ToResponse(CanonicalStation s) => new() { ... };
+```
 
 ### TryParse over Parse
 ```csharp
@@ -261,7 +284,7 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 |------|---------|
 | `README.md` | Project vision, scope, roadmap |
 | `GetThereShared/Common/PagedResult.cs` | Paginated list response (GetThereAPI) |
-| `TransitInfoAPI/Models/Paginated.cs` | Paginated list response (TransitInfoAPI) |
+| `TransitInfoAPI/Common/Paginated.cs` | Paginated list response (TransitInfoAPI) |
 | `GetThereShared/Common/OperationResult.cs` | API response wrapper (GetThereAPI only) |
 | `GetThereShared/Contracts/*.cs` | Request/response DTOs |
 | `GetThereAPI/Program.cs` | Service registration, startup |

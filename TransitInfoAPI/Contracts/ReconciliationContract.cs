@@ -1,6 +1,6 @@
-namespace TransitInfoAPI.Models;
+namespace TransitInfoAPI.Contracts;
 
-public class ReconciliationDto
+public class ReconciliationResponse
 {
     public int Id { get; set; }
     public int RawStopId { get; set; }
@@ -31,4 +31,14 @@ public class ReconciliationDto
     public double? AutoMergeDistanceMeters { get; set; }
     public double? ManualReviewNameThreshold { get; set; }
     public double? ManualReviewDistanceMeters { get; set; }
+}
+
+public class ReconciliationDetailResponse : ReconciliationResponse
+{
+    public DateTime? ReviewedAt { get; set; }
+    public string? ReviewedByAdminId { get; set; }
+    public string? RawStopCountry { get; set; }
+    public StationDetailResponse? RawStopDetail { get; set; }
+    public StationDetailResponse? SuggestedStationDetail { get; set; }
+    public string AutoMergeVerdict { get; set; } = string.Empty;
 }

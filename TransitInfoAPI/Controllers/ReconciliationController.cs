@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
 using TransitInfoAPI.Managers;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -25,7 +27,7 @@ public class ReconciliationController : ControllerBase
     }
 
     [HttpGet("pending")]
-    public async Task<ActionResult<Paginated<ReconciliationDto>>> GetPending(
+    public async Task<ActionResult<Paginated<ReconciliationResponse>>> GetPending(
         [FromQuery] int? feedVersionId = null,
         [FromQuery] string? routeType = null,
         [FromQuery] string? status = null,
@@ -66,7 +68,7 @@ public class ReconciliationController : ControllerBase
             .OrderBy(rc => rc.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(rc => new ReconciliationDto
+            .Select(rc => new ReconciliationResponse
             {
                 Id = rc.Id,
                 RawStopId = rc.RawStopId,
@@ -97,11 +99,11 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<ReconciliationDto>(candidates, total, page, perPage));
+        return Ok(new Paginated<ReconciliationResponse>(candidates, total, page, perPage));
     }
 
     [HttpGet("auto-merged")]
-    public async Task<ActionResult<Paginated<ReconciliationDto>>> GetAutoMerged(
+    public async Task<ActionResult<Paginated<ReconciliationResponse>>> GetAutoMerged(
         [FromQuery] string? routeType = null,
         [FromQuery] string? q = null,
         [FromQuery] int page = 1,
@@ -133,7 +135,7 @@ public class ReconciliationController : ControllerBase
             .OrderBy(rc => rc.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(rc => new ReconciliationDto
+            .Select(rc => new ReconciliationResponse
             {
                 Id = rc.Id,
                 RawStopId = rc.RawStopId,
@@ -164,13 +166,13 @@ public class ReconciliationController : ControllerBase
             })
             .ToListAsync(ct);
 
-        return Ok(new Paginated<ReconciliationDto>(candidates, total, page, perPage));
+        return Ok(new Paginated<ReconciliationResponse>(candidates, total, page, perPage));
     }
 
     // TODO: Before Phase 3 (public launch), this endpoint exposes reconciliation
     // candidates for a given station (Task 4.1). Must be restricted to admin-only.
     [HttpGet("by-station/{stationId:int}")]
-    public async Task<ActionResult<List<ReconciliationDetailDto>>> GetByStation(int stationId, CancellationToken ct = default)
+    public async Task<ActionResult<List<ReconciliationDetailResponse>>> GetByStation(int stationId, CancellationToken ct = default)
     {
         var stationExists = await _db.CanonicalStations.AnyAsync(cs => cs.Id == stationId, ct);
         if (!stationExists)
@@ -186,9 +188,9 @@ public class ReconciliationController : ControllerBase
             .OrderBy(rc => rc.CreatedAt)
             .ToListAsync(ct);
 
-        var results = new List<ReconciliationDetailDto>(candidates.Count);
+        var results = new List<ReconciliationDetailResponse>(candidates.Count);
         foreach (var candidate in candidates)
-            results.Add(await MapToDetailDto(candidate, ct));
+            results.Add(await ReconciliationMapper.ToDetailResponse(candidate, _db, _config, ct));
 
         return Ok(results);
     }
@@ -196,7 +198,7 @@ public class ReconciliationController : ControllerBase
     // TODO: Before Phase 3 (public launch), this endpoint exposes individual
     // reconciliation candidate details (Task 4.1). Must be restricted to admin-only.
     [HttpGet("{id}")]
-    public async Task<ActionResult<ReconciliationDetailDto>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<ReconciliationDetailResponse>> GetById(int id, CancellationToken ct = default)
     {
         var candidate = await _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
@@ -209,171 +211,18 @@ public class ReconciliationController : ControllerBase
         if (candidate is null)
             return NotFound();
 
-        return Ok(await MapToDetailDto(candidate, ct));
-    }
-
-    private async Task<ReconciliationDetailDto> MapToDetailDto(ReconciliationCandidate candidate, CancellationToken ct)
-    {
-        var autoNameThreshold = (double)(candidate.AutoMergeNameThresholdAtDecision
-            ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90));
-        var autoDistThreshold = (double)(candidate.AutoMergeDistanceMetersAtDecision
-            ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100));
-        var manualNameThreshold = (double)(candidate.ManualReviewNameThresholdAtDecision
-            ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70));
-        var manualDistThreshold = (double)(candidate.ManualReviewDistanceMetersAtDecision
-            ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300));
-
-        var normalizedRaw = ReconciliationManager.NormalizeName(candidate.RawStopName);
-        var normalizedStation = candidate.SuggestedCanonicalStation != null
-            ? ReconciliationManager.NormalizeName(candidate.SuggestedCanonicalStation.Name)
-            : null;
-
-        var explanation = ReconciliationManager.ComputeMatchExplanation(
-            candidate.NameSimilarityScore, candidate.DistanceMeters,
-            candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
-            autoNameThreshold, autoDistThreshold,
-            manualNameThreshold, manualDistThreshold);
-
-        StationDetailDto? rawDetail = null;
-        if (candidate.RawStop is not null)
-        {
-            var rawRoutes = await _db.CanonicalRoutes
-                .Where(r => _db.StopTimes.Any(st =>
-                    st.RawStopEntityId == candidate.RawStopId
-                    && st.Trip.CanonicalRouteId == r.Id))
-                .Select(r => new RouteInfoDto
-                {
-                    Id = r.Id,
-                    Name = r.LongName,
-                    ShortName = r.ShortName,
-                    RouteType = r.RouteType.ToString(),
-                    OperatorName = r.Operator.Name,
-                    OperatorGlobalId = r.Operator.GlobalId
-                })
-                .ToListAsync(ct);
-
-            var feedOp = candidate.Feed?.Operator;
-            var ops = new List<OperatorBriefDto>();
-            if (feedOp is not null)
-            {
-                ops.Add(new OperatorBriefDto
-                {
-                    GlobalId = feedOp.GlobalId,
-                    Name = feedOp.Name,
-                    ShortName = feedOp.ShortName
-                });
-            }
-
-            rawDetail = new StationDetailDto
-            {
-                Id = candidate.RawStop.Id,
-                Name = candidate.RawStop.Name,
-                Latitude = candidate.RawStop.Lat,
-                Longitude = candidate.RawStop.Lon,
-                RouteType = candidate.RawStop.RouteType?.ToString() ?? "?",
-                Operators = ops,
-                Routes = rawRoutes
-            };
-        }
-
-        StationDetailDto? suggestedDetail = null;
-        if (candidate.SuggestedCanonicalStationId.HasValue && candidate.SuggestedCanonicalStation is not null)
-        {
-            var stationId = candidate.SuggestedCanonicalStationId.Value;
-
-            var operators = await _db.CanonicalStationOperators
-                .Where(cso => cso.CanonicalStationId == stationId)
-                .Select(cso => new OperatorBriefDto
-                {
-                    GlobalId = cso.Operator.GlobalId,
-                    Name = cso.Operator.Name,
-                    ShortName = cso.Operator.ShortName
-                })
-                .ToListAsync(ct);
-
-            var routes = await _db.CanonicalRoutes
-                .Where(r => _db.StopTimes.Any(st =>
-                    st.CanonicalStationId == stationId
-                    && st.Trip.CanonicalRouteId == r.Id))
-                .Select(r => new RouteInfoDto
-                {
-                    Id = r.Id,
-                    Name = r.LongName,
-                    ShortName = r.ShortName,
-                    RouteType = r.RouteType.ToString(),
-                    OperatorName = r.Operator.Name,
-                    OperatorGlobalId = r.Operator.GlobalId
-                })
-                .ToListAsync(ct);
-
-            suggestedDetail = new StationDetailDto
-            {
-                Id = stationId,
-                Name = candidate.SuggestedCanonicalStation.Name,
-                Latitude = candidate.SuggestedCanonicalStation.Latitude,
-                Longitude = candidate.SuggestedCanonicalStation.Longitude,
-                RouteType = candidate.SuggestedCanonicalStation.PrimaryRouteType.ToString(),
-                Operators = operators,
-                Routes = routes
-            };
-        }
-
-        var verdict = ReconciliationManager.ComputeAutoMergeVerdict(
-            candidate.NameSimilarityScore, candidate.DistanceMeters,
-            candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
-            candidate.RawRouteType.ToString(), candidate.CanonicalRouteType?.ToString(),
-            autoNameThreshold, autoDistThreshold,
-            candidate.Status.ToString());
-
-        return new ReconciliationDetailDto
-        {
-            Id = candidate.Id,
-            RawStopId = candidate.RawStopId,
-            RawStopName = candidate.RawStopName,
-            RawStopLat = candidate.RawStopLat,
-            RawStopLon = candidate.RawStopLon,
-            RawStopGtfsId = candidate.RawStop?.RawStopId,
-            RawRouteType = candidate.RawRouteType.ToString(),
-            CanonicalRouteType = candidate.CanonicalRouteType?.ToString(),
-            ConfidenceScore = candidate.ConfidenceScore,
-            NameSimilarityScore = candidate.NameSimilarityScore,
-            DistanceMeters = candidate.DistanceMeters,
-            NameMatched = candidate.NameMatched,
-            DistanceMatched = candidate.DistanceMatched,
-            RouteTypeMatched = candidate.RouteTypeMatched,
-            AutoReconciled = candidate.AutoReconciled,
-            Status = candidate.Status.ToString(),
-            CreatedAt = candidate.CreatedAt,
-            ReviewedAt = candidate.ReviewedAt,
-            ReviewedByAdminId = candidate.ReviewedByAdminId,
-            FeedId = candidate.Feed?.FeedId,
-            SuggestedStationId = candidate.SuggestedCanonicalStationId,
-            SuggestedStationName = candidate.SuggestedCanonicalStation?.Name,
-            SuggestedStationLat = candidate.SuggestedCanonicalStation?.Latitude,
-            SuggestedStationLon = candidate.SuggestedCanonicalStation?.Longitude,
-            NormalizedRawName = normalizedRaw,
-            NormalizedStationName = normalizedStation,
-            MatchExplanation = explanation,
-            AutoMergeNameThreshold = autoNameThreshold,
-            AutoMergeDistanceMeters = autoDistThreshold,
-            ManualReviewNameThreshold = manualNameThreshold,
-            ManualReviewDistanceMeters = manualDistThreshold,
-            RawStopCountry = candidate.Feed?.Operator?.Country?.Name,
-            RawStopDetail = rawDetail,
-            SuggestedStationDetail = suggestedDetail,
-            AutoMergeVerdict = verdict
-        };
+        return Ok(await ReconciliationMapper.ToDetailResponse(candidate, _db, _config, ct));
     }
 
     // TODO: Before Phase 3 (public launch), this endpoint exposes station split
     // audit records (Task 4.18). Must be restricted to admin-only.
     [HttpGet("split-log")]
-    public async Task<ActionResult<List<StationSplitLogDto>>> GetSplitLog([FromQuery] int candidateStationId, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationSplitLogResponse>>> GetSplitLog([FromQuery] int candidateStationId, CancellationToken ct = default)
     {
         var logs = await _db.StationSplitLogs
             .Where(sl => sl.CandidateStationId == candidateStationId)
             .OrderBy(sl => sl.CreatedAt)
-            .Select(sl => new StationSplitLogDto
+            .Select(sl => new StationSplitLogResponse
             {
                 Id = sl.Id,
                 RawStopId = sl.RawStopId,
@@ -409,11 +258,11 @@ public class ReconciliationController : ControllerBase
     // TODO: Before Phase 3 (public launch), this endpoint exposes station merge
     // audit records (Task 4.15). Must be restricted to admin-only.
     [HttpGet("merge-log")]
-    public async Task<ActionResult<List<StationMergeLogDto>>> GetMergeLog(CancellationToken ct = default)
+    public async Task<ActionResult<List<StationMergeLogResponse>>> GetMergeLog(CancellationToken ct = default)
     {
         var logs = await _db.StationMergeLogs
             .OrderByDescending(ml => ml.MergedAt)
-            .Select(ml => new StationMergeLogDto
+            .Select(ml => new StationMergeLogResponse
             {
                 Id = ml.Id,
                 SourceStationId = ml.SourceStationId,

@@ -1,6 +1,6 @@
-namespace TransitInfoAPI.Models;
+namespace TransitInfoAPI.Contracts;
 
-public class PlaceDto
+public class PlaceResponse
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;

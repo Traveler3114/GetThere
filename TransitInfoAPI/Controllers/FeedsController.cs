@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
@@ -28,22 +30,26 @@ public class FeedsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<Paginated<FeedDto>>> GetAll(
+    public async Task<ActionResult<Paginated<FeedResponse>>> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 50,
         CancellationToken ct = default)
     {
         var feeds = await _feedService.GetAllAsync(page, perPage, ct);
         var total = await _db.Feeds.CountAsync(ct);
-        return Ok(new Paginated<FeedDto>(feeds, total, page, perPage));
+        return Ok(new Paginated<FeedResponse>(feeds, total, page, perPage));
     }
 
     [HttpPost]
-    public async Task<ActionResult<FeedDto>> Create(
+    public async Task<ActionResult<FeedResponse>> Create(
         [FromBody] CreateFeedRequest request,
         CancellationToken ct = default)
     {
-        var feed = await _feedService.CreateAsync(request.OperatorId, request.FeedType, request.SourceType, request.FeedId, request.ExternalUrl, request.RefreshIntervalSeconds, ct);
+        if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
+            return Problem(statusCode: 400, title: $"Invalid feed type '{request.FeedType}'.");
+        if (!Enum.TryParse<SourceType>(request.SourceType, true, out var sourceType))
+            return Problem(statusCode: 400, title: $"Invalid source type '{request.SourceType}'.");
+        var feed = await _feedService.CreateAsync(request.OperatorId, feedType, sourceType, request.FeedId, request.ExternalUrl, request.RefreshIntervalSeconds, ct);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
         return CreatedAtAction(nameof(GetAll), new { }, dto);
     }
@@ -87,25 +93,10 @@ public class FeedsController : ControllerBase
     }
 
     [HttpGet("{id}/versions")]
-    public async Task<ActionResult<List<FeedVersionDto>>> GetVersions(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<FeedVersionResponse>>> GetVersions(int id, CancellationToken ct = default)
     {
         var versions = await _feedService.GetFeedVersionsAsync(id, ct);
-        var dtos = versions.Select(v => new FeedVersionDto
-        {
-            Id = v.Id,
-            FeedId = v.FeedId,
-            Sha1 = v.Sha1,
-            FetchedAt = v.FetchedAt,
-            ImportedAt = v.ImportedAt,
-            IsActive = v.IsActive,
-            ImportStatus = v.ImportStatus.ToString(),
-            ImportError = v.ImportError,
-            ServiceLevelStart = v.ServiceLevelStart,
-            ServiceLevelEnd = v.ServiceLevelEnd,
-            StopCount = v.StopCount,
-            RouteCount = v.RouteCount,
-            TripCount = v.TripCount
-        }).ToList();
-        return Ok(new Paginated<FeedVersionDto>(dtos, dtos.Count, 1, dtos.Count));
+        var dtos = versions.Select(FeedVersionMapper.ToResponse).ToList();
+        return Ok(new Paginated<FeedVersionResponse>(dtos, dtos.Count, 1, dtos.Count));
     }
 }

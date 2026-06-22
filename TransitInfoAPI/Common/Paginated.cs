@@ -1,4 +1,4 @@
-namespace TransitInfoAPI.Models;
+namespace TransitInfoAPI.Common;
 
 public record Paginated<T>(List<T> Data, int Total, int Page, int PerPage, int TotalPages)
 {

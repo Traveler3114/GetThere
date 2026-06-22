@@ -5,7 +5,9 @@ using NetTopologySuite.Geometries;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
@@ -77,25 +79,15 @@ public class RoutesController : ControllerBase
 
         var result = await _routeService.GetAllAsync(operatorId, routeType, q, page, perPage, ct);
         var total = await _db.CanonicalRoutes.CountAsync(r => r.IsActive, ct);
-        return Ok(new Paginated<RouteDto>(result, total, page, perPage));
+        return Ok(new Paginated<RouteResponse>(result, total, page, perPage));
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<RouteDto>> GetById(int id, CancellationToken ct = default)
+    public async Task<ActionResult<RouteResponse>> GetById(int id, CancellationToken ct = default)
     {
         var route = await _db.CanonicalRoutes
             .Where(r => r.Id == id)
-            .Select(r => new RouteDto
-            {
-                Id = r.Id,
-                GlobalId = r.GlobalId,
-                OnestopId = r.OnestopId,
-                Name = r.LongName,
-                ShortName = r.ShortName,
-                RouteType = r.RouteType.ToString(),
-                OperatorId = r.OperatorId,
-                OperatorName = r.Operator != null ? r.Operator.Name : null
-            })
+            .Select(RouteMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
 
         if (route is null)
@@ -105,21 +97,11 @@ public class RoutesController : ControllerBase
     }
 
     [HttpGet("by-onestop/{onestopId}")]
-    public async Task<ActionResult<RouteDto>> GetByOnestopId(string onestopId, CancellationToken ct = default)
+    public async Task<ActionResult<RouteResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var route = await _db.CanonicalRoutes
             .Where(r => r.OnestopId == onestopId)
-            .Select(r => new RouteDto
-            {
-                Id = r.Id,
-                GlobalId = r.GlobalId,
-                OnestopId = r.OnestopId,
-                Name = r.LongName,
-                ShortName = r.ShortName,
-                RouteType = r.RouteType.ToString(),
-                OperatorId = r.OperatorId,
-                OperatorName = r.Operator != null ? r.Operator.Name : null
-            })
+            .Select(RouteMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
 
         if (route is null)
@@ -152,14 +134,14 @@ public class RoutesController : ControllerBase
     }
 
     [HttpGet("{id}/stops")]
-    public async Task<ActionResult<List<StationDto>>> GetStops(int id, CancellationToken ct = default)
+    public async Task<ActionResult<List<StationResponse>>> GetStops(int id, CancellationToken ct = default)
     {
         var stops = await _scheduleService.GetRouteStopsAsync(id, ct);
         return Ok(stops);
     }
 
     [HttpGet("{id}/trips")]
-    public async Task<ActionResult<List<TripDto>>> GetTrips(
+    public async Task<ActionResult<List<TripResponse>>> GetTrips(
         int id,
         [FromQuery] string? date = null,
         CancellationToken ct = default)

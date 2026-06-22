@@ -1,23 +1,11 @@
 using NetTopologySuite.Geometries;
+using TransitInfoAPI.Contracts;
 
-namespace TransitInfoAPI.Models;
-
-public class GeoJsonFeature
-{
-    public string Type { get; set; } = "Feature";
-    public object? Geometry { get; set; }
-    public Dictionary<string, object?>? Properties { get; set; }
-}
-
-public class GeoJsonFeatureCollection
-{
-    public string Type { get; set; } = "FeatureCollection";
-    public List<GeoJsonFeature> Features { get; set; } = [];
-}
+namespace TransitInfoAPI.Common;
 
 public static class GeoJsonGeometry
 {
-    public static object FromNtsGeometry(NetTopologySuite.Geometries.Geometry? geom)
+    public static object FromNtsGeometry(Geometry? geom)
     {
         if (geom is Point p)
             return new { type = "Point", coordinates = new[] { p.X, p.Y } };

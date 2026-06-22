@@ -9,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Models;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Mapping;
 
 using Microsoft.Data.SqlClient;
 
@@ -53,7 +54,7 @@ public class FeedManager
         _logStore = logStore;
     }
 
-    public async Task<List<FeedDto>> GetAllAsync(int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<FeedResponse>> GetAllAsync(int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.Feeds
             .Include(f => f.Operator)
@@ -63,50 +64,16 @@ public class FeedManager
         return await query
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(f => new FeedDto
-            {
-                Id = f.Id,
-                OnestopId = f.OnestopId,
-                FeedType = f.FeedType.ToString(),
-                SourceType = f.SourceType.ToString(),
-                FeedId = f.FeedId,
-                ExternalUrl = f.ExternalUrl,
-                InternalUrl = f.InternalUrl,
-                IsActive = f.IsActive,
-                RefreshIntervalSeconds = f.RefreshIntervalSeconds,
-                OperatorName = f.Operator.Name,
-                LicenseName = f.LicenseName,
-                LicenseUrl = f.LicenseUrl,
-                LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
-                LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
-                LicenseRedistributionAllowed = f.LicenseRedistributionAllowed
-            })
+            .Select(FeedMapper.ToResponseExpression)
             .ToListAsync(ct);
     }
 
-    public async Task<FeedDto?> GetByIdAsync(int id, CancellationToken ct)
+    public async Task<FeedResponse?> GetByIdAsync(int id, CancellationToken ct)
     {
         return await _db.Feeds
             .Include(f => f.Operator)
             .Where(f => f.Id == id)
-            .Select(f => new FeedDto
-            {
-                Id = f.Id,
-                OnestopId = f.OnestopId,
-                FeedType = f.FeedType.ToString(),
-                SourceType = f.SourceType.ToString(),
-                FeedId = f.FeedId,
-                ExternalUrl = f.ExternalUrl,
-                InternalUrl = f.InternalUrl,
-                IsActive = f.IsActive,
-                RefreshIntervalSeconds = f.RefreshIntervalSeconds,
-                OperatorName = f.Operator.Name,
-                LicenseName = f.LicenseName,
-                LicenseUrl = f.LicenseUrl,
-                LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
-                LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
-                LicenseRedistributionAllowed = f.LicenseRedistributionAllowed
-            })
+            .Select(FeedMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
     }
 

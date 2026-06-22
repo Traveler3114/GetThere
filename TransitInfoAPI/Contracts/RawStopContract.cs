@@ -1,6 +1,6 @@
-namespace TransitInfoAPI.Models;
+namespace TransitInfoAPI.Contracts;
 
-public class RawStopDto
+public class RawStopResponse
 {
     public int Id { get; set; }
     public string RawStopId { get; set; } = string.Empty;
