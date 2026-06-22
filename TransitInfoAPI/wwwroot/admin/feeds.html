@@ -97,7 +97,7 @@ async function checkFeedHealth() {
   if (!unhealthy.length) return;
 
   const html = unhealthy.map(f => `<li class="list-group-item list-group-item-danger d-flex justify-content-between align-items-center py-1">
-    <span><strong>${esc(f.feedId)}</strong> <code class="small">${esc(f.onestopId||'-')}</code> <span class="badge bg-secondary">${esc(f.feedType)}</span></span>
+    <span><strong>${esc(f.feedId)}</strong> <code class="small">${esc(f.onestopId||'-')}</code> ${feedTypeBadge(f.feedType)}</span>
     <button class="btn btn-sm btn-outline-danger" onclick="openFeedHealth(${f.id})">Inspect</button>
   </li>`).join('');
 
@@ -121,7 +121,8 @@ function renderFeeds(feeds, totalCount) {
   const rows = feeds.map(f => `<tr>
     <td>${esc(f.feedId)}</td>
     <td><code class="small">${esc(f.onestopId||'-')}</code></td>
-    <td><span class="badge bg-info text-dark">${esc(f.feedType)}</span></td>
+    <td>${feedTypeBadge(f.feedType)}</td>
+    <td>${sourceTypeBadge(f.sourceType)}</td>
     <td>${esc(f.operatorName||'-')}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="${esc(f.externalUrl||'#')}" target="_blank" class="text-decoration-none small">${esc(f.externalUrl||'-')}</a></td>
     <td>${f.isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
@@ -133,7 +134,7 @@ function renderFeeds(feeds, totalCount) {
       <button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>
     </td>
   </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Source</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   document.getElementById('pagination').classList.add('d-none');
 }
 
@@ -144,7 +145,7 @@ async function expandVersions(feedId, btn) {
     nextRow.classList.toggle('show');
     return;
   }
-  const html = `<tr class="version-row show"><td colspan="8"><div class="detail-inner"><div id="versions-${feedId}"><i class="bi bi-hourglass-split"></i> Loading versions...</div></div></td></tr>`;
+  const html = `<tr class="version-row show"><td colspan="9"><div class="detail-inner"><div id="versions-${feedId}"><i class="bi bi-hourglass-split"></i> Loading versions...</div></div></td></tr>`;
   row.insertAdjacentHTML('afterend', html);
   try {
     const r = await fetch(BASE + '/feeds/' + feedId + '/versions');
@@ -164,6 +165,16 @@ async function expandVersions(feedId, btn) {
   } catch(e) {
     document.getElementById('versions-' + feedId).innerHTML = '<p class="text-danger small">Failed to load versions.</p>';
   }
+}
+
+function feedTypeBadge(type) {
+  const map = { GTFSStatic: 'bg-success', GTFSRealtime: 'bg-primary', GBFS: 'bg-warning text-dark' };
+  const label = { GTFSStatic: 'GTFS Static', GTFSRealtime: 'GTFS RT', GBFS: 'GBFS' };
+  return `<span class="badge ${map[type] || 'bg-secondary'}">${label[type] || type}</span>`;
+}
+
+function sourceTypeBadge(type) {
+  return type === 'Internal' ? '<span class="badge bg-info text-dark">Internal</span>' : '<span class="badge bg-secondary">External</span>';
 }
 
 function statusBadge(status) {
@@ -343,6 +354,21 @@ async function editFeed(id) {
     <div class="modal-header"><h5 class="modal-title">Edit Feed: ${esc(feed.feedId)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
       <div class="mb-3">
+        <label class="form-label">Feed Type</label>
+        <select id="editFeedType" class="form-select form-select-sm">
+          <option value="GTFSStatic" ${feed.feedType === 'GTFSStatic' ? 'selected' : ''}>GTFS Static</option>
+          <option value="GTFSRealtime" ${feed.feedType === 'GTFSRealtime' ? 'selected' : ''}>GTFS Realtime</option>
+          <option value="GBFS" ${feed.feedType === 'GBFS' ? 'selected' : ''}>GBFS</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Source Type</label>
+        <select id="editSourceType" class="form-select form-select-sm">
+          <option value="External" ${feed.sourceType === 'External' ? 'selected' : ''}>External</option>
+          <option value="Internal" ${feed.sourceType === 'Internal' ? 'selected' : ''}>Internal</option>
+        </select>
+      </div>
+      <div class="mb-3">
         <label class="form-label">Active</label>
         <select id="editIsActive" class="form-select form-select-sm">
           <option value="true" ${feed.isActive ? 'selected' : ''}>Active</option>
@@ -398,6 +424,8 @@ async function saveEditFeed(id) {
   if (!feed) return;
   const updated = {
     ...feed,
+    feedType: document.getElementById('editFeedType').value,
+    sourceType: document.getElementById('editSourceType').value,
     isActive: document.getElementById('editIsActive').value === 'true',
     refreshIntervalSeconds: parseInt(document.getElementById('editInterval').value) || 3600,
     externalUrl: document.getElementById('editExternalUrl').value.trim() || null,

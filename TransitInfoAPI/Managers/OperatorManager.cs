@@ -35,8 +35,6 @@ public class OperatorManager
             ShortName = o.ShortName,
             Website = o.Website,
             OperatorType = o.OperatorType.ToString(),
-            IsVerified = o.IsVerified,
-            IsVirtual = o.IsVirtual,
             CountryName = o.Country.Name
         }).ToListAsync(ct);
     }
@@ -55,8 +53,6 @@ public class OperatorManager
                 ShortName = o.ShortName,
                 Website = o.Website,
                 OperatorType = o.OperatorType.ToString(),
-                IsVerified = o.IsVerified,
-                IsVirtual = o.IsVirtual,
                 CountryName = o.Country.Name
             })
             .FirstOrDefaultAsync(ct);
@@ -114,6 +110,7 @@ public class OperatorManager
                 Id = f.Id,
                 OnestopId = f.OnestopId,
                 FeedType = f.FeedType.ToString(),
+                SourceType = f.SourceType.ToString(),
                 FeedId = f.FeedId,
                 ExternalUrl = f.ExternalUrl,
                 InternalUrl = f.InternalUrl,

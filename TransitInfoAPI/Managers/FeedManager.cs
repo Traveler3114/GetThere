@@ -68,6 +68,7 @@ public class FeedManager
                 Id = f.Id,
                 OnestopId = f.OnestopId,
                 FeedType = f.FeedType.ToString(),
+                SourceType = f.SourceType.ToString(),
                 FeedId = f.FeedId,
                 ExternalUrl = f.ExternalUrl,
                 InternalUrl = f.InternalUrl,
@@ -93,6 +94,7 @@ public class FeedManager
                 Id = f.Id,
                 OnestopId = f.OnestopId,
                 FeedType = f.FeedType.ToString(),
+                SourceType = f.SourceType.ToString(),
                 FeedId = f.FeedId,
                 ExternalUrl = f.ExternalUrl,
                 InternalUrl = f.InternalUrl,
@@ -143,6 +145,11 @@ public class FeedManager
         if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
             return (false, $"Invalid feed type '{request.FeedType}'.");
         feed.FeedType = feedType;
+
+        if (!Enum.TryParse<SourceType>(request.SourceType, true, out var sourceType))
+            return (false, $"Invalid source type '{request.SourceType}'.");
+        feed.SourceType = sourceType;
+
         feed.ExternalUrl = request.ExternalUrl;
         feed.InternalUrl = request.InternalUrl;
         feed.IsActive = request.IsActive;

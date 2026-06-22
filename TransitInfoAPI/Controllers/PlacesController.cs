@@ -88,8 +88,6 @@ public class PlacesController : ControllerBase
                 ShortName = o.ShortName,
                 Website = o.Website,
                 OperatorType = o.OperatorType.ToString(),
-                IsVerified = o.IsVerified,
-                IsVirtual = o.IsVirtual,
                 CountryName = o.Country != null ? o.Country.Name : null
             })
             .ToListAsync(ct);

@@ -75,9 +75,7 @@ public class OperatorsController : ControllerBase
                         ["onestopId"] = item.Operator.OnestopId,
                         ["name"] = item.Operator.Name,
                         ["shortName"] = item.Operator.ShortName,
-                        ["operatorType"] = item.Operator.OperatorType.ToString(),
-                        ["isVerified"] = item.Operator.IsVerified,
-                        ["isVirtual"] = item.Operator.IsVirtual
+                        ["operatorType"] = item.Operator.OperatorType.ToString()
                     }
                 }).ToList()
             };
@@ -104,8 +102,6 @@ public class OperatorsController : ControllerBase
                 ShortName = o.ShortName,
                 Website = o.Website,
                 OperatorType = o.OperatorType.ToString(),
-                IsVerified = o.IsVerified,
-                IsVirtual = o.IsVirtual,
                 CountryName = o.Country != null ? o.Country.Name : null
             })
             .FirstOrDefaultAsync(ct);
@@ -129,8 +125,6 @@ public class OperatorsController : ControllerBase
                 ShortName = o.ShortName,
                 Website = o.Website,
                 OperatorType = o.OperatorType.ToString(),
-                IsVerified = o.IsVerified,
-                IsVirtual = o.IsVirtual,
                 CountryName = o.Country != null ? o.Country.Name : null
             })
             .FirstOrDefaultAsync(ct);
@@ -295,7 +289,6 @@ public class OperatorsController : ControllerBase
             ShortName = request.ShortName,
             Website = request.Website,
             OperatorType = operatorType,
-            IsVerified = false,
             CountryId = request.CountryId,
             CreatedAt = DateTime.UtcNow
         };
@@ -319,7 +312,6 @@ public class OperatorsController : ControllerBase
             ShortName = op.ShortName,
             Website = op.Website,
             OperatorType = op.OperatorType.ToString(),
-            IsVerified = op.IsVerified,
             CountryName = country.Name
         };
 
@@ -368,10 +360,33 @@ public class OperatorsController : ControllerBase
             ShortName = op.ShortName,
             Website = op.Website,
             OperatorType = op.OperatorType.ToString(),
-            IsVerified = op.IsVerified,
             CountryName = op.Country.Name
         };
 
         return Ok(dto);
+    }
+
+    [HttpDelete("{globalId}")]
+    public async Task<ActionResult> Delete(string globalId, CancellationToken ct = default)
+    {
+        var op = await _db.Operators
+            .Include(o => o.Agencies)
+            .Include(o => o.Feeds)
+            .Include(o => o.Routes)
+            .Include(o => o.StationOperators)
+            .Include(o => o.MobilityProviders)
+            .FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
+
+        if (op is null)
+            return NotFound();
+
+        var totalAssociations = op.Agencies.Count + op.Feeds.Count + op.Routes.Count + op.StationOperators.Count + op.MobilityProviders.Count;
+        if (totalAssociations > 0)
+            return Problem(statusCode: 409, title: $"Cannot delete operator: has {totalAssociations} associated record(s). Remove associations first.");
+
+        _db.Operators.Remove(op);
+        await _db.SaveChangesAsync(ct);
+
+        return NoContent();
     }
 }
