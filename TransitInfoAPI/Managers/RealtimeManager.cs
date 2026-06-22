@@ -50,6 +50,8 @@ public class RealtimeManager
                 .ToListAsync(ct);
         }
 
+        _logger.LogInformation("Polling {Count} active GTFS-RT feeds", activeRtFeeds.Count);
+
         foreach (var feed in activeRtFeeds)
         {
             try
@@ -57,6 +59,7 @@ public class RealtimeManager
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
                 await PollFeedAsync(feed, ct);
+                _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
             }
             catch (Exception ex)
             {
