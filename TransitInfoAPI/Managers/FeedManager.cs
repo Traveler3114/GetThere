@@ -720,6 +720,7 @@ public class FeedManager
                 cr.Geometry = geom;
         }
 
+        _db.ChangeTracker.DetectChanges();
         await _db.SaveChangesAsync(ct);
         _logStore.AddEntry(feedVersionId, "Phase 2: route geometries backfilled from trip shapes");
     }
