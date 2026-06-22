@@ -34,4 +34,9 @@ public class ImportLogStore
     {
         _logs.TryRemove(versionId, out _);
     }
+
+    public void ClearAll()
+    {
+        _logs.Clear();
+    }
 }

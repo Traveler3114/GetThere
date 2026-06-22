@@ -24,6 +24,9 @@ public class ScheduleManager
         var fromTime = (int)from.TimeOfDay.TotalSeconds;
         var dayOfWeek = today.DayOfWeek;
 
+        // Service validity is checked against today only. GTFS departure_time can be >86400
+        // (next-day departures) — these are captured by the query but validated against today's
+        // calendar, which is an approximation. Full cross-midnight calendar merge deferred.
         var validServices = await GetValidServiceIdsAsync(today, dayOfWeek, ct);
 
         var rawDepartures = await _db.StopTimes
@@ -107,6 +110,8 @@ public class ScheduleManager
         return valid;
     }
 
+    // Groups by CanonicalStationId, orders by first trip's StopSequence. Display-only —
+    // not a clean representation of bidirectional routes.
     public async Task<List<StationDto>> GetRouteStopsAsync(int canonicalRouteId, CancellationToken ct)
     {
         var stops = await _db.StopTimes

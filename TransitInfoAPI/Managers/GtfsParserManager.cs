@@ -27,7 +27,7 @@ public class GtfsParserManager
     public string ComputeGtfsSha1(ZipArchive archive)
     {
         var entries = archive.Entries
-            .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) && e.Length > 0)
+            .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
             .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

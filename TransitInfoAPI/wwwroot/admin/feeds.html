@@ -533,9 +533,8 @@ async function addFeed() {
   const interval = parseInt(document.getElementById('addInterval').value) || 3600;
   if (!feedId) { alert('Feed ID is required.'); return; }
   try {
-    const params = new URLSearchParams({operatorId, feedType, sourceType, feedId, refreshIntervalSeconds: interval});
-    if (externalUrl) params.set('externalUrl', externalUrl);
-    const r = await fetch(BASE + '/feeds?' + params.toString(), { method: 'POST' });
+    const body = JSON.stringify({ operatorId, feedType, sourceType, feedId, externalUrl, refreshIntervalSeconds: interval });
+    const r = await fetch(BASE + '/feeds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
     if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
       loadFeeds();

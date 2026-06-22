@@ -189,7 +189,7 @@ public class StationManager
 
     public async Task<List<DepartureDto>> GetDeparturesAsync(int stationId, DateTime? from, int count, CancellationToken ct)
     {
-        return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.Now, count, ct);
+        return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.UtcNow, count, ct);
     }
 
     public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, CancellationToken ct)

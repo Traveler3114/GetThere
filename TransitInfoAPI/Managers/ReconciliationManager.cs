@@ -52,15 +52,22 @@ public class ReconciliationManager
         var maxLat = rawStops.Max(r => r.Lat);
         var minLon = rawStops.Min(r => r.Lon);
         var maxLon = rawStops.Max(r => r.Lon);
-        var buffer = 0.005;
+        var buffer = 0.001;
         var existingStations = await _db.CanonicalStations
             .Where(cs => cs.IsActive && cs.StationType == StationType.Stop
                 && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
                 && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
             .ToListAsync(ct);
 
+        // Inactive stations queried by OnestopId only. Fine now — monitor as deactivations accumulate.
+        var candidateOnestopIds = rawStops
+            .Where(rs => rs.RouteType is not null)
+            .Select(rs => _onestopId.GenerateStopOnestopId(rs.Lat, rs.Lon, rs.Name, rs.RouteType!.Value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var inactiveStations = await _db.CanonicalStations
-            .Where(cs => !cs.IsActive)
+            .Where(cs => !cs.IsActive && candidateOnestopIds.Contains(cs.OnestopId))
             .ToListAsync(ct);
         var inactiveByOnestopId = new Dictionary<string, CanonicalStation>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in inactiveStations)
@@ -140,6 +147,18 @@ public class ReconciliationManager
         foreach (var s in newStationList)
             onestopToStation[s.OnestopId] = s;
 
+        // Set CanonicalStationId for raw stops whose stations were created in this pass
+        // so the route/direction lookup below includes them
+        foreach (var rawStop in rawStops)
+        {
+            if (!rawStop.CanonicalStationId.HasValue && rawStop.RouteType is not null)
+            {
+                var onestopId = _onestopId.GenerateStopOnestopId(
+                    rawStop.Lat, rawStop.Lon, rawStop.Name, rawStop.RouteType.Value);
+                rawStop.CanonicalStationId = onestopToStation[onestopId].Id;
+            }
+        }
+
         existingStations = await _db.CanonicalStations
             .Where(cs => cs.IsActive
                 && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
@@ -149,10 +168,8 @@ public class ReconciliationManager
         // Phase 1.5: build route/direction lookup for route-set and direction matching (Tasks 1.1–1.3)
         var routeLookup = await BuildRouteLookupAsync(feedVersionId, ct);
 
-        var existingStationIds = existingStations.Select(s => s.Id).ToHashSet();
         var stationToRawStopIds = await _db.RawStops
-            .Where(rs => rs.FeedVersionId == feedVersionId && rs.CanonicalStationId.HasValue
-                && existingStationIds.Contains(rs.CanonicalStationId.Value))
+            .Where(rs => rs.FeedVersionId == feedVersionId && rs.CanonicalStationId.HasValue)
             .GroupBy(rs => rs.CanonicalStationId!.Value)
             .ToDictionaryAsync(g => g.Key, g => g.Select(rs => rs.RawStopId).Distinct().ToList(), ct);
 
@@ -417,6 +434,11 @@ public class ReconciliationManager
             var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
             if (rawStop is not null)
             {
+                if (rawStop.CanonicalStationId.HasValue
+                    && rawStop.CanonicalStationId != candidate.SuggestedCanonicalStationId)
+                    throw new AppException(
+                        $"Raw stop was reassigned to station {rawStop.CanonicalStationId} after this candidate was created. Review and re-confirm.", 409);
+
                 rawStop.CanonicalStationId = candidate.SuggestedCanonicalStationId;
                 rawStop.ReconciliationStatus = ReconciliationStatus.ManuallyApproved;
             }
@@ -451,7 +473,10 @@ public class ReconciliationManager
         {
             var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
             if (rawStop is not null)
+            {
+                rawStop.CanonicalStationId = null;
                 rawStop.ReconciliationStatus = ReconciliationStatus.Rejected;
+            }
         }
 
         candidate.Status = ReconciliationStatus.Rejected;
@@ -459,7 +484,7 @@ public class ReconciliationManager
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task<string?> ReassignCandidateAsync(int id, int canonicalStationId, CancellationToken ct)
+    public async Task<string?> ReassignCandidateAsync(int id, int canonicalStationId, bool force = false, CancellationToken ct = default)
     {
         var candidate = await _db.ReconciliationCandidates.FindAsync([id], ct);
         if (candidate is null)
@@ -474,9 +499,14 @@ public class ReconciliationManager
 
         var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
         if (rawStop is not null && rawStop.RouteType is not null && rawStop.RouteType.Value != station.PrimaryRouteType)
+        {
+            if (!force)
+                throw new AppException(
+                    $"Cannot reassign: route type mismatch ({rawStop.RouteType.Value} vs {station.PrimaryRouteType}). Use force=true to override.", 400);
             _logger.LogWarning(
-                "Reassigning raw stop {RawStopId} (RouteType={RawType}) to station {StationId} (PrimaryRouteType={StationType}) with mismatched route type",
+                "Reassigning raw stop {RawStopId} (RouteType={RawType}) to station {StationId} (PrimaryRouteType={StationType}) with mismatched route type (forced)",
                 candidate.RawStopId, rawStop.RouteType.Value, station.Id, station.PrimaryRouteType);
+        }
 
         var warning = candidate.SuggestedCanonicalStationId.HasValue
             ? await CheckManualActionWarningAsync(candidate.SuggestedCanonicalStationId.Value, canonicalStationId, ct)
@@ -1014,14 +1044,7 @@ public class ReconciliationManager
 
     public double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)
     {
-        var r = 6371000;
-        var dLat = (lat2 - lat1) * Math.PI / 180;
-        var dLon = (lon2 - lon1) * Math.PI / 180;
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
-                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return r * c;
+        return GeoUtils.CalculateDistanceMeters(lat1, lon1, lat2, lon2);
     }
 
     public double CalculateNameSimilarity(string name1, string name2)

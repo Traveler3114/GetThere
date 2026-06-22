@@ -40,15 +40,10 @@ public class FeedsController : ControllerBase
 
     [HttpPost]
     public async Task<ActionResult<FeedDto>> Create(
-        [FromQuery] int operatorId,
-        [FromQuery] FeedType feedType,
-        [FromQuery] SourceType sourceType,
-        [FromQuery] string feedId,
-        [FromQuery] string? externalUrl,
-        [FromQuery] int refreshIntervalSeconds = 3600,
+        [FromBody] CreateFeedRequest request,
         CancellationToken ct = default)
     {
-        var feed = await _feedService.CreateAsync(operatorId, feedType, sourceType, feedId, externalUrl, refreshIntervalSeconds, ct);
+        var feed = await _feedService.CreateAsync(request.OperatorId, request.FeedType, request.SourceType, request.FeedId, request.ExternalUrl, request.RefreshIntervalSeconds, ct);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
         return CreatedAtAction(nameof(GetAll), new { }, dto);
     }

@@ -19,12 +19,14 @@ public class PlaceMatchingManager
 
     public async Task LoadPlacesAsync(CancellationToken ct)
     {
+        if (_placeCache is not null) return;
         _placeCache = await _db.Places
             .OrderByDescending(p => p.Population)
             .ToListAsync(ct);
         _logger.LogInformation("Loaded {Count} places into cache", _placeCache.Count);
     }
 
+    // O(n) scan — acceptable for ~500 places. Monitor if dataset grows 10×.
     public Place? FindNearestPlace(double lat, double lon)
     {
         if (_placeCache is null || _placeCache.Count == 0) return null;
@@ -50,6 +52,15 @@ public class PlaceMatchingManager
         var stations = await _db.CanonicalStations
             .Where(cs => cs.PlaceId == null)
             .ToListAsync(ct);
+
+        var stale = await _db.CanonicalStations
+            .Include(cs => cs.Place)
+            .Where(cs => cs.PlaceId != null && cs.Place != null)
+            .ToListAsync(ct);
+        stale = stale.Where(cs =>
+            GeoUtils.CalculateDistanceMeters(
+                cs.Latitude, cs.Longitude, cs.Place!.Lat, cs.Place!.Lon) > 100).ToList();
+        stations.AddRange(stale);
 
         var matched = 0;
         foreach (var station in stations)
@@ -102,13 +113,6 @@ public class PlaceMatchingManager
 
     private static double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)
     {
-        var r = 6371000;
-        var dLat = (lat2 - lat1) * Math.PI / 180;
-        var dLon = (lon2 - lon1) * Math.PI / 180;
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
-                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return r * c;
+        return GeoUtils.CalculateDistanceMeters(lat1, lon1, lat2, lon2);
     }
 }

@@ -8,6 +8,7 @@ public class StopTime
     public int TripId { get; set; }
     public Trip Trip { get; set; } = null!;
 
+    // 450 chars × 2 bytes (NVARCHAR) = 900 bytes = SQL Server non-clustered index key limit
     [MaxLength(450)]
     public string RawStopId { get; set; } = string.Empty;
     public int? RawStopEntityId { get; set; }

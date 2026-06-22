@@ -460,9 +460,9 @@ public class ReconciliationController : ControllerBase
     // reconciliation candidate to a different station (Task 4.13). Must be
     // restricted to admin-only.
     [HttpPost("{id}/reassign")]
-    public async Task<IActionResult> Reassign(int id, [FromQuery] int canonicalStationId, CancellationToken ct = default)
+    public async Task<IActionResult> Reassign(int id, [FromQuery] int canonicalStationId, [FromQuery] bool force = false, CancellationToken ct = default)
     {
-        var warning = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, ct);
+        var warning = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, force, ct);
         if (warning is not null)
             return Ok(new { warning });
         return NoContent();

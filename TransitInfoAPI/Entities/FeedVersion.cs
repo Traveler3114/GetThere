@@ -16,6 +16,8 @@ public class FeedVersion
     public bool IsActive { get; set; }
     public FeedImportStatus ImportStatus { get; set; }
     public string? ImportError { get; set; }
+    public DateTime? LastModified { get; set; }
+    public string? ETag { get; set; }
 
     public Geometry? ConvexHull { get; set; }
 

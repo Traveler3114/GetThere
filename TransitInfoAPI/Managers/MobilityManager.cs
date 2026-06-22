@@ -86,6 +86,10 @@ public class MobilityManager
         var root = JsonSerializer.Deserialize<NextbikeRoot>(response);
         if (root?.Countries is null) return;
 
+        var existingByStationId = await _db.MobilityStations
+            .Where(ms => ms.MobilityProviderId == provider.Id)
+            .ToDictionaryAsync(ms => ms.StationId, ct);
+
         foreach (var country in root.Countries)
         {
             if (country.Cities is null) continue;
@@ -96,10 +100,7 @@ public class MobilityManager
 
                 foreach (var place in city.Places)
                 {
-                    var existing = await _db.MobilityStations
-                        .FirstOrDefaultAsync(ms => ms.StationId == place.Uid.ToString(), ct);
-
-                    if (existing is not null)
+                    if (existingByStationId.TryGetValue(place.Uid.ToString(), out var existing))
                     {
                         existing.AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes;
                         existing.LastUpdated = DateTime.UtcNow;
@@ -128,7 +129,7 @@ public class MobilityManager
 
     private async Task PollGbfsAsync(MobilityProvider provider, HttpClient http, string url, CancellationToken ct)
     {
-        // GBFS polling will be implemented when GBFS providers are added
+        _logger.LogWarning("GBFS polling not implemented for provider {ProviderId}", provider.Id);
         await Task.CompletedTask;
     }
 

@@ -8,7 +8,8 @@ using TransitInfoAPI.Workers;
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders().AddConsole().AddDebug();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");

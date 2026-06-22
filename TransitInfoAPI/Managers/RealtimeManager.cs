@@ -6,6 +6,7 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Models;
+using TransitInfoAPI.Workers;
 
 using TransitRealtime;
 
@@ -16,6 +17,9 @@ public class RealtimeManager
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly int _vehicleStaleCutoffMinutes;
+    // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
+    // Revisit for Phase 2 multi-instance deployment.
     private readonly ConcurrentDictionary<string, VehicleDto> _vehicleCache = new();
 
     private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
@@ -25,27 +29,33 @@ public class RealtimeManager
     public RealtimeManager(
         IHttpClientFactory httpFactory,
         ILogger<RealtimeManager> logger,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        Microsoft.Extensions.Options.IOptions<RealtimePollingOptions> options)
     {
         _httpFactory = httpFactory;
         _logger = logger;
         _scopeFactory = scopeFactory;
+        _vehicleStaleCutoffMinutes = options.Value.VehicleStaleCutoffMinutes;
     }
 
     public async Task PollAllFeedsAsync(CancellationToken ct)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
-
-        var activeRtFeeds = await db.Feeds
-            .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime)
-            .Where(f => f.InternalUrl != null || f.ExternalUrl != null)
-            .ToListAsync(ct);
+        List<Feed> activeRtFeeds;
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+            activeRtFeeds = await db.Feeds
+                .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime)
+                .Where(f => f.InternalUrl != null || f.ExternalUrl != null)
+                .ToListAsync(ct);
+        }
 
         foreach (var feed in activeRtFeeds)
         {
             try
             {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
                 await PollFeedAsync(feed, ct);
             }
             catch (Exception ex)
@@ -54,7 +64,8 @@ public class RealtimeManager
             }
         }
 
-        var cutoff = DateTime.UtcNow.AddMinutes(-5);
+        // Vehicle stale cutoff matches realtime poll interval. Move to per-feed config if needed.
+        var cutoff = DateTime.UtcNow.AddMinutes(-_vehicleStaleCutoffMinutes);
         foreach (var key in _vehicleCache.Keys)
         {
             if (_vehicleCache.TryGetValue(key, out var v) && v.LastUpdated < cutoff)
@@ -76,6 +87,7 @@ public class RealtimeManager
 
 
         var tripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
+        var alerts = new List<FeedEntity>();
 
         foreach (var entity in feedMessage.Entity)
         {
@@ -123,6 +135,9 @@ public class RealtimeManager
                 if (stopUpdates.Count > 0)
                     tripUpdates[tripId] = stopUpdates;
             }
+
+            if (entity.Alert != null)
+                alerts.Add(entity);
         }
 
         if (tripUpdates.Count > 0)
@@ -131,12 +146,14 @@ public class RealtimeManager
                 _tripUpdateCache[kvp.Key] = kvp.Value;
         }
 
+        // Alerts persisted because they carry reference value across restarts (active disruptions).
+        // Vehicle positions are ephemeral and remain in-memory only.
         // Persist alerts
         try
         {
             using var alertScope = _scopeFactory.CreateScope();
             var db = alertScope.ServiceProvider.GetRequiredService<TransitDbContext>();
-            foreach (var entity in feedMessage.Entity.Where(e => e.Alert != null))
+            foreach (var entity in alerts)
             {
                 var alert = entity.Alert;
                 var cause = alert.Cause.ToString();

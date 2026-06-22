@@ -150,13 +150,47 @@ public class OperatorsController : ControllerBase
     [HttpGet("types")]
     public ActionResult<List<object>> GetTypes()
     {
-        var types = new[]
+        var icons = new Dictionary<int, (string Icon, string Color)>
         {
-            new { Id = 0, Name = "Tram", IconFile = "tram.png", Color = "#126400" },
-            new { Id = 2, Name = "Train", IconFile = "train.png", Color = "#b15928" },
-            new { Id = 3, Name = "Bus", IconFile = "bus.png", Color = "#1f78b4" }
+            { 0, ("tram.png", "#126400") },
+            { 1, ("bus.png", "#1f78b4") },
+            { 2, ("trolleybus.png", "#33a02c") },
+            { 3, ("metro.png", "#e31a1c") },
+            { 4, ("train.png", "#b15928") },
+            { 5, ("ferry.png", "#6a3d9a") },
+            { 6, ("flight.png", "#b2df8a") },
+            { 7, ("cablecar.png", "#fb9a99") },
+            { 8, ("funicular.png", "#fdbf6f") },
+            { 9, ("coach.png", "#cab2d6") },
+            { 10, ("bikeshare.png", "#a6cee3") },
+            { 11, ("scootershare.png", "#ff7f00") }
         };
-        return Ok(types.ToList<object>());
+
+        var types = Enum.GetValues<RouteType>()
+            .Select(rt =>
+            {
+                var id = (int)rt;
+                var name = rt switch
+                {
+                    RouteType.Bus => "Bus",
+                    RouteType.Tram => "Tram",
+                    RouteType.Trolleybus => "Trolleybus",
+                    RouteType.Metro => "Metro",
+                    RouteType.Rail => "Train",
+                    RouteType.Ferry => "Ferry",
+                    RouteType.Flight => "Flight",
+                    RouteType.CableCar => "Cable Car",
+                    RouteType.Funicular => "Funicular",
+                    RouteType.Coach => "Coach",
+                    RouteType.BikeShare => "Bike Share",
+                    RouteType.ScooterShare => "Scooter Share",
+                    _ => rt.ToString()
+                };
+                icons.TryGetValue(id, out var meta);
+                return new { Id = id, Name = name, IconFile = meta.Icon ?? $"{rt.ToString().ToLower()}.png", Color = meta.Color ?? "#808080" };
+            })
+            .ToList<object>();
+        return Ok(types);
     }
 
     [HttpGet("{id:int}/service-area")]
