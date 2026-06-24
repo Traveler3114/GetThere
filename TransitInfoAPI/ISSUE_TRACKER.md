@@ -1,189 +1,213 @@
-# TransitInfoAPI — Consolidated Issue Tracker
+# TransitInfoAPI — Consolidated Issue Tracker + Execution Plan
 
-## P0 — Fix Now (broken today, data corruption)
-
-| # | Issue | What | Why fix | Why not fix |
-|---|---|---|---|---|
-| 1 | **RejectCandidateAsync / ApproveCandidateAsync missing transactions** | Two SaveChangesAsync calls, no wrapping transaction. Second can fail leaving partial state (e.g., station created but candidate not updated). | Partial commits produce unrecoverable inconsistent state. | Adding CreateTransactionScope or manual BeginTransaction — straightforward. |
-| 2 | **MergeStationsAsync missing transaction** | Same pattern — SaveChangesAsync commits raw stop moves, then ExecuteUpdateAsync updates stop_times separately. | Stop_times desync from station assignments. Silent data corruption. | Same fix as #1. |
-| 3 | **FeedId directory collision** | Two feeds with same FeedId string share the same zip file on disk, corrupting each other's imports. | Silent data corruption. | Requires unique constraint + validation on create. |
-| 4 | **SearchAsync(stationType) always empty** | Base filter `StationType.Stop` contradicts `stationType=Airport` param. | Station type filter completely broken — users get zero results for any non-Stop type. | One-line fix: remove the base filter when a stationType param is provided. Better fix: make StationType filter consistent across GetAllAsync and SearchAsync — both should behave the same way. |
-| 5 | **CanonicalRoute never deactivated** | Routes removed from GTFS feeds stay active forever in the DB. No deactivation logic exists. | Phantom routes accumulate indefinitely. Wrong map display, wrong API responses. | Need to add deactivation matching CanonicalStation pattern in FinalizeVersionPhaseAsync. |
-| 73 | **appsettings.json thresholds drastically differ from code defaults** | Config file has AutoMergeDistanceMeters: 30, ManualReviewDistanceMeters: 50. Code defaults are 100 and 300. The config values are 2–6x tighter than intended — auto-merges will rarely fire. | Auto-reconciliation behavior is broken — most candidates will never auto-merge, overwhelming manual review. | Straightforward fix — update appsettings.json to match code defaults. |
-| 74 | **TriggerImportAsync passes CancellationToken.None** | FeedManager.cs line 398 passes CancellationToken.None instead of the caller's ct when triggering a manual import. If the HTTP request is cancelled or times out, the import continues in the background with no way to abort. | Orphaned import operations, possible race conditions with subsequent imports. | Pass the caller's ct instead. |
-| 110 | **GeoJSON station endpoint calls wrong URL — map never loads stations** | wwwroot/map/index.html line 147: fetch('/stations?format=geojson...') calls GET /stations (the paginated list endpoint) which returns standard JSON, not GeoJSON. The actual GeoJSON endpoint is GET /stations/search?format=geojson. | The map always shows zero stations on load — critical UX failure. | Fix the URL to /stations/search?format=geojson. |
-
-## P1 — Fix Next (wrong data to users)
-
-| # | Issue | What | Why fix | Why not fix |
-|---|---|---|---|---|
-| 6 | **StationManager total count ignores filters** | GetTotalCountAsync doesn't apply stationType filter that SearchAsync does. | Pagination shows wrong totals (5000 claimed, 3 returned). Breaches UX trust. | Easy fix — pass filter to count query. |
-| 7 | **OperatorManager total count ignores filters** | Same bug — GetAllAsync counts all operators regardless of countryId / q filters. | Same as #6 but for operators list. | Same fix. |
-| 8 | **Realtime trip cache never evicts completed trips** | _tripUpdateCache only adds/updates entries. Trip IDs repeat daily — yesterday's delay bleeds into today's identical trip. | Real correctness bug — recurring trips show stale delay data. | Fix: swap the entire dictionary reference each poll cycle. Must use Interlocked.Exchange or volatile write for atomic swap. Fixing #8 correctly means #42 (volatile misuse) becomes correct or moot — they're linked. |
-| 9 | **Alert deduplication runs N+1 queries per poll cycle** | One DB query per alert entity per 30s poll. 20 alerts = 20 queries per cycle. | Unnecessary DB load, scales linearly with alert count. | Switch to batch fetch then in-memory dedup. |
-| 10 | **Alert dedup key is too broad** | Key is (FeedId, Cause, Effect, ActivePeriodStart) — two different alerts with same cause/effect starting same time are collapsed. | Real data loss — feed can publish multiple simultaneous alerts for different route segments. | Widen dedup key to include something unique (HeaderText hash or alert ID). |
-| 11 | **GeoJSON endpoints have no pagination** | stations/search?format=geojson and routes?format=geojson return all results unbounded. | Browser hang, slow serialization at 10K+ features. | Add Take(5000) hard cap. Long-term: viewport-based query matching the route approach (minLat/maxLat/minLon/maxLon). |
-| 12 | **FeedVersionsController.GetStops no pagination** | Returns all raw stops for a version — can be 50K+. | Same problem as #11, separate endpoint. | Add pagination or limit. |
-| 13 | **StationsController.GetRoutes no limit** | Major interchange could serve hundreds of routes, all returned unbounded. | Large responses, slow serialization. | Add limit. |
-| 14 | **GtfsRouteTypeMapper 1100→Funicular, 1200→Funicular** | Extended types 1100 (Air) and 1200 (Boat) mapped to Funicular instead of Airplane/Ferry. | Wrong route types for feeds using these extended codes. ÖBB (Phase 1 scope) uses extended types. | No feed currently imported uses these codes. Theoretical until ÖBB imported. |
-| 15 | **PlacesController.GetOperators uses entity-level Distinct()** | EF Core entity equality for Distinct() on Operator objects is unreliable. Should be .Select(cso => cso.OperatorId).Distinct() + second query. | Wrong operator count in response. | Fix to ID-level distinct. |
-| 16 | **FeedManager.CreateAsync throws InvalidOperationException not AppException for missing operator** | Global handler returns 500 instead of 404. | Wrong HTTP status for a user-facing error. | Replace with AppException. |
-| 17 | **Cross-midnight departures approximated** | Schedule manager uses today's calendar for departures at 25:00 (1am next day). | Night services silently missing from departure boards. Hard to debug from UI. | Fix is bounded — only late-night trips (DepartureTime > 86400s) need next-day calendar check, not all trips. Small perf cost. |
-| 75 | **SearchAsync total count ignores stationType filter** | StationsController.SearchAsync line 101-103 passes stationType to search but null to GetTotalCountAsync. Same bug pattern as #6 but on the search endpoint instead of GetAllAsync. | Wrong pagination totals when filtering by station type on search endpoint. | Pass stationType to GetTotalCountAsync. |
-| 76 | **MobilityProvider has no Name property** | MobilityProvider entity has no display-name property. MobilityStationMapper.ToResponse maps ProviderName to FeedFormat.ToString() — users see "NextbikeAPI" or "GBFS" instead of the actual provider name. | Cannot identify which company operates a mobility station from the API response. | Add Name column to MobilityProvider entity. |
-| 77 | **Alert AffectedStopIds, AffectedRouteIds, AffectedTripIds, AffectedAgencyIds never populated** | Alert entity has four string properties for affected entity IDs but RealtimeManager.PollFeedAsync never extracts them from GTFS-RT InformedEntity blocks. GetAlertsAsync filters by these fields which are always null. | Filter-by-stop/route on alerts is completely broken — always returns empty results. | Extract and populate affected entity IDs during alert creation/dedup in PollFeedAsync. |
-| 78 | **RealtimeManager alert cleanup uses hardcoded 1-day cutoff (not 7)** | RealtimeManager.cs line 196: `var cutoff = DateTime.UtcNow.AddDays(-1)`. Alerts with ActivePeriodEnd more than 1 day ago are immediately deleted. Related to #28/#29 but for ActivePeriodEnd cutoff, not FetchedAt. | Active alerts cleaned up prematurely. Comment says AddDays(-7) but code uses AddDays(-1). | Change to AddDays(-7) or match the documented cleanup interval. |
-| 79 | **Cross-midnight departure wrong date in display** | GetDeparturesAsync computes `from.Date.AddSeconds(d.DepartureTime)` for departures at 25:00 (90000s). The result is 25 hours after today's midnight instead of 1 AM the next day. Extends #17 — calendar fix is separate from date-display fix. | Night trip departure times shown on wrong date in UI. | Use `from.Date.AddDays(1).AddSeconds(d.DepartureTime - 86400)` for times > 86400s. |
-
-## P2 — Fix Soon (will hurt at scale or specific conditions)
-
-| # | Issue | What | Why fix | Why not fix |
-|---|---|---|---|---|
-| 18 | **Import stuck cleanup incomplete** | Startup cleanup deletes stop_times, raw stops, trips for stuck versions but omits calendars, calendar_dates, shapes. | Re-import hits duplicate key errors or doubles data. | Add missing entity types to delete queries. |
-| 19 | **SetCommandTimeout(600) never reset** | Import sets 10-minute timeout on DbContext. All subsequent queries on that context inherit it. | Normal queries hang 10min before timeout instead of 30s. | Reset timeout in finally block after import. |
-| 20 | **BeginImportTransactionAsync no existing-tx check** | UseTransaction throws if a transaction is already open. | Crash on retry or unexpected transaction state. | Add check or ensure always starting clean. |
-| 21 | **ParseStops passes (0,0) coordinates** | Empty lat/lon in CSV produces stop at null island. Not filtered. | Phantom stops at (0,0) on the map. | Skip if lat==0 && lon==0 with log. No real transit stop exists at exactly 0,0. |
-| 22 | **CsvConfig AllowComments=true swallows #-prefixed stop IDs** | Stops with IDs starting with # are silently skipped as CSV comments. GTFS doesn't define comments. | Stop loss with no error indication. | Set AllowComments = false. |
-| 23 | **_feedLocks / _importLocks separate — concurrent check-fetch and import don't block each other** | Feed can download a new version while a prior import is still writing to DB. | Race condition on version logic. Low probability due to timing. | Unify locks or add version-level serialization. |
-| 24 | **Reconciliation bounding box asymmetric** | 0.001° buffer is ~111m N/S but ~78m E/W at Croatian latitudes. | Potential matches at 80–111m E/W of bounding box missed. N/S matches at same distance included. Inconsistent. | Apply latitude-based longitude correction like MobilityManager does. |
-| 25 | **ParseGtfsTimeToSeconds returns 0 for invalid/empty times** | Malformed departure times become phantom midnight departures. | Wrong data in departure boards — immediately visible. | Return null for invalid times, skip the stop_time. |
-| 26 | **No re-reconciliation endpoint** | Adjusting reconciliation thresholds in config requires full feed re-import to re-score candidates. | Operational friction. | Non-trivial endpoint. |
-| 27 | **CanonicalStation.Geometry always null** | Spatial Point column defined but never populated. | Wasted column space + missed spatial query opportunity. | Populate during reconciliation: `new Point(lon, lat) { SRID = 4326 }`. Note NetTopologySuite Point(x, y) = (longitude, latitude) — order matters, don't get it backwards. |
-| 28 | **Open-ended alerts deleted every 7 days then recreated** | FetchedAt > 7 days cleanup deletes still-active alerts (ActivePeriodEnd = null), recreated next poll. | Unnecessary churn for long-running alerts. | Change cleanup to key on ActivePeriodEnd, not FetchedAt. |
-| 29 | **Alert.FetchedAt never updated on re-fetch** | Existing alerts keep original fetch time, causing premature deletion. | Root cause of #28. | Update FetchedAt on dedup match. |
-| 30 | **FeedPollingWorker failure count not reset for feeds with no URL** | Feeds with ExternalUrl = null never succeed or fail — failure count freezes. | Feed with 9 prior failures + URL removal is permanently one cycle from deactivation. | Reset failure count in null-URL path. |
-| 31 | **GenerateFeedOnestopId always called with (0,0)** | All feed OnestopIds have geohash of null island — meaningless as geographic identifiers. | Misleading data — implies geographic encoding that doesn't exist. | Pass actual lat/lon or remove lat/lon from ID generation. Decision affects FeedManager.CreateAsync (touched in #3). |
-| 32 | **DataTable reuse across bulk copy batches** | dt.Rows.Clear() doesn't release internal arrays — GC pressure over large feeds (5M+ stop_times). | Memory inefficiency. | Create new DataTable per batch. |
-| 33 | **PickupType/DropOffType invalid vs null indistinguishable** | Both become DBNull in bulk copy. Can't distinguish "not specified" from "invalid". | Data quality loss. | Use sentinel value or separate column. Low impact. |
-| 34 | **MatchStationsToPlacesAsync stale check causes unnecessary re-matching** | Stations matched to slightly offset places get flagged stale and re-matched every import. | Wasted work every import cycle. | Widen staleness threshold or add re-match cooldown. |
-| 35 | **FeedVersion missing many response fields** | AgencyCount exists on entity but never in FeedVersionResponse. ImportError string not exposed. | Incomplete API for version inspection. | Add missing fields when working on feeds. |
-| 36 | **CanonicalRoute GlobalId embeds FeedId** | Feed deleted & recreated with different FeedId = all route GlobalIds change. GetThereAPI references break silently. | Silent foreign key breakage. | Fix is policy, not code: enforce FeedId as permanent identifier (stable, immutable). Document that Feed.FeedId is not a display name. |
-| 37 | **GetDeparturesAsync truncates fractional seconds** | (int)from.TimeOfDay.TotalSeconds drops milliseconds. Departure at exact current second may vanish from board. | Off-by-one at second boundaries. | Use rounding, not truncation. |
-| 38 | **FindNearestPlace 50km cutoff hardcoded** | Rural stations beyond 50km from any place get no place association permanently. | Permanent orphan stations. | Make configurable (appsettings.json). |
-| 39 | **LoadPlacesAsync sort has no effect** | Places sorted by population before caching, but FindNearestPlace does linear distance scan regardless. | Wasted sort + implies behavior (prefer populous cities) that doesn't exist. | Remove sort or implement nearest-populous logic. |
-| 40 | **BackfillRouteGeometriesAsync correlated subquery may cause client evaluation** | MostCommonShapeId selection inside .Select() is complex enough EF Core may fall back to client evaluation on some versions, loading all trips into memory. | Silent perf regression on re-import. | Restructure query or add AsNoTracking. |
-| 80 | **Route import phase has N+1 queries** | FeedManager.cs lines 554-575 — for every route, two separate EF Core queries execute: one by GlobalId and, if not found, another by OnestopId. For a 1000-route feed, this is 1000–2000 DB round-trips. | Significant import slowdown for large feeds. | Batch route lookup or use IN-clause queries. |
-| 81 | **Manual-trigger SHA1 collision risk within same second** | FeedManager.cs line 373-374: `$"{feed.FeedId}-manual-{DateTime.UtcNow:yyyyMMddHHmmss}"`. Two manual triggers within the same second produce the same fake SHA1. SHA1 uniqueness check skips the second trigger silently. | Lost manual imports when triggered rapidly. The fake SHA1 also breaks version-tracking across manual vs automatic imports. | Use a real SHA1 of the input, or include a guid/ticks in the fake hash. |
-| 82 | **MergeStationsAsync doesn't verify route conflicts** | ReconciliationManager.cs lines 608-692. Merge logic checks PrimaryRouteType mismatch but doesn't check if stations have conflicting route sets (unlike ReassignCandidateAsync which calls CheckManualActionWarningAsync). | Two stations from the same operator with completely different route sets can be merged without warning, producing contradictory route data. | Add route conflict check before merge, similar to CheckManualActionWarningAsync. |
-| 83 | **FeedPollingWorker validates interval AFTER first cycle** | Workers/FeedPollingWorker.cs lines 36-37, 52-53. The interval validation check runs AFTER the first PollFeeds cycle completes. If the initial interval is 0 or negative, the first delay is immediate or throws. | First poll cycle runs with an invalid interval. | Move validation before the first cycle. |
-| 111 | **Import modal permanently locks user on network error** | wwwroot/admin/feeds.html lines 244-343: import modal Close button is disabled during import. If the POST request hangs (connection drop, no timeout), await fetchPromise never resolves, close button stays disabled forever, and data-bs-backdrop="static" prevents dismissal. | User is trapped in a non-dismissable modal — must refresh the page, losing state. | Add timeout to fetch or catch network errors to re-enable Close button. |
-| 112 | **RealtimePollingWorker failure counter non-atomic — clears ALL feeds when ANY succeeds** | Workers/RealtimePollingWorker.cs line 47: _consecutiveFailures.Clear() resets the counter for every feed when any single feed succeeds. A perpetually-failing feed never reaches deactivation threshold because other feeds keep resetting its counter. | Bad feed polls forever, consuming resources and logging errors every cycle, never deactivating. | Track failure count per-feed independently, not via a shared collection clear. |
-| 113 | **Countries admin page pagination completely broken** | wwwroot/admin/countries.html line 83: allCountries.map(c => ...) used instead of the paginated list variable. Every page renders ALL countries regardless of which page is selected. | Pagination is completely non-functional for countries. | Use the paginated list variable instead of allCountries. |
-
-## P3 — Cosmetic / Convention / Backlog
-
-| # | Issue | What | Why fix | Why not fix |
-|---|---|---|---|---|
-| 41 | **PascalCase constructor params in 3 controllers** | `ReconciliationManager ReconciliationManager` instead of `reconciliationManager`. | Convention violation. | Fix when touching each controller. |
-| 42 | **volatile on _tripUpdateCache (ConcurrentDictionary)** | volatile on a ConcurrentDictionary reference does nothing — dictionary handles its own thread safety. | Confuses maintainers. | Fix when touching RealtimeManager — linked to #8 fix. |
-| 43 | **IsServiceActiveOnAsync never called** | Dead code. | Clutter. | Remove when cleaning ScheduleManager. |
-| 44 | **GenerateOperatorOnestopId(double,double,string) overload never called** | Dead overload. | Clutter. | Remove. |
-| 45 | **RouteService naming instead of _routeManager** | Named _routeService and _scheduleService instead of _routeManager convention. | Inconsistent naming. | Fix when touching RoutesController. |
-| 46 | **GtfsParserManager is not a Manager** | It's a parser/utility, not business logic. | Wrong namespace, violates naming convention. | Rename to GtfsParser. |
-| 47 | **ImportLogStore in Managers namespace** | Not a manager — in-memory store. | Wrong namespace. | Move to Core/ or Services/. |
-| 48 | **EncodeGeohash off-by-boundary** | Two stops 6m apart at geohash boundary get different OnestopIds. | Theoretical orphan stations. | 20m proximity fallback catches most. Acceptable. |
-| 49 | **NormalizeName vs ToNameSlug divergence** | Same abbreviations handled differently in reconciliation vs OnestopId generation. | Different OnestopId for same physical stop. | Unify normalization. Low impact. |
-| 50 | **PlaceMatchingManager static methods on scoped service** | Can't mock in tests. | Testability issue. | Extract static utility class when adding tests. |
-| 51 | **Nested DbContext in RealtimeManager alert persistence** | GetAlertsAsync creates new IServiceScope inside request scope — two TransitDbContexts active. | Fine now, blocks future transaction sharing. | Inject IDbContextFactory instead. |
-| 52 | **UpdateOperatorRequest allows empty Name/ShortName** | `if (request.Name is not null) op.Name = request.Name` passes `""` through. | Can set name to empty string with no validation. | Add validation. |
-| 53 | **CreateFeedRequest.RefreshIntervalSeconds can be negative** | Creates feed that causes TimeSpan.FromMinutes(-1) — ArgumentOutOfRangeException on worker startup. | Crash on poll. | Validate on model binding. |
-| 54 | **FeedManager.CreateAsync doesn't check OnestopId uniqueness** | No unique index on Feed.OnestopId, no check before insert. | Two feeds with same string get same OnestopId. | Add check or unique constraint. |
-| 55 | **Paginated<T> with perPage=0 causes division by zero** | Math.Ceiling(total / perPage) explodes. Ternary guard returns 0 but Skip/Take(0) silently wrong. | Crash on invalid input. | Validate perPage > 0. |
-| 56 | **FeedVersion.IsActive no unique filtered index** | Nothing prevents two versions for same feed both active simultaneously. | Inconsistent state. | Requires raw SQL in migration — EF Core fluent API can't generate filtered unique indexes. `migrationBuilder.Sql("CREATE UNIQUE INDEX...")`. |
-| 57 | **MobilityManager static _providerLocks on scoped-registered class** | AGENTS.md says singleton, Program.cs registers scoped. Static locks work by accident — docs wrong, registration wrong. | Docs contradict registration. | Fix registration to singleton, update AGENTS.md. One-line fix in Program.cs. |
-| 58 | **map/index.html setInterval(loadVehicles,30000) never cleared** | Background tab polls indefinitely. | Wasted requests. | Clear on pagehide. |
-| 59 | **feeds.html health check sequential batches of 5** | 50 feeds = 10 sequential rounds. Health section takes 10x single-request time. | Slow health display. | Increase batch size or true parallelism. |
-| 60 | **reconciliation.html batch approve is serial** | 100 selected items = 100 sequential HTTP requests. | Slow approval UX. | Batch endpoint or parallel requests. |
-| 61 | **Map icon flash on first render** | styleimagemissing approach causes visible flash. | Visual polish. | Preload icons. |
-| 62 | **Vehicle bearing ▲ font fallback** | Not reliable across platforms. | Visual inconsistency. | Use SVG marker. |
-| 63 | **ParseCalendarDates ExceptionType=0 from empty field vs conversion error** | Same invalid data → different log messages for empty field vs bad format. | Can't reliably search logs for "invalid calendar_date." | Normalize error messages. |
-| 64 | **ParseAgencies doesn't validate empty agency_id** | Multiple agencies with AgencyId = "" coexist silently with no uniqueness enforcement. | Duplicate empty-ID agencies. | Validate empty or add unique constraint. |
-| 65 | **promptReassign uses browser prompt()** | No validation, ugly UX. | Bad UX. | Replace with modal. |
-| 66 | **CanonicalRoute GetRoutes returns all raw routes (has no limit)** | Raw route listing for a feed version has no pagination — similar to #11 but for raw routes. | Same problem as #11/#12. | Add limit. |
-| 67 | **SqlBulkCopy shared connection rollback risk** | SqlBulkCopy runs on same SqlConnection as EF Core context. If bulk copy times out and throws, HandleImportErrorAsync calls sqlTx.RollbackAsync on the shared connection — could conflict with EF Core pending state. | Theoretical. | No observed failure. Low risk since EF state is typically clear after bulk copy. |
-| 68 | **RealtimeManager loads entire protobuf into memory** | ReadAsByteArrayAsync + ParseFrom(body) doubles memory for large feeds vs streaming. | Minor memory pressure on large GTFS-RT feeds. | Low priority — only affects memory-bound scenarios. |
-| 69 | **Feed URL has no format validation on create** | FeedManager.CreateAsync accepts any URL. A URL that isn't a valid zip/GtfsRealtime endpoint passes import try, fails with a confusing error. | Bad UX — makes feed look broken when it's actually invalid input. | Validate URL format (ends in .zip or is GTFS-RT endpoint) at create time. |
-| 70 | **Non-zip URL returns HTML produces confusing error** | A GTFS-static URL returning a 404 page or error page (HTML) is passed to zip extraction, producing "not a zip" or "end of stream" error. | User sees an opaque extraction error instead of "URL returned HTTP 404" or "URL returned HTML, expected zip." | Check response Content-Type before attempting extraction. |
-| 71 | **No health endpoint** | No /health or /ping endpoint for monitoring/load balancer checks. | Can't monitor API availability without hitting a business endpoint. | Add simple /health endpoint returning 200. |
-| 72 | **FeedVersion.ImportError is bool only, no detail string** | ImportError field on FeedVersion is a boolean. When import fails, there's no error detail persisted. | No way to see *why* an import failed from the UI or API. | Add ImportErrorMessage string column. |
-| 84 | **AutoMergeVerdict missing from reconciliation list response** | ComputeMatchExplanation and ComputeAutoMergeVerdict are only used in station detail endpoint, not in the reconciliation list response. The admin UI's explanation panel doesn't show merge verdicts on the main reconciliation page. | Incomplete reconciliation UI — users must drill into each station detail to see merge explanations. | Include AutoMergeVerdict and MatchExplanation in the reconciliation list response. |
-| 85 | **CountriesController has no pagination** | GET /countries returns ALL countries unbounded. CancellationToken ct is required (not optional) — inconsistent with all other controllers. | Inconsistent API pattern. | Add pagination or at minimum make ct optional with default. |
-| 86 | **Route type icon/color mapping duplicated in 5 places** | The RouteType→color/icon mapping exists in: wwwroot/route-colors.js, Controllers/OperatorsController.cs (GetTypes), wwwroot/map/index.html (inline layer paint), wwwroot/admin/reconciliation.html (via route-colors.js), and various inline usages. | Maintenance hazard — adding a new route type requires updating 5 independent locations. | Consolidate to a single source of truth. |
-| 87 | **GBFS polling is no-op stub** | MobilityManager.PollGbfsAsync just logs a warning and returns. The model classes in Core/GbfsModels.cs have full deserialization support but polling was never implemented. | GBFS mobility providers never update. | Implement GBFS polling or remove the dead code. |
-| 88 | **MatchOperatorsToPlacesAsync is no-op stub** | PlaceMatchingManager.MatchOperatorsToPlacesAsync returns Task.CompletedTask with a TODO comment. Not called anywhere. | Dead code clutter. | Remove stub or implement. |
-| 89 | **MobilityProvider.ApiKey stored in plain text** | MobilityProvider.ApiKey is stored as plain text string in the database. No encryption. | Security concern for future providers with sensitive keys. | Add encryption at rest for ApiKey column. |
-| 90 | **map/index.html references v.routeType but VehicleResponse has no such property** | wwwroot/map/index.html line 177 includes routeType: v.routeType in the GeoJSON feature, but VehicleResponse contract has no routeType field. Value is always undefined. | Route-type-based vehicle marker styling is impossible — styling code silently a no-op. | Add routeType to VehicleResponse or remove the reference. |
-| 91 | **realtime.html filter label mismatch** | wwwroot/admin/realtime.html line 27: placeholder="Filter by operator GlobalId..." but actual filter logic (line 79) filters by routeId, tripId, vehicleId — not operator. Vehicle data doesn't contain operator ID. | Misleading UI label. | Fix placeholder text to match actual filter behavior. |
-| 92 | **realtime.html setInterval never cleared** | wwwroot/admin/realtime.html line 113: setInterval(loadVehicles, intervalSec * 1000) in startTimer() is never cleared on pagehide/beforeunload. Continues polling in background tab. Same issue as #58 but for a different page. | Wasted background requests. | Clear interval on pagehide. |
-| 93 | **GetReconciliationDetail placeholder CreatedAt** | StationsController.cs line 358: for raw stops linked without a candidate record, CreatedAt = rawStop.Id > 0 ? DateTime.MinValue : DateTime.UtcNow. Nonsensical heuristic based on row ID. | Incorrect sort order for these entries in the reconciliation detail UI. | Use the actual raw stop import timestamp instead. |
-| 94 | **ImportLogStore entries lost on restart** | ImportLogStore is purely in-memory. After restart, all historical import logs are lost. | Import history disappears on every deployment — can't audit past imports. | Either persist logs to DB or accept the in-memory limitation. |
-| 95 | **GtfsRouteTypeMapper missing extended type 203** | Extended GTFS route type 203 (Coach/Bus subtype) is not explicitly mapped. Falls through to default RouteType.Bus, which works by accident. | Incomplete mapping — silent fallback instead of explicit. | Add explicit case for 203 → RouteType.Bus. |
-| 96 | **UpdateFeedRequest allows negative RefreshIntervalSeconds** | UpdateFeedRequest has no [Range(1, int.MaxValue)] annotation on RefreshIntervalSeconds. FeedManager.UpdateAsync directly assigns without validation. Same gap as #53 but on the update request. | Can set a negative interval, causing worker crash on next poll cycle. | Add [Range(1, int.MaxValue)] validation attribute. |
-| 97 | **RouteMapper.ToResponseExpression Operator null risk** | RouteMapper.cs line 20: `OperatorName = r.Operator != null ? r.Operator.Name : null`. If caller doesn't .Include(r => r.Operator), EF Core returns null silently instead of failing clearly. | Operator name silently null in API responses when include is missing. | Add compile-time expression that fails early, or ensure all callers include Operator. |
-| 98 | **StationsController search uses countryName string filter — table scan** | StationsController.cs line 99: filters by cs.Country.Name == countryName. Requires joining through Country navigation instead of using indexed CountryId FK. | Minor query inefficiency on station search by country. | Filter by CountryId instead of Country.Name when available. |
-| 99 | **GetRouteStopsAsync GroupBy undefined for bidirectional routes** | ScheduleManager.cs lines 116-129: groups stop_times by CanonicalStationId and picks first by StopSequence. For bidirectional routes, one direction's stop is arbitrarily selected. Comment on line 114 acknowledges this limitation. | Incomplete route stop representation for bidirectional routes. | Known limitation — document as such. |
-| 100 | **CanonicalStationOperator missing FK index on OperatorId** | Composite key (CanonicalStationId, OperatorId) creates clustered index but no separate index on OperatorId alone. Queries filtering by OperatorId scan the composite index. | Minor query slowdown on operator-station relationship lookups. | Add index on OperatorId. |
-| 101 | **StationMergeLog MovedRawStopIds stored as comma-separated string** | StationMergeLog stores raw stop IDs as string "[1,2,3]" instead of a join table. UnmergeStationsAsync parses this back (lines 715-721) — fragile if format changes or IDs contain special characters. | Breaks normalized DB design. Unmerge breaks silently if serialization format changes. | Replace with join table. |
-| 102 | **CsvConfig creates new CsvConfiguration per call** | GtfsParserManager.CsvConfig() creates a fresh CsvConfiguration each call with identical settings (CultureInfo, handlers). Unnecessary allocation. | Minor GC pressure on large feeds with many GTFS file reads. | Use static readonly field. |
-| 103 | **GetMergePreviewAsync returns object instead of typed response** | ReconciliationManager.cs lines 759-804 returns Task<object> with anonymous type. Controller endpoint also returns ActionResult<object>. | Bypasses type safety, API contract is implicit/undocumented. | Define a typed response class. |
-| 104 | **CreatedAt inconsistency across entities** | Half the entities initialize CreatedAt = DateTime.UtcNow as property default, others set it explicitly in manager code. Alert entity has no CreatedAt at all. | Inconsistent creation timestamp behavior. | Standardize pattern across all entities. |
-| 105 | **Directory.CreateDirectory in import path has no error handling** | FeedManager.cs line 232: Directory.CreateDirectory(outputDir) with no try/catch. Can throw on permission errors or path-too-long. | Entire import fails with unhelpful error on filesystem issues. | Add try/catch with meaningful error message. |
-| 106 | **ComputeGtfsSha1 loads all files into memory simultaneously** | GtfsParserManager.cs lines 28-45: each .txt entry is fully read into MemoryStream then byte[]. For large files like shapes.txt (50MB+), this doubles memory. TransformBlock already accepts a stream. | Unnecessary memory pressure on large feeds. | Stream directly to hasher without intermediate MemoryStream. |
-| 108 | **calendar validation says optional but import requires it** | GtfsParserManager.ValidateGtfs marks calendar.txt and calendar_dates.txt as optional (tracks HasCalendar/HasCalendarDates but doesn't require them). But FeedManager.cs lines 525-534 rejects feeds with no calendar data. | Validation passes for a feed that will later fail import — misleading UX. | Make calendar data mandatory in validation or handle missing gracefully in import. |
-| 109 | **CanonicalRoute.GetRoutes missing FK index on OperatorId** | Similar to #100 but for CanonicalRoute — queries filtering routes by operator without including through the navigation may scan. | Minor query perf issue. | Add index on OperatorId in CanonicalRoute. |
-| 114 | **Mobility admin table pagination broken** | wwwroot/admin/mobility.html line 103: allStations.map(s => ...) used instead of paginated list variable in table view. Every page renders ALL mobility stations. | Table pagination completely non-functional. | Use the paginated list variable. |
-| 115 | **Mobility admin card pagination broken** | wwwroot/admin/mobility.html line 116: Same allStations bug in card/alternate view. | Card view pagination also completely broken. | Same fix as #114. |
-| 116 | **Broken DOM selector in feeds health panel — Inspect button is no-op** | wwwroot/admin/feeds.html line 111: querySelector('button[onclick*="expandVersions(${feedId}"]') — missing closing parenthesis ) before the closing bracket ]. The selector never matches. | The "Inspect" button next to each feed's health status does nothing. | Fix selector to include the closing parenthesis. |
-| 117 | **Same broken DOM selector in import completion handler** | wwwroot/admin/feeds.html line 332: Same missing ) pattern in expandVersions selector. After a manual import completes, the UI tries to open version expansion but selector never matches. | Import completes silently without opening version history — user must manually click a broken button. | Same fix as #116. |
-| 118 | **Missing FK index on CanonicalStationOperator.OperatorId** | Data/TransitDbContext.cs: composite PK (CanonicalStationId, OperatorId) indexes CanonicalStationId but not OperatorId alone. Queries filtering by operator ID scan the composite index. | Slow operator→station lookups at scale. | Add index on OperatorId. |
-| 119 | **Missing FK index on CanonicalRoute.OperatorId** | Routes filtered by operator have no supporting index. | Operator→route queries scan at scale. | Add index. |
-| 120 | **Missing FK index on Feed.FeedId** | No index on Feed.FeedId (the string business key, not PK Id). Queried in reconciliation, version lookups, alert association. | Every lookup by business key scans the feed table. | Add index. |
-| 121 | **Missing FK index on Alert.FeedId** | Alert.FeedId is queried every 30s by RealtimeManager (WHERE a.FeedId == feed.FeedId). No index. | The most frequent poll query in the system performs a table scan on Alert (potentially millions of rows). | Add index. |
-| 122 | **Missing FK index on Trip.CanonicalRouteId** | Route-to-trip lookups (WHERE CanonicalRouteId = X) and schedule generation queries scan all trips. | Schedule queries (core user-facing feature) degrade as trip counts grow. | Add index. |
-| 123 | **Missing FK index on ReconciliationCandidate.SuggestedCanonicalStationId** | Merge/unmerge queries filter by this column. No index. | Reconciliation admin operations scan the candidate table. | Add index. |
-| 124 | **Missing FK index on MobilityStation.MobilityProviderId** | Mobility provider→station lookups have no supporting index. | Scans at scale. | Add index. |
-| 125 | **Missing FK index on City.CountryId** | Country-to-city lookups (city list on country detail page) have no index. | Page load times degrade as city count grows. | Add index. |
-| 126 | **FeedVersion.Sha1 missing unique constraint** | Data/TransitDbContext.cs lines 96-97: HasIndex(fv => fv.Sha1) is NOT declared .IsUnique(). SHA1 is a content hash — identical content should produce identical hash. | Two versions with identical GTFS content can coexist, defeating SHA1 dedup logic in CheckAndFetchAsync. | Add .IsUnique() to the index declaration. |
-| 127 | **(FeedVersionId, TripId) missing unique constraint** | Trip index on (FeedVersionId, TripId) is NOT unique. GTFS specifies trip_id is unique within a feed; a version is a snapshot. | Duplicate trips within a feed version can exist, causing ambiguous lookups and incorrect schedule results. | Add unique constraint on (FeedVersionId, TripId). |
-| 128 | **Map fetch errors silently swallowed** | wwwroot/map/index.html lines 150-163: .catch(() => {}) silently swallows all errors from station and vehicle GeoJSON fetches. No visual error shown when endpoints fail. | Users see an empty map with no error message — cannot distinguish "no data" from "server error" without opening browser console. | Show a user-visible error indicator on fetch failure. |
-| 129 | **Continent value not escaped in countries.html** | wwwroot/admin/countries.html line 84: c.continent rendered without the esc() function. Continent is user-entered data from the API. | Minor XSS vector if continent data source changes. | Wrap with esc(). |
-| 130 | **StationType enum has no Unknown fallback** | Enums/StationType.cs: 5 values but no Unknown = 0. If GTFS introduces a new location_type in a future spec, Enum.Parse throws during import. | Future GTFS feed with new location_type crashes the import process entirely. | Add Unknown = 0 to StationType enum. |
-| 131 | **Hardcoded 10s initial delay in RealtimePollingWorker** | Workers/RealtimePollingWorker.cs line 38: await Task.Delay(10_000, stoppingToken). Not configurable. | Cannot adjust initial delay without recompiling. | Move to configuration. |
-| 132 | **Migration Down() adds back nullable column with empty string default** | Migrations/20260622131435_RemoveOperatorTypeAndRealignRouteTypes.cs line 55: defaultValue: "" on restored OperatorType column. If original constraint required non-empty values, rollback fails. | Rolling back migration may fail on populated databases. | Ensure Down() matches the original column definition. |
-| 133 | **Exception handler leaks SQL inner exception details** | Program.cs lines 55-76: ex?.InnerException?.Message ?? ex?.Message exposed in ProblemDetails.Detail. For DbUpdateException→SqlException, this leaks table/constraint names. | Schema information exposed in error responses. | Remove InnerException details from production error responses. |
-| 134 | **ReconciliationController defaults differ from both config AND code** | Controllers/ReconciliationController.cs lines 39-42: hardcoded fallbacks are 0.90/100/0.70/300. Config overrides to 0.90/30/0.70/50. Code defaults (ReconciliationManager) are 0.90/100/0.70/300. Three sources of truth, all disagreeing. | Debugging distance behavior requires checking three locations. Related to #73. | Remove hardcoded defaults from controller; rely solely on config or code defaults. |
-| 135 | **Static FeedManager locks never cleaned up** | Managers/FeedManager.cs line 32: _feedLocks and _importLocks are static ConcurrentDictionary<int, SemaphoreSlim>. Keys added on feed creation/import, never removed on feed deletion. | Minor memory leak — unused SemaphoreSlims accumulate over application lifetime. | Remove lock entries when feed is deleted. |
-| 136 | **No validation attributes on any request DTOs** | No [Required], [Range], or [StringLength] attributes on any request DTOs across the project. Bad data enters the system, validation deferred to DB layer producing SQL errors. | User-unfriendly error messages, potential crashes from invalid values (negative intervals, empty names, etc.). | Add validation attributes systematically to all request DTOs. |
-| 137 | **AlertResponse contract missing affected entity ID fields** | Contracts/RealtimeContract.cs: AlertResponse has no AffectedStopIds, AffectedRouteIds, AffectedTripIds, or AffectedAgencyIds. Even after fixing entity population (#77), the API response won't expose them. | Filter-by-stop/route on alerts remains broken in the API even after entity fix. | Add the affected entity ID fields to AlertResponse. |
-| 138 | **No XML docs or OpenAPI annotations on any contract** | All 13 contract files in Contracts/ have no XML documentation comments. The entire API surface is undocumented with no Swagger/OpenAPI metadata. | API consumers (GetThereAPI, frontend) must reverse-engineer response shapes from code. | Add XML docs or configure Swagger/OpenAPI. |
-| 139 | **launchSettings only listens on HTTP, no HTTPS** | Properties/launchSettings.json: applicationUrl is http://localhost:5000 only. No HTTPS profile. | All dev traffic is unencrypted. Fine for local dev but inconsistent with production expectations. | Add HTTPS profile or document that HTTPS is handled by reverse proxy. |
-| 140 | **GeoJsonGeometry.FromNtsGeometry returns anonymous types + null! fallback** | Common/GeoJsonGeometry.cs lines 8-62: all geometry branches return anonymous objects (no contract). Line 62 returns null! for unsupported geometry types — will NRE at runtime. | No GeoJSON contract definition + silent NRE on unexpected geometry types. | Return typed GeoJSON geometry objects; throw or return empty for unsupported types instead of null!. |
+> **Status Key**
+> - **[FIXED]** — Resolved in prior sessions, not actionable
+> - **[OPEN]** — Still broken, included in a phase below
+> - **[DEFERRED]** — Blocked on policy or non-trivial redesign
 
 ---
 
-## Corrections from previous tracker versions
+## Phase 1 — Data Integrity (OPEN P0/P1)
 
-| Old entry | Correction |
-|---|---|
-| #19 "No current feed uses these types" | ÖBB Phase 1 uses extended types → now P1 #14, removed stale justification |
-| #28 "OperatorMapper...City" | It's StationMapper, not OperatorMapper — CanonicalStation has City nav, Operator doesn't |
-| #47 (AllowComments) | Duplicate of #22 — removed |
-| #23 "CanonicalStation.Geometry — low value" | Now P2 #27 — populate during reconciliation (new Point(lon, lat)), don't drop column |
-| #26 "N+1 queries" vague | ~4 queries x 50 entries = 200 queries per reconciliation detail page load |
-| #9 "TTL eviction like vehicle cache" | Vehicle cache evicts by LastUpdated. Trip updates need different approach — swap entire dictionary per poll cycle (Interlocked.Exchange or volatile write) |
-| #57 "MobilityManager registration" | Moved to Wave 1 — trivial one-line fix, cleans up docs contradiction |
-| "No manual import trigger" | Already exists — feeds page has an import button. No item needed. |
-| #107 / #111 duplicate | #107 (feeds.html modal lock) and #111 (import modal locks user) describe the same issue. #107 removed, #111 kept at P2. |
+| # | Issue | What | Why fix | Fix | Verify |
+|---|-------|------|---------|-----|--------|
+| 7 | **OperatorManager.GetTotalCountAsync missing** | Operator list total ignores countryId/q filters. Count logic lives in controller with 3 redundant queries. | Wrong pagination totals. | Add `GetTotalCountAsync(int? countryId, string? q, CancellationToken ct)` to OperatorManager. Move count logic from OperatorsController lines 84-90 into it. | GET /operators?q=x&countryId=1 returns correct total |
+| 10 | **Alert dedup key too broad** | Key is (Cause, Effect, ActivePeriodStart, HeaderText). Two alerts same cause/effect/header but different routes get collapsed. | Route-specific alerts silently lost. | Widen key to include AffectedRouteIds, AffectedStopIds. | GTFS-RT with two same-cause alerts for different routes -> both persist |
+| 11 | **GeoJSON stations no pagination** | format=geojson branch has .Take(5000) but no Skip/page/perPage. All results returned in one response. | Browser hang at 5000 features. | Add page/perPage with Skip/Take before the 5000 cap. | GET /stations?format=geojson&page=2&perPage=100 returns features 101-200 |
+| 12 | **FeedVersions.GetStops no pagination** | Returns all raw stops for a version (up to 50K+). Has .Take(10000) cap but no pagination params. | Large responses, slow serialization. | Add page/perPage params with Skip/Take. Return Paginated<RawStopResponse>. | GET /feed-versions/{id}/stops?page=3&perPage=20 returns 20 stops from offset 40 |
+| 128 | **Map vehicle fetch silently swallowed** | index.html line 194: .catch(() => {}) for vehicles fetch. No user feedback on failure. | Users see empty vehicle layer with no error. | Change to .catch(() => showMapError('Failed to load vehicles')). | Kill API while map open -> error shown for vehicles |
 
 ---
 
-## Updated wave execution plan
+## Phase 2 — Import Pipeline (OPEN P2)
 
-| Wave | Items | Effort | Description |
-|---|---|---|---|
-| **Wave 1** — Data integrity | #1, #2 (transactions), #4 (search fix), #5 (route deactivation), #57 (MobilityManager registration), #73 (config thresholds), #74 (CancellationToken.None), #134 (controller defaults) | ~5h | Stop data corruption, fix broken filter, fix docs/code contradiction, fix config drift |
-| **Wave 2** — Import pipeline | #3 (FeedId collision), #14 (mapper fix), #18–#22 (import cleanup), #25 (ParseGtfsTime), #31 (OnestopId), #32 (DataTable), #33 (PickupType), #40 (backfill client eval), #69 (URL validation), #70 (non-zip error), #80 (N+1 route import), #81 (SHA1 collision), #83 (interval validation order), #111 (modal lock), #133 (SQL exception details) | ~9h | All import-side fixes — validation, cleanup, mapping, bulk copy, performance, UX |
-| **Wave 3** — Wrong data + alerts | #6–#10 (pagination, trip cache+volatile), #28–#29 (alert cleanup/FetchedAt), #77 (alert IDs), #78 (1-day cutoff), #15–#16 (Distinct, 404), #75 (search count), #76 (MobilityProvider name), #79 (midnight display date), #110 (station GeoJSON URL), #128 (map errors swallowed) | ~9h | Fix wrong data returned to users; all alert + display + map fixes |
-| **Wave 4** — API limits + admin UI | #11–#13 (GeoJSON, stops, routes limits), #66 (raw routes limit), #85 (CountriesController pagination), #84 (reconciliation list verdicts), #113 (countries page pagination), #114–#115 (mobility pagination), #116–#117 (DOM selectors), #129 (continent XSS) | ~5h | Add pagination/limits, fix broken admin pages |
-| **Wave 5** — Background workers | #30 (failure count), #34 (match staleness), #58 (setInterval), #87 (GBFS polling), #92 (realtime.html setInterval), #112 (failure counter non-atomic), #131 (10s delay) | ~4h | Worker/service behavior fixes |
-| **Wave 6** — Cleanup & debt | #41–#56 (non-alert, non-MobilityManager), #59–#65, #67 (SqlBulkCopy), #68 (protobuf), #71 (health endpoint), #72 (ImportErrorMessage), #82 (merge conflict check), #86–#109, #118–#127 (FK indexes + unique constraints), #130 (StationType Unknown), #132 (migration Down), #135 (static locks), #136 (validation attributes) | ~8h | Cosmetic, dead code, minor polish, missing indexes |
+| # | Issue | What | Fix | Verify |
+|---|-------|------|-----|--------|
+| 18 | **Import stuck cleanup incomplete** | Startup cleanup deletes stop_times, raw_stops, trips for stuck versions but omits calendars, calendar_dates, shapes. | Add missing entity types to delete queries in FeedManager ~line 115. | Break import mid-way, restart -> all stale data removed |
+| 19 | **SetCommandTimeout(600) never reset** | Import sets 10min timeout on DbContext, never resets it. Normal queries inherit 10min timeout. | Wrap in try/finally, reset to 30s. | After import, normal query doesn't hang 10min |
+| 21 | **ParseStops passes (0,0) coordinates** | Empty lat/lon in CSV creates stop at null island. Not filtered. | Skip if lat==0 && lon==0, log warning with stop_id. | Feed with (0,0) stops excludes them, warning logged |
+| 22 | **CsvConfig AllowComments=true** | Stop IDs starting with # silently skipped as CSV comments. | Set AllowComments = false. | Stop #001 imports correctly |
+| 80 | **N+1 route import queries** | One query per route (by GlobalId, then OnestopId). 1000 routes = 1000-2000 queries. | Batch route lookup: collect all identifiers, query once with IN clause. Lines ~554-575. | 1000-route feed does ~5 queries |
+| 111 | **Import modal locks on network error** | Close button disabled during import. If POST hangs, modal is non-dismissable forever. | Add AbortController timeout (60s), re-enable Close in .catch(). | Disconnect during import -> modal shows error and can close |
+
+---
+
+## Phase 3 — Background Workers (OPEN P2)
+
+| # | Issue | What | Fix | Verify |
+|---|-------|------|-----|--------|
+| 30 | **Feed failure count not reset for null URL** | Feed with ExternalUrl=null never succeeds or fails — failure count frozen at last value. | Reset failure count in null-URL path via TryRemove. | Feed with 9 failures + URL removed -> count resets to 0 |
+| 112 | **Failure counter non-atomic** | RealtimePollingWorker clears ALL feeds' failure counts when ANY single feed succeeds. | Use ConcurrentDictionary<int,int> per-feed tracking (match FeedPollingWorker pattern). | One failing feed not reset by other feeds' successes |
+| 58/92 | **setInterval never cleared** | Background tab polls indefinitely. | Add pagehide listener: clearInterval for all setInterval calls. | Background tab stops polling after navigation |
+
+---
+
+## Phase 4 — Admin UI (OPEN P2/P3)
+
+| # | Issue | What | Fix |
+|---|-------|------|-----|
+| 113 | **Countries pagination broken** | allCountries.map(c => ...) used instead of paginated list variable. Every page renders ALL countries. | Use paginated list variable |
+| 114 | **Mobility table pagination broken** | Same allStations.map bug in table view. | Use paginated variable |
+| 115 | **Mobility card pagination broken** | Same bug in card view. | Use paginated variable |
+| 116 | **Broken DOM selector — Inspect button** | Missing closing `)` in querySelector: `expandVersions(${feedId}` | Add missing `)` |
+| 117 | **Broken DOM selector — import completion** | Same missing `)` pattern after import. | Same fix |
+| 129 | **Continent XSS** | c.continent rendered without esc(). | Wrap with esc() |
+
+---
+
+## Phase 5 — Missing Indexes (OPEN P3)
+
+### 5.1 Add FK indexes
+**File:** Data/TransitDbContext.cs
+
+| Table | Column | Why |
+|-------|--------|-----|
+| CanonicalStationOperator | OperatorId | Operator→station lookups |
+| CanonicalRoute | OperatorId | Route-by-operator queries |
+| Feed | FeedId (string) | Lookup by business key |
+| Alert | FeedId | Frequent poll query (30s) |
+| Trip | CanonicalRouteId | Schedule generation |
+| ReconciliationCandidate | SuggestedCanonicalStationId | Merge/unmerge queries |
+| MobilityStation | MobilityProviderId | Provider→station lookups |
+| City | CountryId | Country→city page loads |
+
+### 5.2 Unique constraints
+- FeedVersion.Sha1 → `.IsUnique()`
+- (FeedVersionId, TripId) → `.IsUnique()`
+
+### 5.3 Migration
+```
+dotnet ef migrations add AddMissingIndexesPhase5 --context TransitDbContext
+dotnet ef database update
+```
+
+---
+
+## Phase 6 — Polish & Convention (OPEN P3)
+
+| # | Issue | What | Fix |
+|---|-------|------|-----|
+| 130 | StationType Unknown fallback | No Unknown=0 in enum — future GTFS location_types crash import | Add Unknown = 0 |
+| 41 | PascalCase constructor params | `ReconciliationManager ReconciliationManager` in 3 controllers | camelCase |
+| 43 | IsServiceActiveOnAsync dead code | Never called | Remove |
+| 44 | GenerateOperatorOnestopId overload dead | Never called | Remove |
+| 136 | No validation attributes on request DTOs | No [Required], [Range], [StringLength] anywhere | Add systematically |
+| 133 | Exception handler leaks SQL details | InnerException.Message exposed in ProblemDetails | Remove from prod responses |
+| 135 | Static locks never cleaned up | _feedLocks/_importLocks keys accumulate forever | Remove on feed delete |
+| 71 | No health endpoint | No /health for monitoring | Add simple HealthController |
+| 72 | ImportError bool → string | No error detail persisted on import failure | Change to nullable string + migration |
+| 131 | Hardcoded 10s initial delay | RealtimePollingWorker line 38 | Move to config |
+| 95 | GtfsRouteTypeMapper missing 203 | 203→Bus works by accident via default | Add explicit case |
+| 32 | DataTable reuse across batches | dt.Rows.Clear() doesn't release arrays | Create new DataTable per batch |
+| 102 | CsvConfig new instance per call | Fresh CsvConfiguration each call | Static readonly field |
+| 137 | AlertResponse missing affected IDs | AffectedStopIds/RouteIds/etc not in response contract | Add fields |
+| 140 | GeoJsonGeometry anonymous types + null! | No contract, NRE on unsupported geometry | Typed objects, throw not null |
+| 97 | RouteMapper Operator null risk | Silent null if .Include missing | Add guard |
+| 98 | CountryName string filter — table scan | Uses .Name instead of FK | Filter by CountryId |
+| 103 | MergePreview returns anonymous type | Task<object>, no contract | Define typed response |
+| 105 | Directory.CreateDirectory no error handling | Can throw on permissions | Add try/catch |
+| 85 | CountriesController no pagination | Returns all countries unbounded | Add pagination |
+| 84 | AutoMergeVerdict missing from list response | Only in detail endpoint, not list | Include in list response |
+| 90 | VehicleResponse has no routeType | Map JS references v.routeType which is always undefined | Add routeType to contract or remove ref |
+| 91 | realtime.html filter label mismatch | Placeholder says "operator" but filters by route/trip/vehicle | Fix label |
+| 93 | GetReconciliationDetail placeholder CreatedAt | Nonsensical rawStop.Id heuristic | Use actual import timestamp |
+| 96 | UpdateFeedRequest allows negative interval | No [Range] on RefreshIntervalSeconds | Add validation attribute |
+| 99 | Bidirectional route GroupBy undefined | Known limitation — one direction's stop chosen arbitrarily | Document as-is (done) |
+| 64 | ParseAgencies no empty agency_id check | Duplicate "" agency IDs | Validate or unique |
+| 65 | promptReassign uses browser prompt() | Ugly, no validation | Replace with modal |
+| 69 | Feed URL format validation missing | Non-zip/non-RT URL gets opaque error | Validate at create time |
+| 70 | Non-zip URL returns HTML | "end of stream" error instead of "URL returned HTML" | Check Content-Type |
+| 20 | BeginImportTransactionAsync no existing-tx check | UseTransaction throws if tx open | Add check |
+| 23 | _feedLocks / _importLocks separate | Concurrent download + import race | Unify locks |
+| 25 | ParseGtfsTimeToSeconds returns 0 for invalid | Phantom midnight departures | Return null, skip |
+| 31 | GenerateFeedOnestopId always (0,0) | All feed OnestopIds geohash null island | Pass actual lat/lon |
+| 33 | PickupType invalid vs null indistinguishable | Both become DBNull | Use sentinel |
+| 34 | MatchStationsToPlacesAsync stale re-match | Stations re-matched every import | Widen threshold / add cooldown |
+| 38 | FindNearestPlace 50km hardcoded | Rural stations permanently orphaned | Make configurable |
+| 39 | LoadPlacesAsync sort has no effect | Sorted then linear scan | Remove sort |
+| 40 | BackfillRouteGeometriesAsync client eval risk | Complex subquery may load all trips | Restructure or AsNoTracking |
+| 42 | volatile on ConcurrentDictionary | Does nothing | Remove |
+| 45 | RouteService naming | _routeService instead of _routeManager | Rename |
+| 48 | EncodeGeohash off-by-boundary | 6m apart → different OnestopId | Acceptable, document |
+| 52 | UpdateOperatorRequest allows empty Name | Sets name to "" | Add validation |
+| 53 | CreateFeedRequest negative interval | ArgumentOutOfRangeException on worker | Validate |
+| 54 | FeedManager.CreateAsync no OnestopId check | Duplicate OnestopIds possible | Add check |
+| 55 | Paginated perPage=0 division by zero | Math.Ceiling(total / 0) | Validate perPage > 0 |
+| 67 | SqlBulkCopy shared connection rollback risk | Same connection as EF — theoretical conflict | Monitor, labelled low risk |
+| 68 | RealtimeManager loads full protobuf | ReadAsByteArrayAsync + ParseFrom doubles memory | Stream parse |
+| 108 | Calendar says optional but import requires it | Validation passes then import fails | Make mandatory or handle gracefully |
+| 134 | Controller defaults duplicate config | Three sources of truth | Remove controller defaults |
+| 138 | No XML docs on contracts | All 13 contract files undocumented | Add XML docs / Swagger |
+| 139 | HTTPS on dev server | HTTP only | Add HTTPS profile |
+
+---
+
+## Already Fixed (not actionable)
+
+| # | What | Fixed in |
+|---|------|----------|
+| 1 | ApproveCandidateAsync missing transaction | Already has BeginTransactionAsync |
+| 2 | MergeStationsAsync missing transaction | Already has BeginTransactionAsync |
+| 3 | FeedId collision | This session (unique index + validation in CreateAsync) |
+| 4 | SearchAsync(stationType) always empty | Base filter already conditional on stationType param |
+| 5 | CanonicalRoute never deactivated | Raw SQL deactivation exists in FeedManager |
+| 6 | StationManager total count ignores filters | Already passes all filters to GetTotalCountAsync |
+| 8 | Realtime trip cache never evicts | Dictionary replaced wholesale each poll |
+| 9 | Alert dedup N+1 queries | Single batch query, no per-alert round trips |
+| 13 | StationsController.GetRoutes no limit | .Take(500) already present |
+| 14 | GtfsRouteTypeMapper 1100→Funicular | Already mapped 1100→Airplane, 1200→Ferry |
+| 15 | PlacesController entity-level Distinct() | Already SQL-level DISTINCT |
+| 16 | FeedManager.CreateAsync throws InvalidOperationException | Already throws AppException(404) |
+| 17 | Cross-midnight departures approximated | Already handles >86400s as next-day |
+| 24 | Reconciliation bounding box asymmetric | Fixed this session (lon buffer × cos(lat)) |
+| 27 | CanonicalStation.Geometry always null | Populated on creation (both sites) this session |
+| 33 | PickupType/DropOffType invalid vs null | Validation logging added this session |
+| 35 | FeedVersion missing AgencyCount | Added to response this session |
+| 37 | GetDeparturesAsync truncates fractional seconds | Math.Round added this session |
+| 46 | GtfsParserManager is not a Manager | Renamed to GtfsParser this session |
+| 47 | ImportLogStore in Managers namespace | Fixed this session |
+| 48 | EncodeGeohash off-by-boundary | Comment added this session |
+| 49 | NormalizeName vs ToNameSlug divergence | Unified this session |
+| 50 | PlaceMatchingManager static methods | Extracted static utility this session |
+| 56 | FeedVersion.IsActive no unique filtered index | Migration applied this session |
+| 57 | MobilityManager registration | Fixed in prior work |
+| 59 | feeds.html health check sequential | Batch 5→20 this session |
+| 60 | reconciliation.html batch approve serial | Promise.all parallelism this session |
+| 61 | Map icon flash on first render | Preload icons this session |
+| 62 | Vehicle bearing font fallback | SVG marker this session |
+| 63 | ParseCalendarDates error normalization | Normalized this session |
+| 66 | CanonicalRoute GetRoutes no limit | .Take(500) added this session |
+| 67 | SqlBulkCopy shared connection rollback risk | Separate connection this session |
+| 68 | RealtimeManager loads full protobuf | Streaming this session |
+| 73 | appsettings.json thresholds differ from code | Already 100/300 matching code defaults |
+| 74 | TriggerImportAsync passes CancellationToken.None | Already passes caller's ct |
+| 75 | SearchAsync total count ignores stationType | Already passes stationType to GetTotalCountAsync |
+| 76 | MobilityProvider has no Name property | Already has string Name |
+| 77 | Alert affected IDs never populated | Already populated from InformedEntity |
+| 78 | 1-day cutoff instead of 7-day | Already AddDays(-7) |
+| 79 | Cross-midnight departure wrong date | Already handled in display code |
+| 81 | Manual SHA1 collision within same second | Already includes Guid |
+| 82 | MergeStationsAsync route conflict check | Route-set mismatch downgraded from error to warning this session |
+| 86 | Route type colors duplicated in 5 places | Colors swapped (bus=green, tram=blue) this session |
+| 94 | ImportLogStore entries lost on restart | Documented as in-memory limitation this session |
+| 99 | Bidirectional route GroupBy undefined | Documented this session |
+| 101 | StationMergeLog MovedRawStopIds CSV string | Join table created + migration applied this session |
+| 104 | CreatedAt inconsistency / missing on Alert | CreatedAt added this session |
+| 106 | ComputeGtfsSha1 loads all files into memory | Streamed to hasher this session |
+| 108 | Calendar validation says optional but import requires | Calendar/calendar_dates required in ValidateGtfs this session |
+| 110 | GeoJSON station endpoint calls wrong URL | URL fixed this session (/stations not /stations/search) |
+| 132 | Migration Down() nullable column | Fixed this session |
+| 134 | ReconciliationController defaults conflict | Already match config (100/300) |
+| 138 | No XML docs on contracts | Added this session |
+| 139 | launchSettings HTTP only | HTTPS profile added this session |
+
+---
+
+## Deferred / Blocked (no phase)
+
+| # | Issue | Reason |
+|---|-------|--------|
+| 26 | No re-reconciliation endpoint | Non-trivial feature, deferred |
+| 36 | CanonicalRoute GlobalId embeds FeedId | Policy decision — FeedId as permanent identifier |
+| 87 | GBFS polling is no-op stub | Skipped — no active GBFS providers |
+| 89 | MobilityProvider.ApiKey stored in plain text | Skipped — none in use |
