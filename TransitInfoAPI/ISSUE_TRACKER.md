@@ -129,7 +129,6 @@
 | 104 | **CreatedAt inconsistency across entities** | Half the entities initialize CreatedAt = DateTime.UtcNow as property default, others set it explicitly in manager code. Alert entity has no CreatedAt at all. | Inconsistent creation timestamp behavior. | Standardize pattern across all entities. |
 | 105 | **Directory.CreateDirectory in import path has no error handling** | FeedManager.cs line 232: Directory.CreateDirectory(outputDir) with no try/catch. Can throw on permission errors or path-too-long. | Entire import fails with unhelpful error on filesystem issues. | Add try/catch with meaningful error message. |
 | 106 | **ComputeGtfsSha1 loads all files into memory simultaneously** | GtfsParserManager.cs lines 28-45: each .txt entry is fully read into MemoryStream then byte[]. For large files like shapes.txt (50MB+), this doubles memory. TransformBlock already accepts a stream. | Unnecessary memory pressure on large feeds. | Stream directly to hasher without intermediate MemoryStream. |
-| 107 | **feeds.html error modal blocks forever on network error** | wwwroot/admin/feeds.html lines 244-343: import modal Close button is disabled until fetch completes. If connection drops entirely, promise never resolves — button stays disabled forever. Modal has data-bs-backdrop="static" so user cannot dismiss it. | Users can get stuck on a non-dismissable modal. | Add timeout or catch network errors to re-enable Close button. |
 | 108 | **calendar validation says optional but import requires it** | GtfsParserManager.ValidateGtfs marks calendar.txt and calendar_dates.txt as optional (tracks HasCalendar/HasCalendarDates but doesn't require them). But FeedManager.cs lines 525-534 rejects feeds with no calendar data. | Validation passes for a feed that will later fail import — misleading UX. | Make calendar data mandatory in validation or handle missing gracefully in import. |
 | 109 | **CanonicalRoute.GetRoutes missing FK index on OperatorId** | Similar to #100 but for CanonicalRoute — queries filtering routes by operator without including through the navigation may scan. | Minor query perf issue. | Add index on OperatorId in CanonicalRoute. |
 | 114 | **Mobility admin table pagination broken** | wwwroot/admin/mobility.html line 103: allStations.map(s => ...) used instead of paginated list variable in table view. Every page renders ALL mobility stations. | Table pagination completely non-functional. | Use the paginated list variable. |
@@ -174,6 +173,7 @@
 | #9 "TTL eviction like vehicle cache" | Vehicle cache evicts by LastUpdated. Trip updates need different approach — swap entire dictionary per poll cycle (Interlocked.Exchange or volatile write) |
 | #57 "MobilityManager registration" | Moved to Wave 1 — trivial one-line fix, cleans up docs contradiction |
 | "No manual import trigger" | Already exists — feeds page has an import button. No item needed. |
+| #107 / #111 duplicate | #107 (feeds.html modal lock) and #111 (import modal locks user) describe the same issue. #107 removed, #111 kept at P2. |
 
 ---
 
