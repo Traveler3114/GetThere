@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 
-namespace TransitInfoAPI.Managers;
+namespace TransitInfoAPI.Services;
 
+// In-memory store — entries are lost on restart.
+// Acceptable: import logs are ephemeral debug info, not audit records.
+// Revisit for multi-instance deployment (need distributed cache or DB persistence).
 public class ImportLogStore
 {
     private readonly ConcurrentDictionary<int, List<string>> _logs = new();

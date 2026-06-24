@@ -426,17 +426,15 @@ function updateBatchBtn() {
   if (checked > 0) { btn.classList.remove('d-none'); btn.textContent = 'Approve (' + checked + ')'; }
   else { btn.classList.add('d-none'); }
 }
-
 async function batchApprove() {
   const ids = [...document.querySelectorAll('.batch-check:checked')].map(cb => parseInt(cb.value));
   if (!ids.length || !confirm('Approve ' + ids.length + ' selected items?')) return;
-  let ok = 0, fail = 0;
-  for (const id of ids) {
-    try {
-      const r = await fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' });
-      if (r.ok) ok++; else fail++;
-    } catch(e) { fail++; }
-  }
+  const results = await Promise.all(ids.map(id =>
+    fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' })
+      .then(r => r.ok).catch(() => false)
+  ));
+  const ok = results.filter(Boolean).length;
+  const fail = results.length - ok;
   if (fail > 0) showError(`${ok} of ${ids.length} approved, ${fail} failed`);
   loadAll();
 }

@@ -16,14 +16,14 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class RoutesController : ControllerBase
 {
-    private readonly RouteManager _routeService;
-    private readonly ScheduleManager _scheduleService;
+    private readonly RouteManager _routeManager;
+    private readonly ScheduleManager _scheduleManager;
     private readonly TransitDbContext _db;
 
-    public RoutesController(RouteManager RouteManager, ScheduleManager ScheduleManager, TransitDbContext db)
+    public RoutesController(RouteManager routeManager, ScheduleManager scheduleManager, TransitDbContext db)
     {
-        _routeService = RouteManager;
-        _scheduleService = ScheduleManager;
+        _routeManager = routeManager;
+        _scheduleManager = scheduleManager;
         _db = db;
     }
 
@@ -60,7 +60,7 @@ public class RoutesController : ControllerBase
                 query = query.Where(r => r.Geometry != null && r.Geometry.Intersects(bbox));
             }
 
-            var routes = await query.OrderBy(r => r.Id).ToListAsync(ct);
+            var routes = await query.OrderBy(r => r.Id).Take(5000).ToListAsync(ct);
 
             var fc = GeoJsonGeometry.ToLineStringCollection(routes,
                 r => r.Geometry,
@@ -77,7 +77,7 @@ public class RoutesController : ControllerBase
             return Ok(fc);
         }
 
-        var result = await _routeService.GetAllAsync(operatorId, routeType, q, page, perPage, ct);
+        var result = await _routeManager.GetAllAsync(operatorId, routeType, q, page, perPage, ct);
         var total = await _db.CanonicalRoutes.CountAsync(r => r.IsActive, ct);
         return Ok(new Paginated<RouteResponse>(result, total, page, perPage));
     }
@@ -136,7 +136,7 @@ public class RoutesController : ControllerBase
     [HttpGet("{id}/stops")]
     public async Task<ActionResult<List<StationResponse>>> GetStops(int id, CancellationToken ct = default)
     {
-        var stops = await _scheduleService.GetRouteStopsAsync(id, ct);
+        var stops = await _scheduleManager.GetRouteStopsAsync(id, ct);
         return Ok(stops);
     }
 
@@ -147,7 +147,7 @@ public class RoutesController : ControllerBase
         CancellationToken ct = default)
     {
         var parsedDate = date is not null ? DateOnly.Parse(date) : DateOnly.FromDateTime(DateTime.UtcNow);
-        var trips = await _scheduleService.GetRouteTripsAsync(id, parsedDate, ct);
+        var trips = await _scheduleManager.GetRouteTripsAsync(id, parsedDate, ct);
         return Ok(trips);
     }
 }

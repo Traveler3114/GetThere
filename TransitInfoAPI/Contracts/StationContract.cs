@@ -2,6 +2,7 @@ using TransitInfoAPI.Enums;
 
 namespace TransitInfoAPI.Contracts;
 
+/// <summary>A canonical station (stop, station, platform) with operator and location info.</summary>
 public class StationResponse
 {
     public int Id { get; set; }
@@ -22,6 +23,7 @@ public class StationOperatorResponse
     public string Name { get; set; } = string.Empty;
 }
 
+/// <summary>A single departure from a station, with realtime delay when available.</summary>
 public class DepartureResponse
 {
     public string TripId { get; set; } = string.Empty;

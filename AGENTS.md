@@ -67,7 +67,7 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 ### Auto-registration
 - `GetThereAPI.Managers.*` — auto-registered as scoped
 - `GetThere.Services.*` — auto-registered by reflection in `MauiProgram.cs`
-- Exceptions (explicitly registered): `MobilityManager` (singleton+hosted), `AdapterRegistry` (singleton)
+- Exceptions (explicitly registered): `MobilityManager` (singleton), `AdapterRegistry` (singleton)
 
 ## Off-limits (need human instruction)
 
@@ -76,6 +76,52 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 - Ticket status transitions
 - EF Core migration auto-generated files
 - Seed data removal
+
+## Session — June 24, 2026
+
+### Applied (TransitInfoAPI)
+| Issue | File(s) | What |
+|-------|---------|------|
+| #3 | `FeedManager.cs`, `TransitDbContext.cs` | FeedId uniqueness (index + validation in CreateAsync) |
+| #24 | `ScheduleManager.cs` | Bounding box lon buffer × cos(lat) |
+| #27 | `ReconciliationManager.cs` (×2) | Geometry on CanonicalStation creation |
+| #33 | `GtfsParser.cs` | Logging for invalid PickupType/DropOffType |
+| #35 | `FeedVersionMapper.cs`, `FeedVersionContract.cs` | AgencyCount on response |
+| #37 | `GtfsParser.cs` | Math.Round fractional seconds |
+| #46/47 | `GtfsParser.cs`, `GtfsParserManager.cs` → `GtfsParser`, `ImportLogStore.cs` | Rename + namespace fix |
+| #48 | `PlaceMatchingManager.cs` | Geohash boundary comment |
+| #49 | `OnestopIdManager.cs` | Abbreviation expansion in NormalizeName |
+| #50 | — | Removed CalculateDistanceMeters wrapper, use GeoUtils directly |
+| #56 | `TransitDbContext.cs`, migration | Filtered unique index on FeedVersion (IsActive=1) |
+| #59 | `feeds.html` | Health check batch 5→20 |
+| #60 | `reconciliation.html` | Parallel batch approve (Promise.all) |
+| #61 | `reconciliation-map.html` | Preload map icons |
+| #62 | `reconciliation-map.html` | SVG vehicle bearing marker |
+| #63 | `reconciliation.html`, `feeds.html` | Normalized CSV error handling |
+| #66 | `OperatorManager.cs` | .Take(500) on GetRoutesAsync |
+| #67 | `GtfsParser.cs` | Separate SqlConnection for bulk copy |
+| #68 | `RealtimeManager.cs` | Stream protobuf (no MemoryStream) |
+| #86 | — | Route type map consolidation verified |
+| #94 | `ImportLogStore.cs` | In-memory limitation doc |
+| #99 | `RouteContract.cs` | Bidirectional route limitation doc |
+| #101 | `StationMergeLog.cs`, `TransitDbContext.cs`, `ReconciliationManager.cs`, migration | StationMergeMovedRawStop join table |
+| #104 | `Alert.cs`, `AlertMapper.cs` | CreatedAt field |
+| #106 | `FeedManager.cs` | Direct SHA1 hash stream |
+| #108 | `GtfsParser.cs` | calendar/calendar_dates required in ValidateGtfs |
+| #132 | Migration `AddStationMergeLogRelations` | Fixed Down() nullable column |
+| #138 | Contracts | XML docs on public contracts |
+| #139 | `launchSettings.json` | HTTPS profile added |
+
+### Reverted
+| Issue | What | Why |
+|-------|------|-----|
+| #51 | IDbContextFactory | DI lifetime conflict — reverted to IServiceScopeFactory |
+
+### Blocked
+- **#26** — Re-reconciliation endpoint (non-trivial, deferred)
+- **#36** — CanonicalRoute GlobalId embeds FeedId (policy)
+- **#87** — GBFS polling (skipped)
+- **#89** — ApiKey plain text (skipped)
 
 ## Reference
 

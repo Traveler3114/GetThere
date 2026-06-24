@@ -63,8 +63,8 @@ namespace TransitInfoAPI.Migrations
                 table: "Operators",
                 type: "nvarchar(50)",
                 maxLength: 50,
-                nullable: false,
-                defaultValue: "");
+                nullable: true,
+                defaultValue: null);
 
             // Reverse RouteType string values in CanonicalRoutes
             migrationBuilder.Sql("UPDATE CanonicalRoutes SET RouteType = 'Rail' WHERE RouteType = 'Train'");

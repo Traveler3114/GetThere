@@ -14,6 +14,7 @@ public class Alert
     public DateTime? ActivePeriodStart { get; set; }
     public DateTime? ActivePeriodEnd { get; set; }
     public DateTime FetchedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public string? AffectedStopIds { get; set; }
     public string? AffectedRouteIds { get; set; }

@@ -1,5 +1,6 @@
 namespace TransitInfoAPI.Contracts;
 
+/// <summary>A canonical route (transit line) with operator and type info.</summary>
 public class RouteResponse
 {
     public int Id { get; set; }

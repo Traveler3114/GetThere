@@ -93,9 +93,12 @@ public class TransitDbContext : DbContext
 
         // FeedVersion
         modelBuilder.Entity<FeedVersion>()
-            .HasIndex(fv => fv.Sha1);
+            .HasIndex(fv => fv.Sha1)
+            .IsUnique();
         modelBuilder.Entity<FeedVersion>()
-            .HasIndex(fv => new { fv.FeedId, fv.IsActive });
+            .HasIndex(fv => new { fv.FeedId, fv.IsActive })
+            .IsUnique()
+            .HasFilter("[IsActive] = 1");
 
         // RawStop
         modelBuilder.Entity<RawStop>()
@@ -127,10 +130,20 @@ public class TransitDbContext : DbContext
             .HasIndex(ml => ml.SourceStationId);
         modelBuilder.Entity<StationMergeLog>()
             .HasIndex(ml => ml.TargetStationId);
+        modelBuilder.Entity<StationMergeMovedRawStop>()
+            .HasIndex(mrs => mrs.StationMergeLogId);
+        modelBuilder.Entity<StationMergeMovedRawStop>()
+            .HasOne(mrs => mrs.StationMergeLog)
+            .WithMany(ml => ml.MovedRawStops)
+            .HasForeignKey(mrs => mrs.StationMergeLogId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Trip
         modelBuilder.Entity<Trip>()
-            .HasIndex(t => new { t.FeedVersionId, t.TripId });
+            .HasIndex(t => new { t.FeedVersionId, t.TripId })
+            .IsUnique();
+        modelBuilder.Entity<Trip>()
+            .HasIndex(t => t.CanonicalRouteId);
 
         // StopTime
         modelBuilder.Entity<StopTime>()
@@ -144,5 +157,22 @@ public class TransitDbContext : DbContext
             .WithMany()
             .HasForeignKey(st => st.RawStopEntityId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Missing FK indexes
+        modelBuilder.Entity<CanonicalStationOperator>()
+            .HasIndex(cso => cso.OperatorId);
+        modelBuilder.Entity<CanonicalRoute>()
+            .HasIndex(cr => cr.OperatorId);
+        modelBuilder.Entity<Feed>()
+            .HasIndex(f => f.FeedId)
+            .IsUnique();
+        modelBuilder.Entity<Alert>()
+            .HasIndex(a => a.FeedId);
+        modelBuilder.Entity<ReconciliationCandidate>()
+            .HasIndex(rc => rc.SuggestedCanonicalStationId);
+        modelBuilder.Entity<MobilityStation>()
+            .HasIndex(ms => ms.MobilityProviderId);
+        modelBuilder.Entity<City>()
+            .HasIndex(c => c.CountryId);
     }
 }

@@ -24,11 +24,11 @@ public class OperatorsController : ControllerBase
     private readonly TransitDbContext _db;
     private readonly OnestopIdManager _onestopIdService;
 
-    public OperatorsController(OperatorManager OperatorManager, TransitDbContext db, OnestopIdManager OnestopIdManager)
+    public OperatorsController(OperatorManager operatorManager, TransitDbContext db, OnestopIdManager onestopIdManager)
     {
-        _operatorService = OperatorManager;
+        _operatorService = operatorManager;
         _db = db;
-        _onestopIdService = OnestopIdManager;
+        _onestopIdService = onestopIdManager;
     }
 
     [HttpGet]
@@ -82,6 +82,12 @@ public class OperatorsController : ControllerBase
 
         var result = await _operatorService.GetAllAsync(countryId, q, page, perPage, ct);
         var total = await _db.Operators.CountAsync(ct);
+        if (countryId.HasValue)
+            total = await _db.Operators.CountAsync(o => o.CountryId == countryId.Value, ct);
+        if (!string.IsNullOrWhiteSpace(q))
+            total = await _db.Operators.CountAsync(o =>
+                (!countryId.HasValue || o.CountryId == countryId.Value) &&
+                (o.Name.Contains(q) || o.ShortName.Contains(q)), ct);
         return Ok(new Paginated<OperatorResponse>(result, total, page, perPage));
     }
 
@@ -300,10 +306,18 @@ public class OperatorsController : ControllerBase
         }
 
         if (request.Name is not null)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return Problem(statusCode: 400, title: "Name cannot be empty.");
             op.Name = request.Name;
+        }
 
         if (request.ShortName is not null)
+        {
+            if (string.IsNullOrWhiteSpace(request.ShortName))
+                return Problem(statusCode: 400, title: "ShortName cannot be empty.");
             op.ShortName = request.ShortName;
+        }
 
         if (request.Website is not null)
             op.Website = request.Website;

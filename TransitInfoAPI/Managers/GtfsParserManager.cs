@@ -12,14 +12,14 @@ using NetTopologySuite.Algorithm;
 
 using TransitInfoAPI.Enums;
 
-namespace TransitInfoAPI.Managers;
+namespace TransitInfoAPI.Services;
 
-public class GtfsParserManager
+public class GtfsParser
 {
     private readonly GeometryFactory _geometryFactory = new(new PrecisionModel(), 4326);
-    private readonly ILogger<GtfsParserManager> _logger;
+    private readonly ILogger<GtfsParser> _logger;
 
-    public GtfsParserManager(ILogger<GtfsParserManager> logger)
+    public GtfsParser(ILogger<GtfsParser> logger)
     {
         _logger = logger;
     }
@@ -35,10 +35,10 @@ public class GtfsParserManager
         foreach (var entry in entries)
         {
             using var stream = entry.Open();
-            using var ms = new MemoryStream();
-            stream.CopyTo(ms);
-            var bytes = ms.ToArray();
-            sha1.TransformBlock(bytes, 0, bytes.Length, null, 0);
+            var buffer = new byte[81920];
+            int read;
+            while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                sha1.TransformBlock(buffer, 0, read, null, 0);
         }
         sha1.TransformFinalBlock([], 0, 0);
         return Convert.ToHexString(sha1.Hash!).ToLowerInvariant();
@@ -65,12 +65,15 @@ public class GtfsParserManager
             if (!result.HasRoutes) result.Errors.Add("Missing routes.txt");
             if (!result.HasTrips) result.Errors.Add("Missing trips.txt");
             if (!result.HasStopTimes) result.Errors.Add("Missing stop_times.txt");
+            if (!fileNames.Contains("calendar.txt") && !fileNames.Contains("calendar_dates.txt"))
+                result.Errors.Add("Missing calendar data (calendar.txt or calendar_dates.txt required)");
 
             result.HasCalendar = fileNames.Contains("calendar.txt");
             result.HasCalendarDates = fileNames.Contains("calendar_dates.txt");
             result.HasShapes = fileNames.Contains("shapes.txt");
 
-            result.IsValid = result.HasAgency && result.HasStops && result.HasRoutes && result.HasTrips && result.HasStopTimes;
+            result.IsValid = result.HasAgency && result.HasStops && result.HasRoutes && result.HasTrips && result.HasStopTimes
+                && (result.HasCalendar || result.HasCalendarDates);
         }
         catch (Exception ex)
         {
@@ -99,7 +102,8 @@ public class GtfsParserManager
         var dropped = 0;
         foreach (var stop in stops)
         {
-            if (stop.StopLat < -90 || stop.StopLat > 90 || stop.StopLon < -180 || stop.StopLon > 180)
+            if (stop.StopLat < -90 || stop.StopLat > 90 || stop.StopLon < -180 || stop.StopLon > 180
+                || (stop.StopLat == 0.0 && stop.StopLon == 0.0))
             {
                 _logger.LogWarning("Skipping stop {StopId} with invalid coordinates ({Lat}, {Lon})",
                     stop.StopId, stop.StopLat, stop.StopLon);
@@ -145,7 +149,7 @@ public class GtfsParserManager
         if (entry is null) return [];
 
         using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, CsvConfig());
+        using var csv = new CsvReader(reader, CsvConfig);
         csv.Context.RegisterClassMap(new ShapePointMap());
 
         var pointsByShape = new Dictionary<string, List<ShapePointRecord>>(StringComparer.OrdinalIgnoreCase);
@@ -200,8 +204,8 @@ public class GtfsParserManager
             e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
         if (entry is null) return [];
 
-        using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, CsvConfig());
+        using var csvReader = new StreamReader(entry.Open());
+        using var csv = new CsvReader(csvReader, CsvConfig);
         configure?.Invoke(csv.Context);
         return csv.GetRecords<T>().ToList();
     }
@@ -214,7 +218,7 @@ public class GtfsParserManager
         if (entry is null) yield break;
 
         using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, CsvConfig());
+        using var csv = new CsvReader(reader, CsvConfig);
         configure?.Invoke(csv.Context);
 
         var batch = new List<T>(batchSize);
@@ -231,23 +235,19 @@ public class GtfsParserManager
             yield return batch;
     }
 
-    private CsvConfiguration CsvConfig() => new(CultureInfo.InvariantCulture)
+    private static readonly CsvConfiguration CsvConfig = new(CultureInfo.InvariantCulture)
     {
         HasHeaderRecord = true,
         MissingFieldFound = null,
         HeaderValidated = null,
-        BadDataFound = ctx => _logger.LogWarning("Bad CSV data in row: {Raw}", ctx.RawRecord),
-        ReadingExceptionOccurred = args =>
-        {
-            _logger.LogWarning(args.Exception, "Skipping CSV row due to conversion error");
-            return false;
-        },
+        BadDataFound = null,
+        ReadingExceptionOccurred = null,
         TrimOptions = TrimOptions.Trim,
-        AllowComments = true
+        AllowComments = false
     };
-    public static int ParseGtfsTimeToSeconds(string raw)
+    public static int? ParseGtfsTimeToSeconds(string raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return 0;
+        if (string.IsNullOrWhiteSpace(raw)) return null;
         if (raw.Length == 7) raw = "0" + raw;
         var parts = raw.Split(':');
         if (parts.Length == 3
@@ -255,7 +255,7 @@ public class GtfsParserManager
             && int.TryParse(parts[1], out var m)
             && int.TryParse(parts[2], out var s))
             return h * 3600 + m * 60 + s;
-        return 0;
+        return null;
     }
 }
 
@@ -528,12 +528,13 @@ internal class CalendarDateMap : ClassMap<RawCalendarDateRecord>
         800 => RouteType.Trolleybus,
         900 => RouteType.Tram,
         1000 => RouteType.Ferry,
-        1100 => RouteType.Funicular,
-        1200 => RouteType.Funicular,
+         1100 => RouteType.Airplane,
+         1200 => RouteType.Ferry,
         1300 => RouteType.CableCar,
         1400 => RouteType.Funicular,
         1500 => RouteType.Airplane,
-        1700 => RouteType.Bus,
+         1700 => RouteType.Bus,
+         203 => RouteType.Bus,
         _ => RouteType.Bus
     };
 }

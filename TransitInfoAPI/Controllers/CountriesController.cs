@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Mapping;
 
 using Microsoft.Data.SqlClient;
@@ -22,14 +23,22 @@ public class CountriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<CountryResponse>>> GetAll(CancellationToken ct)
+    public async Task<ActionResult> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int perPage = 50,
+        CancellationToken ct = default)
     {
-        var countries = await _db.Countries
+        var query = _db.Countries.AsQueryable();
+
+        var total = await query.CountAsync(ct);
+        var countries = await query
             .OrderBy(c => c.Id)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
             .Select(CountryMapper.ToResponseExpression)
             .ToListAsync(ct);
 
-        return Ok(countries);
+        return Ok(new Paginated<CountryResponse>(countries, total, page, perPage));
     }
 
     [HttpPost]

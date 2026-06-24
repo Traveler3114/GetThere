@@ -80,13 +80,13 @@ function renderCountries(list) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No countries configured.</div>';
     return;
   }
-  const rows = allCountries.map(c => `<tr>
+  const rows = list.map(c => `<tr>
     <td>${c.id}</td>
     <td>${esc(c.name)}</td>
     <td><code>${esc(c.isoCode)}</code></td>
     <td>${esc(c.continent||'-')}</td>
   </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>ID</th><th>Name</th><th>ISO Code</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${allCountries.length} country(ies)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>ID</th><th>Name</th><th>ISO Code</th><th>Continent</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${paginatedItems.length} country(ies)</small>`;
 }
 
 function showAddModal() {

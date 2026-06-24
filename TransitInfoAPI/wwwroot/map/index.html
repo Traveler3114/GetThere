@@ -35,6 +35,8 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   color: #fff; font-size: 0.75rem; font-weight: 600;
 }
 .loading { color: #999; font-style: italic; }
+#mapError { position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#dc3545; color:#fff; padding:8px 16px; border-radius:6px; font-size:0.85rem; z-index:2000; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+#mapError.d-none { display:none; }
 #sidebar .rec-section { margin-top: 16px; border-top: 1px solid #ddd; padding-top: 12px; }
 #sidebar .rec-section h3 { font-size: 1rem; margin-bottom: 6px; }
 #sidebar .rec-entry { padding: 8px; border-radius: 6px; margin-bottom: 8px; font-size: 0.82rem; border: 1px solid #e0e0e0; }
@@ -111,12 +113,23 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
     </div>
   </div>
 </div>
+<div id="mapError" class="d-none"></div>
 <div id="sidebar">
   <button class="close-btn" onclick="closeSidebar()">&times;</button>
   <div id="sidebar-content"><p class="loading">Click a stop to view details</p></div>
 </div>
 
 <script>
+let mapErrorTimer = null;
+function showMapError(msg) {
+  const el = document.getElementById('mapError');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('d-none');
+  if (mapErrorTimer) clearTimeout(mapErrorTimer);
+  mapErrorTimer = setTimeout(() => el.classList.add('d-none'), 8000);
+}
+
 const map = new maplibregl.Map({
   container: 'map',
   style: '/map/style.json',
@@ -152,14 +165,14 @@ function loadMapData() {
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => {});
+  }).catch(() => showMapError('Failed to load stations'));
 
   fetch(routeUrl).then(r => r.json()).then(data => {
     const src = map.getSource(routesSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => {});
+  }).catch(() => showMapError('Failed to load routes'));
 }
 
 function loadVehicles() {
@@ -172,8 +185,7 @@ function loadVehicles() {
         geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
         properties: {
           vehicleId: v.vehicleId, routeId: v.routeId, tripId: v.tripId,
-          bearing: v.bearing, lastUpdated: v.lastUpdated,
-          routeType: v.routeType
+          bearing: v.bearing, lastUpdated: v.lastUpdated
         }
       }))
     };
@@ -202,10 +214,10 @@ map.on('load', () => {
     paint: {
       'line-color': [
         'match', ['get', 'routeType'],
-        'Tram', '#126400',
+        'Tram', '#1f78b4',
         'Subway', '#e31a1c',
         'Train', '#b15928',
-        'Bus', '#1f78b4',
+        'Bus', '#126400',
         'Ferry', '#6a3d9a',
         'CableTram', '#fb9a99',
         'CableCar', '#fb9a99',
@@ -264,18 +276,17 @@ map.on('load', () => {
     { id: 'stop-default', file: '/images/bus.png', types: [] }
   ];
 
+  // Preload stop icons to avoid flash on first render
+  const PRELOADED = {};
+  for (const icon of STOP_ICONS) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.src = window.location.origin + icon.file;
+    PRELOADED[icon.id] = new Promise((resolve) => { img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); resolve(c.getContext('2d').getImageData(0, 0, img.width, img.height)); }; });
+  }
+
   map.on('styleimagemissing', async (e) => {
-    const icon = STOP_ICONS.find(i => i.id === e.id);
-    if (!icon) return;
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image(); i.crossOrigin = 'anonymous';
-      i.onload = () => resolve(i); i.onerror = reject;
-      i.src = window.location.origin + icon.file;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width; canvas.height = img.height;
-    canvas.getContext('2d').drawImage(img, 0, 0);
-    const data = canvas.getContext('2d').getImageData(0, 0, img.width, img.height);
+    if (!PRELOADED[e.id]) return;
+    const data = await PRELOADED[e.id];
     if (!map.hasImage(e.id)) map.addImage(e.id, data);
   });
 
@@ -315,24 +326,23 @@ map.on('load', () => {
     }
   });
 
-  // Vehicle bearing arrows
+  // Vehicle bearing arrows (SVG triangle preloaded as image)
+  const arrowSvg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><polygon points="8,2 14,13 2,13" fill="%23fff" stroke="%237b2d8e" stroke-width="1.5"/></svg>';
+  const arrowImg = new Image(); arrowImg.src = arrowSvg;
+  arrowImg.onload = () => { if (!map.hasImage('vehicle-arrow')) map.addImage('vehicle-arrow', arrowImg); };
+
   map.addLayer({
     id: 'vehicles-arrow',
     type: 'symbol',
     source: vehiclesSource,
     filter: ['!=', ['get', 'bearing'], null],
     layout: {
-      'text-field': '▲',
-      'text-rotate': ['get', 'bearing'],
-      'text-rotation-alignment': 'map',
-      'text-size': 14,
-      'text-allow-overlap': true,
-      'text-ignore-placement': true
-    },
-    paint: {
-      'text-color': '#fff',
-      'text-halo-color': '#7b2d8e',
-      'text-halo-width': 2
+      'icon-image': 'vehicle-arrow',
+      'icon-rotate': ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
+      'icon-size': 0.8,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
     }
   });
 
@@ -353,7 +363,7 @@ map.on('load', () => {
 
   loadMapData();
   loadVehicles();
-  setInterval(loadVehicles, 30000);
+  const vehiclesInterval = setInterval(loadVehicles, 30000);
 });
 
 map.on('moveend', () => {
@@ -858,6 +868,7 @@ function confirmUnmerge() {
       banner.textContent = 'Unmerge failed.';
     });
 }
+window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(vehiclesInterval); });
 
 </script>
 </body>

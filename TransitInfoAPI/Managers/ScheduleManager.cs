@@ -22,13 +22,11 @@ public class ScheduleManager
         int canonicalStationId, DateTime from, int count, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(from);
-        var fromTime = (int)from.TimeOfDay.TotalSeconds;
-        var dayOfWeek = today.DayOfWeek;
+        var fromTime = (int)Math.Round(from.TimeOfDay.TotalSeconds);
 
-        // Service validity is checked against today only. GTFS departure_time can be >86400
-        // (next-day departures) — these are captured by the query but validated against today's
-        // calendar, which is an approximation. Full cross-midnight calendar merge deferred.
-        var validServices = await GetValidServiceIdsAsync(today, dayOfWeek, ct);
+        var validServices = await GetValidServiceIdsAsync(today, today.DayOfWeek, ct);
+        var tomorrow = today.AddDays(1);
+        var validServicesTomorrow = await GetValidServiceIdsAsync(tomorrow, tomorrow.DayOfWeek, ct);
 
         var rawDepartures = await _db.StopTimes
             .Where(st => st.CanonicalStationId == canonicalStationId)
@@ -49,18 +47,23 @@ public class ScheduleManager
             .ToListAsync(ct);
 
         return rawDepartures
-            .Where(d => validServices.Contains((d.FeedVersionId, d.ServiceId)))
+            .Where(d => d.DepartureTime >= 86400
+                ? validServicesTomorrow.Contains((d.FeedVersionId, d.ServiceId))
+                : validServices.Contains((d.FeedVersionId, d.ServiceId)))
             .OrderBy(d => d.DepartureTime)
             .Take(count)
             .Select(d =>
             {
-                var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, from.Date.AddSeconds(d.DepartureTime));
+                var departureTime = d.DepartureTime >= 86400
+                    ? from.Date.AddDays(1).AddSeconds(d.DepartureTime - 86400)
+                    : from.Date.AddSeconds(d.DepartureTime);
+                var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, departureTime);
                 return new DepartureResponse
                 {
                     TripId = d.TripId,
                     RouteName = d.RouteName,
                     Headsign = d.Headsign,
-                    ScheduledDeparture = from.Date.AddSeconds(d.DepartureTime),
+                    ScheduledDeparture = departureTime,
                     EstimatedDeparture = estimated,
                     DelaySeconds = delay
                 };
@@ -115,6 +118,8 @@ public class ScheduleManager
     // not a clean representation of bidirectional routes.
     public async Task<List<StationResponse>> GetRouteStopsAsync(int canonicalRouteId, CancellationToken ct)
     {
+        // Known limitation: for bidirectional routes, GroupBy picks the first stop by sequence
+        // for each station ID, which may arbitrarily select one direction's stop. See #99.
         var stops = await _db.StopTimes
             .Where(st => st.Trip.CanonicalRouteId == canonicalRouteId)
             .Where(st => st.CanonicalStationId.HasValue)
@@ -164,36 +169,4 @@ public class ScheduleManager
             .ToList();
     }
 
-    public async Task<bool> IsServiceActiveOnAsync(string serviceId, DateOnly date, int feedVersionId, CancellationToken ct)
-    {
-        var dayOfWeek = date.DayOfWeek;
-
-        var calendar = await _db.Calendars
-            .FirstOrDefaultAsync(c => c.FeedVersionId == feedVersionId && c.ServiceId == serviceId, ct);
-
-        if (calendar is null) return false;
-        if (date < calendar.StartDate || date > calendar.EndDate) return false;
-
-        var active = dayOfWeek switch
-        {
-            DayOfWeek.Monday => calendar.Monday,
-            DayOfWeek.Tuesday => calendar.Tuesday,
-            DayOfWeek.Wednesday => calendar.Wednesday,
-            DayOfWeek.Thursday => calendar.Thursday,
-            DayOfWeek.Friday => calendar.Friday,
-            DayOfWeek.Saturday => calendar.Saturday,
-            DayOfWeek.Sunday => calendar.Sunday,
-            _ => false
-        };
-
-        if (!active) return false;
-
-        var exception = await _db.CalendarDates
-            .FirstOrDefaultAsync(cd => cd.FeedVersionId == feedVersionId && cd.ServiceId == serviceId && cd.Date == date, ct);
-
-        if (exception is not null)
-            return exception.ExceptionType == 1;
-
-        return active;
-    }
 }

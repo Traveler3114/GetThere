@@ -24,7 +24,7 @@
 
   <div class="row mb-3 g-2">
     <div class="col-auto">
-      <input type="text" id="filterOperator" class="form-control form-control-sm" placeholder="Filter by operator GlobalId..." oninput="filterVehicles()">
+      <input type="text" id="filterOperator" class="form-control form-control-sm" placeholder="Filter by route, trip or vehicle ID..." oninput="filterVehicles()">
     </div>
     <div class="col-auto">
       <select id="refreshInterval" class="form-select form-select-sm" onchange="updateInterval()">
@@ -124,6 +124,7 @@ function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.tex
 
 loadVehicles();
 startTimer();
+window.addEventListener('pagehide', () => { if (timer) clearInterval(timer); });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

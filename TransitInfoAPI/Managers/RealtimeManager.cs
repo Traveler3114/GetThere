@@ -18,13 +18,15 @@ public class RealtimeManager
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly int _vehicleStaleCutoffMinutes;
+    private readonly int _maxFailuresBeforeDeactivate;
     // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
     // Revisit for Phase 2 multi-instance deployment.
     private readonly ConcurrentDictionary<string, VehicleResponse> _vehicleCache = new();
+    private readonly ConcurrentDictionary<int, int> _feedFailureCounts = new();
 
     private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
 
-    private volatile ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> _tripUpdateCache = new();
+    private ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> _tripUpdateCache = new();
 
     public RealtimeManager(
         IHttpClientFactory httpFactory,
@@ -36,6 +38,7 @@ public class RealtimeManager
         _logger = logger;
         _scopeFactory = scopeFactory;
         _vehicleStaleCutoffMinutes = options.Value.VehicleStaleCutoffMinutes;
+        _maxFailuresBeforeDeactivate = options.Value.MaxConsecutiveFailuresBeforeDeactivate;
     }
 
     public async Task PollAllFeedsAsync(CancellationToken ct)
@@ -56,14 +59,35 @@ public class RealtimeManager
         {
             try
             {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
                 await PollFeedAsync(feed, ct);
+                _feedFailureCounts.TryRemove(feed.Id, out _);
                 _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to poll GTFS-RT feed {FeedId}", feed.FeedId);
+                var count = _feedFailureCounts.AddOrUpdate(feed.Id, 1, (_, c) => c + 1);
+                _logger.LogWarning(ex, "Failed to poll GTFS-RT feed {FeedId} ({FailCount} consecutive failures)", feed.FeedId, count);
+
+                if (count >= _maxFailuresBeforeDeactivate)
+                {
+                    _logger.LogWarning("Auto-deactivating GTFS-RT feed {FeedId} after {Count} consecutive failures", feed.FeedId, count);
+                    try
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+                        var dbFeed = await db.Feeds.FindAsync([feed.Id], ct);
+                        if (dbFeed is not null)
+                        {
+                            dbFeed.IsActive = false;
+                            await db.SaveChangesAsync(ct);
+                        }
+                    }
+                    catch (Exception inner)
+                    {
+                        _logger.LogError(inner, "Failed to deactivate GTFS-RT feed {FeedId}", feed.FeedId);
+                    }
+                    _feedFailureCounts.TryRemove(feed.Id, out _);
+                }
             }
         }
 
@@ -84,9 +108,7 @@ public class RealtimeManager
         var response = await http.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadAsByteArrayAsync(ct);
-
-        var feedMessage = FeedMessage.Parser.ParseFrom(body);
+        var feedMessage = FeedMessage.Parser.ParseFrom(await response.Content.ReadAsStreamAsync(ct));
 
 
         var tripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
@@ -143,11 +165,7 @@ public class RealtimeManager
                 alerts.Add(entity);
         }
 
-        if (tripUpdates.Count > 0)
-        {
-            foreach (var kvp in tripUpdates)
-                _tripUpdateCache[kvp.Key] = kvp.Value;
-        }
+        Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>(tripUpdates));
 
         // Alerts persisted because they carry reference value across restarts (active disruptions).
         // Vehicle positions are ephemeral and remain in-memory only.
@@ -156,6 +174,14 @@ public class RealtimeManager
         {
             using var alertScope = _scopeFactory.CreateScope();
             var db = alertScope.ServiceProvider.GetRequiredService<TransitDbContext>();
+
+            var existingAlerts = await db.Alerts
+                .Where(a => a.FeedId == feed.Id)
+                .ToListAsync(ct);
+            var existingByKey = existingAlerts
+                .GroupBy(a => (a.Cause, a.Effect, a.ActivePeriodStart, a.HeaderText))
+                .ToDictionary(g => g.Key, g => g.First());
+
             foreach (var entity in alerts)
             {
                 var alert = entity.Alert;
@@ -164,20 +190,29 @@ public class RealtimeManager
                 var activePeriodStart = alert.ActivePeriod.Count > 0
                     ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].Start)
                     : (DateTime?)null;
+                var headerText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text;
 
-                var existing = await db.Alerts
-                    .Where(a => a.FeedId == feed.Id
-                        && a.Cause == cause
-                        && a.Effect == effect
-                        && a.ActivePeriodStart == activePeriodStart)
-                    .FirstOrDefaultAsync(ct);
+                var key = (cause, effect, activePeriodStart, headerText);
 
-                if (existing is null)
+                var affectedStopIds = string.Join(",", alert.InformedEntity
+                    .Where(e => e.HasStopId).Select(e => e.StopId));
+                var affectedRouteIds = string.Join(",", alert.InformedEntity
+                    .Where(e => e.HasRouteId).Select(e => e.RouteId));
+                var affectedTripIds = string.Join(",", alert.InformedEntity
+                    .Where(e => e.Trip != null && !string.IsNullOrEmpty(e.Trip.TripId)).Select(e => e.Trip.TripId));
+                var affectedAgencyIds = string.Join(",", alert.InformedEntity
+                    .Where(e => e.HasAgencyId).Select(e => e.AgencyId));
+
+                if (existingByKey.TryGetValue(key, out var existing))
                 {
-                    var alertEntity = new Entities.Alert
+                    existing.FetchedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    db.Alerts.Add(new Entities.Alert
                     {
                         FeedId = feed.Id,
-                        HeaderText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text,
+                        HeaderText = headerText,
                         DescriptionText = alert.DescriptionText?.Translation?.FirstOrDefault()?.Text,
                         Url = alert.Url?.Translation?.FirstOrDefault()?.Text,
                         Cause = cause,
@@ -186,17 +221,19 @@ public class RealtimeManager
                         ActivePeriodEnd = alert.ActivePeriod.Count > 0 && alert.ActivePeriod[0].End > 0
                             ? DateTime.UnixEpoch.AddSeconds((long)alert.ActivePeriod[0].End)
                             : null,
-                        FetchedAt = DateTime.UtcNow
-                    };
-                    db.Alerts.Add(alertEntity);
+                        FetchedAt = DateTime.UtcNow,
+                        AffectedStopIds = affectedStopIds,
+                        AffectedRouteIds = affectedRouteIds,
+                        AffectedTripIds = affectedTripIds,
+                        AffectedAgencyIds = affectedAgencyIds
+                    });
                 }
             }
             await db.SaveChangesAsync(ct);
 
-            var cutoff = DateTime.UtcNow.AddDays(-1);
-            var cutoffFetched = DateTime.UtcNow.AddDays(-7);
+            var cutoff = DateTime.UtcNow.AddDays(-7);
             await db.Alerts
-                .Where(a => a.ActivePeriodEnd < cutoff || a.FetchedAt < cutoffFetched)
+                .Where(a => a.ActivePeriodEnd != null && a.ActivePeriodEnd < cutoff)
                 .ExecuteDeleteAsync(ct);
         }
         catch (Exception ex)
@@ -263,7 +300,11 @@ public class RealtimeManager
                 Effect = a.Effect,
                 ActivePeriodStart = a.ActivePeriodStart,
                 ActivePeriodEnd = a.ActivePeriodEnd,
-                FetchedAt = a.FetchedAt
+                FetchedAt = a.FetchedAt,
+                AffectedStopIds = a.AffectedStopIds,
+                AffectedRouteIds = a.AffectedRouteIds,
+                AffectedTripIds = a.AffectedTripIds,
+                AffectedAgencyIds = a.AffectedAgencyIds
             })
             .ToListAsync(ct);
     }

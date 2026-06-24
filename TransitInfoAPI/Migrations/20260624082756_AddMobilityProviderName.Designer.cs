@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260624082756_AddMobilityProviderName")]
+    partial class AddMobilityProviderName
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -100,9 +103,6 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("Cause")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("DescriptionText")
                         .HasColumnType("nvarchar(max)");
@@ -427,7 +427,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<string>("FeedId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FeedType")
                         .IsRequired()
@@ -474,9 +474,6 @@ namespace TransitInfoAPI.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("FeedId")
-                        .IsUnique();
 
                     b.HasIndex("OperatorId");
 
@@ -544,12 +541,9 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Sha1")
-                        .IsUnique();
+                    b.HasIndex("Sha1");
 
-                    b.HasIndex("FeedId", "IsActive")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
+                    b.HasIndex("FeedId", "IsActive");
 
                     b.ToTable("FeedVersions");
                 });
@@ -975,27 +969,6 @@ namespace TransitInfoAPI.Migrations
                     b.ToTable("StationMergeLogs");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.StationMergeMovedRawStop", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("RawStopId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StationMergeLogId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StationMergeLogId");
-
-                    b.ToTable("StationMergeMovedRawStop");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.StationSplitLog", b =>
                 {
                     b.Property<int>("Id")
@@ -1132,8 +1105,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("CanonicalRouteId");
 
-                    b.HasIndex("FeedVersionId", "TripId")
-                        .IsUnique();
+                    b.HasIndex("FeedVersionId", "TripId");
 
                     b.ToTable("Trips");
                 });
@@ -1399,17 +1371,6 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("Target");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.StationMergeMovedRawStop", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.StationMergeLog", "StationMergeLog")
-                        .WithMany("MovedRawStops")
-                        .HasForeignKey("StationMergeLogId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("StationMergeLog");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.StopTime", b =>
                 {
                     b.HasOne("TransitInfoAPI.Entities.CanonicalStation", "CanonicalStation")
@@ -1499,11 +1460,6 @@ namespace TransitInfoAPI.Migrations
             modelBuilder.Entity("TransitInfoAPI.Entities.Place", b =>
                 {
                     b.Navigation("Stations");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.StationMergeLog", b =>
-                {
-                    b.Navigation("MovedRawStops");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Trip", b =>

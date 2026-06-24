@@ -1,28 +1,34 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 
 namespace TransitInfoAPI.Managers;
 
+public class PlaceMatchingOptions
+{
+    public int MaxDistanceMeters { get; set; } = 50000;
+}
+
 public class PlaceMatchingManager
 {
     private readonly TransitDbContext _db;
     private readonly ILogger<PlaceMatchingManager> _logger;
+    private readonly int _maxDistanceMeters;
     private List<Place>? _placeCache;
 
-    public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger)
+    public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
     {
         _db = db;
         _logger = logger;
+        _maxDistanceMeters = options.Value.MaxDistanceMeters;
     }
 
     public async Task LoadPlacesAsync(CancellationToken ct)
     {
         if (_placeCache is not null) return;
-        _placeCache = await _db.Places
-            .OrderByDescending(p => p.Population)
-            .ToListAsync(ct);
+        _placeCache = await _db.Places.ToListAsync(ct);
         _logger.LogInformation("Loaded {Count} places into cache", _placeCache.Count);
     }
 
@@ -36,7 +42,7 @@ public class PlaceMatchingManager
 
         foreach (var place in _placeCache)
         {
-            var dist = CalculateDistanceMeters(lat, lon, place.Lat, place.Lon);
+            var dist = GeoUtils.CalculateDistanceMeters(lat, lon, place.Lat, place.Lon);
             if (dist < minDist)
             {
                 minDist = dist;
@@ -44,7 +50,7 @@ public class PlaceMatchingManager
             }
         }
 
-        return minDist < 50_000 ? nearest : null;
+        return minDist < _maxDistanceMeters ? nearest : null;
     }
 
     public async Task MatchStationsToPlacesAsync(CancellationToken ct)
@@ -59,7 +65,7 @@ public class PlaceMatchingManager
             .ToListAsync(ct);
         stale = stale.Where(cs =>
             GeoUtils.CalculateDistanceMeters(
-                cs.Latitude, cs.Longitude, cs.Place!.Lat, cs.Place!.Lon) > 100).ToList();
+                cs.Latitude, cs.Longitude, cs.Place!.Lat, cs.Place!.Lon) > 500).ToList();
         stations.AddRange(stale);
 
         var matched = 0;
@@ -105,14 +111,4 @@ public class PlaceMatchingManager
         _logger.LogInformation("Re-matched station {StationId} to place {PlaceId}", stationId, station.PlaceId?.ToString() ?? "null");
     }
 
-    public async Task MatchOperatorsToPlacesAsync(CancellationToken ct)
-    {
-        // TODO: implement when Operator gets PlaceId
-        await Task.CompletedTask;
-    }
-
-    private static double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)
-    {
-        return GeoUtils.CalculateDistanceMeters(lat1, lon1, lat2, lon2);
-    }
 }

@@ -1,5 +1,6 @@
 namespace TransitInfoAPI.Contracts;
 
+/// <summary>Real-time vehicle position from GTFS-RT.</summary>
 public class VehicleResponse
 {
     public string VehicleId { get; set; } = string.Empty;
@@ -15,6 +16,7 @@ public class VehicleResponse
     public DateTime? LastUpdated { get; set; }
 }
 
+/// <summary>Service alert from GTFS-RT, with optional affected entity references.</summary>
 public class AlertResponse
 {
     public int Id { get; set; }
@@ -26,4 +28,8 @@ public class AlertResponse
     public DateTime? ActivePeriodStart { get; set; }
     public DateTime? ActivePeriodEnd { get; set; }
     public DateTime FetchedAt { get; set; }
+    public string? AffectedStopIds { get; set; }
+    public string? AffectedRouteIds { get; set; }
+    public string? AffectedTripIds { get; set; }
+    public string? AffectedAgencyIds { get; set; }
 }

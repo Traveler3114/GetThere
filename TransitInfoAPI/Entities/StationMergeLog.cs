@@ -12,4 +12,6 @@ public class StationMergeLog
 
     public CanonicalStation Source { get; set; } = null!;
     public CanonicalStation Target { get; set; } = null!;
+
+    public ICollection<StationMergeMovedRawStop> MovedRawStops { get; set; } = [];
 }

@@ -5,12 +5,14 @@ using System.IO.Compression;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
+using TransitInfoAPI.Services;
 
 using Microsoft.Data.SqlClient;
 
@@ -24,24 +26,23 @@ public class FeedManager
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<FeedManager> _logger;
     private readonly IWebHostEnvironment _env;
-    private readonly GtfsParserManager _gtfs;
+    private readonly Services.GtfsParser _gtfs;
     private readonly OnestopIdManager _onestopId;
     private readonly ReconciliationManager _reconciliation;
     private readonly PlaceMatchingManager _placeMatching;
-    private readonly ImportLogStore _logStore;
+    private readonly Services.ImportLogStore _logStore;
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
-    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _importLocks = new();
 
     public FeedManager(
         TransitDbContext db,
         IHttpClientFactory httpFactory,
         ILogger<FeedManager> logger,
         IWebHostEnvironment env,
-        GtfsParserManager gtfs,
+        Services.GtfsParser gtfs,
         OnestopIdManager onestopId,
         ReconciliationManager reconciliation,
         PlaceMatchingManager placeMatching,
-        ImportLogStore logStore)
+        Services.ImportLogStore logStore)
     {
         _db = db;
         _httpFactory = httpFactory;
@@ -81,10 +82,19 @@ public class FeedManager
         int operatorId, FeedType feedType, SourceType sourceType,
         string feedId, string? externalUrl, int refreshIntervalSeconds, CancellationToken ct)
     {
+        if (externalUrl is not null && (!Uri.TryCreate(externalUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
+            throw new InvalidOperationException("Invalid feed URL. Must be an absolute HTTP(S) URL.");
+        if (refreshIntervalSeconds < 60)
+            throw new InvalidOperationException("Refresh interval must be at least 60 seconds.");
+
         var op = await _db.Operators.FindAsync([operatorId], ct)
-            ?? throw new InvalidOperationException("Operator not found.");
+            ?? throw new Exceptions.AppException("Operator not found.", 404);
 
         var onestopId = _onestopId.GenerateFeedOnestopId(0, 0, feedId);
+        if (await _db.Feeds.AnyAsync(f => f.OnestopId == onestopId, ct))
+            throw new InvalidOperationException($"Feed with OnestopId '{onestopId}' already exists.");
+        if (await _db.Feeds.AnyAsync(f => f.FeedId == feedId, ct))
+            throw new InvalidOperationException($"Feed with FeedId '{feedId}' already exists.");
 
         var feed = new Feed
         {
@@ -116,6 +126,16 @@ public class FeedManager
         if (!Enum.TryParse<SourceType>(request.SourceType, true, out var sourceType))
             return (false, $"Invalid source type '{request.SourceType}'.");
         feed.SourceType = sourceType;
+
+        if (request.ExternalUrl is not null && (!Uri.TryCreate(request.ExternalUrl, UriKind.Absolute, out var extUri) || extUri.Scheme is not ("http" or "https")))
+            return (false, "Invalid feed URL. Must be an absolute HTTP(S) URL.");
+        if (request.LicenseUrl is not null && !Uri.TryCreate(request.LicenseUrl, UriKind.Absolute, out _))
+            return (false, "Invalid license URL.");
+        if (request.InternalUrl is not null && !Uri.TryCreate(request.InternalUrl, UriKind.Absolute, out _))
+            return (false, "Invalid internal URL.");
+
+        if (request.RefreshIntervalSeconds < 60)
+            return (false, "Refresh interval must be at least 60 seconds.");
 
         feed.ExternalUrl = request.ExternalUrl;
         feed.InternalUrl = request.InternalUrl;
@@ -182,6 +202,9 @@ public class FeedManager
 
         _db.Feeds.Remove(feed);
         await _db.SaveChangesAsync(ct);
+
+        _feedLocks.TryRemove(id, out _);
+
         return true;
     }
 
@@ -227,10 +250,18 @@ public class FeedManager
                 // HEAD not supported — fall through to full download
             }
 
-            var bytes = await http.GetByteArrayAsync(url, ct);
+            var getResponse = await http.SendAsync(new HttpRequestMessage(HttpMethod.Get, url), HttpCompletionOption.ResponseHeadersRead, ct);
+            var contentType = getResponse.Content.Headers.ContentType?.MediaType;
+            if (contentType is not null && contentType != "application/zip" && !contentType.StartsWith("application/"))
+            {
+                _logger.LogWarning("Feed {FeedId} has unexpected Content-Type {ContentType}, skipping", feed.FeedId, contentType);
+                return null;
+            }
+            var bytes = await getResponse.Content.ReadAsByteArrayAsync(ct);
 
             var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
-            Directory.CreateDirectory(outputDir);
+            try { Directory.CreateDirectory(outputDir); }
+            catch (Exception ex) { _logger.LogError(ex, "Failed to create directory {Dir} for feed {FeedId}", outputDir, feed.FeedId); return null; }
             var zipPath = Path.Combine(outputDir, "gtfs.zip");
             var tmpPath = zipPath + ".tmp";
             await File.WriteAllBytesAsync(tmpPath, bytes, ct);
@@ -299,7 +330,7 @@ public class FeedManager
 
         if (version is null) throw new InvalidOperationException("FeedVersion not found.");
 
-        var feedLock = _importLocks.GetOrAdd(version.Feed.Id, _ => new SemaphoreSlim(1, 1));
+        var feedLock = _feedLocks.GetOrAdd(version.Feed.Id, _ => new SemaphoreSlim(1, 1));
         await feedLock.WaitAsync(ct);
         try
         {
@@ -334,7 +365,7 @@ public class FeedManager
 
                     await BackfillRouteGeometriesAsync(feedVersionId, canonicalRouteLookup, ct);
 
-                    var routeTypesPerStop = await ImportStopTimesBulkPhaseAsync(feedVersionId, archive, tripLookup, parsed.RouteByTrip, parsed.RouteTypeByRoute, sqlConn, sqlTx, ct);
+                    var routeTypesPerStop = await ImportStopTimesBulkPhaseAsync(feedVersionId, archive, tripLookup, parsed.RouteByTrip, parsed.RouteTypeByRoute, sqlConn.ConnectionString, ct);
 
                     await ImportAgenciesAndStopsPhaseAsync(feedVersionId, parsed.Agencies, parsed.RawStops, routeTypesPerStop, parsed.OperatorId, ct);
 
@@ -347,6 +378,7 @@ public class FeedManager
                 finally
                 {
                     _db.ChangeTracker.AutoDetectChangesEnabled = true;
+                    _db.Database.SetCommandTimeout(30);
                 }
             }
             catch (Exception ex)
@@ -370,7 +402,7 @@ public class FeedManager
             if (feed is null) throw new InvalidOperationException("Feed not found.");
 
             var zipPath = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId, "gtfs.zip");
-            var sha1 = $"{feed.FeedId}-manual-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            var sha1 = $"{feed.FeedId}-manual-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():n}";
             if (File.Exists(zipPath))
             {
                 using var archive = ZipFile.OpenRead(zipPath);
@@ -395,7 +427,7 @@ public class FeedManager
             return version;
         }
 
-        await ImportFeedVersionAsync(version.Id, CancellationToken.None);
+        await ImportFeedVersionAsync(version.Id, ct);
         return version;
     }
 
@@ -463,7 +495,10 @@ public class FeedManager
         if (conn.State != ConnectionState.Open)
             await conn.OpenAsync(ct);
         var sqlConn = (Microsoft.Data.SqlClient.SqlConnection)conn;
-        var sqlTx = sqlConn.BeginTransaction();
+        var existingTx = _db.Database.CurrentTransaction;
+        var sqlTx = existingTx is not null
+            ? (Microsoft.Data.SqlClient.SqlTransaction)existingTx.GetDbTransaction()
+            : sqlConn.BeginTransaction();
         _db.Database.UseTransaction(sqlTx);
         return (sqlConn, sqlTx);
     }
@@ -547,58 +582,64 @@ public class FeedManager
     private async Task<Dictionary<string, int>> ImportRoutesPhaseAsync(int feedVersionId, FeedVersion version, List<RawRouteRecord> routes, List<RawStopRecord> rawStops, int operatorId, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, "Phase 1: Saving canonical routes...");
+        var prefix = $"gt-{version.Feed.FeedId}-";
+        var existingRoutes = await _db.CanonicalRoutes
+            .Where(cr => cr.GlobalId.StartsWith(prefix))
+            .ToListAsync(ct);
+        var existingByGlobalId = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
+        var existingByOnestopId = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cr in existingRoutes)
+        {
+            existingByGlobalId[cr.GlobalId] = cr;
+            existingByOnestopId[cr.OnestopId] = cr;
+        }
+
         var seenOnestopIds = new HashSet<string>();
         foreach (var r in routes)
         {
-            var globalId = $"gt-{version.Feed.FeedId}-{r.RouteId.ToLowerInvariant()}";
-            var existingRoute = await _db.CanonicalRoutes
-                .FirstOrDefaultAsync(cr => cr.GlobalId == globalId, ct);
+            var globalId = prefix + r.RouteId.ToLowerInvariant();
+            if (existingByGlobalId.ContainsKey(globalId))
+                continue;
 
-            if (existingRoute is null)
+            var routeName = r.RouteShortName;
+            if (string.IsNullOrEmpty(routeName))
+                routeName = r.RouteLongName;
+            if (string.IsNullOrEmpty(routeName))
+                routeName = r.RouteId;
+            if (string.IsNullOrEmpty(routeName))
+                routeName = "unknown";
+
+            var routeOnestopId = _onestopId.GenerateRouteOnestopId(
+                rawStops.Count > 0 ? rawStops.Average(s => s.StopLat) : 0,
+                rawStops.Count > 0 ? rawStops.Average(s => s.StopLon) : 0,
+                routeName);
+
+            if (existingByOnestopId.ContainsKey(routeOnestopId))
+                continue;
+
+            var uniqueOnestopId = routeOnestopId;
+            var dedupSuffix = 2;
+            while (!seenOnestopIds.Add(uniqueOnestopId))
+                uniqueOnestopId = $"{routeOnestopId}-{dedupSuffix++}";
+
+            _db.CanonicalRoutes.Add(new CanonicalRoute
             {
-                var routeName = r.RouteShortName;
-                if (string.IsNullOrEmpty(routeName))
-                    routeName = r.RouteLongName;
-                if (string.IsNullOrEmpty(routeName))
-                    routeName = r.RouteId;
-                if (string.IsNullOrEmpty(routeName))
-                    routeName = "unknown";
-
-                var routeOnestopId = _onestopId.GenerateRouteOnestopId(
-                    rawStops.Count > 0 ? rawStops.Average(s => s.StopLat) : 0,
-                    rawStops.Count > 0 ? rawStops.Average(s => s.StopLon) : 0,
-                    routeName);
-
-                var existingByOnestop = await _db.CanonicalRoutes
-                    .FirstOrDefaultAsync(cr => cr.OnestopId == routeOnestopId, ct);
-                if (existingByOnestop is not null)
-                    continue;
-
-                var uniqueOnestopId = routeOnestopId;
-                var dedupSuffix = 2;
-                while (!seenOnestopIds.Add(uniqueOnestopId))
-                    uniqueOnestopId = $"{routeOnestopId}-{dedupSuffix++}";
-
-                _db.CanonicalRoutes.Add(new CanonicalRoute
-                {
-                    GlobalId = globalId,
-                    OnestopId = uniqueOnestopId,
-                    ShortName = r.RouteShortName,
-                    LongName = r.RouteLongName,
-                    RouteType = r.RouteTypeEnum,
-                    Color = r.RouteColor,
-                    TextColor = r.RouteTextColor,
-                    IsActive = true,
-                    OperatorId = operatorId
-                });
-            }
+                GlobalId = globalId,
+                OnestopId = uniqueOnestopId,
+                ShortName = r.RouteShortName,
+                LongName = r.RouteLongName,
+                RouteType = r.RouteTypeEnum,
+                Color = r.RouteColor,
+                TextColor = r.RouteTextColor,
+                IsActive = true,
+                OperatorId = operatorId
+            });
         }
 
         _db.ChangeTracker.DetectChanges();
         await _db.SaveChangesAsync(ct);
         _logStore.AddEntry(feedVersionId, $"Phase 1: {routes.Count} routes saved");
 
-        var prefix = $"gt-{version.Feed.FeedId}-";
         return await _db.CanonicalRoutes
             .Where(cr => cr.GlobalId.StartsWith(prefix))
             .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, ct);
@@ -670,12 +711,13 @@ public class FeedManager
         var routeIds = canonicalRouteLookup.Values.ToList();
         var routeShapes = await _db.Trips
             .Where(t => t.FeedVersionId == feedVersionId && t.CanonicalRouteId.HasValue && t.ShapeId != null)
-            .GroupBy(t => t.CanonicalRouteId!.Value)
+            .GroupBy(t => new { t.CanonicalRouteId, t.ShapeId })
+            .Select(g => new { g.Key.CanonicalRouteId, g.Key.ShapeId, Count = g.Count() })
+            .GroupBy(g => g.CanonicalRouteId)
             .Select(g => new
             {
-                RouteId = g.Key,
-                MostCommonShapeId = g.GroupBy(t => t.ShapeId)
-                    .OrderByDescending(sg => sg.Count()).Select(sg => sg.Key).First()
+                RouteId = g.Key!.Value,
+                MostCommonShapeId = g.OrderByDescending(x => x.Count).Select(x => x.ShapeId!).FirstOrDefault()
             })
             .ToListAsync(ct);
 
@@ -699,12 +741,14 @@ public class FeedManager
         _logStore.AddEntry(feedVersionId, "Phase 2: route geometries backfilled from trip shapes");
     }
 
-    private async Task<Dictionary<string, RouteType>> ImportStopTimesBulkPhaseAsync(int feedVersionId, ZipArchive archive, Dictionary<string, int> tripLookup, Dictionary<string, string> routeByTrip, Dictionary<string, RouteType> routeTypeByRoute, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
+    private async Task<Dictionary<string, RouteType>> ImportStopTimesBulkPhaseAsync(int feedVersionId, ZipArchive archive, Dictionary<string, int> tripLookup, Dictionary<string, string> routeByTrip, Dictionary<string, RouteType> routeTypeByRoute, string connectionString, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, "Phase 3: Bulk importing stop_times...");
         var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
 
-        using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(sqlConn, Microsoft.Data.SqlClient.SqlBulkCopyOptions.Default, sqlTx)
+        await using var bulkConn = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
+        await bulkConn.OpenAsync(ct);
+        using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(bulkConn)
         {
             DestinationTableName = "StopTimes", BatchSize = 50000, BulkCopyTimeout = 180
         };
@@ -719,20 +763,18 @@ public class FeedManager
         bulkCopy.ColumnMappings.Add("DropOffType", "DropOffType");
         bulkCopy.ColumnMappings.Add("Timepoint", "Timepoint");
 
-        var dt = new DataTable();
-        dt.Columns.Add("TripId", typeof(int));
-        dt.Columns.Add("RawStopId", typeof(string));
-        dt.Columns.Add("ArrivalTime", typeof(int));
-        dt.Columns.Add("DepartureTime", typeof(int));
-        dt.Columns.Add("StopSequence", typeof(int));
-        dt.Columns.Add("StopHeadsign", typeof(string));
-        dt.Columns.Add("PickupType", typeof(int));
-        dt.Columns.Add("DropOffType", typeof(int));
-        dt.Columns.Add("Timepoint", typeof(bool));
-
         await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000))
         {
-            dt.Rows.Clear();
+            var dt = new DataTable();
+            dt.Columns.Add("TripId", typeof(int));
+            dt.Columns.Add("RawStopId", typeof(string));
+            dt.Columns.Add("ArrivalTime", typeof(int));
+            dt.Columns.Add("DepartureTime", typeof(int));
+            dt.Columns.Add("StopSequence", typeof(int));
+            dt.Columns.Add("StopHeadsign", typeof(string));
+            dt.Columns.Add("PickupType", typeof(int));
+            dt.Columns.Add("DropOffType", typeof(int));
+            dt.Columns.Add("Timepoint", typeof(bool));
             foreach (var st in batch)
             {
                 if (routeByTrip.TryGetValue(st.TripId, out var rId) &&
@@ -746,12 +788,24 @@ public class FeedManager
                     continue;
                 }
 
+                var arrival = Services.GtfsParser.ParseGtfsTimeToSeconds(st.ArrivalTime);
+                var departure = Services.GtfsParser.ParseGtfsTimeToSeconds(st.DepartureTime);
+                if (departure is null)
+                {
+                    _logger.LogWarning("Skipping stop_times row with invalid departure time for trip {TripId} stop {StopId}", st.TripId, st.StopId);
+                    continue;
+                }
+
                 var pickupType = st.PickupType is >= 0 and <= 3 ? (object?)st.PickupType : DBNull.Value;
+                if (st.PickupType is not (null or >= 0 and <= 3))
+                    _logger.LogWarning("Invalid PickupType {Value} for stop {StopId}", st.PickupType, st.StopId);
                 var dropOffType = st.DropOffType is >= 0 and <= 3 ? (object?)st.DropOffType : DBNull.Value;
+                if (st.DropOffType is not (null or >= 0 and <= 3))
+                    _logger.LogWarning("Invalid DropOffType {Value} for stop {StopId}", st.DropOffType, st.StopId);
                 dt.Rows.Add(
                     resolvedTripId, st.StopId,
-                    GtfsParserManager.ParseGtfsTimeToSeconds(st.ArrivalTime),
-                    GtfsParserManager.ParseGtfsTimeToSeconds(st.DepartureTime),
+                    (object?)arrival ?? DBNull.Value,
+                    departure.Value,
                     st.StopSequence, (object?)st.StopHeadsign ?? DBNull.Value,
                     pickupType, dropOffType,
                     st.Timepoint.HasValue ? (object)(st.Timepoint == 1) : DBNull.Value);
@@ -766,7 +820,15 @@ public class FeedManager
     private async Task ImportAgenciesAndStopsPhaseAsync(int feedVersionId, List<RawAgencyRecord> agencies, List<RawStopRecord> rawStops, Dictionary<string, RouteType> routeTypesPerStop, int operatorId, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, $"Phase 4: Saving {agencies.Count} agencies and {rawStops.Count} stops...");
+        var seenAgencyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var a in agencies)
+        {
+            var key = string.IsNullOrWhiteSpace(a.AgencyId) ? "__default__" : a.AgencyId;
+            if (!seenAgencyIds.Add(key))
+            {
+                _logger.LogWarning("Skipping duplicate or empty agency_id in FeedVersion {FeedVersionId}", feedVersionId);
+                continue;
+            }
             _db.Agencies.Add(new Agency
             {
                 FeedVersionId = feedVersionId, AgencyId = a.AgencyId, Name = a.AgencyName,
@@ -774,6 +836,7 @@ public class FeedManager
                 Phone = a.AgencyPhone, FareUrl = a.AgencyFareUrl, Email = a.AgencyEmail,
                 OperatorId = operatorId
             });
+        }
 
         var seenStopIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in rawStops)
@@ -893,6 +956,18 @@ public class FeedManager
             new object[] { operatorId }, ct);
         if (reactivated > 0)
             _logger.LogInformation("Reactivated {Count} CanonicalStations for FeedVersion {VersionId}", reactivated, feedVersionId);
+
+        var deactivatedRoutes = await _db.Database.ExecuteSqlRawAsync(
+            "UPDATE cr SET IsActive = 0 FROM CanonicalRoutes cr WHERE cr.IsActive = 1 AND cr.OperatorId = @p0 AND NOT EXISTS (SELECT 1 FROM Trips t INNER JOIN FeedVersions fv ON fv.Id = t.FeedVersionId WHERE t.CanonicalRouteId = cr.Id AND fv.IsActive = 1)",
+            new object[] { operatorId }, ct);
+        if (deactivatedRoutes > 0)
+            _logger.LogInformation("Deactivated {Count} CanonicalRoutes for FeedVersion {VersionId} with no active trips", deactivatedRoutes, feedVersionId);
+
+        var reactivatedRoutes = await _db.Database.ExecuteSqlRawAsync(
+            "UPDATE cr SET IsActive = 1 FROM CanonicalRoutes cr WHERE cr.IsActive = 0 AND cr.OperatorId = @p0 AND EXISTS (SELECT 1 FROM Trips t INNER JOIN FeedVersions fv ON fv.Id = t.FeedVersionId WHERE t.CanonicalRouteId = cr.Id AND fv.IsActive = 1)",
+            new object[] { operatorId }, ct);
+        if (reactivatedRoutes > 0)
+            _logger.LogInformation("Reactivated {Count} CanonicalRoutes for FeedVersion {VersionId}", reactivatedRoutes, feedVersionId);
 
         try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp file {Path}", tempZipPath); }
     }

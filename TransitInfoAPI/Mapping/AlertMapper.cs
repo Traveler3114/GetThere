@@ -15,6 +15,10 @@ public static class AlertMapper
         Effect = a.Effect,
         ActivePeriodStart = a.ActivePeriodStart,
         ActivePeriodEnd = a.ActivePeriodEnd,
-        FetchedAt = a.FetchedAt
+        FetchedAt = a.FetchedAt,
+        AffectedStopIds = a.AffectedStopIds,
+        AffectedRouteIds = a.AffectedRouteIds,
+        AffectedTripIds = a.AffectedTripIds,
+        AffectedAgencyIds = a.AffectedAgencyIds
     };
 }

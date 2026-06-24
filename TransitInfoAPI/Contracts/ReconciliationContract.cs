@@ -1,5 +1,6 @@
 namespace TransitInfoAPI.Contracts;
 
+/// <summary>A reconciliation candidate linking a raw stop to a suggested canonical station.</summary>
 public class ReconciliationResponse
 {
     public int Id { get; set; }
@@ -27,6 +28,7 @@ public class ReconciliationResponse
     public string? NormalizedRawName { get; set; }
     public string? NormalizedStationName { get; set; }
     public string? MatchExplanation { get; set; }
+    public string? AutoMergeVerdict { get; set; }
     public double? AutoMergeNameThreshold { get; set; }
     public double? AutoMergeDistanceMeters { get; set; }
     public double? ManualReviewNameThreshold { get; set; }
@@ -40,5 +42,22 @@ public class ReconciliationDetailResponse : ReconciliationResponse
     public string? RawStopCountry { get; set; }
     public StationDetailResponse? RawStopDetail { get; set; }
     public StationDetailResponse? SuggestedStationDetail { get; set; }
-    public string AutoMergeVerdict { get; set; } = string.Empty;
+}
+
+public class MergePreviewStation
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string PrimaryRouteType { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public int OperatorCount { get; set; }
+    public int RawStopCount { get; set; }
+}
+
+public class MergePreviewResponse
+{
+    public MergePreviewStation StationA { get; set; } = null!;
+    public MergePreviewStation StationB { get; set; } = null!;
+    public bool CanMerge { get; set; }
+    public string? Warning { get; set; }
 }

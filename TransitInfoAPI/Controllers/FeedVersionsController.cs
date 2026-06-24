@@ -67,6 +67,7 @@ public class FeedVersionsController : ControllerBase
         var stops = await _db.RawStops
             .Where(rs => rs.FeedVersionId == version.Id)
             .OrderBy(rs => rs.Id)
+            .Take(10000)
             .Select(RawStopMapper.ToResponseExpression)
             .ToListAsync(ct);
 

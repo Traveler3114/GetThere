@@ -56,6 +56,7 @@ public class OperatorManager
 
         return await _db.CanonicalRoutes
             .Where(r => r.OperatorId == op.Id && r.IsActive)
+            .Take(500)
             .Select(RouteMapper.ToResponseExpression)
             .ToListAsync(ct);
     }

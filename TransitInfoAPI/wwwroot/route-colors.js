@@ -1,8 +1,8 @@
 const ROUTE_COLORS = {
-  Tram: '#126400',
+  Tram: '#1f78b4',
   Subway: '#e31a1c',
   Train: '#b15928',
-  Bus: '#1f78b4',
+  Bus: '#126400',
   Ferry: '#6a3d9a',
   CableTram: '#fb9a99',
   CableCar: '#fb9a99',

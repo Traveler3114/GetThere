@@ -22,7 +22,8 @@ public static class FeedVersionMapper
             ServiceLevelEnd = fv.ServiceLevelEnd,
             StopCount = fv.StopCount,
             RouteCount = fv.RouteCount,
-            TripCount = fv.TripCount
+            TripCount = fv.TripCount,
+            AgencyCount = fv.AgencyCount
         };
 
     public static FeedVersionResponse ToResponse(FeedVersion fv) => new()
@@ -39,6 +40,7 @@ public static class FeedVersionMapper
         ServiceLevelEnd = fv.ServiceLevelEnd,
         StopCount = fv.StopCount,
         RouteCount = fv.RouteCount,
-        TripCount = fv.TripCount
+        TripCount = fv.TripCount,
+        AgencyCount = fv.AgencyCount
     };
 }

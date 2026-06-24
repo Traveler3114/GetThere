@@ -502,9 +502,9 @@ function performAction(id, action) {
 
 function promptReassign(candidateId, currentStationId) {
   const targetStr = prompt('Enter target station ID for reassignment:');
-  if (!targetStr) return;
+  if (!targetStr || !targetStr.trim()) return;
   const targetId = parseInt(targetStr, 10);
-  if (isNaN(targetId)) { alert('Invalid station ID'); return; }
+  if (isNaN(targetId) || targetId <= 0) { alert('Invalid station ID'); return; }
 
   if (currentStationId == null) {
     alert('Cannot check warning: no current station assigned.');

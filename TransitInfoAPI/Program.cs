@@ -25,8 +25,9 @@ builder.Services.AddHttpClient("gtfsrt", client =>
 
 builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
 builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
+builder.Services.Configure<PlaceMatchingOptions>(builder.Configuration.GetSection("PlaceMatching"));
 
-builder.Services.AddScoped<GtfsParserManager>();
+builder.Services.AddScoped<TransitInfoAPI.Services.GtfsParser>();
 builder.Services.AddSingleton<OnestopIdManager>();
 builder.Services.AddScoped<ReconciliationManager>();
 builder.Services.AddScoped<ScheduleManager>();
@@ -36,7 +37,7 @@ builder.Services.AddScoped<StationManager>();
 builder.Services.AddScoped<RouteManager>();
 builder.Services.AddScoped<OperatorManager>();
 builder.Services.AddScoped<FeedManager>();
-builder.Services.AddSingleton<ImportLogStore>();
+builder.Services.AddSingleton<TransitInfoAPI.Services.ImportLogStore>();
 builder.Services.AddSingleton<RealtimeManager>();
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();
@@ -58,7 +59,10 @@ app.UseExceptionHandler(errorApp =>
     {
         var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
         app.Logger.LogError(ex, "Unhandled exception");
-        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails { Detail = ex?.InnerException?.Message ?? ex?.Message };
+        var detail = ex?.InnerException?.Message ?? ex?.Message;
+        if (ex is Microsoft.Data.SqlClient.SqlException sqlEx)
+            detail = $"Database error (code {sqlEx.Number}): {sqlEx.Message}";
+        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails { Detail = detail };
         if (ex is TransitInfoAPI.Exceptions.AppException appEx)
         {
             pd.Status = appEx.StatusCode;
@@ -85,6 +89,7 @@ app.UseStaticFiles(new StaticFileOptions
         }
     }
 });
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
@@ -108,6 +113,9 @@ using (var scope = app.Services.CreateScope())
         await db.StopTimes.Where(st => stuckIds.Contains(st.Trip.FeedVersionId)).ExecuteDeleteAsync();
         await db.RawStops.Where(rs => stuckIds.Contains(rs.FeedVersionId)).ExecuteDeleteAsync();
         await db.Trips.Where(t => stuckIds.Contains(t.FeedVersionId)).ExecuteDeleteAsync();
+        await db.Calendars.Where(c => stuckIds.Contains(c.FeedVersionId)).ExecuteDeleteAsync();
+        await db.CalendarDates.Where(cd => stuckIds.Contains(cd.FeedVersionId)).ExecuteDeleteAsync();
+        await db.Shapes.Where(s => stuckIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync();
     }
 
 }

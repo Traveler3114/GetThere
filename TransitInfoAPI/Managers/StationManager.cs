@@ -83,8 +83,14 @@ public class StationManager
     {
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
-            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
             .AsQueryable();
+
+        StationType parsedStationType = default;
+        var hasExplicitStationType = !string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out parsedStationType);
+        if (hasExplicitStationType)
+            query = query.Where(cs => cs.IsActive && cs.StationType == parsedStationType);
+        else
+            query = query.Where(cs => cs.IsActive && cs.StationType == StationType.Stop);
 
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(cs => cs.Name.Contains(q));
@@ -96,10 +102,8 @@ public class StationManager
             query = query.Where(cs => cs.CountryId == countryId.Value);
 
         if (!string.IsNullOrWhiteSpace(countryName))
-            query = query.Where(cs => cs.Country != null && cs.Country.Name == countryName);
-
-        if (!string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out var st))
-            query = query.Where(cs => cs.StationType == st);
+            query = query.Where(cs =>
+                _db.Countries.Any(c => c.Name == countryName && c.Id == cs.CountryId));
 
         return await query
             .OrderBy(cs => cs.Id)
@@ -128,16 +132,22 @@ public class StationManager
         return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.UtcNow, count, ct);
     }
 
-    public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, CancellationToken ct)
+    public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, string? stationType = null, CancellationToken ct = default)
     {
-        var query = _db.CanonicalStations
-            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop);
+        var query = _db.CanonicalStations.Where(cs => cs.IsActive);
+
+        StationType parsedStationType = default;
+        if (!string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out parsedStationType))
+            query = query.Where(cs => cs.StationType == parsedStationType);
+        else
+            query = query.Where(cs => cs.StationType == StationType.Stop);
 
         if (countryId.HasValue)
             query = query.Where(cs => cs.CountryId == countryId.Value);
 
         if (!string.IsNullOrWhiteSpace(countryName))
-            query = query.Where(cs => cs.Country != null && cs.Country.Name == countryName);
+            query = query.Where(cs =>
+                _db.Countries.Any(c => c.Name == countryName && c.Id == cs.CountryId));
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {

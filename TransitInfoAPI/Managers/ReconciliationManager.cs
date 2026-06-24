@@ -8,6 +8,8 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Exceptions;
+using TransitInfoAPI.Contracts;
+using NetTopologySuite.Geometries;
 
 namespace TransitInfoAPI.Managers;
 
@@ -52,11 +54,13 @@ public class ReconciliationManager
         var maxLat = rawStops.Max(r => r.Lat);
         var minLon = rawStops.Min(r => r.Lon);
         var maxLon = rawStops.Max(r => r.Lon);
-        var buffer = 0.001;
+        var centerLat = (minLat + maxLat) / 2;
+        var latBuffer = 0.001;
+        var lonBuffer = latBuffer / Math.Cos(centerLat * Math.PI / 180);
         var existingStations = await _db.CanonicalStations
             .Where(cs => cs.IsActive && cs.StationType == StationType.Stop
-                && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
-                && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
+                && cs.Latitude >= minLat - latBuffer && cs.Latitude <= maxLat + latBuffer
+                && cs.Longitude >= minLon - lonBuffer && cs.Longitude <= maxLon + lonBuffer)
             .ToListAsync(ct);
 
         // Inactive stations queried by OnestopId only. Fine now — monitor as deactivations accumulate.
@@ -136,7 +140,8 @@ public class ReconciliationManager
                 PrimaryRouteType = rawStop.RouteType.Value,
                 IsActive = true,
                 CountryId = feedVersion.Feed.Operator.CountryId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                Geometry = new Point(rawStop.Lon, rawStop.Lat) { SRID = 4326 }
             };
             _db.CanonicalStations.Add(station);
             newStationList.Add(station);
@@ -161,8 +166,8 @@ public class ReconciliationManager
 
         existingStations = await _db.CanonicalStations
             .Where(cs => cs.IsActive
-                && cs.Latitude >= minLat - buffer && cs.Latitude <= maxLat + buffer
-                && cs.Longitude >= minLon - buffer && cs.Longitude <= maxLon + buffer)
+                && cs.Latitude >= minLat - latBuffer && cs.Latitude <= maxLat + latBuffer
+                && cs.Longitude >= minLon - lonBuffer && cs.Longitude <= maxLon + lonBuffer)
             .ToListAsync(ct);
 
         // Phase 1.5: build route/direction lookup for route-set and direction matching (Tasks 1.1–1.3)
@@ -387,7 +392,8 @@ public class ReconciliationManager
             PrimaryRouteType = routeType,
             IsActive = true,
             CountryId = countryId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Geometry = new Point(rawStop.Lon, rawStop.Lat) { SRID = 4326 }
         };
 
         _db.CanonicalStations.Add(station);
@@ -420,6 +426,8 @@ public class ReconciliationManager
 
     public async Task ApproveCandidateAsync(int id, CancellationToken ct)
     {
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -447,10 +455,13 @@ public class ReconciliationManager
         }
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task RejectCandidateAsync(int id, bool createNewStation = false, CancellationToken ct = default)
     {
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
             .ThenInclude(c => c.Operator)
@@ -482,6 +493,7 @@ public class ReconciliationManager
         candidate.Status = ReconciliationStatus.Rejected;
         candidate.ReviewedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<string?> ReassignCandidateAsync(int id, int canonicalStationId, bool force = false, CancellationToken ct = default)
@@ -610,6 +622,8 @@ public class ReconciliationManager
         if (sourceStationId == targetStationId)
             throw new AppException("Cannot merge a station with itself", 400);
 
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         var source = await _db.CanonicalStations.FindAsync([sourceStationId], ct);
         var target = await _db.CanonicalStations.FindAsync([targetStationId], ct);
 
@@ -624,6 +638,35 @@ public class ReconciliationManager
         if (source.PrimaryRouteType != target.PrimaryRouteType)
             throw new AppException(
                 $"Cannot merge stations with different primary route types ({source.PrimaryRouteType} vs {target.PrimaryRouteType})", 400);
+
+        // Check route-set conflicts
+        var linesSrc = new HashSet<string>();
+        var linesTgt = new HashSet<string>();
+        var dirsSrc = new Dictionary<string, HashSet<int?>>();
+        var dirsTgt = new Dictionary<string, HashSet<int?>>();
+        await LoadStationRouteDataAsync(sourceStationId, linesSrc, dirsSrc, ct);
+        await LoadStationRouteDataAsync(targetStationId, linesTgt, dirsTgt, ct);
+        if (linesSrc.Count > 0 && linesTgt.Count > 0 && !HasRouteSetOverlap(linesSrc, linesTgt))
+        {
+            var srcList = string.Join(", ", linesSrc.OrderBy(x => x));
+            var tgtList = string.Join(", ", linesTgt.OrderBy(x => x));
+            _logger.LogWarning(
+                "Merging stations with non-overlapping route sets: source has [{Src}] and target has [{Tgt}]. Proceeding because stations may be served by different operators.",
+                srcList, tgtList);
+        }
+        if (linesSrc.Count > 0 && linesTgt.Count > 0 && HasRouteSetOverlap(linesSrc, linesTgt) && DirectionSetsConflict(dirsSrc, dirsTgt))
+        {
+            var shared = dirsSrc.Keys.Intersect(dirsTgt.Keys).OrderBy(x => x);
+            var details = new List<string>();
+            foreach (var line in shared)
+            {
+                var aStr = string.Join(",", dirsSrc[line].Select(d => d?.ToString() ?? "null"));
+                var bStr = string.Join(",", dirsTgt[line].Select(d => d?.ToString() ?? "null"));
+                details.Add($"{line} (src: [{aStr}], tgt: [{bStr}])");
+            }
+            throw new AppException(
+                $"Direction mismatch on shared lines: {string.Join("; ", details)}. Merge would produce contradictory route data.", 400);
+        }
 
         // Reassign raw stops from source to target
         var rawStops = await _db.RawStops
@@ -667,7 +710,7 @@ public class ReconciliationManager
         // Deactivate source
         source.IsActive = false;
 
-        _db.StationMergeLogs.Add(new StationMergeLog
+        var mergeLog = new StationMergeLog
         {
             SourceStationId = sourceStationId,
             SourceStationGlobalId = source.GlobalId,
@@ -675,7 +718,9 @@ public class ReconciliationManager
             RawStopsMovedCount = rawStops.Count,
             MovedRawStopIds = "[" + string.Join(",", rawStops.Select(rs => rs.Id)) + "]",
             MergedAt = DateTime.UtcNow
-        });
+        };
+        mergeLog.MovedRawStops = rawStops.Select(rs => new StationMergeMovedRawStop { RawStopId = rs.Id }).ToList();
+        _db.StationMergeLogs.Add(mergeLog);
 
         await _db.SaveChangesAsync(ct);
 
@@ -686,6 +731,8 @@ public class ReconciliationManager
             .Where(st => st.RawStopEntityId.HasValue && rawStopIds.Contains(st.RawStopEntityId.Value))
             .ExecuteUpdateAsync(setters => setters.SetProperty(st => st.CanonicalStationId, targetStationId), ct);
 
+        await tx.CommitAsync(ct);
+
         _logger.LogInformation(
             "Merged station {SourceId} into {TargetId}: {RawCount} raw stops moved, {OpCount} operators merged",
             sourceStationId, targetStationId, rawStops.Count, operatorsMerged);
@@ -694,6 +741,7 @@ public class ReconciliationManager
     public async Task UnmergeStationsAsync(int mergeLogId, CancellationToken ct)
     {
         var log = await _db.StationMergeLogs
+            .Include(ml => ml.MovedRawStops)
             .FirstOrDefaultAsync(ml => ml.Id == mergeLogId, ct);
         if (log is null)
             throw new AppException("Merge log entry not found", 404);
@@ -711,14 +759,16 @@ public class ReconciliationManager
         // Reactivate source station
         source.IsActive = true;
 
-        // Parse stored raw stop IDs from merge log
-        var rawStopIds = (log.MovedRawStopIds ?? "[]")
-            .Trim('[', ']')
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => int.TryParse(s.Trim(), out var id) ? id : (int?)null)
-            .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .ToList();
+        // Read moved raw stops from join table (fall back to CSV parse for legacy records)
+        var rawStopIds = log.MovedRawStops.Any()
+            ? log.MovedRawStops.Select(mrs => mrs.RawStopId).ToList()
+            : (log.MovedRawStopIds ?? "[]")
+                .Trim('[', ']')
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s.Trim(), out var id) ? id : (int?)null)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .ToList();
 
         if (rawStopIds.Count == 0)
             throw new AppException("No raw stop IDs recorded in merge log — cannot unmerge", 400);
@@ -756,7 +806,7 @@ public class ReconciliationManager
             log.SourceStationId, log.TargetStationId, movedRawStops.Count);
     }
 
-    public async Task<object> GetMergePreviewAsync(int stationAId, int stationBId, CancellationToken ct)
+    public async Task<MergePreviewResponse> GetMergePreviewAsync(int stationAId, int stationBId, CancellationToken ct)
     {
         var a = await _db.CanonicalStations.FindAsync([stationAId], ct);
         var b = await _db.CanonicalStations.FindAsync([stationBId], ct);
@@ -778,25 +828,17 @@ public class ReconciliationManager
         if (a.PrimaryRouteType != b.PrimaryRouteType)
             warning = $"Route type mismatch: {a.PrimaryRouteType} vs {b.PrimaryRouteType}";
 
-        return new
+        return new MergePreviewResponse
         {
-            StationA = new
+            StationA = new MergePreviewStation
             {
-                a.Id,
-                a.Name,
-                PrimaryRouteType = a.PrimaryRouteType.ToString(),
-                a.IsActive,
-                OperatorCount = aOpCount,
-                RawStopCount = aRsCount
+                Id = a.Id, Name = a.Name, PrimaryRouteType = a.PrimaryRouteType.ToString(),
+                IsActive = a.IsActive, OperatorCount = aOpCount, RawStopCount = aRsCount
             },
-            StationB = new
+            StationB = new MergePreviewStation
             {
-                b.Id,
-                b.Name,
-                PrimaryRouteType = b.PrimaryRouteType.ToString(),
-                b.IsActive,
-                OperatorCount = bOpCount,
-                RawStopCount = bRsCount
+                Id = b.Id, Name = b.Name, PrimaryRouteType = b.PrimaryRouteType.ToString(),
+                IsActive = b.IsActive, OperatorCount = bOpCount, RawStopCount = bRsCount
             },
             CanMerge = a.IsActive && b.IsActive && a.PrimaryRouteType == b.PrimaryRouteType,
             Warning = warning

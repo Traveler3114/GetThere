@@ -14,7 +14,7 @@ public static class MobilityStationMapper
         Longitude = ms.Longitude,
         AvailableVehicles = ms.AvailableVehicles,
         Capacity = ms.Capacity,
-        ProviderName = ms.MobilityProvider != null ? ms.MobilityProvider.FeedFormat.ToString() : string.Empty,
+        ProviderName = ms.MobilityProvider != null ? ms.MobilityProvider.Name : string.Empty,
         LastUpdated = ms.LastUpdated
     };
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 using TransitInfoAPI.Enums;
 
@@ -8,6 +9,8 @@ public class OnestopIdManager
 {
     private const string Base32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 
+    // Two stops 6m apart at a geohash boundary produce different geohashes and thus different OnestopIds.
+    // The 20m proximity fallback in reconciliation catches most cases. Acceptable known limitation.
     public string EncodeGeohash(double lat, double lon, int precision)
     {
         var latMin = -90.0;
@@ -52,6 +55,7 @@ public class OnestopIdManager
         if (string.IsNullOrWhiteSpace(name)) return "unknown";
 
         var normalized = name.ToLowerInvariant().Trim();
+        normalized = NormalizeAbbreviations(normalized);
 
         var sb = new StringBuilder(normalized.Length);
         foreach (var c in normalized)
@@ -87,19 +91,21 @@ public class OnestopIdManager
         return slug;
     }
 
+    private static string NormalizeAbbreviations(string lower)
+    {
+        lower = System.Text.RegularExpressions.Regex.Replace(lower, @"\bkol\b", "kolodvor");
+        lower = System.Text.RegularExpressions.Regex.Replace(lower, @"\bul\b", "ulica");
+        lower = System.Text.RegularExpressions.Regex.Replace(lower, @"\bst\b", "sveti");
+        lower = System.Text.RegularExpressions.Regex.Replace(lower, @"\bsv\b", "sveti");
+        return lower;
+    }
+
     public string GenerateStopOnestopId(double lat, double lon, string name, RouteType routeType)
     {
         var geohash = EncodeGeohash(lat, lon, 9);
         var slug = ToNameSlug(name);
         var rtSuffix = RouteTypeToOnestopSuffix(routeType);
         return $"s-{geohash}-{slug}~{rtSuffix}";
-    }
-
-    public string GenerateOperatorOnestopId(double lat, double lon, string name)
-    {
-        var geohash = EncodeGeohash(lat, lon, 6);
-        var slug = ToNameSlug(name);
-        return $"o-{geohash}-{slug}";
     }
 
     public string GenerateOperatorOnestopId(string isoCode, string name)
@@ -110,6 +116,8 @@ public class OnestopIdManager
 
     public string GenerateFeedOnestopId(double lat, double lon, string feedId)
     {
+        if (lat == 0.0 && lon == 0.0)
+            return $"f-{ToNameSlug(feedId)}";
         var geohash = EncodeGeohash(lat, lon, 6);
         var slug = ToNameSlug(feedId);
         return $"f-{geohash}-{slug}";

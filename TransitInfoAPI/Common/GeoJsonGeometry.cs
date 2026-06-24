@@ -59,7 +59,7 @@ public static class GeoJsonGeometry
             };
         }
 
-        return null!;
+        throw new InvalidOperationException($"Unsupported geometry type: {geom?.GetType().Name ?? "null"}");
     }
 
     public static GeoJsonFeatureCollection ToPointCollection<T>(

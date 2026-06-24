@@ -18,9 +18,9 @@ public class StationsController : ControllerBase
     private readonly TransitDbContext _db;
     private readonly IConfiguration _config;
 
-    public StationsController(StationManager StationManager, TransitDbContext db, IConfiguration config)
+    public StationsController(StationManager stationManager, TransitDbContext db, IConfiguration config)
     {
-        _stationService = StationManager;
+        _stationService = stationManager;
         _db = db;
         _config = config;
     }
@@ -59,6 +59,7 @@ public class StationsController : ControllerBase
 
             var allStations = await query
                 .OrderBy(cs => cs.Id)
+                .Take(5000)
                 .Select(StationMapper.ToResponseExpression)
                 .ToListAsync(ct);
 
@@ -80,7 +81,7 @@ public class StationsController : ControllerBase
         }
 
         var result = await _stationService.GetAllAsync(lat, lon, radiusKm, countryId, page, perPage, ct);
-        var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, null, ct);
+        var total = await _stationService.GetTotalCountAsync(lat, lon, radiusKm, countryId, null, ct: ct);
         return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
@@ -99,7 +100,7 @@ public class StationsController : ControllerBase
         CancellationToken ct = default)
     {
         var result = await _stationService.SearchAsync(q, routeType, countryId, countryName, stationType, page, perPage, ct);
-        var total = await _stationService.GetTotalCountAsync(null, null, null, countryId, countryName, ct);
+        var total = await _stationService.GetTotalCountAsync(null, null, null, countryId, countryName, stationType, ct);
         return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
@@ -140,6 +141,7 @@ public class StationsController : ControllerBase
 
         var routes = await _db.CanonicalRoutes
             .Where(r => routeIds.Contains(r.Id))
+            .Take(500)
             .Select(RouteMapper.ToResponseExpression)
             .ToListAsync(ct);
 
@@ -355,7 +357,7 @@ public class StationsController : ControllerBase
                     Status = rawStop.ReconciliationStatus.ToString(),
                     RawRouteType = rawStop.RouteType?.ToString(),
                     AutoReconciled = true,
-                    CreatedAt = rawStop.Id > 0 ? DateTime.MinValue : DateTime.UtcNow
+                    CreatedAt = rawStop.FeedVersion?.FetchedAt ?? DateTime.UtcNow
                 });
             }
         }

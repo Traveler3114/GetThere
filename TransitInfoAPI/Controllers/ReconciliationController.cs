@@ -19,9 +19,9 @@ public class ReconciliationController : ControllerBase
     private readonly TransitDbContext _db;
     private readonly IConfiguration _config;
 
-    public ReconciliationController(ReconciliationManager ReconciliationManager, TransitDbContext db, IConfiguration config)
+    public ReconciliationController(ReconciliationManager reconciliationManager, TransitDbContext db, IConfiguration config)
     {
-        _reconciliationService = ReconciliationManager;
+        _reconciliationService = reconciliationManager;
         _db = db;
         _config = config;
     }
@@ -98,6 +98,19 @@ public class ReconciliationController : ControllerBase
                 ManualReviewDistanceMeters = manualDistThreshold
             })
             .ToListAsync(ct);
+
+        foreach (var c in candidates)
+        {
+            c.MatchExplanation = ReconciliationManager.ComputeMatchExplanation(
+                c.NameSimilarityScore, c.DistanceMeters,
+                c.NameMatched, c.DistanceMatched, c.RouteTypeMatched,
+                autoNameThreshold, autoDistThreshold, manualNameThreshold, manualDistThreshold);
+            c.AutoMergeVerdict = ReconciliationManager.ComputeAutoMergeVerdict(
+                c.NameSimilarityScore, c.DistanceMeters,
+                c.NameMatched, c.DistanceMatched, c.RouteTypeMatched,
+                c.RawRouteType, c.CanonicalRouteType,
+                autoNameThreshold, autoDistThreshold, c.Status);
+        }
 
         return Ok(new Paginated<ReconciliationResponse>(candidates, total, page, perPage));
     }
@@ -280,7 +293,7 @@ public class ReconciliationController : ControllerBase
     }
 
     [HttpGet("merge-preview")]
-    public async Task<ActionResult<object>> MergePreview([FromQuery] int stationAId, [FromQuery] int stationBId, CancellationToken ct = default)
+    public async Task<ActionResult<MergePreviewResponse>> MergePreview([FromQuery] int stationAId, [FromQuery] int stationBId, CancellationToken ct = default)
     {
         var preview = await _reconciliationService.GetMergePreviewAsync(stationAId, stationBId, ct);
         return Ok(preview);

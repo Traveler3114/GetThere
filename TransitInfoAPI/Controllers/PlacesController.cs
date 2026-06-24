@@ -57,11 +57,14 @@ public class PlacesController : ControllerBase
     [HttpGet("{id}/operators")]
     public async Task<ActionResult<List<OperatorResponse>>> GetOperators(int id, CancellationToken ct = default)
     {
-        var operators = await _db.CanonicalStations
+        var operatorIds = await _db.CanonicalStations
             .Where(cs => cs.PlaceId == id)
             .SelectMany(cs => cs.StationOperators)
-            .Select(cso => cso.Operator)
+            .Select(cso => cso.OperatorId)
             .Distinct()
+            .ToListAsync(ct);
+        var operators = await _db.Operators
+            .Where(o => operatorIds.Contains(o.Id))
             .Include(o => o.Country)
             .Select(OperatorMapper.ToResponseExpression)
             .ToListAsync(ct);
