@@ -9,6 +9,7 @@ namespace TransitInfoAPI.Managers;
 public class PlaceMatchingOptions
 {
     public int MaxDistanceMeters { get; set; } = 50000;
+    public int CooldownHours { get; set; } = 0;
 }
 
 public class PlaceMatchingManager
@@ -16,13 +17,16 @@ public class PlaceMatchingManager
     private readonly TransitDbContext _db;
     private readonly ILogger<PlaceMatchingManager> _logger;
     private readonly int _maxDistanceMeters;
+    private readonly int _cooldownHours;
     private List<Place>? _placeCache;
+    private DateTime _lastMatchRun = DateTime.MinValue;
 
     public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
     {
         _db = db;
         _logger = logger;
         _maxDistanceMeters = options.Value.MaxDistanceMeters;
+        _cooldownHours = options.Value.CooldownHours;
     }
 
     public async Task LoadPlacesAsync(CancellationToken ct)
@@ -55,6 +59,13 @@ public class PlaceMatchingManager
 
     public async Task MatchStationsToPlacesAsync(CancellationToken ct)
     {
+        if (_cooldownHours > 0 && (DateTime.UtcNow - _lastMatchRun).TotalHours < _cooldownHours)
+        {
+            _logger.LogDebug("Skipping place matching — last run was less than {Cooldown}h ago", _cooldownHours);
+            return;
+        }
+        _lastMatchRun = DateTime.UtcNow;
+
         var stations = await _db.CanonicalStations
             .Where(cs => cs.PlaceId == null)
             .ToListAsync(ct);

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,7 +39,7 @@ public class RoutesController : ControllerBase
         [FromQuery] string? q = null,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         if (format == "geojson")

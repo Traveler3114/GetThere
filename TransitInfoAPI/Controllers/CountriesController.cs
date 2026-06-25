@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,7 +26,7 @@ public class CountriesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult> GetAll(
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         var query = _db.Countries.AsQueryable();

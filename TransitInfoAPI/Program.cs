@@ -59,19 +59,18 @@ app.UseExceptionHandler(errorApp =>
     {
         var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
         app.Logger.LogError(ex, "Unhandled exception");
-        var detail = ex?.InnerException?.Message ?? ex?.Message;
-        if (ex is Microsoft.Data.SqlClient.SqlException sqlEx)
-            detail = $"Database error (code {sqlEx.Number}): {sqlEx.Message}";
-        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails { Detail = detail };
+        var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails();
         if (ex is TransitInfoAPI.Exceptions.AppException appEx)
         {
             pd.Status = appEx.StatusCode;
             pd.Title = appEx.ErrorCode ?? "Error";
+            pd.Detail = ex.Message;
         }
         else
         {
             pd.Status = 500;
             pd.Title = "Internal Server Error";
+            pd.Detail = "An unexpected error occurred.";
         }
         context.Response.StatusCode = pd.Status ?? 500;
         context.Response.ContentType = "application/problem+json";

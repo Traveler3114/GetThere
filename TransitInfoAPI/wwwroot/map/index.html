@@ -141,6 +141,7 @@ map.addControl(new maplibregl.NavigationControl());
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
 
 let debounceTimer = null;
+let vehiclesInterval = null;
 let sidebarOpen = false;
 const stationsSource = 'gt-stops';
 const routesSource = 'routes';
@@ -191,7 +192,7 @@ function loadVehicles() {
     };
     const src = map.getSource(vehiclesSource);
     if (src) { src.setData(fc); }
-  }).catch(() => {});
+  }).catch(() => showMapError('Failed to load vehicles'));
 }
 
 map.on('load', () => {
@@ -363,7 +364,7 @@ map.on('load', () => {
 
   loadMapData();
   loadVehicles();
-  const vehiclesInterval = setInterval(loadVehicles, 30000);
+  vehiclesInterval = setInterval(loadVehicles, 30000);
 });
 
 map.on('moveend', () => {

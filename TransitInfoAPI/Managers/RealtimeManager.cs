@@ -22,11 +22,12 @@ public class RealtimeManager
     // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
     // Revisit for Phase 2 multi-instance deployment.
     private readonly ConcurrentDictionary<string, VehicleResponse> _vehicleCache = new();
-    private readonly ConcurrentDictionary<int, int> _feedFailureCounts = new();
+    private readonly Dictionary<int, int> _feedFailureCounts = [];
+    private readonly object _failureLock = new();
 
     private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
 
-    private ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> _tripUpdateCache = new();
+    private volatile ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> _tripUpdateCache = new();
 
     public RealtimeManager(
         IHttpClientFactory httpFactory,
@@ -60,12 +61,18 @@ public class RealtimeManager
             try
             {
                 await PollFeedAsync(feed, ct);
-                _feedFailureCounts.TryRemove(feed.Id, out _);
+                lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
             }
             catch (Exception ex)
             {
-                var count = _feedFailureCounts.AddOrUpdate(feed.Id, 1, (_, c) => c + 1);
+                int count;
+                lock (_failureLock)
+                {
+                    _feedFailureCounts.TryGetValue(feed.Id, out count);
+                    count++;
+                    _feedFailureCounts[feed.Id] = count;
+                }
                 _logger.LogWarning(ex, "Failed to poll GTFS-RT feed {FeedId} ({FailCount} consecutive failures)", feed.FeedId, count);
 
                 if (count >= _maxFailuresBeforeDeactivate)
@@ -86,7 +93,7 @@ public class RealtimeManager
                     {
                         _logger.LogError(inner, "Failed to deactivate GTFS-RT feed {FeedId}", feed.FeedId);
                     }
-                    _feedFailureCounts.TryRemove(feed.Id, out _);
+                    lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 }
             }
         }
@@ -179,7 +186,7 @@ public class RealtimeManager
                 .Where(a => a.FeedId == feed.Id)
                 .ToListAsync(ct);
             var existingByKey = existingAlerts
-                .GroupBy(a => (a.Cause, a.Effect, a.ActivePeriodStart, a.HeaderText))
+                .GroupBy(a => (a.Cause, a.Effect, a.ActivePeriodStart, a.HeaderText, a.AffectedRouteIds, a.AffectedStopIds, a.AffectedTripIds, a.AffectedAgencyIds))
                 .ToDictionary(g => g.Key, g => g.First());
 
             foreach (var entity in alerts)
@@ -192,8 +199,6 @@ public class RealtimeManager
                     : (DateTime?)null;
                 var headerText = alert.HeaderText?.Translation?.FirstOrDefault()?.Text;
 
-                var key = (cause, effect, activePeriodStart, headerText);
-
                 var affectedStopIds = string.Join(",", alert.InformedEntity
                     .Where(e => e.HasStopId).Select(e => e.StopId));
                 var affectedRouteIds = string.Join(",", alert.InformedEntity
@@ -202,6 +207,8 @@ public class RealtimeManager
                     .Where(e => e.Trip != null && !string.IsNullOrEmpty(e.Trip.TripId)).Select(e => e.Trip.TripId));
                 var affectedAgencyIds = string.Join(",", alert.InformedEntity
                     .Where(e => e.HasAgencyId).Select(e => e.AgencyId));
+
+                var key = (cause, effect, activePeriodStart, headerText, affectedRouteIds, affectedStopIds, affectedTripIds, affectedAgencyIds);
 
                 if (existingByKey.TryGetValue(key, out var existing))
                 {

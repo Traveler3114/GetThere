@@ -242,8 +242,13 @@ async function fetchFeed(id) {
     logContainer.scrollTop = logContainer.scrollHeight;
   }
 
-  // Fire POST without awaiting
-  const fetchPromise = fetch(BASE + '/feeds/' + id + '/fetch', { method: 'POST' }).catch(e => e);
+  // Fire POST without awaiting (with 120s timeout)
+  const abortController = new AbortController();
+  const fetchTimeout = setTimeout(() => abortController.abort(), 120000);
+  const fetchPromise = fetch(BASE + '/feeds/' + id + '/fetch', { method: 'POST', signal: abortController.signal }).catch(e => {
+    clearTimeout(fetchTimeout);
+    return e;
+  });
 
   // Poll versions to discover the version ID, then poll logs
   let versionId = null;
@@ -295,6 +300,7 @@ async function fetchFeed(id) {
 
   // Wait for the POST to finish
   const r = await fetchPromise;
+  clearTimeout(fetchTimeout);
   clearInterval(pollTimer);
   if (logPollTimer) clearInterval(logPollTimer);
   logPollTimer = null;

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,11 +21,11 @@ public class FeedsController : ControllerBase
     private readonly ILogger<FeedsController> _logger;
 
     public FeedsController(
-        FeedManager FeedManager,
+        FeedManager feedManager,
         TransitDbContext db,
         ILogger<FeedsController> logger)
     {
-        _feedService = FeedManager;
+        _feedService = feedManager;
         _db = db;
         _logger = logger;
     }
@@ -32,7 +33,7 @@ public class FeedsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<Paginated<FeedResponse>>> GetAll(
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         var feeds = await _feedService.GetAllAsync(page, perPage, ct);

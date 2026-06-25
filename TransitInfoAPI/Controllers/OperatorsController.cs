@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,7 +38,7 @@ public class OperatorsController : ControllerBase
         [FromQuery] string? q = null,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         if (format == "geojson")
@@ -81,13 +82,7 @@ public class OperatorsController : ControllerBase
         }
 
         var result = await _operatorService.GetAllAsync(countryId, q, page, perPage, ct);
-        var total = await _db.Operators.CountAsync(ct);
-        if (countryId.HasValue)
-            total = await _db.Operators.CountAsync(o => o.CountryId == countryId.Value, ct);
-        if (!string.IsNullOrWhiteSpace(q))
-            total = await _db.Operators.CountAsync(o =>
-                (!countryId.HasValue || o.CountryId == countryId.Value) &&
-                (o.Name.Contains(q) || o.ShortName.Contains(q)), ct);
+        var total = await _operatorService.GetTotalCountAsync(countryId, q, ct);
         return Ok(new Paginated<OperatorResponse>(result, total, page, perPage));
     }
 

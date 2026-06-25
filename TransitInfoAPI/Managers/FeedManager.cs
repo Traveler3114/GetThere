@@ -84,6 +84,8 @@ public class FeedManager
     {
         if (externalUrl is not null && (!Uri.TryCreate(externalUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
             throw new InvalidOperationException("Invalid feed URL. Must be an absolute HTTP(S) URL.");
+        if (feedType == FeedType.GTFSStatic && externalUrl is not null && !externalUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            _logger.LogWarning("Feed {FeedId} static URL does not end with .zip — may not be a valid GTFS archive", feedId);
         if (refreshIntervalSeconds < 60)
             throw new InvalidOperationException("Refresh interval must be at least 60 seconds.");
 
@@ -481,7 +483,7 @@ public class FeedManager
 
         version.ImportStatus = FeedImportStatus.Importing;
         var importTempDir = Path.Combine(Path.GetTempPath(), "gtfs-imports");
-        Directory.CreateDirectory(importTempDir);
+        try { Directory.CreateDirectory(importTempDir); } catch { throw new TransitInfoAPI.Exceptions.AppException("Failed to create temporary directory for import.", 500, "ImportTempDirFailed"); }
         var tempZipPath = Path.Combine(importTempDir, $"import-{feedVersionId}-{Guid.NewGuid()}.zip");
         File.Copy(zipPath, tempZipPath, overwrite: true);
         _logStore.AddEntry(feedVersionId, "Copied GTFS zip to temporary working file");
@@ -496,10 +498,16 @@ public class FeedManager
             await conn.OpenAsync(ct);
         var sqlConn = (Microsoft.Data.SqlClient.SqlConnection)conn;
         var existingTx = _db.Database.CurrentTransaction;
-        var sqlTx = existingTx is not null
-            ? (Microsoft.Data.SqlClient.SqlTransaction)existingTx.GetDbTransaction()
-            : sqlConn.BeginTransaction();
-        _db.Database.UseTransaction(sqlTx);
+        Microsoft.Data.SqlClient.SqlTransaction sqlTx;
+        if (existingTx is not null)
+        {
+            sqlTx = (Microsoft.Data.SqlClient.SqlTransaction)existingTx.GetDbTransaction();
+        }
+        else
+        {
+            sqlTx = sqlConn.BeginTransaction();
+            _db.Database.UseTransaction(sqlTx);
+        }
         return (sqlConn, sqlTx);
     }
 
@@ -709,17 +717,19 @@ public class FeedManager
     private async Task BackfillRouteGeometriesAsync(int feedVersionId, Dictionary<string, int> canonicalRouteLookup, CancellationToken ct)
     {
         var routeIds = canonicalRouteLookup.Values.ToList();
-        var routeShapes = await _db.Trips
+        var shapeCounts = await _db.Trips
             .Where(t => t.FeedVersionId == feedVersionId && t.CanonicalRouteId.HasValue && t.ShapeId != null)
             .GroupBy(t => new { t.CanonicalRouteId, t.ShapeId })
             .Select(g => new { g.Key.CanonicalRouteId, g.Key.ShapeId, Count = g.Count() })
+            .ToListAsync(ct);
+        var routeShapes = shapeCounts
             .GroupBy(g => g.CanonicalRouteId)
             .Select(g => new
             {
                 RouteId = g.Key!.Value,
                 MostCommonShapeId = g.OrderByDescending(x => x.Count).Select(x => x.ShapeId!).FirstOrDefault()
             })
-            .ToListAsync(ct);
+            .ToList();
 
         var shapeGeometries = await _db.Shapes
             .Where(s => s.FeedVersionId == feedVersionId)

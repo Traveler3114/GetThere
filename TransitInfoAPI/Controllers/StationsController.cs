@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,7 +34,7 @@ public class StationsController : ControllerBase
         [FromQuery] int? countryId,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         if (format == "geojson")
@@ -96,7 +97,7 @@ public class StationsController : ControllerBase
         [FromQuery] string? countryName = null,
         [FromQuery] string? stationType = null,
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         var result = await _stationService.SearchAsync(q, routeType, countryId, countryName, stationType, page, perPage, ct);

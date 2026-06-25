@@ -8,10 +8,10 @@ public static class GeoJsonGeometry
     public static object FromNtsGeometry(Geometry? geom)
     {
         if (geom is Point p)
-            return new { type = "Point", coordinates = new[] { p.X, p.Y } };
+            return new GeoJsonPointGeometry { Coordinates = [p.X, p.Y] };
 
         if (geom is LineString ls)
-            return new { type = "LineString", coordinates = ls.Coordinates.Select(c => new[] { c.X, c.Y }) };
+            return new GeoJsonLineStringGeometry { Coordinates = ls.Coordinates.Select(c => new[] { c.X, c.Y }) };
 
         if (geom is Polygon poly)
         {
@@ -19,35 +19,27 @@ public static class GeoJsonGeometry
             rings.Add(poly.Shell.Coordinates.Select(c => new[] { c.X, c.Y }));
             foreach (var hole in poly.Holes)
                 rings.Add(hole.Coordinates.Select(c => new[] { c.X, c.Y }));
-            return new { type = "Polygon", coordinates = rings };
+            return new GeoJsonPolygonGeometry { Coordinates = rings };
         }
 
         if (geom is MultiLineString mls)
-        {
-            return new
+            return new GeoJsonMultiLineStringGeometry
             {
-                type = "MultiLineString",
-                coordinates = mls.Geometries.Select(g =>
+                Coordinates = mls.Geometries.Select(g =>
                     ((LineString)g).Coordinates.Select(c => new[] { c.X, c.Y }))
             };
-        }
 
         if (geom is MultiPoint mp)
-        {
-            return new
+            return new GeoJsonMultiPointGeometry
             {
-                type = "MultiPoint",
-                coordinates = mp.Geometries.Select(g =>
+                Coordinates = mp.Geometries.Select(g =>
                     new[] { ((Point)g).X, ((Point)g).Y })
             };
-        }
 
         if (geom is MultiPolygon mpoly)
-        {
-            return new
+            return new GeoJsonMultiPolygonGeometry
             {
-                type = "MultiPolygon",
-                coordinates = mpoly.Geometries.Select(g =>
+                Coordinates = mpoly.Geometries.Select(g =>
                 {
                     var polyG = (Polygon)g;
                     var rings = new List<IEnumerable<double[]>>();
@@ -57,7 +49,6 @@ public static class GeoJsonGeometry
                     return rings;
                 })
             };
-        }
 
         throw new InvalidOperationException($"Unsupported geometry type: {geom?.GetType().Name ?? "null"}");
     }
@@ -70,7 +61,7 @@ public static class GeoJsonGeometry
     {
         var features = items.Select(item => new GeoJsonFeature
         {
-            Geometry = new { type = "Point", coordinates = new[] { getLon(item), getLat(item) } },
+            Geometry = new GeoJsonPointGeometry { Coordinates = [getLon(item), getLat(item)] },
             Properties = getProps(item)
         }).ToList();
 

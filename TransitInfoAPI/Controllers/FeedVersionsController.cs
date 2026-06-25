@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +21,7 @@ public class FeedVersionsController : ControllerBase
     public async Task<ActionResult<Paginated<FeedVersionResponse>>> GetAll(
         [FromQuery] int? feedId = null,
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         var query = _db.FeedVersions
@@ -55,7 +56,11 @@ public class FeedVersionsController : ControllerBase
     }
 
     [HttpGet("{sha1}/stops")]
-    public async Task<ActionResult<List<RawStopResponse>>> GetStops(string sha1, CancellationToken ct = default)
+    public async Task<ActionResult<Paginated<RawStopResponse>>> GetStops(
+        string sha1,
+        [FromQuery] int page = 1,
+        [FromQuery, Range(1, 500)] int perPage = 50,
+        CancellationToken ct = default)
     {
         var version = await _db.FeedVersions
             .Where(fv => fv.Sha1 == sha1)
@@ -64,14 +69,18 @@ public class FeedVersionsController : ControllerBase
         if (version is null)
             return NotFound();
 
-        var stops = await _db.RawStops
-            .Where(rs => rs.FeedVersionId == version.Id)
+        var query = _db.RawStops
+            .Where(rs => rs.FeedVersionId == version.Id);
+
+        var total = await query.CountAsync(ct);
+        var stops = await query
             .OrderBy(rs => rs.Id)
-            .Take(10000)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
             .Select(RawStopMapper.ToResponseExpression)
             .ToListAsync(ct);
 
-        return Ok(stops);
+        return Ok(new Paginated<RawStopResponse>(stops, total, page, perPage));
     }
 }
 
