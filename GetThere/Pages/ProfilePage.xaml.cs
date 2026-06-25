@@ -241,7 +241,7 @@ public partial class ProfilePage : ContentPage
         // Animate indicator back to start
         TabIndicator.TranslateToAsync(0, 0, 250, Easing.CubicInOut);
         
-        WalletTabBtn.TextColor = Color.FromArgb("#512BD4");
+        WalletTabBtn.TextColor = Color.FromArgb("#009688");
         AccountTabBtn.TextColor = Color.FromArgb("#64748B");
     }
 
@@ -259,7 +259,7 @@ public partial class ProfilePage : ContentPage
         TabIndicator.TranslateToAsync(targetX, 0, 250, Easing.CubicInOut);
 
         WalletTabBtn.TextColor = Color.FromArgb("#64748B");
-        AccountTabBtn.TextColor = Color.FromArgb("#512BD4");
+        AccountTabBtn.TextColor = Color.FromArgb("#009688");
     }
 
     private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)
@@ -482,6 +482,10 @@ public partial class ProfilePage : ContentPage
             PlaceholderColor = Color.FromArgb("#94A3B8")
         };
 
+        var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+        var textColor = isDark ? Colors.White : Colors.Black;
+        var mutedColor = isDark ? Color.FromArgb("#94A3B8") : Color.FromArgb("#64748B");
+
         var currentPwd = createEntry(LocalizationService.Instance["Profile_SubSettings_CurrentPassword"]);
         var newPwd = createEntry(LocalizationService.Instance["Profile_SubSettings_NewPassword"]);
         var confirmPwd = createEntry(LocalizationService.Instance["Profile_SubSettings_ConfirmNewPassword"]);
@@ -508,12 +512,12 @@ public partial class ProfilePage : ContentPage
             SubSettingsView.IsVisible = false;
         };
 
-        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_PasswordDesc"], FontSize = 14, TextColor = Color.FromArgb("#64748B"), Margin = new Thickness(0,0,0,20) });
-        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_CurrentPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_PasswordDesc"], FontSize = 14, TextColor = mutedColor, Margin = new Thickness(0,0,0,20) });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_CurrentPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = textColor });
         SubSettingsContent.Add(currentPwd);
-        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_NewPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_NewPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = textColor });
         SubSettingsContent.Add(newPwd);
-        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_ConfirmNewPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Colors.Black });
+        SubSettingsContent.Add(new Label { Text = LocalizationService.Instance["Profile_SubSettings_ConfirmNewPassword"], FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = textColor });
         SubSettingsContent.Add(confirmPwd);
         SubSettingsContent.Add(updateBtn);
     }

@@ -25,7 +25,7 @@
 
     <Style TargetType="Button">
         <Setter Property="TextColor" Value="{StaticResource White}" />
-        <Setter Property="BackgroundColor" Value="{StaticResource Accent}" />
+        <Setter Property="BackgroundColor" Value="{StaticResource AppPrimary}" />
         <Setter Property="FontFamily" Value="OpenSansSemibold" />
         <Setter Property="FontSize" Value="16" />
         <Setter Property="BorderWidth" Value="0" />
@@ -41,7 +41,7 @@
                     <VisualState x:Name="Pressed">
                         <VisualState.Setters>
                             <Setter Property="Scale" Value="0.98" />
-                            <Setter Property="BackgroundColor" Value="{StaticResource Tertiary}" />
+                            <Setter Property="BackgroundColor" Value="{StaticResource AppPrimaryDark}" />
                         </VisualState.Setters>
                     </VisualState>
                     <VisualState x:Name="Disabled">
@@ -191,6 +191,86 @@
         <Setter Property="FontSize" Value="24" />
         <Setter Property="HorizontalOptions" Value="Center" />
         <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="PageTitleLabel" TargetType="Label">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource AppTextLight}, Dark={StaticResource AppTextDark}}" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
+    </Style>
+
+    <Style x:Key="SectionTitleLabel" TargetType="Label">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource AppTextLight}, Dark={StaticResource AppTextDark}}" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+
+    <Style x:Key="MutedLabel" TargetType="Label">
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource AppTextMutedLight}, Dark={StaticResource AppTextMutedDark}}" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style x:Key="AppCard" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="18" />
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="16" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AppSheet" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}" />
+        <Setter Property="StrokeThickness" Value="0" />
+        <Setter Property="Padding" Value="24,20,24,120" />
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="32,32,0,0" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Shadow">
+            <Setter.Value>
+                <Shadow Brush="Black" Opacity="0.08" Radius="20" Offset="0,-8" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InputFrame" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceAltDark}}" />
+        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="HeightRequest" Value="50" />
+        <Setter Property="StrokeShape">
+            <Setter.Value>
+                <RoundRectangle CornerRadius="12" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PrimaryButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource AppPrimary}" />
+        <Setter Property="TextColor" Value="{StaticResource White}" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="HeightRequest" Value="52" />
+        <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+
+    <Style x:Key="SecondaryButton" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource AppSurfaceAltLight}, Dark={StaticResource AppSurfaceAltDark}}" />
+        <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource AppTextLight}, Dark={StaticResource AppTextDark}}" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="HeightRequest" Value="48" />
+        <Setter Property="FontAttributes" Value="Bold" />
     </Style>
 
     <Style TargetType="Picker">
@@ -409,7 +489,7 @@
 
     <Style ApplyToDerivedTypes="True" TargetType="Page">
         <Setter Property="Padding" Value="0" />
-        <Setter Property="BackgroundColor" Value="{StaticResource OffWhite}" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource AppBackgroundLight}, Dark={StaticResource AppBackgroundDark}}" />
     </Style>
 
     <Style ApplyToDerivedTypes="True" TargetType="Shell">

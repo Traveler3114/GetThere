@@ -5,27 +5,221 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:components="clr-namespace:GetThere.Components"
     Title="Tickets"
-    BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
     <Grid>
         <components:AnimatedBackground />
 
-        <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="16" Padding="40">
-            <Label Text="My Tickets" FontSize="32" FontAttributes="Bold"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-            <Label Text="Coming Soon"
-                   FontSize="20"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-            <Label Text="Your purchased tickets will appear here once the ticketing SDK is integrated."
-                   FontSize="14"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
-                   MaximumWidthRequest="400" />
-            <!-- TODO: Rebuild with real ticketing display when ticketing SDK is implemented -->
-        </VerticalStackLayout>
-    </Grid>
+        <Grid RowDefinitions="Auto,*">
+            <Grid
+                Grid.Row="0"
+                Padding="24,34,24,14"
+                ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Spacing="3">
+                    <Label
+                        Style="{StaticResource PageTitleLabel}"
+                        Text="My Tickets" />
+                    <Label
+                        Style="{StaticResource MutedLabel}"
+                        Text="Active passes and purchase history" />
+                </VerticalStackLayout>
 
+                <Border
+                    Grid.Column="1"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}"
+                    Stroke="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}"
+                    StrokeThickness="1">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="22" />
+                    </Border.StrokeShape>
+                    <Image
+                        Source="ticket.png"
+                        WidthRequest="21"
+                        HeightRequest="21"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center" />
+                </Border>
+            </Grid>
+
+            <ScrollView Grid.Row="1" Padding="0,4,0,96">
+                <VerticalStackLayout
+                    Spacing="18"
+                    Padding="20,0"
+                    HorizontalOptions="Center"
+                    MaximumWidthRequest="680">
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Border
+                            Padding="16,10"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource AppPrimarySoftLight}, Dark={StaticResource AppPrimarySoftDark}}"
+                            Stroke="{StaticResource AppPrimary}"
+                            StrokeThickness="1">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="18" />
+                            </Border.StrokeShape>
+                            <Label
+                                Text="Active"
+                                HorizontalTextAlignment="Center"
+                                FontAttributes="Bold"
+                                TextColor="{AppThemeBinding Light={StaticResource AppPrimaryDark}, Dark=#5EEAD4}" />
+                        </Border>
+                        <Border
+                            Grid.Column="1"
+                            Padding="16,10"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}"
+                            Stroke="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="18" />
+                            </Border.StrokeShape>
+                            <Label
+                                Text="History"
+                                HorizontalTextAlignment="Center"
+                                Style="{StaticResource MutedLabel}" />
+                        </Border>
+                    </Grid>
+
+                    <Border Padding="0" StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="22" />
+                        </Border.StrokeShape>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="{StaticResource AppBrandBlue}" Offset="0" />
+                                <GradientStop Color="{StaticResource AppBrandPurple}" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.16" Radius="16" Offset="0,8" />
+                        </Border.Shadow>
+
+                        <Grid Padding="22" RowDefinitions="Auto,Auto,Auto" RowSpacing="18">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label
+                                        Text="ZET 90 min"
+                                        FontSize="22"
+                                        FontAttributes="Bold"
+                                        TextColor="White" />
+                                    <Label
+                                        Text="Tram and bus network"
+                                        FontSize="13"
+                                        TextColor="White"
+                                        Opacity="0.76" />
+                                </VerticalStackLayout>
+                                <Border
+                                    Grid.Column="1"
+                                    Padding="11,7"
+                                    BackgroundColor="#33FFFFFF"
+                                    StrokeThickness="0">
+                                    <Border.StrokeShape>
+                                        <RoundRectangle CornerRadius="14" />
+                                    </Border.StrokeShape>
+                                    <Label
+                                        Text="Active"
+                                        FontSize="12"
+                                        FontAttributes="Bold"
+                                        TextColor="White" />
+                                </Border>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label
+                                        Text="Valid until"
+                                        FontSize="12"
+                                        TextColor="White"
+                                        Opacity="0.7" />
+                                    <Label
+                                        Text="Today, 18:42"
+                                        FontSize="20"
+                                        FontAttributes="Bold"
+                                        TextColor="White" />
+                                </VerticalStackLayout>
+
+                                <Border
+                                    Grid.Column="1"
+                                    WidthRequest="82"
+                                    HeightRequest="82"
+                                    BackgroundColor="White"
+                                    StrokeThickness="0">
+                                    <Border.StrokeShape>
+                                        <RoundRectangle CornerRadius="12" />
+                                    </Border.StrokeShape>
+                                    <Grid Padding="10" RowDefinitions="*,*,*" ColumnDefinitions="*,*,*">
+                                        <BoxView BackgroundColor="#111827" />
+                                        <BoxView Grid.Column="2" BackgroundColor="#111827" />
+                                        <BoxView Grid.Row="1" Grid.Column="1" BackgroundColor="#111827" />
+                                        <BoxView Grid.Row="2" BackgroundColor="#111827" />
+                                        <BoxView Grid.Row="2" Grid.Column="2" BackgroundColor="#111827" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <Button
+                                Grid.Row="2"
+                                Style="{StaticResource SecondaryButton}"
+                                Text="Open ticket" />
+                        </Grid>
+                    </Border>
+
+                    <Label
+                        Text="Upcoming"
+                        Style="{StaticResource SectionTitleLabel}" />
+
+                    <Border Style="{StaticResource AppCard}">
+                        <Grid ColumnDefinitions="44,*,Auto" ColumnSpacing="14">
+                            <Border
+                                WidthRequest="44"
+                                HeightRequest="44"
+                                BackgroundColor="{AppThemeBinding Light=#E0F2FE, Dark=#0C4A6E}"
+                                StrokeThickness="0">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="14" />
+                                </Border.StrokeShape>
+                                <Image Source="train.png" Margin="11" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+                                <Label
+                                    Text="HZPP Zagreb - Split"
+                                    FontAttributes="Bold"
+                                    TextColor="{AppThemeBinding Light={StaticResource AppTextLight}, Dark={StaticResource AppTextDark}}" />
+                                <Label
+                                    Text="No purchased rail ticket yet"
+                                    Style="{StaticResource MutedLabel}" />
+                            </VerticalStackLayout>
+                            <Label
+                                Grid.Column="2"
+                                Text="Empty"
+                                Style="{StaticResource MutedLabel}"
+                                VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <Border
+                        Padding="22"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}"
+                        Stroke="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}"
+                        StrokeDashArray="4,4"
+                        StrokeThickness="1">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="18" />
+                        </Border.StrokeShape>
+                        <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                            <Image
+                                Source="ticket.png"
+                                WidthRequest="28"
+                                HeightRequest="28"
+                                Opacity="0.55" />
+                            <Label
+                                Text="More tickets will appear here after purchase"
+                                HorizontalTextAlignment="Center"
+                                Style="{StaticResource MutedLabel}" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </ScrollView>
+        </Grid>
+    </Grid>
 </ContentPage>

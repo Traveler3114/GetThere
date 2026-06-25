@@ -1,106 +1,175 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:components="clr-namespace:GetThere.Components"
-             xmlns:localization="clr-namespace:GetThere.Localization"
-             x:Class="GetThere.Pages.RegistrationPage"
-             Title="{localization:Translate Register_Title}"
-              BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
-             Shell.NavBarIsVisible="False">
+<ContentPage
+    x:Class="GetThere.Pages.RegistrationPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    Title="{localization:Translate Register_Title}"
+    Shell.NavBarIsVisible="False">
 
     <Grid>
         <components:AnimatedBackground />
 
-        <!--  ── HERO AREA ──  -->
-        <Border VerticalOptions="Start" HeightRequest="240" StrokeThickness="0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                    <GradientStop Offset="0" Color="#4E85F2" />
-                    <GradientStop Offset="1" Color="#512BD4" />
-                </LinearGradientBrush>
-            </Border.Background>
+        <ScrollView Padding="24,34,24,28">
+            <VerticalStackLayout
+                Spacing="18"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="460">
 
-            <Grid RowDefinitions="Auto, *">
-                <ImageButton Source="arrow_left_white.png" HeightRequest="24" WidthRequest="24" HorizontalOptions="Start" Margin="25,35,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />
-                <VerticalStackLayout Grid.Row="1" Spacing="2" VerticalOptions="Start" Margin="0,15,0,0">
-                    <Label Text="{localization:Translate Register_Title}" FontSize="26" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" />
-                    <Label Text="{localization:Translate Register_Subtitle}" FontSize="12" TextColor="White" Opacity="0.8" HorizontalOptions="Center" />
-                </VerticalStackLayout>
-            </Grid>
-        </Border>
+                <Grid ColumnDefinitions="44,*">
+                    <Border
+                        WidthRequest="44"
+                        HeightRequest="44"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}"
+                        Stroke="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="22" />
+                        </Border.StrokeShape>
+                        <ImageButton
+                            Source="arrow_left.png"
+                            BackgroundColor="Transparent"
+                            Padding="12"
+                            Clicked="LoginButton_Clicked" />
+                    </Border>
 
-        <Grid Margin="0,170,0,0" HorizontalOptions="Center" VerticalOptions="Fill">
-        <ScrollView VerticalOptions="Fill">
-            <Border x:Name="RegistrationCard" Margin="1" Padding="30,15,30,30" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" VerticalOptions="Start">
-                <Border.Shadow>
-                    <Shadow Brush="Black" Opacity="0.15" Offset="0,10" Radius="15" />
-                </Border.Shadow>
-                <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-
-                <VerticalStackLayout Spacing="15">
-                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#334155}" HorizontalOptions="Center" Margin="0,0,0,10" />
-                    
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="{localization:Translate Register_FullNameLabel}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="45">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Entry x:Name="FullNameEntry" Placeholder="{localization:Translate Register_FullNamePlaceholder}" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        </Border>
+                    <VerticalStackLayout Grid.Column="1" Spacing="3" Margin="14,0,0,0" VerticalOptions="Center">
+                        <Label
+                            Text="{localization:Translate Register_Title}"
+                            Style="{StaticResource PageTitleLabel}" />
+                        <Label
+                            Text="{localization:Translate Register_Subtitle}"
+                            Style="{StaticResource MutedLabel}" />
                     </VerticalStackLayout>
+                </Grid>
 
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="{localization:Translate Register_EmailLabel}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="45">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Entry x:Name="EmailEntry" Placeholder="{localization:Translate Register_EmailPlaceholder}" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" Keyboard="Email" />
-                        </Border>
+                <Border
+                    x:Name="RegistrationCard"
+                    Style="{StaticResource AppCard}"
+                    Padding="22">
+                    <VerticalStackLayout Spacing="14">
+                        <VerticalStackLayout Spacing="7">
+                            <Label
+                                Text="{localization:Translate Register_FullNameLabel}"
+                                Style="{StaticResource SectionTitleLabel}"
+                                FontSize="14" />
+                            <Border Style="{StaticResource InputFrame}">
+                                <Entry
+                                    x:Name="FullNameEntry"
+                                    Placeholder="{localization:Translate Register_FullNamePlaceholder}"
+                                    HeightRequest="50" />
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="7">
+                            <Label
+                                Text="{localization:Translate Register_EmailLabel}"
+                                Style="{StaticResource SectionTitleLabel}"
+                                FontSize="14" />
+                            <Border Style="{StaticResource InputFrame}">
+                                <Entry
+                                    x:Name="EmailEntry"
+                                    Placeholder="{localization:Translate Register_EmailPlaceholder}"
+                                    Keyboard="Email"
+                                    HeightRequest="50" />
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="7">
+                            <Label
+                                Text="{localization:Translate Register_PasswordLabel}"
+                                Style="{StaticResource SectionTitleLabel}"
+                                FontSize="14" />
+                            <Border Style="{StaticResource InputFrame}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry
+                                        x:Name="PasswordEntry"
+                                        Placeholder="{localization:Translate Register_PasswordPlaceholder}"
+                                        IsPassword="True"
+                                        HeightRequest="50" />
+                                    <Label
+                                        x:Name="TogglePassBtn"
+                                        Grid.Column="1"
+                                        Text="{localization:Translate Login_ShowPassword}"
+                                        FontSize="13"
+                                        FontAttributes="Bold"
+                                        TextColor="{StaticResource AppPrimary}"
+                                        VerticalOptions="Center">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="TogglePass_Tapped" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="7">
+                            <Label
+                                Text="{localization:Translate Register_ConfirmPasswordLabel}"
+                                Style="{StaticResource SectionTitleLabel}"
+                                FontSize="14" />
+                            <Border Style="{StaticResource InputFrame}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry
+                                        x:Name="ConfirmPasswordEntry"
+                                        Placeholder="{localization:Translate Register_ConfirmPasswordPlaceholder}"
+                                        IsPassword="True"
+                                        HeightRequest="50" />
+                                    <Label
+                                        x:Name="ToggleConfirmBtn"
+                                        Grid.Column="1"
+                                        Text="{localization:Translate Login_ShowPassword}"
+                                        FontSize="13"
+                                        FontAttributes="Bold"
+                                        TextColor="{StaticResource AppPrimary}"
+                                        VerticalOptions="Center">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="ToggleConfirm_Tapped" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <Label
+                            x:Name="ErrorLabel"
+                            TextColor="{StaticResource AppDanger}"
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            IsVisible="False" />
+
+                        <Grid Margin="0,8,0,0">
+                            <Button
+                                x:Name="RegisterButton"
+                                Text="{localization:Translate Register_Button}"
+                                Clicked="RegisterButton_Clicked"
+                                Style="{StaticResource PrimaryButton}" />
+                            <ActivityIndicator
+                                x:Name="BusyIndicator"
+                                IsRunning="False"
+                                IsVisible="False"
+                                Color="{StaticResource AppPrimary}"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        </Grid>
+
+                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="5">
+                            <Label
+                                Text="{localization:Translate Register_AlreadyHaveAccount}"
+                                Style="{StaticResource MutedLabel}" />
+                            <Label
+                                Text="{localization:Translate Register_SignIn}"
+                                TextColor="{StaticResource AppPrimary}"
+                                FontAttributes="Bold">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="LoginButton_Tapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </HorizontalStackLayout>
                     </VerticalStackLayout>
-
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="{localization:Translate Register_PasswordLabel}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="45">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Grid ColumnDefinitions="*, auto">
-                                <Entry x:Name="PasswordEntry" Placeholder="{localization:Translate Register_PasswordPlaceholder}" IsPassword="True" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
-                                <Label x:Name="TogglePassBtn" Grid.Column="1" Text="{localization:Translate Login_ShowPassword}" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" VerticalOptions="Center">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="TogglePass_Tapped" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                            </Grid>
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="{localization:Translate Register_ConfirmPasswordLabel}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="45">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Grid ColumnDefinitions="*, auto">
-                                <Entry x:Name="ConfirmPasswordEntry" Placeholder="{localization:Translate Register_ConfirmPasswordPlaceholder}" IsPassword="True" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
-                                <Label x:Name="ToggleConfirmBtn" Grid.Column="1" Text="{localization:Translate Login_ShowPassword}" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" VerticalOptions="Center">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="ToggleConfirm_Tapped" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                            </Grid>
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <Label x:Name="ErrorLabel" TextColor="{AppThemeBinding Light=Red, Dark=#FCA5A5}" FontSize="12" HorizontalOptions="Center" IsVisible="False" />
-
-                    <Button x:Name="RegisterButton" Text="{localization:Translate Register_Button}" Clicked="RegisterButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold" Margin="0,15,0,0" />
-
-                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="5" Margin="0,10">
-                        <Label Text="{localization:Translate Register_AlreadyHaveAccount}" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" />
-                        <Label Text="{localization:Translate Register_SignIn}" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" FontAttributes="Bold">
-                            <Label.GestureRecognizers><TapGestureRecognizer Tapped="LoginButton_Tapped" /></Label.GestureRecognizers>
-                        </Label>
-                    </HorizontalStackLayout>
-                    <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="{AppThemeBinding Light=#512BD4, Dark=#A78BFA}" />
-                </VerticalStackLayout>
-            </Border>
+                </Border>
+            </VerticalStackLayout>
         </ScrollView>
-        </Grid>
     </Grid>
 </ContentPage>

@@ -31,6 +31,28 @@
     <Color x:Key="DarkMuted">#334155</Color>
     <Color x:Key="DarkTextSecondary">#9CA3AF</Color>
 
+    <Color x:Key="AppBackgroundLight">#F6F8FB</Color>
+    <Color x:Key="AppBackgroundDark">#0F172A</Color>
+    <Color x:Key="AppSurfaceLight">#FFFFFF</Color>
+    <Color x:Key="AppSurfaceDark">#111827</Color>
+    <Color x:Key="AppSurfaceAltLight">#EEF2F7</Color>
+    <Color x:Key="AppSurfaceAltDark">#1F2937</Color>
+    <Color x:Key="AppBorderLight">#E5E7EB</Color>
+    <Color x:Key="AppBorderDark">#334155</Color>
+    <Color x:Key="AppTextLight">#111827</Color>
+    <Color x:Key="AppTextDark">#F8FAFC</Color>
+    <Color x:Key="AppTextMutedLight">#64748B</Color>
+    <Color x:Key="AppTextMutedDark">#94A3B8</Color>
+    <Color x:Key="AppPrimary">#009688</Color>
+    <Color x:Key="AppPrimaryDark">#0F766E</Color>
+    <Color x:Key="AppPrimarySoftLight">#E6FFFA</Color>
+    <Color x:Key="AppPrimarySoftDark">#134E4A</Color>
+    <Color x:Key="AppBrandBlue">#4E85F2</Color>
+    <Color x:Key="AppBrandPurple">#512BD4</Color>
+    <Color x:Key="AppSuccess">#10B981</Color>
+    <Color x:Key="AppWarning">#F59E0B</Color>
+    <Color x:Key="AppDanger">#DC2626</Color>
+
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
     <SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource Secondary}" />
@@ -50,4 +72,6 @@
     <SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource DarkBackground}" />
     <SolidColorBrush x:Key="DarkSurfaceBrush" Color="{StaticResource DarkSurface}" />
     <SolidColorBrush x:Key="DarkSurfaceAltBrush" Color="{StaticResource DarkSurfaceAlt}" />
+    <SolidColorBrush x:Key="AppPrimaryBrush" Color="{StaticResource AppPrimary}" />
+    <SolidColorBrush x:Key="AppBrandPurpleBrush" Color="{StaticResource AppBrandPurple}" />
 </ResourceDictionary>

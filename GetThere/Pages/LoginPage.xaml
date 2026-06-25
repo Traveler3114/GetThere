@@ -1,134 +1,183 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:components="clr-namespace:GetThere.Components"
-             xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
-             xmlns:localization="clr-namespace:GetThere.Localization"
-             x:Class="GetThere.Pages.LoginPage"
-             Title="{localization:Translate Login_Title}"
-              BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
-             Shell.NavBarIsVisible="False">
+<ContentPage
+    x:Class="GetThere.Pages.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    Title="{localization:Translate Login_Title}"
+    Shell.NavBarIsVisible="False">
 
     <Grid>
         <components:AnimatedBackground />
-        <!--  ── HERO AREA (Fixed 320px height) ──  -->
-        <Border VerticalOptions="Start" HeightRequest="320" StrokeThickness="0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                    <GradientStop Offset="0" Color="#4E85F2" />
-                    <GradientStop Offset="1" Color="#512BD4" />
-                </LinearGradientBrush>
-            </Border.Background>
-            <Border.Shadow>
-                <Shadow Brush="Black" Opacity="0.3" Offset="0,5" Radius="10" />
-            </Border.Shadow>
 
-            <VerticalStackLayout Spacing="15" VerticalOptions="Start" Margin="0,30,0,0">
-                <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
-                    <Border WidthRequest="18" HeightRequest="18" BackgroundColor="#10B981" StrokeThickness="0">
-                        <Border.StrokeShape><RoundRectangle CornerRadius="9"/></Border.StrokeShape>
+        <ScrollView Padding="24,38,24,28">
+            <VerticalStackLayout
+                Spacing="24"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="460">
+
+                <VerticalStackLayout Spacing="14" HorizontalOptions="Center">
+                    <Border
+                        WidthRequest="112"
+                        HeightRequest="112"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}"
+                        Stroke="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}"
+                        StrokeThickness="1">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="30" />
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.10" Radius="16" Offset="0,8" />
+                        </Border.Shadow>
+                        <Image
+                            x:Name="LogoImage"
+                            Source="logo.svg"
+                            Margin="16"
+                            Aspect="AspectFit" />
                     </Border>
-                    <Label Text="GetThere" FontSize="22" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
-                </HorizontalStackLayout>
-                
-                <Border WidthRequest="160" HeightRequest="160" BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark=#2C167A}" HorizontalOptions="Center" StrokeThickness="0" Opacity="1">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="80" /></Border.StrokeShape>
-                    <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.2" Offset="3,3" Radius="10" />
-                    </Border.Shadow>
-                    <Image x:Name="LogoImage" Source="logo.svg" Margin="10" Aspect="AspectFit" Opacity="1" />
-                </Border>
-            </VerticalStackLayout>
-        </Border>
 
-        <Grid Margin="0,260,0,0" HorizontalOptions="Center" VerticalOptions="Fill">
-        <ScrollView VerticalOptions="Fill">
-            <Border x:Name="LoginCard" Margin="1" Padding="30,15,30,30" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" VerticalOptions="Start">
-                <Border.Shadow>
-                    <Shadow Brush="Black" Opacity="0.15" Offset="0,10" Radius="15" />
-                </Border.Shadow>
-                <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-
-                <VerticalStackLayout Spacing="16">
-                    <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#334155}" HorizontalOptions="Center" Margin="0,0,0,15" />
-
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="{localization:Translate Login_EmailLabel}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="50">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Entry x:Name="EmailEntry" Placeholder="{localization:Translate Login_EmailPlaceholder}" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" Keyboard="Email" HeightRequest="50" VerticalOptions="Center" />
-                        </Border>
+                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                        <Label
+                            Text="GetThere"
+                            FontSize="30"
+                            FontAttributes="Bold"
+                            HorizontalTextAlignment="Center"
+                            TextColor="{AppThemeBinding Light={StaticResource AppTextLight}, Dark={StaticResource AppTextDark}}" />
+                        <Label
+                            Text="One account for transit, tickets and mobility"
+                            Style="{StaticResource MutedLabel}"
+                            HorizontalTextAlignment="Center" />
                     </VerticalStackLayout>
+                </VerticalStackLayout>
 
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="{localization:Translate Login_PasswordLabel}" FontAttributes="Bold" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1" Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}" HeightRequest="50">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                            <Grid ColumnDefinitions="*, auto">
-                                <Entry x:Name="PasswordEntry" Placeholder="{localization:Translate Login_PasswordPlaceholder}" IsPassword="True" PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" TextColor="{AppThemeBinding Light=Black, Dark=White}" HeightRequest="50" VerticalOptions="Center" />
-                                <Label x:Name="TogglePasswordBtn" Grid.Column="1" Text="{localization:Translate Login_ShowPassword}" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" VerticalOptions="Center">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                            </Grid>
-                        </Border>
-                    </VerticalStackLayout>
+                <Border
+                    x:Name="LoginCard"
+                    Style="{StaticResource AppCard}"
+                    Padding="22">
+                    <VerticalStackLayout Spacing="16">
+                        <VerticalStackLayout Spacing="7">
+                            <Label
+                                Text="{localization:Translate Login_EmailLabel}"
+                                Style="{StaticResource SectionTitleLabel}"
+                                FontSize="14" />
+                            <Border Style="{StaticResource InputFrame}">
+                                <Entry
+                                    x:Name="EmailEntry"
+                                    Placeholder="{localization:Translate Login_EmailPlaceholder}"
+                                    Keyboard="Email"
+                                    HeightRequest="50" />
+                            </Border>
+                        </VerticalStackLayout>
 
-                        <Label x:Name="ErrorLabel" TextColor="{AppThemeBinding Light=Red, Dark=#FCA5A5}" FontSize="12" HorizontalOptions="Center" IsVisible="False" />
-                    
-                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center" Padding="0,5">
-                                <CheckBox x:Name="RememberMeCheckbox" Color="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" IsChecked="False" VerticalOptions="Center" />
-                                <Label Text="{localization:Translate Login_RememberMe}" FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="RememberMeLabel_Tapped"/>
-                                    </Label.GestureRecognizers>
-                                </Label>
+                        <VerticalStackLayout Spacing="7">
+                            <Label
+                                Text="{localization:Translate Login_PasswordLabel}"
+                                Style="{StaticResource SectionTitleLabel}"
+                                FontSize="14" />
+                            <Border Style="{StaticResource InputFrame}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry
+                                        x:Name="PasswordEntry"
+                                        Placeholder="{localization:Translate Login_PasswordPlaceholder}"
+                                        IsPassword="True"
+                                        HeightRequest="50"
+                                        VerticalOptions="Center" />
+                                    <Label
+                                        x:Name="TogglePasswordBtn"
+                                        Grid.Column="1"
+                                        Text="{localization:Translate Login_ShowPassword}"
+                                        FontSize="13"
+                                        FontAttributes="Bold"
+                                        TextColor="{StaticResource AppPrimary}"
+                                        VerticalOptions="Center">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="TogglePassword_Clicked" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <Label
+                            x:Name="ErrorLabel"
+                            TextColor="{StaticResource AppDanger}"
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            IsVisible="False" />
+
+                        <HorizontalStackLayout Spacing="8" Padding="0,2">
+                            <CheckBox
+                                x:Name="RememberMeCheckbox"
+                                Color="{StaticResource AppPrimary}"
+                                IsChecked="False"
+                                VerticalOptions="Center" />
+                            <Label
+                                Text="{localization:Translate Login_RememberMe}"
+                                Style="{StaticResource MutedLabel}"
+                                VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="RememberMeLabel_Tapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
                         </HorizontalStackLayout>
 
-                        <Grid Margin="0,20,0,0">
-                        <Button x:Name="LoginButton" Text="{localization:Translate Login_Button}" Clicked="LoginButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold">
-                            <Button.Shadow>
-                                <Shadow Brush="Black" Opacity="0.25" Offset="4,4" Radius="4" />
-                            </Button.Shadow>
-                        </Button>
+                        <Grid Margin="0,6,0,0">
+                            <Button
+                                x:Name="LoginButton"
+                                Text="{localization:Translate Login_Button}"
+                                Clicked="LoginButton_Clicked"
+                                Style="{StaticResource PrimaryButton}" />
 
-                        <Border x:Name="LoadingState" IsVisible="False" HeightRequest="52" BackgroundColor="{AppThemeBinding Light=#E0F2F1, Dark=#134E4A}" StrokeThickness="0">
-                            <Border.StrokeShape><RoundRectangle CornerRadius="26" /></Border.StrokeShape>
-                            <Grid IsClippedToBounds="True">
-                                <Label x:Name="LoadingDotsLabel" Text="{localization:Translate Login_SigningIn}" FontSize="16" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
-                                <BoxView x:Name="ShimmerBox" WidthRequest="60" HorizontalOptions="Start" TranslationX="-60">
-                                    <BoxView.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="Transparent" Offset="0" />
-                                            <GradientStop Color="#80FFFFFF" Offset="0.5" />
-                                            <GradientStop Color="Transparent" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </BoxView.Background>
-                                </BoxView>
-                            </Grid>
-                        </Border>
-                    </Grid>
+                            <Border
+                                x:Name="LoadingState"
+                                IsVisible="False"
+                                HeightRequest="52"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource AppPrimarySoftLight}, Dark={StaticResource AppPrimarySoftDark}}"
+                                StrokeThickness="0">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="18" />
+                                </Border.StrokeShape>
+                                <Grid IsClippedToBounds="True">
+                                    <Label
+                                        x:Name="LoadingDotsLabel"
+                                        Text="{localization:Translate Login_SigningIn}"
+                                        FontSize="16"
+                                        TextColor="{AppThemeBinding Light={StaticResource AppPrimaryDark}, Dark=#5EEAD4}"
+                                        FontAttributes="Bold"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center" />
+                                    <BoxView
+                                        x:Name="ShimmerBox"
+                                        WidthRequest="60"
+                                        HorizontalOptions="Start"
+                                        TranslationX="-60">
+                                        <BoxView.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="Transparent" Offset="0" />
+                                                <GradientStop Color="#80FFFFFF" Offset="0.5" />
+                                                <GradientStop Color="Transparent" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </BoxView.Background>
+                                    </BoxView>
+                                </Grid>
+                            </Border>
+                        </Grid>
 
-                    <Label Text="{localization:Translate Login_CreateAccount}" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" FontAttributes="Bold" HorizontalOptions="Center" Margin="0,5">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="RegisterButton_Clicked" /></Label.GestureRecognizers>
-                    </Label>
-
-                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="20" Margin="0,15,0,0">
-                        <Border WidthRequest="44" HeightRequest="44" Stroke="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}">
-                             <Border.StrokeShape><RoundRectangle CornerRadius="22"/></Border.StrokeShape>
-                             <Label Text="G" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" TextColor="#4285F4" FontSize="18" />
-                        </Border>
-                        <Border WidthRequest="44" HeightRequest="44" Stroke="{AppThemeBinding Light=#1F2937, Dark=#475569}" BackgroundColor="{AppThemeBinding Light=#1F2937, Dark=#475569}">
-                             <Border.StrokeShape><RoundRectangle CornerRadius="22"/></Border.StrokeShape>
-                             <Label Text="Ap" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" TextColor="White" FontSize="16" />
-                        </Border>
-                    </HorizontalStackLayout>
-                    <!-- Loading state moved to the button's position -->
-                </VerticalStackLayout>
-            </Border>
+                        <Label
+                            Text="{localization:Translate Login_CreateAccount}"
+                            TextColor="{StaticResource AppPrimary}"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center"
+                            Margin="0,2,0,0">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="RegisterButton_Clicked" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
         </ScrollView>
-        </Grid>
     </Grid>
 </ContentPage>
