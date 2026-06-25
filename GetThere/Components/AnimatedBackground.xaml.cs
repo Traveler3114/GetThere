@@ -125,8 +125,8 @@ public partial class AnimatedBackground : ContentView
 
         var isDarkTheme = Application.Current?.RequestedTheme == AppTheme.Dark;
 
-        var blueAlpha = isDarkTheme ? 0.42f : 0.45f;
-        var purpleAlpha = isDarkTheme ? 0.40f : 0.45f;
+        var blueAlpha = isDarkTheme ? 0.24f : 0.45f;
+        var purpleAlpha = isDarkTheme ? 0.22f : 0.45f;
 
         var blueRadius = isDarkTheme ? 800f : 750f;
         var purpleRadius = isDarkTheme ? 800f : 750f;
@@ -147,8 +147,8 @@ public partial class AnimatedBackground : ContentView
                 blueRadius,
                 new SKColor[] 
                 {
-                    new SKColor(74, 132, 255, (byte)(255 * blueAlpha)),
-                    isDarkTheme ? new SKColor(74, 132, 255, (byte)(255 * (blueAlpha * 0.22f))) : SKColors.Transparent,
+                    isDarkTheme ? new SKColor(56, 72, 120, (byte)(255 * blueAlpha)) : new SKColor(74, 132, 255, (byte)(255 * blueAlpha)),
+                    isDarkTheme ? new SKColor(56, 72, 120, (byte)(255 * (blueAlpha * 0.18f))) : SKColors.Transparent,
                     SKColors.Transparent
                 },
                 null,
@@ -161,8 +161,8 @@ public partial class AnimatedBackground : ContentView
                 purpleRadius,
                 new SKColor[] 
                 {
-                    new SKColor(123, 63, 255, (byte)(255 * purpleAlpha)),
-                    isDarkTheme ? new SKColor(123, 63, 255, (byte)(255 * (purpleAlpha * 0.22f))) : SKColors.Transparent,
+                    isDarkTheme ? new SKColor(77, 62, 124, (byte)(255 * purpleAlpha)) : new SKColor(123, 63, 255, (byte)(255 * purpleAlpha)),
+                    isDarkTheme ? new SKColor(77, 62, 124, (byte)(255 * (purpleAlpha * 0.18f))) : SKColors.Transparent,
                     SKColors.Transparent
                 },
                 null,

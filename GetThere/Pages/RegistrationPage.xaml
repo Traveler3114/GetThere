@@ -11,11 +11,11 @@
     <Grid>
         <components:AnimatedBackground />
 
-        <ScrollView Padding="24,34,24,28">
+        <ScrollView Padding="16,32,16,28">
             <VerticalStackLayout
                 Spacing="18"
                 HorizontalOptions="Center"
-                MaximumWidthRequest="460">
+                MaximumWidthRequest="520">
 
                 <Grid ColumnDefinitions="44,*">
                     <Border
@@ -46,8 +46,8 @@
                 <Border
                     x:Name="RegistrationCard"
                     Style="{StaticResource AppCard}"
-                    Padding="22">
-                    <VerticalStackLayout Spacing="14">
+                    Padding="20">
+                    <VerticalStackLayout Spacing="13">
                         <VerticalStackLayout Spacing="7">
                             <Label
                                 Text="{localization:Translate Register_FullNameLabel}"
@@ -57,7 +57,7 @@
                                 <Entry
                                     x:Name="FullNameEntry"
                                     Placeholder="{localization:Translate Register_FullNamePlaceholder}"
-                                    HeightRequest="50" />
+                                    HeightRequest="48" />
                             </Border>
                         </VerticalStackLayout>
 
@@ -71,7 +71,7 @@
                                     x:Name="EmailEntry"
                                     Placeholder="{localization:Translate Register_EmailPlaceholder}"
                                     Keyboard="Email"
-                                    HeightRequest="50" />
+                                    HeightRequest="48" />
                             </Border>
                         </VerticalStackLayout>
 
@@ -86,7 +86,7 @@
                                         x:Name="PasswordEntry"
                                         Placeholder="{localization:Translate Register_PasswordPlaceholder}"
                                         IsPassword="True"
-                                        HeightRequest="50" />
+                                        HeightRequest="48" />
                                     <Label
                                         x:Name="TogglePassBtn"
                                         Grid.Column="1"
@@ -114,7 +114,7 @@
                                         x:Name="ConfirmPasswordEntry"
                                         Placeholder="{localization:Translate Register_ConfirmPasswordPlaceholder}"
                                         IsPassword="True"
-                                        HeightRequest="50" />
+                                        HeightRequest="48" />
                                     <Label
                                         x:Name="ToggleConfirmBtn"
                                         Grid.Column="1"

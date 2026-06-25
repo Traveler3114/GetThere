@@ -11,21 +11,21 @@
     <Grid>
         <components:AnimatedBackground />
 
-        <ScrollView Padding="24,38,24,28">
+        <ScrollView Padding="16,34,16,28">
             <VerticalStackLayout
-                Spacing="24"
+                Spacing="22"
                 HorizontalOptions="Center"
-                MaximumWidthRequest="460">
+                MaximumWidthRequest="520">
 
-                <VerticalStackLayout Spacing="14" HorizontalOptions="Center">
+                <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
                     <Border
-                        WidthRequest="112"
-                        HeightRequest="112"
+                        WidthRequest="96"
+                        HeightRequest="96"
                         BackgroundColor="{AppThemeBinding Light={StaticResource AppSurfaceLight}, Dark={StaticResource AppSurfaceDark}}"
                         Stroke="{AppThemeBinding Light={StaticResource AppBorderLight}, Dark={StaticResource AppBorderDark}}"
                         StrokeThickness="1">
                         <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="30" />
+                            <RoundRectangle CornerRadius="26" />
                         </Border.StrokeShape>
                         <Border.Shadow>
                             <Shadow Brush="Black" Opacity="0.10" Radius="16" Offset="0,8" />
@@ -33,14 +33,14 @@
                         <Image
                             x:Name="LogoImage"
                             Source="logo.svg"
-                            Margin="16"
+                            Margin="14"
                             Aspect="AspectFit" />
                     </Border>
 
                     <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
                         <Label
                             Text="GetThere"
-                            FontSize="30"
+                            FontSize="29"
                             FontAttributes="Bold"
                             HorizontalTextAlignment="Center"
                             TextColor="{AppThemeBinding Light={StaticResource AppTextLight}, Dark={StaticResource AppTextDark}}" />
@@ -54,8 +54,8 @@
                 <Border
                     x:Name="LoginCard"
                     Style="{StaticResource AppCard}"
-                    Padding="22">
-                    <VerticalStackLayout Spacing="16">
+                    Padding="20">
+                    <VerticalStackLayout Spacing="15">
                         <VerticalStackLayout Spacing="7">
                             <Label
                                 Text="{localization:Translate Login_EmailLabel}"
@@ -66,7 +66,7 @@
                                     x:Name="EmailEntry"
                                     Placeholder="{localization:Translate Login_EmailPlaceholder}"
                                     Keyboard="Email"
-                                    HeightRequest="50" />
+                                    HeightRequest="48" />
                             </Border>
                         </VerticalStackLayout>
 
@@ -81,7 +81,7 @@
                                         x:Name="PasswordEntry"
                                         Placeholder="{localization:Translate Login_PasswordPlaceholder}"
                                         IsPassword="True"
-                                        HeightRequest="50"
+                                        HeightRequest="48"
                                         VerticalOptions="Center" />
                                     <Label
                                         x:Name="TogglePasswordBtn"
@@ -107,7 +107,7 @@
                             HorizontalTextAlignment="Center"
                             IsVisible="False" />
 
-                        <HorizontalStackLayout Spacing="8" Padding="0,2">
+                        <HorizontalStackLayout Spacing="10" Padding="2,0">
                             <CheckBox
                                 x:Name="RememberMeCheckbox"
                                 Color="{StaticResource AppPrimary}"
@@ -123,7 +123,7 @@
                             </Label>
                         </HorizontalStackLayout>
 
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="0,5,0,0">
                             <Button
                                 x:Name="LoginButton"
                                 Text="{localization:Translate Login_Button}"

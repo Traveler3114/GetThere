@@ -32,13 +32,13 @@
     <Color x:Key="DarkTextSecondary">#9CA3AF</Color>
 
     <Color x:Key="AppBackgroundLight">#F6F8FB</Color>
-    <Color x:Key="AppBackgroundDark">#0F172A</Color>
+    <Color x:Key="AppBackgroundDark">#090A0F</Color>
     <Color x:Key="AppSurfaceLight">#FFFFFF</Color>
-    <Color x:Key="AppSurfaceDark">#111827</Color>
+    <Color x:Key="AppSurfaceDark">#12131B</Color>
     <Color x:Key="AppSurfaceAltLight">#EEF2F7</Color>
-    <Color x:Key="AppSurfaceAltDark">#1F2937</Color>
+    <Color x:Key="AppSurfaceAltDark">#1C1D27</Color>
     <Color x:Key="AppBorderLight">#E5E7EB</Color>
-    <Color x:Key="AppBorderDark">#334155</Color>
+    <Color x:Key="AppBorderDark">#303241</Color>
     <Color x:Key="AppTextLight">#111827</Color>
     <Color x:Key="AppTextDark">#F8FAFC</Color>
     <Color x:Key="AppTextMutedLight">#64748B</Color>
@@ -46,7 +46,7 @@
     <Color x:Key="AppPrimary">#009688</Color>
     <Color x:Key="AppPrimaryDark">#0F766E</Color>
     <Color x:Key="AppPrimarySoftLight">#E6FFFA</Color>
-    <Color x:Key="AppPrimarySoftDark">#134E4A</Color>
+    <Color x:Key="AppPrimarySoftDark">#151C1E</Color>
     <Color x:Key="AppBrandBlue">#4E85F2</Color>
     <Color x:Key="AppBrandPurple">#512BD4</Color>
     <Color x:Key="AppSuccess">#10B981</Color>
