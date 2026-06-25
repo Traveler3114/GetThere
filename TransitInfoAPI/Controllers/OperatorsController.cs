@@ -34,7 +34,6 @@ public class OperatorsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult> GetAll(
-        [FromQuery] int? countryId = null,
         [FromQuery] string? q = null,
         [FromQuery] string? format = null,
         [FromQuery] int page = 1,
@@ -43,12 +42,7 @@ public class OperatorsController : ControllerBase
     {
         if (format == "geojson")
         {
-            var query = _db.Operators.AsQueryable();
-
-            if (countryId.HasValue)
-                query = query.Where(o => o.CountryId == countryId.Value);
-
-            var operators = await query.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage)
+            var operators = await _db.Operators.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage)
                 .Select(o => new
                 {
                     Operator = o,
@@ -81,8 +75,8 @@ public class OperatorsController : ControllerBase
             return Ok(fc);
         }
 
-        var result = await _operatorService.GetAllAsync(countryId, q, page, perPage, ct);
-        var total = await _operatorService.GetTotalCountAsync(countryId, q, ct);
+        var result = await _operatorService.GetAllAsync(q, page, perPage, ct);
+        var total = await _operatorService.GetTotalCountAsync(q, ct);
         return Ok(new Paginated<OperatorResponse>(result, total, page, perPage));
     }
 
@@ -90,7 +84,6 @@ public class OperatorsController : ControllerBase
     public async Task<ActionResult<OperatorResponse>> GetById(int id, CancellationToken ct = default)
     {
         var op = await _db.Operators
-            .Include(o => o.Country)
             .Where(o => o.Id == id)
             .Select(OperatorMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
@@ -103,7 +96,6 @@ public class OperatorsController : ControllerBase
     public async Task<ActionResult<OperatorResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var op = await _db.Operators
-            .Include(o => o.Country)
             .Where(o => o.OnestopId == onestopId)
             .Select(OperatorMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
@@ -242,19 +234,15 @@ public class OperatorsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ShortName))
             return Problem(statusCode: 400, title: "Short name is required.");
 
-        var country = await _db.Countries.FindAsync(new object[] { request.CountryId }, ct);
-        if (country is null)
-            return Problem(statusCode: 400, title: "Country not found.");
-
         var globalId = request.GlobalId;
         if (string.IsNullOrWhiteSpace(globalId))
-            globalId = $"gt-{country.IsoCode.ToLowerInvariant()}-{request.ShortName.ToLowerInvariant()}";
+            globalId = $"gt-{request.ShortName.ToLowerInvariant()}";
 
         var exists = await _db.Operators.AnyAsync(o => o.GlobalId == globalId, ct);
         if (exists)
             return Problem(statusCode: 409, title: $"Operator with GlobalId '{globalId}' already exists.");
 
-        var onestopId = _onestopIdService.GenerateOperatorOnestopId(country.IsoCode, request.ShortName);
+        var onestopId = _onestopIdService.GenerateOperatorOnestopId(request.ShortName);
         var onestopExists = await _db.Operators.AnyAsync(o => o.OnestopId == onestopId, ct);
         if (onestopExists)
             return Problem(statusCode: 409, title: $"Operator with OnestopId '{onestopId}' already exists.");
@@ -266,7 +254,6 @@ public class OperatorsController : ControllerBase
             Name = request.Name,
             ShortName = request.ShortName,
             Website = request.Website,
-            CountryId = request.CountryId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -288,17 +275,9 @@ public class OperatorsController : ControllerBase
     [HttpPut("{globalId}")]
     public async Task<ActionResult<OperatorResponse>> Update(string globalId, [FromBody] UpdateOperatorRequest request, CancellationToken ct = default)
     {
-        var op = await _db.Operators.Include(o => o.Country).FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
+        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
         if (op is null)
             return NotFound();
-
-        if (request.CountryId.HasValue)
-        {
-            var country = await _db.Countries.FindAsync(new object[] { request.CountryId.Value }, ct);
-            if (country is null)
-                return Problem(statusCode: 400, title: "Country not found.");
-            op.CountryId = request.CountryId.Value;
-        }
 
         if (request.Name is not null)
         {

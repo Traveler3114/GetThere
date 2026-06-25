@@ -97,7 +97,7 @@ public class StationsController : ControllerBase
         [FromQuery] string? countryName = null,
         [FromQuery] string? stationType = null,
         [FromQuery] int page = 1,
-        [FromQuery, Range(1, 500)] int perPage = 50,
+        [FromQuery, Range(1, 10000)] int perPage = 50,
         CancellationToken ct = default)
     {
         var result = await _stationService.SearchAsync(q, routeType, countryId, countryName, stationType, page, perPage, ct);

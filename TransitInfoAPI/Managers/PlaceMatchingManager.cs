@@ -10,21 +10,25 @@ public class PlaceMatchingOptions
 {
     public int MaxDistanceMeters { get; set; } = 50000;
     public int CooldownHours { get; set; } = 0;
+    public int DefaultCountryId { get; set; } = 1;
 }
 
 public class PlaceMatchingManager
 {
     private readonly TransitDbContext _db;
     private readonly ILogger<PlaceMatchingManager> _logger;
+    private readonly IOptions<PlaceMatchingOptions> _options;
     private readonly int _maxDistanceMeters;
     private readonly int _cooldownHours;
     private List<Place>? _placeCache;
+    private readonly Dictionary<string, int> _countryIdCache = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastMatchRun = DateTime.MinValue;
 
     public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
     {
         _db = db;
         _logger = logger;
+        _options = options;
         _maxDistanceMeters = options.Value.MaxDistanceMeters;
         _cooldownHours = options.Value.CooldownHours;
     }
@@ -88,6 +92,7 @@ public class PlaceMatchingManager
                 station.PlaceId = place.Id;
                 station.AdmCountryCode = place.AdmCountryCode;
                 station.AdmRegionCode = place.AdmRegionCode;
+                station.CountryId = await DeriveCountryIdAsync(station.Latitude, station.Longitude, ct);
                 matched++;
             }
         }
@@ -110,6 +115,7 @@ public class PlaceMatchingManager
             station.PlaceId = place.Id;
             station.AdmCountryCode = place.AdmCountryCode;
             station.AdmRegionCode = place.AdmRegionCode;
+            station.CountryId = await DeriveCountryIdAsync(station.Latitude, station.Longitude, ct);
         }
         else
         {
@@ -122,4 +128,34 @@ public class PlaceMatchingManager
         _logger.LogInformation("Re-matched station {StationId} to place {PlaceId}", stationId, station.PlaceId?.ToString() ?? "null");
     }
 
+    public async Task<int> DeriveCountryIdAsync(double lat, double lon, CancellationToken ct)
+    {
+        if (_placeCache is null)
+            await LoadPlacesAsync(ct);
+        var place = FindNearestPlace(lat, lon);
+        if (place is not null && !string.IsNullOrEmpty(place.AdmCountryCode))
+        {
+            if (_countryIdCache.TryGetValue(place.AdmCountryCode, out var cachedId))
+                return cachedId;
+            var country = await _db.Countries.FirstOrDefaultAsync(c => c.IsoCode == place.AdmCountryCode, ct);
+            if (country is not null)
+            {
+                _countryIdCache[place.AdmCountryCode] = country.Id;
+                return country.Id;
+            }
+        }
+        var iso = GeoCountryDetector.DetectCountryIso(lat, lon);
+        if (iso is not null)
+        {
+            if (_countryIdCache.TryGetValue(iso, out var cachedId))
+                return cachedId;
+            var country = await _db.Countries.FirstOrDefaultAsync(c => c.IsoCode == iso, ct);
+            if (country is not null)
+            {
+                _countryIdCache[iso] = country.Id;
+                return country.Id;
+            }
+        }
+        return _options.Value.DefaultCountryId;
+    }
 }

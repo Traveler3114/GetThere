@@ -195,7 +195,6 @@ public class ReconciliationController : ControllerBase
         var candidates = await _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .ThenInclude(f => f.Operator)
-            .ThenInclude(o => o.Country)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
             .Where(rc => rc.SuggestedCanonicalStationId == stationId)
@@ -217,7 +216,6 @@ public class ReconciliationController : ControllerBase
         var candidate = await _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .ThenInclude(f => f.Operator)
-            .ThenInclude(o => o.Country)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
             .FirstOrDefaultAsync(rc => rc.Id == id, ct);

@@ -36,7 +36,8 @@ async function loadCountries() {
   try {
     const r = await fetch(BASE + '/countries');
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
-    allCountries = await r.json() || [];
+    const j = await r.json();
+    allCountries = j.data || [];
     paginatedItems = allCountries;
     showPage(1);
     document.getElementById('loading').classList.add('d-none');

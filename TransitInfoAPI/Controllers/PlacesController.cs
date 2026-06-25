@@ -66,7 +66,6 @@ public class PlacesController : ControllerBase
             .ToListAsync(ct);
         var operators = await _db.Operators
             .Where(o => operatorIds.Contains(o.Id))
-            .Include(o => o.Country)
             .Select(OperatorMapper.ToResponseExpression)
             .ToListAsync(ct);
 

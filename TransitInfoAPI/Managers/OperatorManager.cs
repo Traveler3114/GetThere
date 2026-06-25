@@ -15,24 +15,20 @@ public class OperatorManager
         _db = db;
     }
 
-    public async Task<List<OperatorResponse>> GetAllAsync(int? countryId, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<OperatorResponse>> GetAllAsync(string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
-        var query = _db.Operators.Include(o => o.Country).AsQueryable();
+        var query = _db.Operators.AsQueryable();
 
-        if (countryId.HasValue)
-            query = query.Where(o => o.CountryId == countryId.Value);
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(o => o.Name.Contains(q) || o.ShortName.Contains(q));
 
         return await query.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage).Select(OperatorMapper.ToResponseExpression).ToListAsync(ct);
     }
 
-    public async Task<int> GetTotalCountAsync(int? countryId, string? q, CancellationToken ct = default)
+    public async Task<int> GetTotalCountAsync(string? q, CancellationToken ct = default)
     {
         var query = _db.Operators.AsQueryable();
 
-        if (countryId.HasValue)
-            query = query.Where(o => o.CountryId == countryId.Value);
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(o => o.Name.Contains(q) || o.ShortName.Contains(q));
 
@@ -42,7 +38,6 @@ public class OperatorManager
     public async Task<OperatorResponse?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
     {
         return await _db.Operators
-            .Include(o => o.Country)
             .Where(o => o.GlobalId == globalId)
             .Select(OperatorMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);

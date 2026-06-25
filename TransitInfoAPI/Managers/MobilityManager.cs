@@ -14,13 +14,15 @@ public class MobilityManager
     private readonly TransitDbContext _db;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<MobilityManager> _logger;
+    private readonly PlaceMatchingManager _placeMatching;
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _providerLocks = new();
 
-    public MobilityManager(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityManager> logger)
+    public MobilityManager(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching)
     {
         _db = db;
         _httpFactory = httpFactory;
         _logger = logger;
+        _placeMatching = placeMatching;
     }
 
     public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
@@ -116,7 +118,7 @@ public class MobilityManager
                             Longitude = place.Lng,
                             Capacity = place.BikeRacks,
                             AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes,
-                            CountryId = provider.Operator.CountryId,
+                            CountryId = await _placeMatching.DeriveCountryIdAsync(place.Lat, place.Lng, ct),
                             LastUpdated = DateTime.UtcNow
                         });
                     }

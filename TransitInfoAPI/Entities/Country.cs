@@ -8,7 +8,6 @@ public class Country
     public string Continent { get; set; } = string.Empty;
 
     public ICollection<City> Cities { get; set; } = [];
-    public ICollection<Operator> Operators { get; set; } = [];
     public ICollection<CanonicalStation> CanonicalStations { get; set; } = [];
     public ICollection<MobilityStation> MobilityStations { get; set; } = [];
 }

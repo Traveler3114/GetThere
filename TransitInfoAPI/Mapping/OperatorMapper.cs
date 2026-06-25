@@ -15,8 +15,7 @@ public static class OperatorMapper
             OnestopId = op.OnestopId,
             Name = op.Name,
             ShortName = op.ShortName,
-            Website = op.Website,
-            CountryName = op.Country != null ? op.Country.Name : null
+            Website = op.Website
         };
 
     public static OperatorResponse ToResponse(Operator op) => new()
@@ -26,8 +25,7 @@ public static class OperatorMapper
         OnestopId = op.OnestopId,
         Name = op.Name,
         ShortName = op.ShortName,
-        Website = op.Website,
-        CountryName = op.Country?.Name
+        Website = op.Website
     };
 
     public static OperatorBriefResponse ToBriefResponse(Operator op) => new()

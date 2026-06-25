@@ -168,7 +168,6 @@ public static class ReconciliationMapper
             AutoMergeDistanceMeters = autoDistThreshold,
             ManualReviewNameThreshold = manualNameThreshold,
             ManualReviewDistanceMeters = manualDistThreshold,
-            RawStopCountry = candidate.Feed?.Operator?.Country?.Name,
             RawStopDetail = rawDetail,
             SuggestedStationDetail = suggestedDetail,
             AutoMergeVerdict = verdict

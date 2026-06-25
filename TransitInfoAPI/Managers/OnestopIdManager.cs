@@ -108,10 +108,10 @@ public class OnestopIdManager
         return $"s-{geohash}-{slug}~{rtSuffix}";
     }
 
-    public string GenerateOperatorOnestopId(string isoCode, string name)
+    public string GenerateOperatorOnestopId(string name)
     {
         var slug = ToNameSlug(name);
-        return $"o-{isoCode.ToLowerInvariant()}-{slug}";
+        return $"o-{slug}";
     }
 
     public string GenerateFeedOnestopId(double lat, double lon, string feedId)

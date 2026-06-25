@@ -15,9 +15,6 @@ public class Operator
     public string? Tags { get; set; }
     public string? AssociatedFeeds { get; set; }
 
-    public int CountryId { get; set; }
-    public Country Country { get; set; } = null!;
-
     public ICollection<Feed> Feeds { get; set; } = [];
     public ICollection<Agency> Agencies { get; set; } = [];
     public ICollection<CanonicalRoute> Routes { get; set; } = [];

@@ -23,17 +23,20 @@ public class ReconciliationManager
     private readonly TransitDbContext _db;
     private readonly ILogger<ReconciliationManager> _logger;
     private readonly OnestopIdManager _onestopId;
+    private readonly PlaceMatchingManager _placeMatching;
     private readonly IConfiguration _config;
 
     public ReconciliationManager(
         TransitDbContext db,
         ILogger<ReconciliationManager> logger,
         OnestopIdManager onestopId,
+        PlaceMatchingManager placeMatching,
         IConfiguration config)
     {
         _db = db;
         _logger = logger;
         _onestopId = onestopId;
+        _placeMatching = placeMatching;
         _config = config;
     }
 
@@ -47,7 +50,6 @@ public class ReconciliationManager
 
         var feedVersion = await _db.FeedVersions
             .Include(fv => fv.Feed)
-            .ThenInclude(f => f.Operator)
             .FirstAsync(fv => fv.Id == feedVersionId, ct);
 
         var minLat = rawStops.Min(r => r.Lat);
@@ -139,7 +141,7 @@ public class ReconciliationManager
                 StationType = rawStop.StationType,
                 PrimaryRouteType = rawStop.RouteType.Value,
                 IsActive = true,
-                CountryId = feedVersion.Feed.Operator.CountryId,
+                CountryId = await _placeMatching.DeriveCountryIdAsync(rawStop.Lat, rawStop.Lon, ct),
                 CreatedAt = DateTime.UtcNow,
                 Geometry = new Point(rawStop.Lon, rawStop.Lat) { SRID = 4326 }
             };
@@ -376,7 +378,7 @@ public class ReconciliationManager
         return lookup;
     }
 
-    public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, int countryId, CancellationToken ct)
+    public async Task<CanonicalStation> CreateCanonicalStationAsync(RawStop rawStop, CancellationToken ct)
     {
         var routeType = rawStop.RouteType ?? RouteType.Bus;
         var onestopId = _onestopId.GenerateStopOnestopId(rawStop.Lat, rawStop.Lon, rawStop.Name, routeType);
@@ -391,7 +393,7 @@ public class ReconciliationManager
             StationType = rawStop.StationType,
             PrimaryRouteType = routeType,
             IsActive = true,
-            CountryId = countryId,
+            CountryId = await _placeMatching.DeriveCountryIdAsync(rawStop.Lat, rawStop.Lon, ct),
             CreatedAt = DateTime.UtcNow,
             Geometry = new Point(rawStop.Lon, rawStop.Lat) { SRID = 4326 }
         };
@@ -464,7 +466,6 @@ public class ReconciliationManager
 
         var candidate = await _db.ReconciliationCandidates
             .Include(c => c.Feed)
-            .ThenInclude(c => c.Operator)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
         if (candidate is null)
             throw new AppException("Candidate not found", 404);
@@ -474,7 +475,7 @@ public class ReconciliationManager
             var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
             if (rawStop is not null)
             {
-                var newStation = await CreateCanonicalStationAsync(rawStop, candidate.Feed.Operator.CountryId, ct);
+                var newStation = await CreateCanonicalStationAsync(rawStop, ct);
                 candidate.SuggestedCanonicalStationId = newStation.Id;
                 rawStop.CanonicalStationId = newStation.Id;
                 rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;

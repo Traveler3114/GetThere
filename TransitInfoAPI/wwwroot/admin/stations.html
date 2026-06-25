@@ -75,6 +75,16 @@ function scheduleSearch() {
   searchTimer = setTimeout(applyFilters, 250);
 }
 
+async function loadCountriesFilter() {
+  try {
+    const r = await fetch(BASE + '/countries?perPage=100');
+    if (!r.ok) return;
+    const j = await r.json();
+    const names = (j.data || []).map(c => c.name).sort();
+    document.getElementById('filterCountry').innerHTML = '<option value="">All Countries</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  } catch(_) { /* non-critical */ }
+}
+
 async function loadStations() {
   document.getElementById('search').value = '';
   document.getElementById('filterRouteType').value = '';
@@ -89,9 +99,7 @@ async function loadStations() {
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allStations = j.data || [];
-    // Populate country dropdown from station data
-    const names = [...new Set(allStations.filter(s => s.countryName).map(s => s.countryName))].sort();
-    document.getElementById('filterCountry').innerHTML = '<option value="">All Countries</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    loadCountriesFilter();
     applyFilters();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');

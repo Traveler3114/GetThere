@@ -25,12 +25,6 @@
       <input type="text" id="search" class="form-control form-control-sm" placeholder="Search by name..." oninput="filterOperators()">
     </div>
 
-    <div class="col-auto">
-      <select id="filterCountry" class="form-select form-select-sm" onchange="filterOperators()">
-        <option value="">All Countries</option>
-      </select>
-    </div>
-
   </div>
 
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
@@ -52,7 +46,6 @@ async function loadOperators() {
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allOperators = j.data || [];
-    populateCountryFilter(allOperators);
     filterOperators();
     paginatedItems = allOperators;
     showPage(1);
@@ -64,17 +57,9 @@ async function loadOperators() {
   }
 }
 
-function populateCountryFilter(ops) {
-  const sel = document.getElementById('filterCountry');
-  const countries = [...new Set(ops.filter(o=>o.countryName).map(o=>o.countryName))].sort();
-  sel.innerHTML = '<option value="">All Countries</option>' + countries.map(c => `<option value="${c}">${c}</option>`).join('');
-}
-
 function filterOperators() {
   const q = document.getElementById('search').value.toLowerCase();
-  const countryId = document.getElementById('filterCountry').value;
   let filtered = allOperators;
-  if (countryId) filtered = filtered.filter(o => o.countryId === countryId || o.countryName === countryId);
   if (q) filtered = filtered.filter(o => (o.name || '').toLowerCase().includes(q) || (o.shortName || '').toLowerCase().includes(q) || (o.globalId || '').toLowerCase().includes(q));
   paginatedItems = filtered;
   showPage(1);
@@ -118,7 +103,6 @@ function renderOperators(list) {
     <td>${esc(o.shortName)}</td>
     <td><code class="small">${esc(o.onestopId||'-')}</code></td>
     <td><span class="badge bg-secondary">${esc(o.operatorType)}</span></td>
-    <td>${esc(o.countryName||'-')}</td>
     <td>
       <button class="btn btn-sm btn-outline-info" onclick="showDetail('${o.globalId}')" title="View details"><i class="bi bi-eye"></i></button>
       <button class="btn btn-sm btn-outline-primary" onclick="showEditModal('${o.globalId}')" title="Edit"><i class="bi bi-pencil"></i></button>
@@ -126,7 +110,7 @@ function renderOperators(list) {
       ${o.website ? `<a href="${esc(o.website)}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Visit website"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
     </td>
   </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Short Name</th><th>Onestop ID</th><th>Type</th><th>Country</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} operator(s)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Short Name</th><th>Onestop ID</th><th>Type</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} operator(s)</small>`;
 }
 
 async function showDetail(globalId) {
@@ -153,7 +137,6 @@ async function showDetail(globalId) {
       <dl class="row mb-3">
         <dt class="col-sm-3">Global ID</dt><dd class="col-sm-9">${esc(o.globalId)}</dd>
         <dt class="col-sm-3">Onestop ID</dt><dd class="col-sm-9"><code>${esc(o.onestopId||'-')}</code></dd>
-        <dt class="col-sm-3">Country</dt><dd class="col-sm-9">${o.countryName || '-'}</dd>
         <dt class="col-sm-3">Website</dt><dd class="col-sm-9">${o.website ? '<a href="'+esc(o.website)+'" target="_blank">'+esc(o.website)+'</a>' : '-'}</dd>
       </dl>
       ${stationsHtml}
@@ -174,13 +157,6 @@ function showError(msg) { const e = document.getElementById('error'); e.textCont
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
 async function showAddModal() {
-  let countries = [];
-  try {
-    const r = await fetch(BASE + '/countries');
-    countries = await r.json();
-  } catch(e) {}
-
-  const countryOptions = countries.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.isoCode)})</option>`).join('');
   const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Add Operator</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
@@ -193,16 +169,12 @@ async function showAddModal() {
         <input type="text" id="addShortName" class="form-control form-control-sm" placeholder="e.g. ZET">
       </div>
       <div class="mb-3">
-        <label class="form-label">Country</label>
-        <select id="addCountryId" class="form-select form-select-sm">${countryOptions}</select>
-      </div>
-      <div class="mb-3">
         <label class="form-label">Website</label>
         <input type="url" id="addWebsite" class="form-control form-control-sm" placeholder="https://...">
       </div>
       <div class="mb-3">
         <label class="form-label">Global ID <small class="text-muted">(leave empty to auto-generate)</small></label>
-        <input type="text" id="addGlobalId" class="form-control form-control-sm" placeholder="Auto: gt-{country}-{shortname}">
+        <input type="text" id="addGlobalId" class="form-control form-control-sm" placeholder="Auto: gt-{shortname}">
       </div>
     </div>
     <div class="modal-footer">
@@ -223,7 +195,6 @@ async function addOperator() {
   btn.disabled = true;
   const name = document.getElementById('addName').value.trim();
   const shortName = document.getElementById('addShortName').value.trim();
-  const countryId = parseInt(document.getElementById('addCountryId').value);
   const website = document.getElementById('addWebsite').value.trim() || null;
   const globalId = document.getElementById('addGlobalId').value.trim() || null;
   if (!name || !shortName) { alert('Name and Short Name are required.'); btn.disabled = false; return; }
@@ -231,7 +202,7 @@ async function addOperator() {
     const r = await fetch(BASE + '/operators', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, shortName, countryId, website, globalId})
+      body: JSON.stringify({name, shortName, website, globalId})
     });
     if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
@@ -247,12 +218,6 @@ async function addOperator() {
 async function showEditModal(globalId) {
   const o = allOperators.find(x => x.globalId === globalId);
   if (!o) return;
-  let countries = [];
-  try {
-    const r = await fetch(BASE + '/countries');
-    countries = await r.json();
-  } catch(e) {}
-  const countryOptions = countries.map(c => `<option value="${c.id}" ${o.countryName === c.name ? 'selected' : ''}>${esc(c.name)} (${esc(c.isoCode)})</option>`).join('');
   const html = `<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Edit Operator</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
@@ -263,10 +228,6 @@ async function showEditModal(globalId) {
       <div class="mb-3">
         <label class="form-label">Short Name</label>
         <input type="text" id="editShortName" class="form-control form-control-sm" value="${esc(o.shortName)}">
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Country</label>
-        <select id="editCountryId" class="form-select form-select-sm">${countryOptions}</select>
       </div>
       <div class="mb-3">
         <label class="form-label">Website</label>
@@ -291,14 +252,13 @@ async function editOperator(globalId) {
   btn.disabled = true;
   const name = document.getElementById('editName').value.trim();
   const shortName = document.getElementById('editShortName').value.trim();
-  const countryId = parseInt(document.getElementById('editCountryId').value);
   const website = document.getElementById('editWebsite').value.trim() || null;
   if (!name || !shortName) { alert('Name and Short Name are required.'); btn.disabled = false; return; }
   try {
     const r = await fetch(BASE + '/operators/' + globalId, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, shortName, countryId, website})
+      body: JSON.stringify({name, shortName, website})
     });
     if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();

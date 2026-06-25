@@ -39,7 +39,6 @@ public class ReconciliationDetailResponse : ReconciliationResponse
 {
     public DateTime? ReviewedAt { get; set; }
     public string? ReviewedByAdminId { get; set; }
-    public string? RawStopCountry { get; set; }
     public StationDetailResponse? RawStopDetail { get; set; }
     public StationDetailResponse? SuggestedStationDetail { get; set; }
 }
