@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,18 +21,20 @@ public class MobilityController : ControllerBase
     public MobilityController(TransitDbContext db, MobilityManager mobility) { _db = db; _mobility = mobility; }
 
     [HttpGet("stations")]
-    public async Task<ActionResult<Paginated<MobilityStationResponse>>> GetStations(
+    public async Task<ActionResult> GetStations(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
         [FromQuery] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
+        [FromQuery] string? format = null,
+        [FromQuery] string? countryName = null,
+        [FromQuery] string? cityName = null,
         CancellationToken ct = default)
     {
         var query = _db.MobilityStations
             .Include(ms => ms.MobilityProvider)
             .ThenInclude(mp => mp.Operator)
-            .OrderBy(ms => ms.Id)
             .AsQueryable();
 
         if (lat is not null && lon is not null && radiusKm is not null)
@@ -45,15 +48,74 @@ public class MobilityController : ControllerBase
                 ms.Longitude <= lon.Value + lonRange);
         }
 
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(ms => ms.CountryName == countryName);
+        if (!string.IsNullOrWhiteSpace(cityName))
+            query = query.Where(ms => ms.CityName == cityName);
+
+        if (string.Equals(format, "geojson", StringComparison.OrdinalIgnoreCase))
+        {
+            var stations = await query.ToListAsync(ct);
+            var features = stations.Select(s => new
+            {
+                type = "Feature",
+                geometry = new { type = "Point", coordinates = new[] { s.Longitude, s.Latitude } },
+                properties = new
+                {
+                    id = "mob_" + s.Id,
+                    name = s.Name,
+                    providerName = s.MobilityProvider?.Name ?? "",
+                    stationId = s.StationId,
+                    capacity = s.Capacity,
+                    availableVehicles = s.AvailableVehicles,
+                    lastUpdated = s.LastUpdated,
+                    countryName = s.CountryName,
+                    countryCode = s.CountryCode,
+                    cityName = s.CityName
+                }
+            }).ToList();
+            return Ok(new { type = "FeatureCollection", features });
+        }
+
         var total = await query.CountAsync(ct);
-        var stations = await query
+        query = query.OrderBy(ms => ms.Id);
+        var paged = await query
             .Skip((page - 1) * perPage)
             .Take(perPage)
             .ToListAsync(ct);
 
-        var dtos = stations.Select(MobilityStationMapper.ToResponse).ToList();
-
+        var dtos = paged.Select(MobilityStationMapper.ToResponse).ToList();
         return Ok(new Paginated<MobilityStationResponse>(dtos, total, page, perPage));
+    }
+
+    [HttpGet("countries")]
+    public async Task<ActionResult<List<string>>> GetCountries(CancellationToken ct)
+    {
+        var names = await _db.MobilityStations
+            .Where(ms => ms.CountryName != null)
+            .Select(ms => ms.CountryName!)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync(ct);
+        return Ok(names);
+    }
+
+    [HttpGet("cities")]
+    public async Task<ActionResult<List<string>>> GetCities(
+        [FromQuery] string? countryName = null,
+        CancellationToken ct = default)
+    {
+        var query = _db.MobilityStations
+            .Where(ms => ms.CityName != null)
+            .AsQueryable();
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(ms => ms.CountryName == countryName);
+        var names = await query
+            .Select(ms => ms.CityName!)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync(ct);
+        return Ok(names);
     }
 
     [HttpPost("providers/{id}/poll")]

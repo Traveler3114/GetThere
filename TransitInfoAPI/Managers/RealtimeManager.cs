@@ -315,4 +315,21 @@ public class RealtimeManager
             })
             .ToListAsync(ct);
     }
+
+    public void UpdateVehicleCache(string feedId, VehicleResponse vehicle)
+    {
+        var key = $"{feedId}:{vehicle.VehicleId}";
+        _vehicleCache[key] = vehicle;
+    }
+
+    public void UpdateTripUpdate(string tripId, int stopSequence, int? delaySeconds)
+    {
+        var tripCache = _tripUpdateCache;
+        if (!tripCache.TryGetValue(tripId, out var stops))
+        {
+            stops = new ConcurrentDictionary<int, StopTimeUpdateData>();
+            tripCache[tripId] = stops;
+        }
+        stops[stopSequence] = new StopTimeUpdateData(delaySeconds ?? 0, null);
+    }
 }

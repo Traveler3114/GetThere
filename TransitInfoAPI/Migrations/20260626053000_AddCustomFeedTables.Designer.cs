@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626053000_AddCustomFeedTables")]
+    partial class AddCustomFeedTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -443,9 +446,6 @@ namespace TransitInfoAPI.Migrations
                     b.Property<DateTime?>("LastRunAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("MobilityProviderId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -473,8 +473,6 @@ namespace TransitInfoAPI.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("MobilityProviderId");
 
                     b.HasIndex("OperatorId");
 
@@ -751,23 +749,14 @@ namespace TransitInfoAPI.Migrations
                     b.Property<int>("AvailableVehicles")
                         .HasColumnType("int");
 
-                    b.Property<int?>("Capacity")
+                    b.Property<int>("Capacity")
                         .HasColumnType("int");
 
                     b.Property<int?>("CityId")
                         .HasColumnType("int");
 
-                    b.Property<string>("CityName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CountryCode")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("CountryId")
                         .HasColumnType("int");
-
-                    b.Property<string>("CountryName")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("LastUpdated")
                         .HasColumnType("datetime2");
@@ -1401,18 +1390,11 @@ namespace TransitInfoAPI.Migrations
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeed", b =>
                 {
-                    b.HasOne("TransitInfoAPI.Entities.MobilityProvider", "MobilityProvider")
-                        .WithMany()
-                        .HasForeignKey("MobilityProviderId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany()
                         .HasForeignKey("OperatorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("MobilityProvider");
 
                     b.Navigation("Operator");
                 });

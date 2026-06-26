@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Custom Source Editor - Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a> &gt; <a href="/admin/custom-sources.html" class="text-decoration-none">Custom Sources</a></nav>
+  <h1 id="pageTitle" class="mb-4">New Custom Source</h1>
+
+  <div id="error" class="alert alert-danger d-none"></div>
+
+  <form id="editorForm" onsubmit="return false;">
+    <!-- Basic Info -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>Basic Info</strong></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Name</label>
+            <input type="text" id="fieldName" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Operator</label>
+            <select id="fieldOperatorId" class="form-select form-select-sm" required></select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Base URL</label>
+            <input type="url" id="fieldBaseUrl" class="form-control form-control-sm" required placeholder="https://api.example.com/data">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">HTTP Method</label>
+            <select id="fieldHttpMethod" class="form-select form-select-sm">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auth -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>Authentication</strong></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Auth Type</label>
+          <select id="fieldAuthType" class="form-select form-select-sm" onchange="updateAuthFields()">
+            <option value="">None</option>
+            <option value="basic">Basic</option>
+            <option value="apiKey">API Key</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="oauth2">OAuth2</option>
+          </select>
+        </div>
+        <div id="authFields" class="d-none"></div>
+      </div>
+    </div>
+
+    <!-- Response -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>Response & Data Path</strong></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Response Format</label>
+            <select id="fieldResponseFormat" class="form-select form-select-sm" onchange="updateDataPathHint()">
+              <option value="JSON">JSON</option>
+              <option value="XML">XML</option>
+              <option value="CSV">CSV</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Data Path</label>
+            <input type="text" id="fieldDataPath" class="form-control form-control-sm" placeholder="$.countries[*].cities[*].places[*]" required>
+            <div class="form-text" id="dataPathHint">JSONPath expression to the data array. Example: <code>$.data[*]</code> or <code>$.countries[*].cities[*].places[*]</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>Output</strong></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Output Format</label>
+            <select id="fieldOutputFormat" class="form-select form-select-sm" onchange="updateTargetTable()">
+              <option value="Gbfs">GBFS (Mobility)</option>
+              <option value="GtfsRealtime">GTFS Realtime</option>
+              <option value="GtfsStatic">GTFS Static</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Target Table</label>
+            <select id="fieldTargetTable" class="form-select form-select-sm" disabled>
+              <option value="">— Auto / Not applicable —</option>
+              <option value="stops">stops</option>
+              <option value="routes">routes</option>
+              <option value="trips">trips</option>
+              <option value="stop_times">stop_times</option>
+              <option value="shapes">shapes</option>
+              <option value="calendar">calendar</option>
+              <option value="calendar_dates">calendar_dates</option>
+              <option value="agencies">agencies</option>
+            </select>
+          </div>
+          <div class="col-md-4" id="mobilityProviderRow" style="display:none">
+            <label class="form-label">Mobility Provider</label>
+            <select id="fieldMobilityProviderId" class="form-select form-select-sm">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Refresh Interval (seconds)</label>
+            <input type="number" id="fieldRefreshInterval" class="form-control form-control-sm" value="3600" min="60">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="card mb-3">
+      <div class="card-header"><strong>Pagination</strong></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Pagination Type</label>
+          <select id="fieldPaginationType" class="form-select form-select-sm" onchange="updatePaginationFields()">
+            <option value="">None</option>
+            <option value="page">Page-based</option>
+            <option value="offset">Offset-based</option>
+            <option value="cursor">Cursor-based</option>
+          </select>
+        </div>
+        <div id="paginationFields" class="d-none"></div>
+      </div>
+    </div>
+
+    <!-- Field Mappings -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Field Mappings</strong>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addMappingRow()"><i class="bi bi-plus-lg"></i> Add Mapping</button>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm" id="mappingsTable">
+            <thead><tr><th>#</th><th>Source Expression</th><th>Target Field</th><th>Mapping Kind</th><th></th></tr></thead>
+            <tbody id="mappingsBody"></tbody>
+          </table>
+        </div>
+        <div class="text-muted small">
+          For Direct mappings, use a JSONPath relative to each row. Example: <code>$.name</code>, <code>$.bikes_available_to_rent</code>, <code>$.country_name</code>.
+          Static mappings use the literal value as-is.
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- Preview -->
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Live Preview</strong>
+      <button class="btn btn-sm btn-outline-info" onclick="runPreview()"><i class="bi bi-eye"></i> Fetch & Preview</button>
+    </div>
+    <div class="card-body">
+      <div id="previewLoading" class="text-center py-2 text-muted d-none"><i class="bi bi-hourglass-split"></i> Fetching data...</div>
+      <div id="previewError" class="alert alert-warning d-none"></div>
+      <div id="previewResult" class="d-none">
+        <div class="mb-2"><strong>Rows: <span id="previewRowCount">0</span></strong> (showing first 20)</div>
+        <div class="table-responsive" id="previewTable"></div>
+        <div class="mt-2"><strong>Log:</strong></div>
+        <pre id="previewLog" class="border p-2 bg-light" style="max-height:200px;overflow:auto;font-size:0.85rem;"></pre>
+      </div>
+      <div class="text-muted small">Click "Fetch & Preview" to test this configuration against the live API.</div>
+    </div>
+  </div>
+
+  <!-- Save / Cancel -->
+  <div class="d-flex gap-2 mb-4">
+    <button class="btn btn-primary" onclick="saveSource()"><i class="bi bi-check-lg"></i> Save</button>
+    <button class="btn btn-outline-secondary" onclick="location.href='/admin/custom-sources.html'">Cancel</button>
+  </div>
+</div>
+
+<script>
+const BASE = '';
+let editId = null;
+let mappingCounter = 0;
+
+async function loadOperators() {
+  try {
+    const r = await fetch(BASE + '/operators?perPage=500');
+    if (!r.ok) return;
+    const j = await r.json();
+    const ops = j.data || [];
+    const sel = document.getElementById('fieldOperatorId');
+    sel.innerHTML = '<option value="">Select Operator</option>' + ops.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.shortName)})</option>`).join('');
+  } catch(e) { console.error('Failed to load operators', e); }
+}
+
+async function loadMobilityProviders() {
+  try {
+    const r = await fetch(BASE + '/mobility-providers');
+    if (!r.ok) return;
+    const providers = await r.json();
+    const sel = document.getElementById('fieldMobilityProviderId');
+    sel.innerHTML = '<option value="">— None —</option>' + providers.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  } catch(e) { console.error('Failed to load mobility providers', e); }
+}
+
+function updateAuthFields() {
+  const type = document.getElementById('fieldAuthType').value;
+  const container = document.getElementById('authFields');
+  if (!type) { container.classList.add('d-none'); return; }
+  container.classList.remove('d-none');
+  let html = '';
+  switch (type) {
+    case 'basic':
+      html = `<div class="row g-2"><div class="col"><label class="form-label">Username</label><input type="text" id="authUser" class="form-control form-control-sm"></div>
+      <div class="col"><label class="form-label">Password</label><input type="password" id="authPass" class="form-control form-control-sm"></div></div>`;
+      break;
+    case 'apiKey':
+      html = `<div class="row g-2"><div class="col"><label class="form-label">In</label><select id="authIn" class="form-select form-select-sm"><option value="header">Header</option><option value="query">Query Param</option></select></div>
+      <div class="col"><label class="form-label">Name</label><input type="text" id="authKeyName" class="form-control form-control-sm" placeholder="X-API-Key"></div>
+      <div class="col"><label class="form-label">Value</label><input type="text" id="authKeyValue" class="form-control form-control-sm"></div></div>`;
+      break;
+    case 'bearer':
+      html = `<div class="mb-2"><label class="form-label"><input type="radio" name="bearerType" value="static" checked onchange="updateBearerFields()"> Static Token</label></div>
+      <div id="bearerStatic"><input type="text" id="bearerToken" class="form-control form-control-sm" placeholder="eyJ..."></div>
+      <div id="bearerLogin" class="d-none"><div class="row g-2"><div class="col"><label class="form-label">Login URL</label><input type="url" id="bearerLoginUrl" class="form-control form-control-sm"></div>
+      <div class="col"><label class="form-label">Client ID</label><input type="text" id="bearerClientId" class="form-control form-control-sm"></div>
+      <div class="col"><label class="form-label">Client Secret</label><input type="password" id="bearerClientSecret" class="form-control form-control-sm"></div></div>
+      <div class="mt-1"><label class="form-label">Token Field</label><input type="text" id="bearerTokenField" class="form-control form-control-sm" value="access_token" placeholder="access_token"></div></div>`;
+      break;
+    case 'oauth2':
+      html = `<div class="row g-2"><div class="col"><label class="form-label">Token URL</label><input type="url" id="oauthTokenUrl" class="form-control form-control-sm"></div>
+      <div class="col"><label class="form-label">Client ID</label><input type="text" id="oauthClientId" class="form-control form-control-sm"></div>
+      <div class="col"><label class="form-label">Client Secret</label><input type="password" id="oauthClientSecret" class="form-control form-control-sm"></div></div>
+      <div class="mt-1"><label class="form-label">Scopes (comma-separated)</label><input type="text" id="oauthScopes" class="form-control form-control-sm" placeholder="read,write"></div>`;
+      break;
+  }
+  container.innerHTML = html;
+}
+
+function updateBearerFields() {
+  const isStatic = document.querySelector('input[name="bearerType"]:checked').value === 'static';
+  document.getElementById('bearerStatic').classList.toggle('d-none', !isStatic);
+  document.getElementById('bearerLogin').classList.toggle('d-none', isStatic);
+}
+
+function updateDataPathHint() {
+  const fmt = document.getElementById('fieldResponseFormat').value;
+  const hint = document.getElementById('dataPathHint');
+  if (fmt === 'JSON') hint.innerHTML = 'JSONPath to data array. Example: <code>$.data[*]</code> or <code>$.countries[*].cities[*].places[*]</code>';
+  else if (fmt === 'XML') hint.innerHTML = 'XPath to data nodes. Example: <code>//place</code>';
+  else hint.innerHTML = 'Comma-separated column names (empty = all columns). Example: <code>name,lat,lng</code>';
+}
+
+function updateTargetTable() {
+  const fmt = document.getElementById('fieldOutputFormat').value;
+  const sel = document.getElementById('fieldTargetTable');
+  sel.disabled = fmt !== 'GtfsStatic';
+  if (fmt !== 'GtfsStatic') sel.value = '';
+  const mpRow = document.getElementById('mobilityProviderRow');
+  if (mpRow) mpRow.style.display = fmt === 'Gbfs' ? '' : 'none';
+}
+
+function updatePaginationFields() {
+  const type = document.getElementById('fieldPaginationType').value;
+  const container = document.getElementById('paginationFields');
+  if (!type) { container.classList.add('d-none'); return; }
+  container.classList.remove('d-none');
+  let html = '';
+  if (type === 'page') {
+    html = `<div class="row g-2"><div class="col"><label class="form-label">Page Param</label><input type="text" id="pagPageParam" class="form-control form-control-sm" value="page"></div>
+    <div class="col"><label class="form-label">Per-Page Param</label><input type="text" id="pagPerPageParam" class="form-control form-control-sm" value="per_page"></div>
+    <div class="col"><label class="form-label">Per-Page Value</label><input type="number" id="pagPerPage" class="form-control form-control-sm" value="100" min="1"></div>
+    <div class="col"><label class="form-label">Total Field</label><input type="text" id="pagTotalField" class="form-control form-control-sm" value="$.total" placeholder="$.total"></div></div>`;
+  } else if (type === 'offset') {
+    html = `<div class="row g-2"><div class="col"><label class="form-label">Offset Param</label><input type="text" id="pagOffsetParam" class="form-control form-control-sm" value="offset"></div>
+    <div class="col"><label class="form-label">Limit Param</label><input type="text" id="pagLimitParam" class="form-control form-control-sm" value="limit"></div>
+    <div class="col"><label class="form-label">Limit Value</label><input type="number" id="pagLimit" class="form-control form-control-sm" value="100" min="1"></div>
+    <div class="col"><label class="form-label">Total Field</label><input type="text" id="pagTotalField" class="form-control form-control-sm" value="$.total" placeholder="$.total"></div></div>`;
+  } else if (type === 'cursor') {
+    html = `<div class="row g-2"><div class="col"><label class="form-label">Cursor Param</label><input type="text" id="pagCursorParam" class="form-control form-control-sm" value="cursor"></div>
+    <div class="col"><label class="form-label">Cursor Field</label><input type="text" id="pagCursorField" class="form-control form-control-sm" value="$.next_cursor" placeholder="$.next_cursor"></div>
+    <div class="col"><label class="form-label">Limit Param</label><input type="text" id="pagLimitParam" class="form-control form-control-sm" value="limit"></div>
+    <div class="col"><label class="form-label">Limit Value</label><input type="number" id="pagLimit" class="form-control form-control-sm" value="100" min="1"></div></div>`;
+  }
+  container.innerHTML = html;
+}
+
+function addMappingRow() {
+  mappingCounter++;
+  const tbody = document.getElementById('mappingsBody');
+  const tr = document.createElement('tr');
+  tr.id = 'mappingRow_' + mappingCounter;
+  tr.innerHTML = `<td class="text-muted">${mappingCounter}</td>
+    <td><input type="text" class="form-control form-control-sm map-source" placeholder="$.name"></td>
+    <td><input type="text" class="form-control form-control-sm map-target" placeholder="stationName"></td>
+    <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option></select></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
+  tbody.appendChild(tr);
+}
+
+function getAuthConfig() {
+  const type = document.getElementById('fieldAuthType').value;
+  if (!type) return null;
+  switch (type) {
+    case 'basic':
+      return JSON.stringify({ type: 'basic', username: document.getElementById('authUser').value, password: document.getElementById('authPass').value });
+    case 'apiKey':
+      return JSON.stringify({ type: 'apiKey', in: document.getElementById('authIn').value, name: document.getElementById('authKeyName').value, value: document.getElementById('authKeyValue').value });
+    case 'bearer': {
+      const isStatic = document.querySelector('input[name="bearerType"]:checked').value === 'static';
+      if (isStatic) return JSON.stringify({ type: 'bearer', token: document.getElementById('bearerToken').value });
+      return JSON.stringify({ type: 'bearer', loginUrl: document.getElementById('bearerLoginUrl').value, clientId: document.getElementById('bearerClientId').value, clientSecret: document.getElementById('bearerClientSecret').value, tokenField: document.getElementById('bearerTokenField').value });
+    }
+    case 'oauth2':
+      return JSON.stringify({ type: 'oauth2', tokenUrl: document.getElementById('oauthTokenUrl').value, clientId: document.getElementById('oauthClientId').value, clientSecret: document.getElementById('oauthClientSecret').value, scopes: (document.getElementById('oauthScopes').value || '').split(',').map(s => s.trim()).filter(Boolean) });
+  }
+}
+
+function getPaginationConfig() {
+  const type = document.getElementById('fieldPaginationType').value;
+  if (!type) return null;
+  if (type === 'page') {
+    return JSON.stringify({ type: 'page', pageParam: document.getElementById('pagPageParam').value || 'page', perPageParam: document.getElementById('pagPerPageParam').value || 'per_page', perPage: parseInt(document.getElementById('pagPerPage').value) || 100, totalField: document.getElementById('pagTotalField').value || '$.total' });
+  }
+  if (type === 'offset') {
+    return JSON.stringify({ type: 'offset', offsetParam: document.getElementById('pagOffsetParam').value || 'offset', limitParam: document.getElementById('pagLimitParam').value || 'limit', limit: parseInt(document.getElementById('pagLimit').value) || 100, totalField: document.getElementById('pagTotalField').value || '$.total' });
+  }
+  if (type === 'cursor') {
+    return JSON.stringify({ type: 'cursor', cursorParam: document.getElementById('pagCursorParam').value || 'cursor', cursorField: document.getElementById('pagCursorField').value || '$.next_cursor', limitParam: document.getElementById('pagLimitParam').value || 'limit', limit: parseInt(document.getElementById('pagLimit').value) || 100 });
+  }
+}
+
+function getFieldMappings() {
+  const rows = document.querySelectorAll('#mappingsBody tr');
+  return Array.from(rows).map(tr => ({
+    sourceExpression: tr.querySelector('.map-source').value,
+    targetField: tr.querySelector('.map-target').value,
+    mappingKind: tr.querySelector('.map-kind').value
+  })).filter(m => m.sourceExpression && m.targetField);
+}
+
+function getFormData() {
+  return {
+    operatorId: parseInt(document.getElementById('fieldOperatorId').value) || 0,
+    mobilityProviderId: parseInt(document.getElementById('fieldMobilityProviderId').value) || null,
+    name: document.getElementById('fieldName').value,
+    baseUrl: document.getElementById('fieldBaseUrl').value,
+    httpMethod: document.getElementById('fieldHttpMethod').value,
+    authConfig: getAuthConfig(),
+    responseFormat: document.getElementById('fieldResponseFormat').value,
+    outputFormat: document.getElementById('fieldOutputFormat').value,
+    dataPath: document.getElementById('fieldDataPath').value,
+    targetTable: document.getElementById('fieldTargetTable').disabled ? null : document.getElementById('fieldTargetTable').value || null,
+    paginationConfig: getPaginationConfig(),
+    refreshIntervalSeconds: parseInt(document.getElementById('fieldRefreshInterval').value) || 3600,
+    fieldMappings: getFieldMappings()
+  };
+}
+
+async function runPreview() {
+  document.getElementById('previewLoading').classList.remove('d-none');
+  document.getElementById('previewError').classList.add('d-none');
+  document.getElementById('previewResult').classList.add('d-none');
+  try {
+    const data = getFormData();
+    const r = await fetch(BASE + '/custom-feeds/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      document.getElementById('previewError').textContent = err.title || err.detail || 'Preview failed';
+      document.getElementById('previewError').classList.remove('d-none');
+      document.getElementById('previewLoading').classList.add('d-none');
+      return;
+    }
+    const result = await r.json();
+    document.getElementById('previewRowCount').textContent = result.totalRows;
+    document.getElementById('previewLog').textContent = (result.logLines || []).join('\n');
+    if (result.columns && result.columns.length > 0) {
+      let html = '<table class="table table-sm table-bordered"><thead class="table-light"><tr>' +
+        result.columns.map(c => `<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
+      for (const row of (result.rows || [])) {
+        html += '<tr>' + result.columns.map(c => `<td>${esc(row[c] !== undefined ? String(row[c]) : '')}</td>`).join('') + '</tr>';
+      }
+      html += '</tbody></table>';
+      document.getElementById('previewTable').innerHTML = html;
+    } else {
+      document.getElementById('previewTable').innerHTML = '<div class="text-muted">No rows returned. Check the log below for details.</div>';
+    }
+    document.getElementById('previewResult').classList.remove('d-none');
+  } catch(e) {
+    document.getElementById('previewError').textContent = 'Error: ' + e.message;
+    document.getElementById('previewError').classList.remove('d-none');
+  }
+  document.getElementById('previewLoading').classList.add('d-none');
+}
+
+async function saveSource() {
+  const data = getFormData();
+  if (!data.name || !data.baseUrl || !data.dataPath || !data.operatorId) {
+    alert('Please fill in all required fields (Name, Base URL, Data Path, Operator).');
+    return;
+  }
+  try {
+    const url = editId ? (BASE + '/custom-feeds/' + editId) : (BASE + '/custom-feeds');
+    const method = editId ? 'PUT' : 'POST';
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (r.ok) {
+      location.href = '/admin/custom-sources.html';
+    } else {
+      const err = await r.json().catch(() => ({}));
+      alert(err.title || err.detail || 'Save failed');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function loadForEdit(id) {
+  try {
+    const r = await fetch(BASE + '/custom-feeds/' + id);
+    if (!r.ok) { showError('Failed to load feed'); return; }
+    const feed = await r.json();
+    editId = feed.id;
+    document.getElementById('pageTitle').textContent = 'Edit: ' + esc(feed.name);
+    document.getElementById('fieldName').value = feed.name || '';
+    document.getElementById('fieldOperatorId').value = feed.operatorId || '';
+    document.getElementById('fieldBaseUrl').value = feed.baseUrl || '';
+    document.getElementById('fieldHttpMethod').value = feed.httpMethod || 'GET';
+    document.getElementById('fieldResponseFormat').value = feed.responseFormat || 'JSON';
+    document.getElementById('fieldOutputFormat').value = feed.outputFormat || 'Gbfs';
+    document.getElementById('fieldDataPath').value = feed.dataPath || '';
+    document.getElementById('fieldRefreshInterval').value = feed.refreshIntervalSeconds || 3600;
+    if (feed.mobilityProviderId) document.getElementById('fieldMobilityProviderId').value = feed.mobilityProviderId;
+    updateDataPathHint();
+    updateTargetTable();
+
+    if (feed.targetTable) {
+      document.getElementById('fieldTargetTable').value = feed.targetTable;
+    }
+
+    // Auth config
+    if (feed.authConfig) {
+      try {
+        const auth = JSON.parse(feed.authConfig);
+        document.getElementById('fieldAuthType').value = auth.type || '';
+        updateAuthFields();
+        if (auth.type === 'basic') {
+          if (document.getElementById('authUser')) document.getElementById('authUser').value = auth.username || '';
+        } else if (auth.type === 'apiKey') {
+          if (document.getElementById('authIn')) document.getElementById('authIn').value = auth.in || 'header';
+          if (document.getElementById('authKeyName')) document.getElementById('authKeyName').value = auth.name || '';
+        } else if (auth.type === 'bearer') {
+          if (auth.token) {
+            document.querySelector('input[name="bearerType"][value="static"]').checked = true;
+            updateBearerFields();
+            if (document.getElementById('bearerToken')) document.getElementById('bearerToken').value = auth.token;
+          } else if (auth.loginUrl) {
+            document.querySelector('input[name="bearerType"][value="login"]').checked = true;
+            updateBearerFields();
+            if (document.getElementById('bearerLoginUrl')) document.getElementById('bearerLoginUrl').value = auth.loginUrl || '';
+            if (document.getElementById('bearerClientId')) document.getElementById('bearerClientId').value = auth.clientId || '';
+            if (document.getElementById('bearerTokenField')) document.getElementById('bearerTokenField').value = auth.tokenField || 'access_token';
+          }
+        } else if (auth.type === 'oauth2') {
+          if (document.getElementById('oauthTokenUrl')) document.getElementById('oauthTokenUrl').value = auth.tokenUrl || '';
+          if (document.getElementById('oauthClientId')) document.getElementById('oauthClientId').value = auth.clientId || '';
+          if (document.getElementById('oauthScopes')) document.getElementById('oauthScopes').value = (auth.scopes || []).join(', ');
+        }
+      } catch(e) { /* ignore auth parse errors */ }
+    }
+
+    // Pagination config
+    if (feed.paginationConfig) {
+      try {
+        const pag = JSON.parse(feed.paginationConfig);
+        document.getElementById('fieldPaginationType').value = pag.type || '';
+        updatePaginationFields();
+        if (pag.type === 'page') {
+          if (document.getElementById('pagPageParam')) document.getElementById('pagPageParam').value = pag.pageParam || 'page';
+          if (document.getElementById('pagPerPageParam')) document.getElementById('pagPerPageParam').value = pag.perPageParam || 'per_page';
+          if (document.getElementById('pagPerPage')) document.getElementById('pagPerPage').value = pag.perPage || 100;
+          if (document.getElementById('pagTotalField')) document.getElementById('pagTotalField').value = pag.totalField || '$.total';
+        } else if (pag.type === 'offset') {
+          if (document.getElementById('pagOffsetParam')) document.getElementById('pagOffsetParam').value = pag.offsetParam || 'offset';
+          if (document.getElementById('pagLimitParam')) document.getElementById('pagLimitParam').value = pag.limitParam || 'limit';
+          if (document.getElementById('pagLimit')) document.getElementById('pagLimit').value = pag.limit || 100;
+          if (document.getElementById('pagTotalField')) document.getElementById('pagTotalField').value = pag.totalField || '$.total';
+        } else if (pag.type === 'cursor') {
+          if (document.getElementById('pagCursorParam')) document.getElementById('pagCursorParam').value = pag.cursorParam || 'cursor';
+          if (document.getElementById('pagCursorField')) document.getElementById('pagCursorField').value = pag.cursorField || '$.next_cursor';
+          if (document.getElementById('pagLimitParam')) document.getElementById('pagLimitParam').value = pag.limitParam || 'limit';
+          if (document.getElementById('pagLimit')) document.getElementById('pagLimit').value = pag.limit || 100;
+        }
+      } catch(e) { /* ignore pagination parse errors */ }
+    }
+
+    // Field mappings
+    if (feed.fieldMappings && feed.fieldMappings.length > 0) {
+      feed.fieldMappings.forEach(m => {
+        addMappingRow();
+        const lastRow = document.querySelector('#mappingsBody tr:last-child');
+        if (lastRow) {
+          lastRow.querySelector('.map-source').value = m.sourceExpression || '';
+          lastRow.querySelector('.map-target').value = m.targetField || '';
+          lastRow.querySelector('.map-kind').value = m.mappingKind || 'Direct';
+        }
+      });
+    }
+  } catch(e) { showError('Failed to load feed: ' + e.message); }
+}
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// Init
+loadOperators();
+loadMobilityProviders();
+const params = new URLSearchParams(location.search);
+const editIdParam = params.get('id');
+if (editIdParam) loadForEdit(editIdParam);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

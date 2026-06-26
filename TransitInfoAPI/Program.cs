@@ -1,9 +1,12 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
+using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Managers;
 using TransitInfoAPI.Workers;
+using TransitInfoAPI.Writers;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders().AddConsole().AddDebug();
@@ -39,6 +42,21 @@ builder.Services.AddScoped<OperatorManager>();
 builder.Services.AddScoped<FeedManager>();
 builder.Services.AddSingleton<TransitInfoAPI.Services.ImportLogStore>();
 builder.Services.AddSingleton<RealtimeManager>();
+
+// Custom Feed services
+builder.Services.AddScoped<CustomFeedManager>();
+builder.Services.AddSingleton<CustomFeedEngine>();
+builder.Services.AddSingleton<GtfsStaticWriter>();
+builder.Services.AddSingleton<GtfsRealtimeWriter>();
+builder.Services.AddSingleton<GbfsWriter>();
+builder.Services.AddHostedService<CustomFeedWorker>();
+builder.Services.Configure<CustomFeedPollingOptions>(builder.Configuration.GetSection("CustomFeedPolling"));
+
+builder.Services.AddHttpClient("CustomFeed", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();
 
@@ -89,6 +107,25 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+app.MapGet("/mobility-providers", async (TransitDbContext db, CancellationToken ct) =>
+    await db.MobilityProviders
+        .Where(mp => mp.IsActive)
+        .Select(mp => new { mp.Id, mp.Name, mp.OperatorId })
+        .ToListAsync(ct));
+app.MapPost("/mobility-providers", async (TransitDbContext db, MobilityProviderCreateRequest body, CancellationToken ct) =>
+{
+    var provider = new MobilityProvider
+    {
+        OperatorId = body.OperatorId,
+        Name = body.Name,
+        IsActive = true,
+        CreatedAt = DateTime.UtcNow
+    };
+    db.MobilityProviders.Add(provider);
+    await db.SaveChangesAsync(ct);
+    return Results.Created($"/mobility-providers/{provider.Id}", new { provider.Id, provider.Name, provider.OperatorId });
+});
+
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
@@ -117,6 +154,19 @@ using (var scope = app.Services.CreateScope())
         await db.Shapes.Where(s => stuckIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync();
     }
 
+    var stuckRuns = await db.CustomFeedRuns
+        .Where(r => r.Status == CustomFeedRunStatus.Running)
+        .ToListAsync();
+    foreach (var run in stuckRuns)
+    {
+        run.Status = CustomFeedRunStatus.Failed;
+        run.LogText = "Run interrupted by application restart";
+        run.CompletedAt = DateTime.UtcNow;
+    }
+    if (stuckRuns.Count > 0)
+        await db.SaveChangesAsync();
 }
 
 await app.RunAsync();
+
+record MobilityProviderCreateRequest(int OperatorId, string Name);

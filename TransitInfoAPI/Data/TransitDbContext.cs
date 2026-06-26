@@ -12,6 +12,9 @@ public class TransitDbContext : DbContext
     public DbSet<Country> Countries { get; set; }
     public DbSet<City> Cities { get; set; }
     public DbSet<Operator> Operators { get; set; }
+    public DbSet<CustomFeed> CustomFeeds { get; set; }
+    public DbSet<CustomFeedFieldMapping> CustomFeedFieldMappings { get; set; }
+    public DbSet<CustomFeedRun> CustomFeedRuns { get; set; }
     public DbSet<Feed> Feeds { get; set; }
     public DbSet<FeedVersion> FeedVersions { get; set; }
     public DbSet<Agency> Agencies { get; set; }
@@ -174,5 +177,33 @@ public class TransitDbContext : DbContext
             .HasIndex(ms => ms.MobilityProviderId);
         modelBuilder.Entity<City>()
             .HasIndex(c => c.CountryId);
+
+        // Custom Feed tables
+        modelBuilder.Entity<CustomFeed>(entity =>
+        {
+            entity.HasIndex(e => e.OperatorId);
+            entity.HasIndex(e => e.MobilityProviderId);
+            entity.HasOne(e => e.MobilityProvider)
+                .WithMany()
+                .HasForeignKey(e => e.MobilityProviderId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<CustomFeedFieldMapping>(entity =>
+        {
+            entity.HasIndex(e => e.CustomFeedId);
+            entity.HasOne(e => e.CustomFeed)
+                .WithMany(e => e.FieldMappings)
+                .HasForeignKey(e => e.CustomFeedId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CustomFeedRun>(entity =>
+        {
+            entity.HasIndex(e => e.CustomFeedId);
+            entity.Property(e => e.LogText).HasColumnType("nvarchar(max)");
+            entity.HasOne(e => e.CustomFeed)
+                .WithMany(e => e.Runs)
+                .HasForeignKey(e => e.CustomFeedId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

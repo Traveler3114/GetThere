@@ -146,6 +146,7 @@ let sidebarOpen = false;
 const stationsSource = 'gt-stops';
 const routesSource = 'routes';
 const vehiclesSource = 'vehicles';
+const mobilitySource = 'mobility-stations';
 
 function loadMapData() {
   const bounds = map.getBounds();
@@ -160,6 +161,7 @@ function loadMapData() {
 
   const stationUrl = `/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
   const routeUrl = `/routes?format=geojson&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
+  const mobilityUrl = `/mobility/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
 
   fetch(stationUrl).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
@@ -174,6 +176,13 @@ function loadMapData() {
       src.setData(data);
     }
   }).catch(() => showMapError('Failed to load routes'));
+
+  fetch(mobilityUrl).then(r => r.json()).then(data => {
+    const src = map.getSource(mobilitySource);
+    if (src && data?.type === 'FeatureCollection') {
+      src.setData(data);
+    }
+  }).catch(() => showMapError('Failed to load mobility stations'));
 }
 
 function loadVehicles() {
@@ -206,6 +215,13 @@ map.on('load', () => {
   map.addSource(routesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource(vehiclesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource('merge-line', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource(mobilitySource, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 40
+  });
 
   // Route lines colored by type
   map.addLayer({
@@ -362,6 +378,50 @@ map.on('load', () => {
 
   mergeLineSource = map.getSource('merge-line');
 
+  // Mobility cluster circles
+  map.addLayer({
+    id: 'mobility-cluster',
+    type: 'circle',
+    source: mobilitySource,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#ff7f00',
+      'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20],
+      'circle-opacity': 0.85,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff'
+    }
+  });
+
+  // Mobility cluster count
+  map.addLayer({
+    id: 'mobility-cluster-count',
+    type: 'symbol',
+    source: mobilitySource,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['Open Sans Regular'],
+      'text-size': 11
+    },
+    paint: { 'text-color': '#fff' }
+  });
+
+  // Individual mobility station dots
+  map.addLayer({
+    id: 'mobility-dot',
+    type: 'circle',
+    source: mobilitySource,
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': 5,
+      'circle-color': '#ff7f00',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.8
+    }
+  });
+
   loadMapData();
   loadVehicles();
   vehiclesInterval = setInterval(loadVehicles, 30000);
@@ -371,6 +431,27 @@ map.on('moveend', () => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(loadMapData, 500);
 });
+
+// Mobility cluster click -> zoom in
+map.on('click', 'mobility-cluster', (e) => {
+  const features = map.queryRenderedFeatures(e.point, { layers: ['mobility-cluster'] });
+  const clusterId = features[0].properties.cluster_id;
+  map.getSource(mobilitySource).getClusterExpansionZoom(clusterId, (err, zoom) => {
+    if (err) return;
+    map.easeTo({ center: features[0].geometry.coordinates, zoom });
+  });
+});
+
+// Mobility dot click -> show details
+map.on('click', 'mobility-dot', (e) => {
+  const props = e.features[0].properties;
+  showMobilityStationSidebar(props);
+});
+
+map.on('mouseenter', 'mobility-cluster', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'mobility-cluster', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'mobility-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'mobility-dot', () => { map.getCanvas().style.cursor = ''; });
 
 // Click cluster -> zoom in
 map.on('click', 'stations-cluster', (e) => {
@@ -568,6 +649,25 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+function showMobilityStationSidebar(props) {
+  const content = document.getElementById('sidebar-content');
+  const cap = props.capacity > 0 ? props.capacity : null;
+  const pct = cap ? Math.round(props.availableVehicles / cap * 100) : null;
+  const loc = [props.cityName, props.countryName].filter(Boolean).join(', ');
+  let html = `
+    <h2>${esc(props.name || 'Unknown')}</h2>
+    <div class="info-row"><strong>Provider</strong> ${esc(props.providerName || '-')}</div>
+    <div class="info-row"><strong>Available</strong> ${cap ? props.availableVehicles + ' / ' + cap : props.availableVehicles + ' available'}</div>
+    <div class="info-row"><strong>Utilization</strong> ${pct !== null ? pct + '%' : 'N/A'}</div>
+    ${loc ? `<div class="info-row"><strong>Location</strong> ${esc(loc)}</div>` : ''}
+    <div class="info-row"><strong>Station ID</strong> <code>${esc(props.stationId || '-')}</code></div>
+    <div class="info-row"><strong>Last updated</strong> ${props.lastUpdated ? new Date(props.lastUpdated).toLocaleString() : '-'}</div>
+  `;
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+  content.innerHTML = html;
 }
 
 function closeSidebar() {
