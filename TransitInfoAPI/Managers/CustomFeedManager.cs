@@ -150,16 +150,13 @@ public class CustomFeedManager
 
         await _db.SaveChangesAsync(ct);
 
-        // If OutputFormat changed, create or remove hidden Feed
+        // If OutputFormat changed, recreate hidden Feed with new type
         if (request.OutputFormat is not null)
         {
-            var newFormat = Enum.Parse<OutputFormat>(request.OutputFormat, true);
             var hasHiddenFeed = await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct);
-
-            if (newFormat == OutputFormat.GtfsStatic && !hasHiddenFeed)
-                await EnsureHiddenFeedAsync(feed, ct);
-            else if (newFormat != OutputFormat.GtfsStatic && hasHiddenFeed)
+            if (hasHiddenFeed)
                 await RemoveHiddenFeedAsync(feed.Id, ct);
+            await EnsureHiddenFeedAsync(feed, ct);
         }
 
         return true;
@@ -348,18 +345,31 @@ public class CustomFeedManager
 
     private async Task EnsureHiddenFeedAsync(CustomFeed feed, CancellationToken ct)
     {
-        if (feed.OutputFormat != OutputFormat.GtfsStatic) return;
         if (await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct)) return;
 
+        var feedType = feed.OutputFormat switch
+        {
+            OutputFormat.GtfsStatic => FeedType.GTFSStatic,
+            OutputFormat.Gbfs => FeedType.GBFS,
+            OutputFormat.GtfsRealtime => FeedType.GTFSRealtime,
+            _ => throw new InvalidOperationException($"Unknown output format: {feed.OutputFormat}")
+        };
+        var suffix = feed.OutputFormat switch
+        {
+            OutputFormat.GtfsStatic => "gtfs-static",
+            OutputFormat.Gbfs => "gbfs",
+            OutputFormat.GtfsRealtime => "gtfs-rt",
+            _ => "custom"
+        };
         var slug = _onestopId.ToNameSlug(feed.Name);
         var hiddenFeed = new Feed
         {
             OperatorId = feed.OperatorId,
-            FeedType = FeedType.GTFSStatic,
+            FeedType = feedType,
             IsInternal = true,
             IsActive = true,
             FeedId = $"custom-{feed.Id}-{slug}",
-            OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, $"custom-{feed.Id}-{slug}-gtfs-static"),
+            OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, $"custom-{feed.Id}-{slug}-{suffix}"),
             RefreshIntervalSeconds = feed.RefreshIntervalSeconds,
             CustomFeedId = feed.Id,
             CreatedAt = DateTime.UtcNow
@@ -373,6 +383,7 @@ public class CustomFeedManager
         var hidden = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
         if (hidden is null) return;
         _db.Feeds.Remove(hidden);
+        await _db.SaveChangesAsync(ct);
     }
 
     private async Task DeactivateHiddenFeedAsync(int customFeedId, CancellationToken ct)
