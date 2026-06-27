@@ -64,7 +64,7 @@ async function loadFeeds() {
   document.getElementById('healthSection').classList.add('d-none');
   const showInternal = document.getElementById('showInternalToggle').checked;
   try {
-    const r = await fetch(BASE + '/feeds?showInternal=' + showInternal);
+    const r = await fetch(BASE + '/feeds?showInternal=' + showInternal + '&perPage=500');
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allFeeds = j.data || [];
