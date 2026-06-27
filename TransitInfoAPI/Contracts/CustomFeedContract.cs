@@ -12,7 +12,7 @@ public class CreateCustomFeedRequest
     public string? AuthConfig { get; set; }
     [Required] public string ResponseFormat { get; set; } = string.Empty;
     [Required] public string OutputFormat { get; set; } = string.Empty;
-    [Required] public string DataPath { get; set; } = string.Empty;
+    public string DataPath { get; set; } = string.Empty;
     [StringLength(100)] public string? TargetTable { get; set; }
     public string? PaginationConfig { get; set; }
     [Range(60, int.MaxValue)] public int RefreshIntervalSeconds { get; set; } = 3600;
@@ -95,4 +95,22 @@ public class CustomFeedPreviewResponse
     public List<Dictionary<string, object?>> Rows { get; set; } = [];
     public int TotalRows { get; set; }
     public List<string> LogLines { get; set; } = [];
+}
+
+public class CustomFeedDiscoverResponse
+{
+    public JsonStructureNode? Structure { get; set; }
+    public List<string> ArrayPaths { get; set; } = [];
+    public List<string> LogLines { get; set; } = [];
+}
+
+public class JsonStructureNode
+{
+    public string Name { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string? Sample { get; set; }
+    public int? ArrayItemCount { get; set; }
+    public string? ArrayItemType { get; set; }
+    public List<JsonStructureNode> Children { get; set; } = [];
 }

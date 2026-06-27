@@ -288,6 +288,24 @@ public class CustomFeedManager
         return CustomFeedMapper.ToRunResponse(run);
     }
 
+    public async Task<CustomFeedDiscoverResponse> DiscoverAsync(CreateCustomFeedRequest request, CancellationToken ct)
+    {
+        var tempConfig = new CustomFeed
+        {
+            Name = request.Name,
+            BaseUrl = request.BaseUrl,
+            HttpMethod = string.IsNullOrWhiteSpace(request.HttpMethod) ? "GET" : request.HttpMethod.ToUpperInvariant(),
+            AuthConfig = request.AuthConfig,
+            ResponseFormat = Enum.Parse<ResponseFormat>(request.ResponseFormat, true),
+            PaginationConfig = request.PaginationConfig,
+        };
+
+        if (tempConfig.ResponseFormat != ResponseFormat.JSON)
+            throw new InvalidOperationException("Discover only supports JSON response format");
+
+        return await _engine.DiscoverStructureAsync(tempConfig, ct);
+    }
+
     public async Task<CustomFeedPreviewResponse> PreviewAsync(CreateCustomFeedRequest request, CancellationToken ct)
     {
         var tempConfig = new CustomFeed

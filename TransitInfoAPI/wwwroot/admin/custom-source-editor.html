@@ -78,8 +78,14 @@
           </div>
           <div class="col-md-8">
             <label class="form-label">Data Path</label>
-            <input type="text" id="fieldDataPath" class="form-control form-control-sm" placeholder="$.countries[*].cities[*].places[*]" required>
+            <div class="input-group input-group-sm">
+              <input type="text" id="fieldDataPath" class="form-control form-control-sm" placeholder="$.countries[*].cities[*].places[*]" required>
+              <button class="btn btn-outline-info" type="button" onclick="runDiscover()" title="Explore JSON structure to find DataPath"><i class="bi bi-diagram-3"></i> Discover</button>
+            </div>
             <div class="form-text" id="dataPathHint">JSONPath expression to the data array. Example: <code>$.data[*]</code> or <code>$.countries[*].cities[*].places[*]</code></div>
+            <div id="discoverLoading" class="text-center py-1 text-muted small d-none"><i class="bi bi-hourglass-split"></i> Fetching structure...</div>
+            <div id="discoverError" class="alert alert-warning d-none py-1 small"></div>
+            <div id="discoverTree" class="d-none mt-2"></div>
           </div>
         </div>
       </div>
@@ -145,9 +151,13 @@
 
     <!-- Field Mappings -->
     <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-1">
         <strong>Field Mappings</strong>
-        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addMappingRow()"><i class="bi bi-plus-lg"></i> Add Mapping</button>
+        <div>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="autoFillMappings()" title="Match preview columns to target fields"><i class="bi bi-magic"></i> Auto-fill</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updateTargetFields()" title="Reset to default fields for this format"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addMappingRow()"><i class="bi bi-plus-lg"></i> Add Mapping</button>
+        </div>
       </div>
       <div class="card-body">
         <div class="table-responsive">
@@ -175,6 +185,7 @@
       <div id="previewError" class="alert alert-warning d-none"></div>
       <div id="previewResult" class="d-none">
         <div class="mb-2"><strong>Rows: <span id="previewRowCount">0</span></strong> (showing first 20)</div>
+        <div id="previewChips" class="d-flex flex-wrap gap-1 mb-2 d-none"></div>
         <div class="table-responsive" id="previewTable"></div>
         <div class="mt-2"><strong>Log:</strong></div>
         <pre id="previewLog" class="border p-2 bg-light" style="max-height:200px;overflow:auto;font-size:0.85rem;"></pre>
@@ -194,6 +205,81 @@
 const BASE = '';
 let editId = null;
 let mappingCounter = 0;
+let lastPreviewColumns = [];
+
+const TARGET_FIELDS = {
+  Gbfs: ['station_id', 'name', 'lat', 'lon', 'capacity', 'availableVehicles'],
+  GtfsRealtime: ['vehicleId', 'latitude', 'longitude', 'routeId', 'bearing', 'tripId', 'stopSequence', 'delaySeconds'],
+  GtfsStatic: {
+    stops: ['stop_id', 'stop_name', 'stop_lat', 'stop_lon', 'zone_id'],
+    routes: ['route_id', 'route_short_name', 'route_long_name', 'route_type'],
+    trips: ['trip_id', 'route_id', 'service_id', 'direction_id', 'shape_id'],
+    stop_times: ['trip_id', 'stop_id', 'stop_sequence', 'arrival_time', 'departure_time'],
+    shapes: ['shape_id', 'shape_pt_sequence', 'shape_pt_lat', 'shape_pt_lon'],
+    calendar: ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'],
+    calendar_dates: ['service_id', 'date', 'exception_type'],
+    agencies: ['agency_id', 'agency_name', 'agency_url', 'agency_timezone', 'agency_lang', 'agency_phone']
+  }
+};
+
+const FIELD_ALIASES = {
+  lat: ['latitude'],
+  lon: ['longitude', 'lng'],
+  availableVehicles: ['bikes_available_to_rent', 'available_bikes', 'num_bikes_available', 'vehicles_available'],
+  capacity: ['bike_racks', 'total_slots', 'dock_count', 'num_docks'],
+  name: ['station_name', 'title', 'label'],
+  station_id: ['uid', 'id', 'stationId', 'number'],
+  vehicleId: ['vehicle_id', 'id', 'bike_id'],
+  bearing: ['heading'],
+  latitude: ['lat'],
+  longitude: ['lon', 'lng'],
+  routeId: ['route_id'],
+  tripId: ['trip_id'],
+  stopSequence: ['stop_sequence'],
+  delaySeconds: ['delay_seconds']
+};
+
+function getTargetFields(format, table) {
+  const fields = TARGET_FIELDS[format];
+  if (!fields) return [];
+  if (Array.isArray(fields)) return fields;
+  return fields[table] || [];
+}
+
+function populateTargetSelect(sel, currentVal) {
+  const format = document.getElementById('fieldOutputFormat').value;
+  const table = document.getElementById('fieldTargetTable').value;
+  const fields = getTargetFields(format, table);
+  let html = '<option value="">Select target\u2026</option>';
+  for (const f of fields) {
+    html += `<option value="${esc(f)}"${f === currentVal ? ' selected' : ''}>${esc(f)}</option>`;
+  }
+  if (currentVal && !fields.includes(currentVal)) {
+    html += `<option value="${esc(currentVal)}" selected>${esc(currentVal)} (custom)</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+function updateTargetFields() {
+  const format = document.getElementById('fieldOutputFormat').value;
+  const table = document.getElementById('fieldTargetTable').value;
+  const fields = getTargetFields(format, table);
+  const tbody = document.getElementById('mappingsBody');
+  tbody.innerHTML = '';
+  mappingCounter = 0;
+  for (const f of fields) {
+    mappingCounter++;
+    const tr = document.createElement('tr');
+    tr.id = 'mappingRow_' + mappingCounter;
+    tr.innerHTML = `<td class="text-muted">${mappingCounter}</td>
+      <td><input type="text" class="form-control form-control-sm map-source" placeholder="$.${f}"></td>
+      <td><select class="form-select form-select-sm map-target"></select></td>
+      <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option></select></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
+    tbody.appendChild(tr);
+    populateTargetSelect(tr.querySelector('.map-target'), f);
+  }
+}
 
 async function loadOperators() {
   try {
@@ -271,6 +357,7 @@ function updateTargetTable() {
   if (fmt !== 'GtfsStatic') sel.value = '';
   const mpRow = document.getElementById('mobilityProviderRow');
   if (mpRow) mpRow.style.display = fmt === 'Gbfs' ? '' : 'none';
+  updateTargetFields();
 }
 
 function updatePaginationFields() {
@@ -305,10 +392,134 @@ function addMappingRow() {
   tr.id = 'mappingRow_' + mappingCounter;
   tr.innerHTML = `<td class="text-muted">${mappingCounter}</td>
     <td><input type="text" class="form-control form-control-sm map-source" placeholder="$.name"></td>
-    <td><input type="text" class="form-control form-control-sm map-target" placeholder="stationName"></td>
+    <td><select class="form-select form-select-sm map-target"></select></td>
     <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option></select></td>
     <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
   tbody.appendChild(tr);
+  populateTargetSelect(tr.querySelector('.map-target'), '');
+}
+
+async function autoFillMappings() {
+  // Fetch raw columns without field mappings so we can match source field names
+  const data = getFormData();
+  data.fieldMappings = [];
+  // Preview doesn't use operatorId, but the validator requires it — use a dummy value
+  if (!data.operatorId) data.operatorId = 1;
+  let rawColumns = [];
+  try {
+    const r = await fetch(BASE + '/custom-feeds/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (r.ok) {
+      const result = await r.json();
+      rawColumns = result.columns || [];
+    }
+  } catch (e) { /* fall through */ }
+
+  if (!rawColumns.length) {
+    // Fall back to last preview columns (might be mapped but better than nothing)
+    rawColumns = lastPreviewColumns;
+  }
+  if (!rawColumns.length) {
+    alert('Run Fetch & Preview first so columns are available');
+    return;
+  }
+
+  const rows = document.querySelectorAll('#mappingsBody tr');
+  for (const tr of rows) {
+    const sel = tr.querySelector('.map-target');
+    const src = tr.querySelector('.map-source');
+    if (!sel || !src || src.value.trim()) continue;
+    const target = sel.value;
+    if (!target) continue;
+    const match = findColumnMatch(target, rawColumns);
+    if (match) src.value = '$.' + match;
+  }
+}
+
+function findColumnMatch(target, columns) {
+  if (columns.includes(target)) return target;
+  const lower = target.toLowerCase();
+  const exactLower = columns.find(c => c.toLowerCase() === lower);
+  if (exactLower) return exactLower;
+  const aliases = FIELD_ALIASES[target] || [];
+  for (const a of aliases) {
+    if (columns.includes(a)) return a;
+    const aliasLower = columns.find(c => c.toLowerCase() === a.toLowerCase());
+    if (aliasLower) return aliasLower;
+  }
+  return null;
+}
+
+async function runDiscover() {
+  document.getElementById('discoverLoading').classList.remove('d-none');
+  document.getElementById('discoverError').classList.add('d-none');
+  document.getElementById('discoverTree').classList.add('d-none');
+  try {
+    const data = getFormData();
+    const r = await fetch(BASE + '/custom-feeds/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      document.getElementById('discoverError').textContent = err.title || err.detail || 'Discover failed';
+      document.getElementById('discoverError').classList.remove('d-none');
+      document.getElementById('discoverLoading').classList.add('d-none');
+      return;
+    }
+    const result = await r.json();
+    const container = document.getElementById('discoverTree');
+    container.classList.remove('d-none');
+    let html = '<div class="small text-muted mb-1">Click an array path to set DataPath:</div>';
+    if (result.arrayPaths && result.arrayPaths.length) {
+      html += '<div class="d-flex flex-wrap gap-1 mb-2">';
+      for (const ap of result.arrayPaths) {
+        const label = ap.replace(/\[\*\]/g, '[*]');
+        html += `<button type="button" class="btn btn-sm btn-outline-success" onclick="setDataPath('${escAttr(ap)}')">${esc(label)}</button>`;
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="text-warning small mb-2">No array-of-objects paths found. Try a different URL or check the log.</div>';
+    }
+    html += '<div class="small text-muted mb-1">Structure tree:</div>';
+    html += '<div class="border p-2 bg-light" style="max-height:400px;overflow:auto;font-size:0.8rem;">';
+    html += renderStructureTree(result.structure, '');
+    html += '</div>';
+    html += '<div class="mt-2"><strong>Log:</strong><pre class="border p-2 bg-light small" style="max-height:150px;overflow:auto;font-size:0.8rem;">' +
+      esc((result.logLines || []).join('\n')) + '</pre></div>';
+    container.innerHTML = html;
+  } catch (e) {
+    document.getElementById('discoverError').textContent = 'Error: ' + e.message;
+    document.getElementById('discoverError').classList.remove('d-none');
+  }
+  document.getElementById('discoverLoading').classList.add('d-none');
+}
+
+function renderStructureTree(node, indent) {
+  if (!node) return '';
+  const pad = indent + '  ';
+  let icon = node.type === 'object' ? '{}' : node.type === 'array' ? '[]' : node.type?.charAt(0).toUpperCase() || '?';
+  let extra = '';
+  if (node.type === 'array' && node.arrayItemCount != null) extra = ` <span class="badge bg-secondary">${node.arrayItemCount} items</span>`;
+  if (node.sample != null) extra += ` <span class="text-muted">= ${esc(node.sample)}</span>`;
+  let html = `<div style="white-space:nowrap">${pad}<span class="text-info fw-bold">${esc(node.name)}</span> <span class="text-secondary">${icon}</span>${extra}</div>`;
+  for (const child of node.children || []) {
+    html += renderStructureTree(child, pad);
+  }
+  return html;
+}
+
+function setDataPath(path) {
+  document.getElementById('fieldDataPath').value = path;
+}
+
+function escAttr(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function getAuthConfig() {
@@ -389,8 +600,20 @@ async function runPreview() {
       return;
     }
     const result = await r.json();
+    lastPreviewColumns = result.columns || [];
     document.getElementById('previewRowCount').textContent = result.totalRows;
     document.getElementById('previewLog').textContent = (result.logLines || []).join('\n');
+
+    // Render column chips
+    const chipContainer = document.getElementById('previewChips');
+    if (lastPreviewColumns.length) {
+      chipContainer.innerHTML = '<span class="text-muted small me-2">Columns:</span>' +
+        lastPreviewColumns.map(c => `<button type="button" class="btn btn-sm btn-outline-secondary preview-chip" data-col="${escAttr(c)}">${esc(c)}</button>`).join('');
+      chipContainer.classList.remove('d-none');
+    } else {
+      chipContainer.classList.add('d-none');
+    }
+
     if (result.columns && result.columns.length > 0) {
       let html = '<table class="table table-sm table-bordered"><thead class="table-light"><tr>' +
         result.columns.map(c => `<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
@@ -508,15 +731,18 @@ async function loadForEdit(id) {
       } catch(e) { /* ignore pagination parse errors */ }
     }
 
-    // Field mappings
+    // Field mappings — replace defaults with saved data
     if (feed.fieldMappings && feed.fieldMappings.length > 0) {
+      document.getElementById('mappingsBody').innerHTML = '';
+      mappingCounter = 0;
       feed.fieldMappings.forEach(m => {
         addMappingRow();
         const lastRow = document.querySelector('#mappingsBody tr:last-child');
         if (lastRow) {
           lastRow.querySelector('.map-source').value = m.sourceExpression || '';
-          lastRow.querySelector('.map-target').value = m.targetField || '';
           lastRow.querySelector('.map-kind').value = m.mappingKind || 'Direct';
+          const sel = lastRow.querySelector('.map-target');
+          populateTargetSelect(sel, m.targetField || '');
         }
       });
     }
@@ -525,6 +751,28 @@ async function loadForEdit(id) {
 
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// Click-to-fill from preview chips
+document.getElementById('previewChips').addEventListener('click', e => {
+  const btn = e.target.closest('.preview-chip');
+  if (!btn) return;
+  const col = btn.dataset.col;
+  const rows = document.querySelectorAll('#mappingsBody tr');
+  let filled = false;
+  for (const tr of rows) {
+    const src = tr.querySelector('.map-source');
+    if (src && !src.value.trim()) {
+      src.value = '$.' + col;
+      filled = true;
+      break;
+    }
+  }
+  if (!filled) {
+    addMappingRow();
+    const lastRow = document.querySelector('#mappingsBody tr:last-child');
+    if (lastRow) lastRow.querySelector('.map-source').value = '$.' + col;
+  }
+});
 
 // Init
 loadOperators();

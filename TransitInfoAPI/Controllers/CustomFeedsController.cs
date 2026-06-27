@@ -45,6 +45,8 @@ public class CustomFeedsController : ControllerBase
         [FromBody] Contracts.CreateCustomFeedRequest request,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(request.DataPath))
+            return Problem(statusCode: 400, title: "DataPath is required.");
         if (!Enum.TryParse<Enums.ResponseFormat>(request.ResponseFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid ResponseFormat '{request.ResponseFormat}'.");
         if (!Enum.TryParse<Enums.OutputFormat>(request.OutputFormat, true, out _))
@@ -131,11 +133,33 @@ public class CustomFeedsController : ControllerBase
         return Ok(run);
     }
 
+    [HttpPost("discover")]
+    public async Task<ActionResult<Contracts.CustomFeedDiscoverResponse>> Discover(
+        [FromBody] Contracts.CreateCustomFeedRequest request,
+        CancellationToken ct = default)
+    {
+        if (!Enum.TryParse<Enums.ResponseFormat>(request.ResponseFormat, true, out _))
+            return Problem(statusCode: 400, title: $"Invalid ResponseFormat '{request.ResponseFormat}'.");
+
+        try
+        {
+            var result = await _manager.DiscoverAsync(request, ct);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Discover failed");
+            return Problem(statusCode: 400, title: "Discover failed", detail: ex.Message);
+        }
+    }
+
     [HttpPost("preview")]
     public async Task<ActionResult<Contracts.CustomFeedPreviewResponse>> Preview(
         [FromBody] Contracts.CreateCustomFeedRequest request,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(request.DataPath))
+            return Problem(statusCode: 400, title: "DataPath is required for preview.");
         if (!Enum.TryParse<Enums.ResponseFormat>(request.ResponseFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid ResponseFormat '{request.ResponseFormat}'.");
         if (!Enum.TryParse<Enums.OutputFormat>(request.OutputFormat, true, out _))

@@ -7,6 +7,7 @@ using System.Xml.XPath;
 using CsvHelper;
 using CsvHelper.Configuration;
 
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 
@@ -615,5 +616,128 @@ public class CustomFeedEngine
             JsonValueKind.Array => el.GetRawText(),
             _ => el.GetRawText()
         };
+    }
+
+    public async Task<CustomFeedDiscoverResponse> DiscoverStructureAsync(CustomFeed config, CancellationToken ct)
+    {
+        var log = new List<string>();
+        log.Add($"Discovering structure for: {config.BaseUrl}");
+
+        var client = _httpClientFactory.CreateClient("CustomFeed");
+        client.Timeout = TimeSpan.FromSeconds(30);
+
+        var request = new HttpRequestMessage(new HttpMethod(config.HttpMethod), config.BaseUrl);
+        ApplyAuth(request, config.AuthConfig, log);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            log.Add($"HTTP request failed: {ex.Message}");
+            return new CustomFeedDiscoverResponse { LogLines = log };
+        }
+
+        log.Add($"Response status: {(int)response.StatusCode}");
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            log.Add("Empty response body");
+            return new CustomFeedDiscoverResponse { LogLines = log };
+        }
+
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var structure = BuildStructureNode("$", "$", root, 8);
+        var arrayPaths = new List<string>();
+        CollectArrayPaths(structure, arrayPaths);
+
+        log.Add($"Built structure tree — found {arrayPaths.Count} valid array paths");
+        return new CustomFeedDiscoverResponse
+        {
+            Structure = structure,
+            ArrayPaths = arrayPaths,
+            LogLines = log
+        };
+    }
+
+    private static JsonStructureNode BuildStructureNode(string name, string path, JsonElement el, int depth)
+    {
+        var node = new JsonStructureNode
+        {
+            Name = name,
+            Path = path,
+            Type = el.ValueKind.ToString().ToLowerInvariant()
+        };
+
+        if (el.ValueKind == JsonValueKind.Array)
+        {
+            node.ArrayItemCount = el.GetArrayLength();
+            if (node.ArrayItemCount > 0)
+            {
+                var first = el.EnumerateArray().First();
+                node.ArrayItemType = first.ValueKind.ToString().ToLowerInvariant();
+            }
+        }
+
+        if (depth <= 0)
+        {
+            if (el.ValueKind == JsonValueKind.Object) node.Sample = "{…}";
+            else if (el.ValueKind == JsonValueKind.Array) node.Sample = "[…]";
+            return node;
+        }
+
+        switch (el.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var prop in el.EnumerateObject())
+                    node.Children.Add(BuildStructureNode(prop.Name, $"{path}.{prop.Name}", prop.Value, depth - 1));
+                break;
+
+            case JsonValueKind.Array:
+                if (node.ArrayItemCount > 0)
+                {
+                    var first = el.EnumerateArray().First();
+                    if (first.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                        node.Children.Add(BuildStructureNode("[0]", $"{path}[0]", first, depth - 1));
+                    else
+                        node.Sample = ElementToObject(first)?.ToString();
+                }
+                break;
+
+            case JsonValueKind.String:
+                node.Sample = el.GetString();
+                break;
+
+            case JsonValueKind.Number:
+                node.Sample = el.TryGetInt64(out var l) ? l.ToString() : el.GetDouble().ToString();
+                break;
+
+            case JsonValueKind.True:
+                node.Sample = "true";
+                break;
+
+            case JsonValueKind.False:
+                node.Sample = "false";
+                break;
+        }
+
+        return node;
+    }
+
+    private static void CollectArrayPaths(JsonStructureNode node, List<string> paths)
+    {
+        if (node.Type == "array" && node.ArrayItemType == "object")
+        {
+            var ap = node.Path.Replace("[0]", "[*]");
+            paths.Add(ap);
+        }
+        foreach (var child in node.Children)
+            CollectArrayPaths(child, paths);
     }
 }
