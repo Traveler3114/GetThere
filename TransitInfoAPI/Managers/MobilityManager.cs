@@ -193,33 +193,24 @@ public class MobilityManager
             .Where(ms => ms.MobilityProviderId == providerId)
             .ToDictionaryAsync(ms => ms.StationId, ct);
 
-        var countryCache = new Dictionary<string, int>();
-
         async Task<int> GetCountryId(double lat, double lng)
         {
-            var key = $"{Math.Round(lat, 1)},{Math.Round(lng, 1)}";
-            if (countryCache.TryGetValue(key, out var cached)) return cached;
-            var id = await _placeMatching.DeriveCountryIdAsync(lat, lng, ct);
-            countryCache[key] = id;
-            return id;
+            return await _placeMatching.DeriveCountryIdAsync(lat, lng, ct);
         }
 
         int upserted = 0;
         foreach (var record in records)
         {
-            var stationId = GetDictString(record, "stationId") ?? GetDictString(record, "station_id") ?? GetDictString(record, "uid");
+            var stationId = GetDictString(record, "station_id");
             var name = GetDictString(record, "name");
-            var lat = GetDictDouble(record, "latitude") ?? GetDictDouble(record, "lat");
-            var lng = GetDictDouble(record, "longitude") ?? GetDictDouble(record, "lng") ?? GetDictDouble(record, "lon");
+            var lat = GetDictDouble(record, "lat");
+            var lng = GetDictDouble(record, "lon");
 
             if (stationId is null || name is null || lat is null || lng is null)
                 continue;
 
-            var capacity = GetDictInt(record, "capacity") ?? GetDictInt(record, "bike_racks");
-            var availableVehicles = GetDictInt(record, "availableVehicles") ?? GetDictInt(record, "bikes_available_to_rent") ?? GetDictInt(record, "available_bikes") ?? 0;
-            var countryName = GetDictString(record, "country_name");
-            var countryCode = GetDictString(record, "country");
-            var cityName = GetDictString(record, "city_name");
+            var capacity = GetDictInt(record, "capacity");
+            var availableVehicles = GetDictInt(record, "availableVehicles") ?? 0;
 
             if (existingByStationId.TryGetValue(stationId, out var existing))
             {
@@ -229,9 +220,6 @@ public class MobilityManager
                 existing.Capacity = capacity > 0 ? capacity : null;
                 existing.AvailableVehicles = availableVehicles;
                 existing.LastUpdated = DateTime.UtcNow;
-                existing.CountryName = countryName;
-                existing.CountryCode = countryCode;
-                existing.CityName = cityName;
             }
             else
             {
@@ -245,10 +233,7 @@ public class MobilityManager
                     Capacity = capacity > 0 ? capacity : null,
                     AvailableVehicles = availableVehicles,
                     CountryId = await GetCountryId(lat.Value, lng.Value),
-                    LastUpdated = DateTime.UtcNow,
-                    CountryName = countryName,
-                    CountryCode = countryCode,
-                    CityName = cityName
+                    LastUpdated = DateTime.UtcNow
                 });
             }
 

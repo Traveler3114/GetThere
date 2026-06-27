@@ -29,12 +29,12 @@ public class MobilityController : ControllerBase
         [FromQuery, Range(1, 500)] int perPage = 50,
         [FromQuery] string? format = null,
         [FromQuery] string? countryName = null,
-        [FromQuery] string? cityName = null,
         CancellationToken ct = default)
     {
         var query = _db.MobilityStations
             .Include(ms => ms.MobilityProvider)
             .ThenInclude(mp => mp.Operator)
+            .Include(ms => ms.Country)
             .AsQueryable();
 
         if (lat is not null && lon is not null && radiusKm is not null)
@@ -49,9 +49,7 @@ public class MobilityController : ControllerBase
         }
 
         if (!string.IsNullOrWhiteSpace(countryName))
-            query = query.Where(ms => ms.CountryName == countryName);
-        if (!string.IsNullOrWhiteSpace(cityName))
-            query = query.Where(ms => ms.CityName == cityName);
+            query = query.Where(ms => ms.Country.Name == countryName);
 
         if (string.Equals(format, "geojson", StringComparison.OrdinalIgnoreCase))
         {
@@ -69,9 +67,8 @@ public class MobilityController : ControllerBase
                     capacity = s.Capacity,
                     availableVehicles = s.AvailableVehicles,
                     lastUpdated = s.LastUpdated,
-                    countryName = s.CountryName,
-                    countryCode = s.CountryCode,
-                    cityName = s.CityName
+                    countryName = s.Country?.Name,
+                    countryCode = s.Country?.IsoCode
                 }
             }).ToList();
             return Ok(new { type = "FeatureCollection", features });
@@ -92,26 +89,8 @@ public class MobilityController : ControllerBase
     public async Task<ActionResult<List<string>>> GetCountries(CancellationToken ct)
     {
         var names = await _db.MobilityStations
-            .Where(ms => ms.CountryName != null)
-            .Select(ms => ms.CountryName!)
-            .Distinct()
-            .OrderBy(n => n)
-            .ToListAsync(ct);
-        return Ok(names);
-    }
-
-    [HttpGet("cities")]
-    public async Task<ActionResult<List<string>>> GetCities(
-        [FromQuery] string? countryName = null,
-        CancellationToken ct = default)
-    {
-        var query = _db.MobilityStations
-            .Where(ms => ms.CityName != null)
-            .AsQueryable();
-        if (!string.IsNullOrWhiteSpace(countryName))
-            query = query.Where(ms => ms.CountryName == countryName);
-        var names = await query
-            .Select(ms => ms.CityName!)
+            .Where(ms => ms.Country != null)
+            .Select(ms => ms.Country.Name)
             .Distinct()
             .OrderBy(n => n)
             .ToListAsync(ct);

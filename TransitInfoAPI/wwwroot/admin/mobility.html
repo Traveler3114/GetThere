@@ -33,14 +33,8 @@
   <div class="row g-2 mb-3">
     <div class="col-auto">
       <label class="form-label small">Country</label>
-      <select id="filterCountry" class="form-select form-select-sm" onchange="onCountryChange()">
+      <select id="filterCountry" class="form-select form-select-sm" onchange="loadPage(1)">
         <option value="">All countries</option>
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label small">City</label>
-      <select id="filterCity" class="form-select form-select-sm" onchange="loadPage(1)">
-        <option value="">All cities</option>
       </select>
     </div>
   </div>
@@ -70,19 +64,6 @@ async function loadFilters() {
   } catch(e) { /* ignore */ }
 }
 
-function onCountryChange() {
-  const country = document.getElementById('filterCountry').value;
-  const citySel = document.getElementById('filterCity');
-  citySel.innerHTML = '<option value="">All cities</option>';
-  citySel.value = '';
-  if (country) {
-    fetch(BASE + '/mobility/cities?countryName=' + encodeURIComponent(country)).then(r => r.ok && r.json()).then(cities => {
-      if (cities) citySel.innerHTML = '<option value="">All cities</option>' + cities.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    }).catch(() => {});
-  }
-  loadPage(1);
-}
-
 async function loadPage(page) {
   currentPage = page;
   document.getElementById('loading').classList.remove('d-none');
@@ -92,9 +73,7 @@ async function loadPage(page) {
   try {
     let url = `${BASE}/mobility/stations?page=${page}&perPage=${perPage}`;
     const country = document.getElementById('filterCountry').value;
-    const city = document.getElementById('filterCity').value;
     if (country) url += '&countryName=' + encodeURIComponent(country);
-    if (city) url += '&cityName=' + encodeURIComponent(city);
     const r = await fetch(url);
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
@@ -142,7 +121,6 @@ function renderMobilityPage() {
       return `<tr>
       <td>${esc(s.name)}</td>
       <td>${esc(s.providerName)}</td>
-      <td>${esc(s.cityName || '')}</td>
       <td>${esc(s.countryName || '')}</td>
       <td class="small">${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
       <td>${cap > 0 ? s.availableVehicles + ' / ' + cap : s.availableVehicles + ' avail.'}</td>
@@ -150,12 +128,12 @@ function renderMobilityPage() {
       <td><code>${esc(s.stationId)}</code></td>
     </tr>`;
     }).join('');
-    document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Provider</th><th>City</th><th>Country</th><th>Location</th><th>Available</th><th>Utilization</th><th>Station ID</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Provider</th><th>Country</th><th>Location</th><th>Available</th><th>Utilization</th><th>Station ID</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   } else {
     const cards = list.map(s => {
       const cap = s.capacity || s.capacity === 0 ? s.capacity : null;
       const pct = cap > 0 ? Math.round(s.availableVehicles / cap * 100) : null;
-      const loc = s.cityName ? esc(s.cityName) + (s.countryName ? ', ' + esc(s.countryName) : '') : (s.countryName ? esc(s.countryName) : '');
+      const loc = s.countryName ? esc(s.countryName) : '';
       return `<div class="col-md-4 col-lg-3 mb-3"><div class="card h-100 shadow-sm">
         <div class="card-body">
           <h6 class="card-title mb-1">${esc(s.name)}</h6>

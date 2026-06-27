@@ -16,10 +16,4 @@ public class MobilityStation
 
     public int CountryId { get; set; }
     public Country Country { get; set; } = null!;
-
-    public int? CityId { get; set; }
-    public City? City { get; set; }
-    public string? CountryName { get; set; }
-    public string? CountryCode { get; set; }
-    public string? CityName { get; set; }
 }

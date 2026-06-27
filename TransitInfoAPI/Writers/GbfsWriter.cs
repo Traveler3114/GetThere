@@ -24,13 +24,14 @@ public class GbfsWriter
         if (records.Count == 0) return 0;
 
         var first = records[0];
-        bool isStations = first.ContainsKey("stationId") || first.ContainsKey("station_id") || first.ContainsKey("uid");
-        bool isFreeFloating = (first.ContainsKey("bikeId") || first.ContainsKey("bike_id") || first.ContainsKey("vehicleId"))
-            && (first.ContainsKey("lat") || first.ContainsKey("latitude") || first.ContainsKey("lon") || first.ContainsKey("longitude"));
+        bool isStations = first.ContainsKey("station_id");
+        bool isFreeFloating = first.ContainsKey("bike_id")
+            && first.ContainsKey("lat")
+            && first.ContainsKey("lon");
 
         if (!isStations && !isFreeFloating)
         {
-            _logger.LogWarning("GbfsWriter: records missing recognizable fields — need stationId/station_id or bikeId/vehicleId + lat/lon");
+            _logger.LogWarning("GbfsWriter: records missing station_id or bike_id with lat/lon");
             return 0;
         }
 
@@ -58,9 +59,9 @@ public class GbfsWriter
 
             foreach (var record in records)
             {
-                var vehicleId = GetString(record, "bikeId") ?? GetString(record, "bike_id") ?? GetString(record, "vehicleId") ?? GetString(record, "vehicle_id");
-                var lat = GetDouble(record, "lat") ?? GetDouble(record, "latitude");
-                var lng = GetDouble(record, "lon") ?? GetDouble(record, "lng") ?? GetDouble(record, "longitude");
+                var vehicleId = GetString(record, "bike_id");
+                var lat = GetDouble(record, "lat");
+                var lng = GetDouble(record, "lon");
 
                 if (vehicleId is null || lat is null || lng is null)
                     continue;

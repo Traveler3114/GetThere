@@ -655,7 +655,7 @@ function showMobilityStationSidebar(props) {
   const content = document.getElementById('sidebar-content');
   const cap = props.capacity > 0 ? props.capacity : null;
   const pct = cap ? Math.round(props.availableVehicles / cap * 100) : null;
-  const loc = [props.cityName, props.countryName].filter(Boolean).join(', ');
+  const loc = props.countryName || '';
   let html = `
     <h2>${esc(props.name || 'Unknown')}</h2>
     <div class="info-row"><strong>Provider</strong> ${esc(props.providerName || '-')}</div>

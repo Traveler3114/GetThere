@@ -16,8 +16,7 @@ public static class MobilityStationMapper
         Capacity = ms.Capacity,
         ProviderName = ms.MobilityProvider != null ? ms.MobilityProvider.Name : string.Empty,
         LastUpdated = ms.LastUpdated,
-        CountryName = ms.CountryName,
-        CountryCode = ms.CountryCode,
-        CityName = ms.CityName
+        CountryName = ms.Country?.Name,
+        CountryCode = ms.Country?.IsoCode
     };
 }
