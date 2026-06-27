@@ -376,6 +376,8 @@ public class FeedManager
 
                     await ImportAgenciesAndStopsPhaseAsync(feedVersionId, parsed.Agencies, parsed.RawStops, routeTypesPerStop, parsed.OperatorId, ct);
 
+                    archive.Dispose();
+
                     await ReconcileAndBackfillAsync(feedVersionId, version, ct);
 
                     await MatchPlacesAsync(ct);

@@ -15,6 +15,23 @@ public class PlaceMatchingOptions
 
 public class PlaceMatchingManager
 {
+    private static readonly Dictionary<string, string> CountryNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AL"] = "Albania", ["AM"] = "Armenia", ["AT"] = "Austria", ["AZ"] = "Azerbaijan",
+        ["BA"] = "Bosnia and Herzegovina", ["BE"] = "Belgium", ["BG"] = "Bulgaria",
+        ["CH"] = "Switzerland", ["CZ"] = "Czech Republic", ["DE"] = "Germany",
+        ["DK"] = "Denmark", ["EE"] = "Estonia", ["ES"] = "Spain", ["FI"] = "Finland",
+        ["FR"] = "France", ["GB"] = "United Kingdom", ["GE"] = "Georgia",
+        ["GR"] = "Greece", ["HR"] = "Croatia", ["HU"] = "Hungary", ["IE"] = "Ireland",
+        ["IT"] = "Italy", ["LI"] = "Liechtenstein", ["LT"] = "Lithuania",
+        ["LU"] = "Luxembourg", ["LV"] = "Latvia", ["MC"] = "Monaco",
+        ["MD"] = "Moldova", ["ME"] = "Montenegro", ["NL"] = "Netherlands",
+        ["NO"] = "Norway", ["PL"] = "Poland", ["PT"] = "Portugal", ["RO"] = "Romania",
+        ["SE"] = "Sweden", ["SI"] = "Slovenia", ["SK"] = "Slovakia",
+        ["SM"] = "San Marino", ["TR"] = "Turkey", ["UA"] = "Ukraine",
+        ["VA"] = "Vatican City",
+    };
+
     private readonly TransitDbContext _db;
     private readonly ILogger<PlaceMatchingManager> _logger;
     private readonly IOptions<PlaceMatchingOptions> _options;
@@ -155,7 +172,8 @@ public class PlaceMatchingManager
                 _countryIdCache[iso] = country.Id;
                 return country.Id;
             }
-            country = new Country { IsoCode = iso, Name = iso, Continent = "Unknown" };
+            var countryName = CountryNames.TryGetValue(iso, out var n) ? n : iso;
+            country = new Country { IsoCode = iso, Name = countryName, Continent = "Unknown" };
             _db.Countries.Add(country);
             await _db.SaveChangesAsync(ct);
             _countryIdCache[iso] = country.Id;

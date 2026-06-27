@@ -16,7 +16,7 @@ public static class GeoCountryDetector
             new(41.90, 41.91, 12.44, 12.46, "VA"),
             new(43.90, 44.00, 12.40, 12.50, "SM"),
 
-            // Italy — multiple boxes for distinct regions
+            // Italy — northern specific sub-boxes (no overlap with medium countries)
             new(45.40, 45.60, 12.20, 12.50, "IT"),  // Venezia
             new(45.55, 45.80, 13.70, 13.90, "IT"),  // Trieste
             new(45.90, 46.20, 13.10, 13.40, "IT"),  // Udine
@@ -24,24 +24,32 @@ public static class GeoCountryDetector
             new(46.40, 46.60, 13.50, 13.70, "IT"),  // Tarvisio
             new(44.30, 44.70, 11.10, 11.50, "IT"),  // Bologna
             new(41.70, 42.10, 12.30, 12.70, "IT"),  // Roma
-            new(46.20, 46.80, 10.50, 12.50, "IT"),  // Italy north (South Tyrol, Trentino)
-            new(35.50, 46.20, 6.60, 12.80, "IT"),   // Italy west (Tyrrhenian side — Tuscany, Campania, etc.)
-            new(37.50, 42.80, 12.80, 18.60, "IT"),  // Italy east (Adriatic side — Marche, Puglia, etc.)
 
-            // Small countries
-            new(45.40, 46.90, 13.50, 16.60, "SI"),  // Slovenia (after Italy micro-boxes)
+            // AT Carinthia sub-box — catches Austrian stations overlapping SI territory, checked before SI
+            new(46.45, 47.00, 13.00, 14.50, "AT"),  // Austria (Carinthia south)
+
+            // Specific SI sub-boxes (checked before HR to prevent Slovenian stations from falling to HR)
+            new(45.45, 45.60, 13.50, 13.80, "SI"),  // Slovenia (Koper/Izola/Piran coast)
+            new(45.60, 46.60, 13.50, 14.50, "SI"),  // Slovenia (Ljubljana/Jesenice/Kranj)
+            new(45.75, 46.60, 14.50, 15.80, "SI"),  // Slovenia (Celje/Maribor/Novo Mesto)
+
+            // Croatia — checked after SI sub-boxes; covers everything SI doesn't claim
+            new(42.40, 46.60, 13.50, 19.40, "HR"),  // Croatia
+
+            new(44.10, 46.20, 15.70, 23.30, "BA"),  // Bosnia and Herzegovina
             new(42.20, 43.00, 18.40, 19.50, "ME"),  // Montenegro
             new(41.80, 42.70, 19.20, 21.10, "AL"),  // Albania
-
-            // Medium countries
             new(46.30, 49.00, 9.50, 17.20, "AT"),   // Austria
             new(45.70, 47.80, 12.10, 22.90, "HU"),  // Hungary
             new(45.80, 47.80, 12.80, 22.50, "SK"),  // Slovakia
-            new(42.40, 46.60, 13.50, 19.40, "HR"),  // Croatia
-            new(44.10, 46.20, 15.70, 23.30, "BA"),  // Bosnia and Herzegovina
             new(41.90, 46.50, 18.40, 23.30, "RO"),  // Romania
             new(41.20, 44.20, 22.50, 28.90, "BG"),  // Bulgaria
             new(38.50, 42.00, 19.50, 29.70, "GR"),  // Greece
+
+            // Broad Italy boxes — cover larger areas, lower priority
+            new(46.20, 46.80, 10.50, 12.50, "IT"),  // Italy north (South Tyrol, Trentino)
+            new(35.50, 46.20, 6.60, 12.80, "IT"),   // Italy west (Tyrrhenian side)
+            new(37.50, 42.80, 12.80, 18.60, "IT"),  // Italy east (Adriatic side)
             new(49.50, 53.60, 3.30, 7.20, "BE"),    // Belgium
             new(50.70, 53.50, 3.40, 7.20, "NL"),    // Netherlands
             new(49.50, 51.10, 2.00, 6.40, "LU"),    // Luxembourg
