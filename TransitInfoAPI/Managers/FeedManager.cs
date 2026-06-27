@@ -31,6 +31,7 @@ public class FeedManager
     private readonly ReconciliationManager _reconciliation;
     private readonly PlaceMatchingManager _placeMatching;
     private readonly Services.ImportLogStore _logStore;
+    private readonly Services.FeedSourceFactory _feedSourceFactory;
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
 
     public FeedManager(
@@ -42,7 +43,8 @@ public class FeedManager
         OnestopIdManager onestopId,
         ReconciliationManager reconciliation,
         PlaceMatchingManager placeMatching,
-        Services.ImportLogStore logStore)
+        Services.ImportLogStore logStore,
+        Services.FeedSourceFactory feedSourceFactory)
     {
         _db = db;
         _httpFactory = httpFactory;
@@ -53,6 +55,7 @@ public class FeedManager
         _reconciliation = reconciliation;
         _placeMatching = placeMatching;
         _logStore = logStore;
+        _feedSourceFactory = feedSourceFactory;
     }
 
     public async Task<List<FeedResponse>> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
@@ -224,54 +227,58 @@ public class FeedManager
             var feed = await _db.Feeds.FindAsync([feedId], ct);
             if (feed is null) return null;
 
-            var url = feed.ExternalUrl ?? feed.InternalUrl;
-            if (string.IsNullOrWhiteSpace(url)) return null;
-
-            var http = _httpFactory.CreateClient();
-
-            // Try HEAD request — if ETag/LastModified match the latest version, skip download
             string? remoteLastModified = null;
             string? remoteETag = null;
-            try
+
+            // HEAD optimization only for external feeds
+            var url = feed.ExternalUrl ?? feed.InternalUrl;
+            if (!string.IsNullOrWhiteSpace(url) && !feed.IsInternal)
             {
-                var head = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), ct);
-                remoteLastModified = head.Content.Headers.LastModified?.ToString();
-                remoteETag = head.Headers.ETag?.Tag;
-                if (remoteLastModified is not null || remoteETag is not null)
+                try
                 {
-                    var match = await _db.FeedVersions
-                        .Where(fv => fv.FeedId == feedId && fv.LastModified != null && fv.ETag != null)
-                        .OrderByDescending(fv => fv.FetchedAt)
-                        .FirstOrDefaultAsync(ct);
-                    if (match is not null
-                        && match.LastModified?.ToString() == remoteLastModified
-                        && match.ETag == remoteETag)
+                    var http = _httpFactory.CreateClient();
+                    var head = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), ct);
+                    remoteLastModified = head.Content.Headers.LastModified?.ToString();
+                    remoteETag = head.Headers.ETag?.Tag;
+                    if (remoteLastModified is not null || remoteETag is not null)
                     {
-                        _logger.LogInformation("Feed {FeedId} unchanged (ETag/LastModified match), skipping", feed.FeedId);
-                        return match;
+                        var match = await _db.FeedVersions
+                            .Where(fv => fv.FeedId == feedId && fv.LastModified != null && fv.ETag != null)
+                            .OrderByDescending(fv => fv.FetchedAt)
+                            .FirstOrDefaultAsync(ct);
+                        if (match is not null
+                            && match.LastModified?.ToString() == remoteLastModified
+                            && match.ETag == remoteETag)
+                        {
+                            _logger.LogInformation("Feed {FeedId} unchanged (ETag/LastModified match), skipping", feed.FeedId);
+                            return match;
+                        }
                     }
                 }
-            }
-            catch
-            {
-                // HEAD not supported — fall through to full download
+                catch
+                {
+                    // HEAD not supported — fall through to fetch
+                }
             }
 
-            var getResponse = await http.SendAsync(new HttpRequestMessage(HttpMethod.Get, url), HttpCompletionOption.ResponseHeadersRead, ct);
-            var contentType = getResponse.Content.Headers.ContentType?.MediaType;
-            if (contentType is not null && contentType != "application/zip" && !contentType.StartsWith("application/"))
+            var source = _feedSourceFactory.Resolve(feed);
+            var result = await source.FetchDataAsync(feed, ct);
+
+            // Content-type validation for external HTTP responses
+            if (result.ContentType is not null
+                && result.ContentType != "application/zip"
+                && !result.ContentType.StartsWith("application/"))
             {
-                _logger.LogWarning("Feed {FeedId} has unexpected Content-Type {ContentType}, skipping", feed.FeedId, contentType);
+                _logger.LogWarning("Feed {FeedId} has unexpected Content-Type {ContentType}, skipping", feed.FeedId, result.ContentType);
                 return null;
             }
-            var bytes = await getResponse.Content.ReadAsByteArrayAsync(ct);
 
             var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
             try { Directory.CreateDirectory(outputDir); }
             catch (Exception ex) { _logger.LogError(ex, "Failed to create directory {Dir} for feed {FeedId}", outputDir, feed.FeedId); return null; }
             var zipPath = Path.Combine(outputDir, "gtfs.zip");
             var tmpPath = zipPath + ".tmp";
-            await File.WriteAllBytesAsync(tmpPath, bytes, ct);
+            await File.WriteAllBytesAsync(tmpPath, result.Data, ct);
             try
             {
                 File.Replace(tmpPath, zipPath, null);
@@ -281,9 +288,7 @@ public class FeedManager
                 File.Move(tmpPath, zipPath);
             }
 
-            string sha1;
-            using (var archive = ZipFile.OpenRead(zipPath))
-                sha1 = _gtfs.ComputeGtfsSha1(archive);
+            var sha1 = source.ComputeHash(feed, result.Data);
 
             var existing = await _db.FeedVersions
                 .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
@@ -316,7 +321,7 @@ public class FeedManager
             await _db.SaveChangesAsync(ct);
 
             _logger.LogInformation("New FeedVersion {VersionId} for feed {FeedId} SHA1={Sha1}", version.Id, feed.FeedId, sha1);
-            _logStore.AddEntry(version.Id, $"Downloaded {bytes.Length:N0} bytes from {url}");
+            _logStore.AddEntry(version.Id, $"Downloaded {result.Data.Length:N0} bytes via {source.GetType().Name}");
             _logStore.AddEntry(version.Id, $"SHA1 = {sha1}");
             return version;
         }
@@ -462,7 +467,7 @@ public class FeedManager
     public async Task<List<Feed>> GetActiveGtfsFeedsAsync(CancellationToken ct)
     {
         return await _db.Feeds
-            .Where(f => f.IsActive && !f.IsInternal && f.FeedType == FeedType.GTFSStatic)
+            .Where(f => f.IsActive && f.FeedType == FeedType.GTFSStatic)
             .ToListAsync(ct);
     }
 

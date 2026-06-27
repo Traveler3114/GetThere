@@ -6,38 +6,30 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
-using TransitInfoAPI.Writers;
-
 namespace TransitInfoAPI.Managers;
 
 public class CustomFeedManager
 {
     private readonly TransitDbContext _db;
     private readonly CustomFeedEngine _engine;
-    private readonly GtfsStaticWriter _gtfsStaticWriter;
-    private readonly GtfsRealtimeWriter _gtfsRealtimeWriter;
-    private readonly GbfsWriter _gbfsWriter;
     private readonly OnestopIdManager _onestopId;
     private readonly FeedManager _feedManager;
+    private readonly Services.FeedSourceFactory _feedSourceFactory;
     private readonly ILogger<CustomFeedManager> _logger;
 
     public CustomFeedManager(
         TransitDbContext db,
         CustomFeedEngine engine,
-        GtfsStaticWriter gtfsStaticWriter,
-        GtfsRealtimeWriter gtfsRealtimeWriter,
-        GbfsWriter gbfsWriter,
         OnestopIdManager onestopId,
         FeedManager feedManager,
+        Services.FeedSourceFactory feedSourceFactory,
         ILogger<CustomFeedManager> logger)
     {
         _db = db;
         _engine = engine;
-        _gtfsStaticWriter = gtfsStaticWriter;
-        _gtfsRealtimeWriter = gtfsRealtimeWriter;
-        _gbfsWriter = gbfsWriter;
         _onestopId = onestopId;
         _feedManager = feedManager;
+        _feedSourceFactory = feedSourceFactory;
         _logger = logger;
     }
 
@@ -220,69 +212,29 @@ public class CustomFeedManager
         return run is null ? null : CustomFeedMapper.ToRunResponse(run);
     }
 
-    public async Task<CustomFeedRunResponse> ExecuteAsync(int feedId, CancellationToken ct)
+    public async Task<CustomFeedRunResponse> ExecuteAsync(int customFeedId, CancellationToken ct)
     {
-        var feed = await _db.CustomFeeds
-            .Include(f => f.FieldMappings)
-            .FirstOrDefaultAsync(f => f.Id == feedId, ct);
+        var customFeed = await _db.CustomFeeds
+            .FirstOrDefaultAsync(f => f.Id == customFeedId, ct)
+            ?? throw new InvalidOperationException($"Custom feed {customFeedId} not found");
 
-        if (feed is null)
-            throw new InvalidOperationException($"Custom feed {feedId} not found");
+        var hiddenFeed = await _db.Feeds
+            .FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
 
-        var run = new CustomFeedRun
-        {
-            CustomFeedId = feedId,
-            StartedAt = DateTime.UtcNow,
-            Status = CustomFeedRunStatus.Running,
-            RecordsProduced = 0,
-            LogText = string.Empty
-        };
+        if (hiddenFeed is null)
+            throw new InvalidOperationException($"No hidden feed found for custom feed {customFeedId}");
 
-        _db.CustomFeedRuns.Add(run);
-        await _db.SaveChangesAsync(ct);
+        var source = _feedSourceFactory.Resolve(hiddenFeed);
+        await source.FetchDataAsync(hiddenFeed, ct);
 
-        int recordsWritten = 0;
+        var lastRun = await _db.CustomFeedRuns
+            .Where(r => r.CustomFeedId == customFeedId)
+            .OrderByDescending(r => r.StartedAt)
+            .FirstOrDefaultAsync(ct);
 
-        try
-        {
-            var engineResult = await _engine.ExecuteAsync(feed, ct);
-
-            switch (feed.OutputFormat)
-            {
-                case OutputFormat.GtfsStatic:
-                    var hiddenFeed = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == feed.Id, ct);
-                    recordsWritten = await _gtfsStaticWriter.WriteAsync(
-                        engineResult.Records, feed.TargetTable, feed.OperatorId,
-                        hiddenFeed?.FeedId, ct);
-                    if (hiddenFeed is not null && recordsWritten > 0)
-                    {
-                        await _feedManager.TriggerImportAsync(hiddenFeed.Id, ct);
-                    }
-                    break;
-                case OutputFormat.GtfsRealtime:
-                    recordsWritten = await _gtfsRealtimeWriter.WriteAsync(engineResult.Records, ct);
-                    break;
-                case OutputFormat.Gbfs:
-                    recordsWritten = await _gbfsWriter.WriteAsync(engineResult.Records, feed.MobilityProviderId, ct);
-                    break;
-            }
-
-            run.Status = CustomFeedRunStatus.Success;
-            run.CompletedAt = DateTime.UtcNow;
-            run.RecordsProduced = recordsWritten;
-            run.LogText = string.Join("\n", engineResult.LogLines);
-            feed.LastRunAt = DateTime.UtcNow;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Custom feed {FeedId} execution failed", feedId);
-            run.Status = CustomFeedRunStatus.Failed;
-            run.CompletedAt = DateTime.UtcNow;
-            run.LogText = $"Exception: {ex.Message}\n{ex.StackTrace}";
-        }
-
-        await _db.SaveChangesAsync(ct);
-        return CustomFeedMapper.ToRunResponse(run);
+        return lastRun is null
+            ? throw new InvalidOperationException("Run completed but no run record found")
+            : CustomFeedMapper.ToRunResponse(lastRun);
     }
 
     public async Task<CustomFeedDiscoverResponse> DiscoverAsync(CreateCustomFeedRequest request, CancellationToken ct)

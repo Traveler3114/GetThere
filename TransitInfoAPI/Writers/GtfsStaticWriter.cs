@@ -8,64 +8,43 @@ namespace TransitInfoAPI.Writers;
 public class GtfsStaticWriter
 {
     private readonly ILogger<GtfsStaticWriter> _logger;
-    private readonly IWebHostEnvironment _env;
 
-    public GtfsStaticWriter(ILogger<GtfsStaticWriter> logger, IWebHostEnvironment env)
+    public GtfsStaticWriter(ILogger<GtfsStaticWriter> logger)
     {
         _logger = logger;
-        _env = env;
     }
 
-    public async Task<int> WriteAsync(
+    public async Task<byte[]> ConvertAsync(
         List<Dictionary<string, object?>> records,
         string? targetTable,
-        int operatorId,
-        string? feedId,
         CancellationToken ct)
     {
-        if (records.Count == 0) return 0;
-        if (string.IsNullOrWhiteSpace(feedId))
-        {
-            _logger.LogWarning("GtfsStaticWriter: feedId is null or empty, cannot write");
-            return 0;
-        }
+        if (records.Count == 0) return [];
 
         var table = ResolveTable(records, targetTable);
         if (table is null)
         {
             _logger.LogWarning("GtfsStaticWriter: could not resolve target table from records");
-            return 0;
+            return [];
         }
-
-        var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feedId);
-        Directory.CreateDirectory(outputDir);
-        var zipPath = Path.Combine(outputDir, "gtfs.zip");
-        var tmpPath = zipPath + ".tmp";
 
         var csvContent = BuildCsv(records, table.Columns);
 
-        using var tmpZip = new FileStream(tmpPath, FileMode.Create, FileAccess.Write);
-        using var archive = new ZipArchive(tmpZip, ZipArchiveMode.Create);
-        var entry = archive.CreateEntry(table.FileName, CompressionLevel.Optimal);
-        await using (var writer = new StreamWriter(entry.Open(), Encoding.UTF8))
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
-            await writer.WriteAsync(csvContent);
-        }
-
-        try
-        {
-            File.Replace(tmpPath, zipPath, null);
-        }
-        catch (FileNotFoundException)
-        {
-            File.Move(tmpPath, zipPath);
+            var entry = archive.CreateEntry(table.FileName, CompressionLevel.Optimal);
+            await using (var writer = new StreamWriter(entry.Open(), Encoding.UTF8))
+            {
+                await writer.WriteAsync(csvContent);
+            }
         }
 
         _logger.LogInformation(
-            "GtfsStaticWriter: wrote {Count} records to {File} for feed {FeedId}",
-            records.Count, table.FileName, feedId);
+            "GtfsStaticWriter: converted {Count} records to {File}",
+            records.Count, table.FileName);
 
-        return records.Count;
+        return ms.ToArray();
     }
 
     private static TableInfo? ResolveTable(List<Dictionary<string, object?>> records, string? targetTable)

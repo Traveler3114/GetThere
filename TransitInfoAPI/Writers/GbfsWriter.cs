@@ -1,27 +1,27 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using System.Text;
+using System.Text.Json;
 
-using TransitInfoAPI.Contracts;
-using TransitInfoAPI.Managers;
+using Microsoft.Extensions.Logging;
 
 namespace TransitInfoAPI.Writers;
 
 public class GbfsWriter
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<GbfsWriter> _logger;
-
-    public GbfsWriter(IServiceScopeFactory scopeFactory, ILogger<GbfsWriter> logger)
+    private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        _scopeFactory = scopeFactory;
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = false
+    };
+
+    public GbfsWriter(ILogger<GbfsWriter> logger)
+    {
         _logger = logger;
     }
 
-    public async Task<int> WriteAsync(List<Dictionary<string, object?>> records, int? mobilityProviderId, CancellationToken ct)
+    public Task<byte[]> ConvertAsync(List<Dictionary<string, object?>> records, int? mobilityProviderId, CancellationToken ct)
     {
-        if (records.Count == 0) return 0;
-
-        if (records.Count == 0) return 0;
+        if (records.Count == 0) return Task.FromResult(Array.Empty<byte>());
 
         var first = records[0];
         bool isStations = first.ContainsKey("station_id");
@@ -32,57 +32,83 @@ public class GbfsWriter
         if (!isStations && !isFreeFloating)
         {
             _logger.LogWarning("GbfsWriter: records missing station_id or bike_id with lat/lon");
-            return 0;
+            return Task.FromResult(Array.Empty<byte>());
         }
-
-        using var scope = _scopeFactory.CreateScope();
 
         if (isStations)
         {
-            if (mobilityProviderId is null)
+            var stations = new List<object>();
+            foreach (var record in records)
             {
-                _logger.LogWarning("GbfsWriter: station records require a MobilityProviderId");
-                return 0;
+                var stationId = GetString(record, "station_id");
+                var name = GetString(record, "name");
+                var lat = GetDouble(record, "lat");
+                var lng = GetDouble(record, "lon");
+
+                if (stationId is null || name is null || lat is null || lng is null)
+                    continue;
+
+                stations.Add(new
+                {
+                    station_id = stationId,
+                    name,
+                    lat = lat.Value,
+                    lon = lng.Value,
+                    capacity = GetInt(record, "capacity"),
+                    vehicle_types_available = new[]
+                    {
+                        new { vehicle_type_id = "bike", count = GetInt(record, "availableVehicles") ?? 0 }
+                    }
+                });
             }
 
-            var mobilityManager = scope.ServiceProvider.GetRequiredService<MobilityManager>();
-            var written = await mobilityManager.UpsertStationsFromCustomFeedAsync(mobilityProviderId.Value, records, ct);
-            _logger.LogInformation("GbfsWriter: wrote {Count} station records", written);
-            return written;
+            var payload = new
+            {
+                last_updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                ttl = 0,
+                data = new { stations }
+            };
+
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            _logger.LogInformation("GbfsWriter: serialized {Count} station records", stations.Count);
+            return Task.FromResult(Encoding.UTF8.GetBytes(json));
         }
 
         if (isFreeFloating)
         {
-            var realtimeManager = scope.ServiceProvider.GetRequiredService<RealtimeManager>();
-            var feedId = mobilityProviderId is not null ? $"gbfs-custom-{mobilityProviderId}" : "gbfs-custom";
-            int count = 0;
-
+            var bikes = new List<object>();
             foreach (var record in records)
             {
-                var vehicleId = GetString(record, "bike_id");
+                var bikeId = GetString(record, "bike_id");
                 var lat = GetDouble(record, "lat");
                 var lng = GetDouble(record, "lon");
 
-                if (vehicleId is null || lat is null || lng is null)
+                if (bikeId is null || lat is null || lng is null)
                     continue;
 
-                realtimeManager.UpdateVehicleCache(feedId, new VehicleResponse
+                bikes.Add(new
                 {
-                    VehicleId = vehicleId,
-                    FeedId = feedId,
-                    Latitude = lat.Value,
-                    Longitude = lng.Value,
-                    LastUpdated = DateTime.UtcNow,
-                    IsRealtime = true
+                    bike_id = bikeId,
+                    lat = lat.Value,
+                    lon = lng.Value,
+                    is_reserved = false,
+                    is_disabled = false
                 });
-                count++;
             }
 
-            _logger.LogInformation("GbfsWriter: wrote {Count} free-floating vehicle records", count);
-            return count;
+            var payload = new
+            {
+                last_updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                ttl = 0,
+                data = new { bikes }
+            };
+
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            _logger.LogInformation("GbfsWriter: serialized {Count} free-floating vehicle records", bikes.Count);
+            return Task.FromResult(Encoding.UTF8.GetBytes(json));
         }
 
-        return 0;
+        return Task.FromResult(Array.Empty<byte>());
     }
 
     private static string? GetString(Dictionary<string, object?> dict, string key)
@@ -97,6 +123,15 @@ public class GbfsWriter
         if (v is int i) return i;
         if (v is long l) return l;
         if (double.TryParse(v.ToString(), out var parsed)) return parsed;
+        return null;
+    }
+
+    private static int? GetInt(Dictionary<string, object?> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var v) || v is null) return null;
+        if (v is int i) return i;
+        if (v is long l) return (int)l;
+        if (int.TryParse(v.ToString(), out var parsed)) return parsed;
         return null;
     }
 }

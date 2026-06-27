@@ -49,8 +49,9 @@ builder.Services.AddSingleton<CustomFeedEngine>();
 builder.Services.AddSingleton<GtfsStaticWriter>();
 builder.Services.AddSingleton<GtfsRealtimeWriter>();
 builder.Services.AddSingleton<GbfsWriter>();
-builder.Services.AddHostedService<CustomFeedWorker>();
-builder.Services.Configure<CustomFeedPollingOptions>(builder.Configuration.GetSection("CustomFeedPolling"));
+builder.Services.AddSingleton<TransitInfoAPI.Services.ExternalFeedSource>();
+builder.Services.AddSingleton<TransitInfoAPI.Services.CustomFeedSource>();
+builder.Services.AddSingleton<TransitInfoAPI.Services.FeedSourceFactory>();
 
 builder.Services.AddHttpClient("CustomFeed", client =>
 {

@@ -17,6 +17,7 @@ public class RealtimeManager
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly Services.FeedSourceFactory _feedSourceFactory;
     private readonly int _vehicleStaleCutoffMinutes;
     private readonly int _maxFailuresBeforeDeactivate;
     // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
@@ -33,11 +34,13 @@ public class RealtimeManager
         IHttpClientFactory httpFactory,
         ILogger<RealtimeManager> logger,
         IServiceScopeFactory scopeFactory,
+        Services.FeedSourceFactory feedSourceFactory,
         Microsoft.Extensions.Options.IOptions<RealtimePollingOptions> options)
     {
         _httpFactory = httpFactory;
         _logger = logger;
         _scopeFactory = scopeFactory;
+        _feedSourceFactory = feedSourceFactory;
         _vehicleStaleCutoffMinutes = options.Value.VehicleStaleCutoffMinutes;
         _maxFailuresBeforeDeactivate = options.Value.MaxConsecutiveFailuresBeforeDeactivate;
     }
@@ -109,14 +112,10 @@ public class RealtimeManager
 
     private async Task PollFeedAsync(Feed feed, CancellationToken ct)
     {
-        var url = feed.InternalUrl ?? feed.ExternalUrl!;
-        var http = _httpFactory.CreateClient("gtfsrt");
+        var source = _feedSourceFactory.Resolve(feed);
+        var result = await source.FetchDataAsync(feed, ct);
 
-        var response = await http.GetAsync(url, ct);
-        response.EnsureSuccessStatusCode();
-
-        var feedMessage = FeedMessage.Parser.ParseFrom(await response.Content.ReadAsStreamAsync(ct));
-
+        var feedMessage = FeedMessage.Parser.ParseFrom(new MemoryStream(result.Data));
 
         var tripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
         var alerts = new List<FeedEntity>();
