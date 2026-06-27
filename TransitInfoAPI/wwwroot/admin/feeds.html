@@ -13,7 +13,11 @@
   <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Feeds</h1>
-    <div>
+    <div class="d-flex gap-2">
+      <div class="form-check form-switch d-flex align-items-center">
+        <input class="form-check-input me-1" type="checkbox" id="showInternalToggle" onchange="loadFeeds()">
+        <label class="form-check-label small" for="showInternalToggle">Show internal</label>
+      </div>
       <button class="btn btn-success btn-sm" onclick="showAddModal()"><i class="bi bi-plus-lg"></i> Add Feed</button>
       <button class="btn btn-outline-primary btn-sm" onclick="loadFeeds()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
     </div>
@@ -58,13 +62,14 @@ async function loadFeeds() {
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
   document.getElementById('healthSection').classList.add('d-none');
+  const showInternal = document.getElementById('showInternalToggle').checked;
   try {
-    const r = await fetch(BASE + '/feeds');
+    const r = await fetch(BASE + '/feeds?showInternal=' + showInternal);
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allFeeds = j.data || [];
     showFeedPage(1, allFeeds);
-    checkFeedHealth();
+    if (!showInternal) checkFeedHealth();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
   } catch(e) {
@@ -118,23 +123,26 @@ function renderFeeds(feeds, totalCount) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No feeds configured.</div>';
     return;
   }
-  const rows = feeds.map(f => `<tr>
-    <td>${esc(f.feedId)}</td>
+  const rows = feeds.map(f => {
+    const isInternal = f.isInternal === true;
+    return `<tr${isInternal ? ' class="table-info"' : ''}>
+    <td>${esc(f.feedId)}${isInternal ? ' <span class="badge bg-info">Internal</span>' : ''}</td>
     <td><code class="small">${esc(f.onestopId||'-')}</code></td>
     <td>${feedTypeBadge(f.feedType)}</td>
-    <td>${sourceTypeBadge(f.sourceType)}</td>
     <td>${esc(f.operatorName||'-')}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="${esc(f.externalUrl||'#')}" target="_blank" class="text-decoration-none small">${esc(f.externalUrl||'-')}</a></td>
     <td>${f.isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
     <td class="small">${f.refreshIntervalSeconds}s</td>
     <td>
       <button class="btn btn-sm btn-outline-success" onclick="expandVersions(${f.id}, this)" title="Versions"><i class="bi bi-clock-history"></i></button>
-      ${f.feedType === 'GTFSStatic' ? `<button class="btn btn-sm btn-outline-primary" onclick="fetchFeed(${f.id})" title="Fetch & Import"><i class="bi bi-download"></i></button>` : ''}
-      <button class="btn btn-sm btn-outline-warning" onclick="editFeed(${f.id})" title="Edit"><i class="bi bi-pencil"></i></button>
-      <button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>
+      ${!isInternal && f.feedType === 'GTFSStatic' ? `<button class="btn btn-sm btn-outline-primary" onclick="fetchFeed(${f.id})" title="Fetch & Import"><i class="bi bi-download"></i></button>` : ''}
+      ${!isInternal ? `<button class="btn btn-sm btn-outline-warning" onclick="editFeed(${f.id})" title="Edit"><i class="bi bi-pencil"></i></button>` : ''}
+      ${!isInternal ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>` : ''}
+      ${isInternal && f.customFeedId ? `<a href="/admin/custom-source-editor.html?id=${f.customFeedId}" class="btn btn-sm btn-outline-info" title="View Custom Source"><i class="bi bi-gear"></i></a>` : ''}
     </td>
-  </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Source</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  </tr>`;
+  }).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   document.getElementById('pagination').classList.add('d-none');
 }
 
@@ -145,7 +153,7 @@ async function expandVersions(feedId, btn) {
     nextRow.classList.toggle('show');
     return;
   }
-  const html = `<tr class="version-row show"><td colspan="9"><div class="detail-inner"><div id="versions-${feedId}"><i class="bi bi-hourglass-split"></i> Loading versions...</div></div></td></tr>`;
+  const html = `<tr class="version-row show"><td colspan="8"><div class="detail-inner"><div id="versions-${feedId}"><i class="bi bi-hourglass-split"></i> Loading versions...</div></div></td></tr>`;
   row.insertAdjacentHTML('afterend', html);
   try {
     const r = await fetch(BASE + '/feeds/' + feedId + '/versions');
@@ -171,10 +179,6 @@ function feedTypeBadge(type) {
   const map = { GTFSStatic: 'bg-success', GTFSRealtime: 'bg-primary', GBFS: 'bg-warning text-dark' };
   const label = { GTFSStatic: 'GTFS Static', GTFSRealtime: 'GTFS RT', GBFS: 'GBFS' };
   return `<span class="badge ${map[type] || 'bg-secondary'}">${label[type] || type}</span>`;
-}
-
-function sourceTypeBadge(type) {
-  return type === 'Internal' ? '<span class="badge bg-info text-dark">Internal</span>' : '<span class="badge bg-secondary">External</span>';
 }
 
 function statusBadge(status) {
@@ -242,9 +246,9 @@ async function fetchFeed(id) {
     logContainer.scrollTop = logContainer.scrollHeight;
   }
 
-  // Fire POST without awaiting (with 120s timeout)
+  // Fire POST without awaiting (with 10 min timeout)
   const abortController = new AbortController();
-  const fetchTimeout = setTimeout(() => abortController.abort(), 120000);
+  const fetchTimeout = setTimeout(() => abortController.abort(), 600000);
   const fetchPromise = fetch(BASE + '/feeds/' + id + '/fetch', { method: 'POST', signal: abortController.signal }).catch(e => {
     clearTimeout(fetchTimeout);
     return e;
@@ -372,13 +376,6 @@ async function editFeed(id) {
         </select>
       </div>
       <div class="mb-3">
-        <label class="form-label">Source Type</label>
-        <select id="editSourceType" class="form-select form-select-sm">
-          <option value="External" ${feed.sourceType === 'External' ? 'selected' : ''}>External</option>
-          <option value="Internal" ${feed.sourceType === 'Internal' ? 'selected' : ''}>Internal</option>
-        </select>
-      </div>
-      <div class="mb-3">
         <label class="form-label">Active</label>
         <select id="editIsActive" class="form-select form-select-sm">
           <option value="true" ${feed.isActive ? 'selected' : ''}>Active</option>
@@ -435,7 +432,6 @@ async function saveEditFeed(id) {
   const updated = {
     ...feed,
     feedType: document.getElementById('editFeedType').value,
-    sourceType: document.getElementById('editSourceType').value,
     isActive: document.getElementById('editIsActive').value === 'true',
     refreshIntervalSeconds: parseInt(document.getElementById('editInterval').value) || 3600,
     externalUrl: document.getElementById('editExternalUrl').value.trim() || null,
@@ -473,7 +469,8 @@ let _operators = [];
 
 function feedIdFromGlobalId(globalId) {
   const parts = (globalId || '').split('-');
-  return parts.length >= 3 ? parts.slice(2).join('-') : '';
+  if (parts.length === 2) return parts[1];
+  return parts.slice(2).join('-');
 }
 
 async function showAddModal() {
@@ -500,15 +497,9 @@ async function showAddModal() {
         </select>
       </div>
       <div class="mb-3">
-        <label class="form-label">Source Type</label>
-        <select id="addSourceType" class="form-select form-select-sm">
-          <option value="External">External</option>
-          <option value="Internal">Internal</option>
-        </select>
-      </div>
-      <div class="mb-3">
         <label class="form-label">Feed ID</label>
         <input type="text" id="addFeedId" class="form-control form-control-sm">
+        <div id="feedIdHint" class="form-text"></div>
       </div>
       <div class="mb-3">
         <label class="form-label">External URL</label>
@@ -559,19 +550,29 @@ function updateFeedIdFromOperator() {
   const sel = document.getElementById('addOperatorId');
   const op = _operators.find(o => o.id === parseInt(sel?.value));
   const feedIdInput = document.getElementById('addFeedId');
-  if (op && feedIdInput) feedIdInput.value = feedIdFromGlobalId(op.globalId);
+  if (!op || !feedIdInput) return;
+  const base = feedIdFromGlobalId(op.globalId);
+  let candidate = base;
+  let n = 2;
+  while (allFeeds.some(f => f.feedId === candidate))
+    candidate = base + '-' + n++;
+  feedIdInput.value = candidate;
+  const hint = document.getElementById('feedIdHint');
+  if (base !== candidate)
+    hint.textContent = '"' + base + '" already in use — using "' + candidate + '"';
+  else
+    hint.textContent = '';
 }
 
 async function addFeed() {
   const operatorId = parseInt(document.getElementById('addOperatorId').value);
   const feedType = document.getElementById('addFeedType').value;
-  const sourceType = document.getElementById('addSourceType').value;
   const feedId = document.getElementById('addFeedId').value.trim();
   const externalUrl = document.getElementById('addExternalUrl').value.trim();
   const interval = parseInt(document.getElementById('addInterval').value) || 3600;
   if (!feedId) { alert('Feed ID is required.'); return; }
   try {
-    const body = JSON.stringify({ operatorId, feedType, sourceType, feedId, externalUrl, refreshIntervalSeconds: interval });
+    const body = JSON.stringify({ operatorId, feedType, feedId, externalUrl, refreshIntervalSeconds: interval });
     const r = await fetch(BASE + '/feeds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
     if (r.ok) {
       bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();

@@ -16,7 +16,20 @@ public sealed class GbfsRoot
 
 public sealed class GbfsData
 {
-    public Dictionary<string, GbfsLocaleFeeds>? En { get; set; }
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? AllLocales { get; set; }
+
+    public GbfsLocaleFeeds? GetFeeds()
+    {
+        if (AllLocales is null || AllLocales.Count == 0) return null;
+
+        // Prefer "en" if available (GBFS 2.x), otherwise first available locale (GBFS 3.0)
+        if (AllLocales.TryGetValue("en", out var enElement))
+            return System.Text.Json.JsonSerializer.Deserialize<GbfsLocaleFeeds>(enElement.GetRawText());
+
+        var first = AllLocales.Values.First();
+        return System.Text.Json.JsonSerializer.Deserialize<GbfsLocaleFeeds>(first.GetRawText());
+    }
 }
 
 public sealed class GbfsLocaleFeeds
@@ -99,4 +112,41 @@ public sealed class StationStatus
 
     [JsonPropertyName("is_returning")]
     public int IsReturning { get; set; }
+}
+
+public sealed class GbfsFreeBikeStatus
+{
+    [JsonPropertyName("last_updated")]
+    public long LastUpdated { get; set; }
+
+    public int Ttl { get; set; }
+
+    public FreeBikeStatusData? Data { get; set; }
+}
+
+public sealed class FreeBikeStatusData
+{
+    public List<FreeBike>? Bikes { get; set; }
+}
+
+public sealed class FreeBike
+{
+    [JsonPropertyName("bike_id")]
+    public string? BikeId { get; set; }
+
+    public double Lat { get; set; }
+
+    public double Lon { get; set; }
+
+    [JsonPropertyName("is_reserved")]
+    public int IsReserved { get; set; }
+
+    [JsonPropertyName("is_disabled")]
+    public int IsDisabled { get; set; }
+
+    [JsonPropertyName("vehicle_type_id")]
+    public string? VehicleTypeId { get; set; }
+
+    [JsonPropertyName("current_range_meters")]
+    public double? CurrentRangeMeters { get; set; }
 }

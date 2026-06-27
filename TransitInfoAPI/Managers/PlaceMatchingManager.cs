@@ -155,6 +155,11 @@ public class PlaceMatchingManager
                 _countryIdCache[iso] = country.Id;
                 return country.Id;
             }
+            country = new Country { IsoCode = iso, Name = iso, Continent = "Unknown" };
+            _db.Countries.Add(country);
+            await _db.SaveChangesAsync(ct);
+            _countryIdCache[iso] = country.Id;
+            return country.Id;
         }
         return _options.Value.DefaultCountryId;
     }

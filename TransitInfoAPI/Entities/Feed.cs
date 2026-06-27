@@ -7,11 +7,11 @@ public class Feed
     public int Id { get; set; }
     public string OnestopId { get; set; } = string.Empty;
     public FeedType FeedType { get; set; }
-    public SourceType SourceType { get; set; }
     public string? ExternalUrl { get; set; }
     public string? InternalUrl { get; set; }
     public string FeedId { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public bool IsInternal { get; set; }
     public int RefreshIntervalSeconds { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -25,6 +25,9 @@ public class Feed
 
     public int OperatorId { get; set; }
     public Operator Operator { get; set; } = null!;
+
+    public int? CustomFeedId { get; set; }
+    public CustomFeed? CustomFeed { get; set; }
 
     public ICollection<FeedVersion> FeedVersions { get; set; } = [];
 }

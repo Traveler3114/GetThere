@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260627073949_AddIsInternalToFeed")]
+    partial class AddIsInternalToFeed
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -562,9 +565,6 @@ namespace TransitInfoAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("CustomFeedId")
-                        .HasColumnType("int");
-
                     b.Property<string>("ExternalUrl")
                         .HasColumnType("nvarchar(max)");
 
@@ -611,12 +611,15 @@ namespace TransitInfoAPI.Migrations
                     b.Property<int>("RefreshIntervalSeconds")
                         .HasColumnType("int");
 
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("SupersedesIds")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CustomFeedId");
 
                     b.HasIndex("FeedId")
                         .IsUnique();
@@ -1226,8 +1229,6 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("RawStopEntityId");
 
-                    b.HasIndex("RawStopId");
-
                     b.HasIndex("TripId");
 
                     b.ToTable("StopTimes");
@@ -1446,18 +1447,11 @@ namespace TransitInfoAPI.Migrations
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
                 {
-                    b.HasOne("TransitInfoAPI.Entities.CustomFeed", "CustomFeed")
-                        .WithMany()
-                        .HasForeignKey("CustomFeedId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany("Feeds")
                         .HasForeignKey("OperatorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("CustomFeed");
 
                     b.Navigation("Operator");
                 });

@@ -110,6 +110,10 @@ public class TransitDbContext : DbContext
         modelBuilder.Entity<RawStop>()
             .HasIndex(rs => rs.CanonicalStationId);
 
+        // StopTime
+        modelBuilder.Entity<StopTime>()
+            .HasIndex(st => st.RawStopId);
+
         // ReconciliationCandidate
         modelBuilder.Entity<ReconciliationCandidate>()
             .HasIndex(rc => rc.RawStopId);
@@ -186,6 +190,13 @@ public class TransitDbContext : DbContext
             entity.HasOne(e => e.MobilityProvider)
                 .WithMany()
                 .HasForeignKey(e => e.MobilityProviderId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<Feed>(entity =>
+        {
+            entity.HasOne(e => e.CustomFeed)
+                .WithMany()
+                .HasForeignKey(e => e.CustomFeedId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<CustomFeedFieldMapping>(entity =>

@@ -55,12 +55,15 @@ public class FeedManager
         _logStore = logStore;
     }
 
-    public async Task<List<FeedResponse>> GetAllAsync(int page = 1, int perPage = 50, CancellationToken ct = default)
+    public async Task<List<FeedResponse>> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
     {
         var query = _db.Feeds
             .Include(f => f.Operator)
             .OrderBy(f => f.Id)
             .AsQueryable();
+
+        if (!showInternal)
+            query = query.Where(f => !f.IsInternal);
 
         return await query
             .Skip((page - 1) * perPage)
@@ -79,7 +82,7 @@ public class FeedManager
     }
 
     public async Task<Feed> CreateAsync(
-        int operatorId, FeedType feedType, SourceType sourceType,
+        int operatorId, FeedType feedType,
         string feedId, string? externalUrl, int refreshIntervalSeconds, CancellationToken ct)
     {
         if (externalUrl is not null && (!Uri.TryCreate(externalUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
@@ -92,7 +95,14 @@ public class FeedManager
         var op = await _db.Operators.FindAsync([operatorId], ct)
             ?? throw new Exceptions.AppException("Operator not found.", 404);
 
-        var onestopId = _onestopId.GenerateFeedOnestopId(0, 0, feedId);
+        var typeSuffix = feedType switch
+        {
+            FeedType.GTFSStatic => "gtfs-static",
+            FeedType.GTFSRealtime => "gtfs-rt",
+            FeedType.GBFS => "gbfs",
+            _ => feedType.ToString().ToLowerInvariant()
+        };
+        var onestopId = _onestopId.GenerateFeedOnestopId(0, 0, $"{feedId}-{typeSuffix}");
         if (await _db.Feeds.AnyAsync(f => f.OnestopId == onestopId, ct))
             throw new InvalidOperationException($"Feed with OnestopId '{onestopId}' already exists.");
         if (await _db.Feeds.AnyAsync(f => f.FeedId == feedId, ct))
@@ -103,7 +113,6 @@ public class FeedManager
             OnestopId = onestopId,
             OperatorId = operatorId,
             FeedType = feedType,
-            SourceType = sourceType,
             FeedId = feedId,
             ExternalUrl = externalUrl,
             RefreshIntervalSeconds = refreshIntervalSeconds,
@@ -124,10 +133,6 @@ public class FeedManager
         if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
             return (false, $"Invalid feed type '{request.FeedType}'.");
         feed.FeedType = feedType;
-
-        if (!Enum.TryParse<SourceType>(request.SourceType, true, out var sourceType))
-            return (false, $"Invalid source type '{request.SourceType}'.");
-        feed.SourceType = sourceType;
 
         if (request.ExternalUrl is not null && (!Uri.TryCreate(request.ExternalUrl, UriKind.Absolute, out var extUri) || extUri.Scheme is not ("http" or "https")))
             return (false, "Invalid feed URL. Must be an absolute HTTP(S) URL.");
@@ -455,7 +460,7 @@ public class FeedManager
     public async Task<List<Feed>> GetActiveGtfsFeedsAsync(CancellationToken ct)
     {
         return await _db.Feeds
-            .Where(f => f.IsActive && f.FeedType == FeedType.GTFSStatic)
+            .Where(f => f.IsActive && !f.IsInternal && f.FeedType == FeedType.GTFSStatic)
             .ToListAsync(ct);
     }
 

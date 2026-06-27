@@ -66,17 +66,17 @@ public class CustomFeedWorker : BackgroundService
             var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
             var now = DateTime.UtcNow;
 
-            dueFeeds = await db.CustomFeeds
+            var candidates = await db.CustomFeeds
                 .Where(f => f.IsActive)
                 .Where(f => f.LastRunAt == null ||
-                    db.CustomFeedRuns
-                        .Where(r => r.CustomFeedId == f.Id && r.Status == CustomFeedRunStatus.Running)
-                        .OrderByDescending(r => r.StartedAt)
-                        .Select(r => (DateTime?)r.StartedAt)
-                        .FirstOrDefault() == null)  // skip if currently running
-                .Where(f => f.LastRunAt == null || now - f.LastRunAt >= TimeSpan.FromSeconds(f.RefreshIntervalSeconds))
-                .Select(f => new CustomFeedPollEntry { Id = f.Id })
+                    !db.CustomFeedRuns.Any(r => r.CustomFeedId == f.Id && r.Status == CustomFeedRunStatus.Running))
                 .ToListAsync(ct);
+
+            dueFeeds = candidates
+                .Where(f => f.LastRunAt == null ||
+                    (now - f.LastRunAt.Value).TotalSeconds >= f.RefreshIntervalSeconds)
+                .Select(f => new CustomFeedPollEntry { Id = f.Id })
+                .ToList();
         }
 
         if (dueFeeds.Count == 0)
@@ -117,6 +117,12 @@ public class CustomFeedWorker : BackgroundService
                         if (feed is not null)
                         {
                             feed.IsActive = false;
+
+                            var hiddenFeed = await db.Feeds
+                                .FirstOrDefaultAsync(f => f.CustomFeedId == entry.Id, ct);
+                            if (hiddenFeed is not null)
+                                hiddenFeed.IsActive = false;
+
                             await db.SaveChangesAsync(ct);
                         }
                     }

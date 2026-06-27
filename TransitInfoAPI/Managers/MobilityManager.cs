@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 
+using TransitInfoAPI.Core;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -15,14 +16,16 @@ public class MobilityManager
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<MobilityManager> _logger;
     private readonly PlaceMatchingManager _placeMatching;
+    private readonly RealtimeManager _realtime;
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _providerLocks = new();
 
-    public MobilityManager(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching)
+    public MobilityManager(TransitDbContext db, IHttpClientFactory httpFactory, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching, RealtimeManager realtime)
     {
         _db = db;
         _httpFactory = httpFactory;
         _logger = logger;
         _placeMatching = placeMatching;
+        _realtime = realtime;
     }
 
     public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
@@ -61,11 +64,7 @@ public class MobilityManager
             var http = _httpFactory.CreateClient();
             var url = provider.InternalUrl ?? provider.ExternalUrl;
 
-            if (provider.FeedFormat == FeedFormat.NextbikeAPI)
-            {
-                await PollNextbikeAsync(provider, http, url, ct);
-            }
-            else if (provider.FeedFormat == FeedFormat.GBFS)
+            if (provider.FeedFormat == FeedFormat.GBFS)
             {
                 await PollGbfsAsync(provider, http, url, ct);
             }
@@ -82,29 +81,51 @@ public class MobilityManager
         }
     }
 
-    private async Task PollNextbikeAsync(MobilityProvider provider, HttpClient http, string url, CancellationToken ct)
+    private async Task PollGbfsAsync(MobilityProvider provider, HttpClient http, string url, CancellationToken ct)
     {
-        var response = await http.GetStringAsync(url, ct);
-        var root = JsonSerializer.Deserialize<NextbikeRoot>(response);
-        if (root?.Countries is null) return;
-
-        var existingByStationId = await _db.MobilityStations
-            .Where(ms => ms.MobilityProviderId == provider.Id)
-            .ToDictionaryAsync(ms => ms.StationId, ct);
-
-        foreach (var country in root.Countries)
+        var json = await http.GetStringAsync(url, ct);
+        var discovery = JsonSerializer.Deserialize<GbfsRoot>(json);
+        var feeds = discovery?.Data?.GetFeeds()?.Feeds;
+        if (feeds is null || feeds.Count == 0)
         {
-            if (country.Cities is null) continue;
+            _logger.LogWarning("GBFS discovery returned no feeds for provider {ProviderId}", provider.Id);
+            return;
+        }
 
-            foreach (var city in country.Cities)
+        var stationInfoUrl = feeds.FirstOrDefault(f => f.Name == "station_information")?.Url;
+        var stationStatusUrl = feeds.FirstOrDefault(f => f.Name == "station_status")?.Url;
+        var freeBikeUrl = feeds.FirstOrDefault(f => f.Name == "free_bike_status")?.Url;
+
+        // Station-based handling
+        if (stationInfoUrl is not null && stationStatusUrl is not null)
+        {
+            var infoJson = await http.GetStringAsync(stationInfoUrl, ct);
+            var info = JsonSerializer.Deserialize<GbfsStationInformation>(infoJson);
+            var stations = info?.Data?.Stations;
+            if (stations is not null && stations.Count > 0)
             {
-                if (city.Places is null) continue;
+                var statusJson = await http.GetStringAsync(stationStatusUrl, ct);
+                var status = JsonSerializer.Deserialize<GbfsStationStatus>(statusJson);
+                var statuses = status?.Data?.Stations;
+                var statusByStationId = statuses?.ToDictionary(s => s.StationId ?? string.Empty, s => s)
+                    ?? [];
 
-                foreach (var place in city.Places)
+                var existingByStationId = await _db.MobilityStations
+                    .Where(ms => ms.MobilityProviderId == provider.Id)
+                    .ToDictionaryAsync(ms => ms.StationId, ct);
+
+                foreach (var station in stations)
                 {
-                    if (existingByStationId.TryGetValue(place.Uid.ToString(), out var existing))
+                    var stationId = station.StationId ?? string.Empty;
+                    var hasStatus = statusByStationId.TryGetValue(stationId, out var st);
+
+                    if (existingByStationId.TryGetValue(stationId, out var existing))
                     {
-                        existing.AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes;
+                        existing.Name = station.Name ?? string.Empty;
+                        existing.Latitude = station.Lat;
+                        existing.Longitude = station.Lon;
+                        existing.Capacity = station.Capacity > 0 ? station.Capacity : null;
+                        existing.AvailableVehicles = hasStatus ? st!.NumBikesAvailable : 0;
                         existing.LastUpdated = DateTime.UtcNow;
                     }
                     else
@@ -112,27 +133,58 @@ public class MobilityManager
                         _db.MobilityStations.Add(new MobilityStation
                         {
                             MobilityProviderId = provider.Id,
-                            StationId = place.Uid.ToString(),
-                            Name = place.Name ?? string.Empty,
-                            Latitude = place.Lat,
-                            Longitude = place.Lng,
-                            Capacity = place.BikeRacks > 0 ? place.BikeRacks : null,
-                            AvailableVehicles = place.BikesAvailableToRent ?? place.Bikes,
-                            CountryId = await _placeMatching.DeriveCountryIdAsync(place.Lat, place.Lng, ct),
+                            StationId = stationId,
+                            Name = station.Name ?? string.Empty,
+                            Latitude = station.Lat,
+                            Longitude = station.Lon,
+                            Capacity = station.Capacity > 0 ? station.Capacity : null,
+                            AvailableVehicles = hasStatus ? st!.NumBikesAvailable : 0,
+                            CountryId = await _placeMatching.DeriveCountryIdAsync(station.Lat, station.Lon, ct),
                             LastUpdated = DateTime.UtcNow
                         });
                     }
                 }
+
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("GBFS polled provider {ProviderId}: {Count} stations", provider.Id, stations.Count);
             }
         }
 
-        await _db.SaveChangesAsync(ct);
-    }
+        // Free-floating vehicle handling
+        if (freeBikeUrl is not null)
+        {
+            var bikeJson = await http.GetStringAsync(freeBikeUrl, ct);
+            var bikeStatus = JsonSerializer.Deserialize<GbfsFreeBikeStatus>(bikeJson);
+            var bikes = bikeStatus?.Data?.Bikes;
+            if (bikes is not null && bikes.Count > 0)
+            {
+                var feedId = $"gbfs-{provider.Id}";
+                int count = 0;
+                foreach (var bike in bikes)
+                {
+                    if (bike.BikeId is null) continue;
 
-    private async Task PollGbfsAsync(MobilityProvider provider, HttpClient http, string url, CancellationToken ct)
-    {
-        _logger.LogWarning("GBFS polling not implemented for provider {ProviderId}", provider.Id);
-        await Task.CompletedTask;
+                    _realtime.UpdateVehicleCache(feedId, new Contracts.VehicleResponse
+                    {
+                        VehicleId = bike.BikeId,
+                        FeedId = feedId,
+                        Latitude = bike.Lat,
+                        Longitude = bike.Lon,
+                        LastUpdated = DateTime.UtcNow,
+                        IsRealtime = true
+                    });
+                    count++;
+                }
+
+                _logger.LogInformation("GBFS polled provider {ProviderId}: {Count} free-floating vehicles",
+                    provider.Id, count);
+            }
+        }
+
+        if (stationInfoUrl is null && stationStatusUrl is null && freeBikeUrl is null)
+        {
+            _logger.LogWarning("GBFS provider {ProviderId} has no recognized feeds", provider.Id);
+        }
     }
 
     public async Task<int> UpsertStationsFromCustomFeedAsync(int providerId, List<Dictionary<string, object?>> records, CancellationToken ct = default)
@@ -231,33 +283,4 @@ public class MobilityManager
         return null;
     }
 
-    private class NextbikeRoot
-    {
-        public List<NextbikeCountry>? Countries { get; set; }
-    }
-
-    private class NextbikeCountry
-    {
-        public List<NextbikeCity>? Cities { get; set; }
-    }
-
-    private class NextbikeCity
-    {
-        public List<NextbikePlace>? Places { get; set; }
-    }
-
-    private class NextbikePlace
-    {
-        public int Uid { get; set; }
-        public string? Name { get; set; }
-        public double Lat { get; set; }
-        public double Lng { get; set; }
-        public int Bikes { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("bikes_available_to_rent")]
-        public int? BikesAvailableToRent { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("bike_racks")]
-        public int BikeRacks { get; set; }
-    }
 }

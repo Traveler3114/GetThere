@@ -34,10 +34,13 @@ public class FeedsController : ControllerBase
     public async Task<ActionResult<Paginated<FeedResponse>>> GetAll(
         [FromQuery] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
+        [FromQuery] bool showInternal = false,
         CancellationToken ct = default)
     {
-        var feeds = await _feedService.GetAllAsync(page, perPage, ct);
-        var total = await _db.Feeds.CountAsync(ct);
+        var feeds = await _feedService.GetAllAsync(page, perPage, showInternal, ct);
+        var total = showInternal
+            ? await _db.Feeds.CountAsync(ct)
+            : await _db.Feeds.CountAsync(f => !f.IsInternal, ct);
         return Ok(new Paginated<FeedResponse>(feeds, total, page, perPage));
     }
 
@@ -48,9 +51,7 @@ public class FeedsController : ControllerBase
     {
         if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
             return Problem(statusCode: 400, title: $"Invalid feed type '{request.FeedType}'.");
-        if (!Enum.TryParse<SourceType>(request.SourceType, true, out var sourceType))
-            return Problem(statusCode: 400, title: $"Invalid source type '{request.SourceType}'.");
-        var feed = await _feedService.CreateAsync(request.OperatorId, feedType, sourceType, request.FeedId, request.ExternalUrl, request.RefreshIntervalSeconds, ct);
+        var feed = await _feedService.CreateAsync(request.OperatorId, feedType, request.FeedId, request.ExternalUrl, request.RefreshIntervalSeconds, ct);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
         return CreatedAtAction(nameof(GetAll), new { }, dto);
     }

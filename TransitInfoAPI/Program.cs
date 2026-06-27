@@ -59,6 +59,8 @@ builder.Services.AddHttpClient("CustomFeed", client =>
 
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();
+builder.Services.AddHostedService<MobilityPollingWorker>();
+builder.Services.Configure<MobilityPollingOptions>(builder.Configuration.GetSection("MobilityPolling"));
 
 builder.Services.AddCors(options =>
 {

@@ -16,7 +16,7 @@ public class GtfsRealtimeWriter
         _logger = logger;
     }
 
-    public async Task<int> WriteAsync(List<Dictionary<string, object?>> records, CancellationToken ct)
+    public async Task<int> WriteAsync(List<Dictionary<string, object?>> records, CancellationToken ct, string? feedIdOverride = null)
     {
         if (records.Count == 0) return 0;
 
@@ -40,7 +40,7 @@ public class GtfsRealtimeWriter
             foreach (var record in records)
             {
                 var vehicleId = GetString(record, "vehicleId") ?? GetString(record, "vehicle_id");
-                var feedId = GetString(record, "feedId") ?? GetString(record, "feed_id") ?? "custom";
+                var feedId = feedIdOverride ?? GetString(record, "feedId") ?? GetString(record, "feed_id") ?? "custom";
                 var routeId = GetString(record, "routeId") ?? GetString(record, "route_id");
                 var tripId = GetString(record, "tripId") ?? GetString(record, "trip_id");
                 var lat = GetDouble(record, "latitude") ?? GetDouble(record, "lat");

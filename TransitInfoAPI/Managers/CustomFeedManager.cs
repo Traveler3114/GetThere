@@ -17,6 +17,8 @@ public class CustomFeedManager
     private readonly GtfsStaticWriter _gtfsStaticWriter;
     private readonly GtfsRealtimeWriter _gtfsRealtimeWriter;
     private readonly GbfsWriter _gbfsWriter;
+    private readonly OnestopIdManager _onestopId;
+    private readonly FeedManager _feedManager;
     private readonly ILogger<CustomFeedManager> _logger;
 
     public CustomFeedManager(
@@ -25,6 +27,8 @@ public class CustomFeedManager
         GtfsStaticWriter gtfsStaticWriter,
         GtfsRealtimeWriter gtfsRealtimeWriter,
         GbfsWriter gbfsWriter,
+        OnestopIdManager onestopId,
+        FeedManager feedManager,
         ILogger<CustomFeedManager> logger)
     {
         _db = db;
@@ -32,6 +36,8 @@ public class CustomFeedManager
         _gtfsStaticWriter = gtfsStaticWriter;
         _gtfsRealtimeWriter = gtfsRealtimeWriter;
         _gbfsWriter = gbfsWriter;
+        _onestopId = onestopId;
+        _feedManager = feedManager;
         _logger = logger;
     }
 
@@ -96,6 +102,8 @@ public class CustomFeedManager
         _db.CustomFeeds.Add(feed);
         await _db.SaveChangesAsync(ct);
 
+        await EnsureHiddenFeedAsync(feed, ct);
+
         return (await GetByIdAsync(feed.Id, ct))!;
     }
 
@@ -141,6 +149,19 @@ public class CustomFeedManager
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // If OutputFormat changed, create or remove hidden Feed
+        if (request.OutputFormat is not null)
+        {
+            var newFormat = Enum.Parse<OutputFormat>(request.OutputFormat, true);
+            var hasHiddenFeed = await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct);
+
+            if (newFormat == OutputFormat.GtfsStatic && !hasHiddenFeed)
+                await EnsureHiddenFeedAsync(feed, ct);
+            else if (newFormat != OutputFormat.GtfsStatic && hasHiddenFeed)
+                await RemoveHiddenFeedAsync(feed.Id, ct);
+        }
+
         return true;
     }
 
@@ -157,9 +178,11 @@ public class CustomFeedManager
         if (hasRuns)
         {
             feed.IsActive = false;
+            await DeactivateHiddenFeedAsync(feed.Id, ct);
         }
         else
         {
+            await RemoveHiddenFeedAsync(feed.Id, ct);
             _db.CustomFeeds.Remove(feed);
         }
 
@@ -230,8 +253,14 @@ public class CustomFeedManager
             switch (feed.OutputFormat)
             {
                 case OutputFormat.GtfsStatic:
+                    var hiddenFeed = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == feed.Id, ct);
                     recordsWritten = await _gtfsStaticWriter.WriteAsync(
-                        engineResult.Records, feed.TargetTable, feed.OperatorId, ct);
+                        engineResult.Records, feed.TargetTable, feed.OperatorId,
+                        hiddenFeed?.FeedId, ct);
+                    if (hiddenFeed is not null && recordsWritten > 0)
+                    {
+                        await _feedManager.TriggerImportAsync(hiddenFeed.Id, ct);
+                    }
                     break;
                 case OutputFormat.GtfsRealtime:
                     recordsWritten = await _gtfsRealtimeWriter.WriteAsync(engineResult.Records, ct);
@@ -297,5 +326,43 @@ public class CustomFeedManager
             TotalRows = engineResult.Records.Count,
             LogLines = engineResult.LogLines
         };
+    }
+
+    private async Task EnsureHiddenFeedAsync(CustomFeed feed, CancellationToken ct)
+    {
+        if (feed.OutputFormat != OutputFormat.GtfsStatic) return;
+        if (await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct)) return;
+
+        var slug = _onestopId.ToNameSlug(feed.Name);
+        var hiddenFeed = new Feed
+        {
+            OperatorId = feed.OperatorId,
+            FeedType = FeedType.GTFSStatic,
+            IsInternal = true,
+            IsActive = true,
+            FeedId = $"custom-{feed.Id}-{slug}",
+            OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, $"custom-{feed.Id}-{slug}-gtfs-static"),
+            RefreshIntervalSeconds = feed.RefreshIntervalSeconds,
+            CustomFeedId = feed.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.Feeds.Add(hiddenFeed);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task RemoveHiddenFeedAsync(int customFeedId, CancellationToken ct)
+    {
+        var hidden = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
+        if (hidden is null) return;
+        _db.Feeds.Remove(hidden);
+    }
+
+    private async Task DeactivateHiddenFeedAsync(int customFeedId, CancellationToken ct)
+    {
+        var hidden = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
+        if (hidden is not null)
+        {
+            hidden.IsActive = false;
+        }
     }
 }
