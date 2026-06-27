@@ -286,7 +286,7 @@ public partial class MapPage : ContentPage
             {
                 var mapped = stops.Data.Select(s => new
                 {
-                    stopId = s.GlobalId,
+                    stopId = s.OnestopId,
                     name = s.Name,
                     lat = s.Latitude,
                     lon = s.Longitude,
@@ -303,7 +303,7 @@ public partial class MapPage : ContentPage
             {
                 var mapped = routes.Data.Select(r => new
                 {
-                    routeId = r.GlobalId,
+                    routeId = r.OnestopId,
                     name = r.Name,
                     routeType = r.RouteType
                 }).ToList();
@@ -432,10 +432,10 @@ public partial class MapPage : ContentPage
         }
     }
 
-    private async Task HandleStopTappedAsync(string globalId)
+    private async Task HandleStopTappedAsync(string onestopId)
     {
-        var departuresTask = _operatorService.GetStationDeparturesAsync(globalId);
-        var operatorsTask = _operatorService.GetStationOperatorsAsync(globalId);
+        var departuresTask = _operatorService.GetStationDeparturesAsync(onestopId);
+        var operatorsTask = _operatorService.GetStationOperatorsAsync(onestopId);
 
         await Task.WhenAll(departuresTask, operatorsTask);
 

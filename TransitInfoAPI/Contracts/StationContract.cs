@@ -6,7 +6,6 @@ namespace TransitInfoAPI.Contracts;
 public class StationResponse
 {
     public int Id { get; set; }
-    public string GlobalId { get; set; } = string.Empty;
     public string OnestopId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public double Latitude { get; set; }
@@ -49,7 +48,6 @@ public class StationReconciliationDetailResponse
 {
     public int StationId { get; set; }
     public string StationName { get; set; } = string.Empty;
-    public string StationGlobalId { get; set; } = string.Empty;
     public string StationOnestopId { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }

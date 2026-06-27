@@ -600,25 +600,19 @@ public class FeedManager
     private async Task<Dictionary<string, int>> ImportRoutesPhaseAsync(int feedVersionId, FeedVersion version, List<RawRouteRecord> routes, List<RawStopRecord> rawStops, int operatorId, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, "Phase 1: Saving canonical routes...");
-        var prefix = $"gt-{version.Feed.FeedId}-";
+
         var existingRoutes = await _db.CanonicalRoutes
-            .Where(cr => cr.GlobalId.StartsWith(prefix))
+            .Where(cr => cr.OperatorId == operatorId)
             .ToListAsync(ct);
-        var existingByGlobalId = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
         var existingByOnestopId = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
         foreach (var cr in existingRoutes)
-        {
-            existingByGlobalId[cr.GlobalId] = cr;
             existingByOnestopId[cr.OnestopId] = cr;
-        }
 
-        var seenOnestopIds = new HashSet<string>();
+        var seenOnestopIds = new HashSet<string>(existingRoutes.Select(cr => cr.OnestopId), StringComparer.OrdinalIgnoreCase);
+        var onestopToRouteId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var r in routes)
         {
-            var globalId = prefix + r.RouteId.ToLowerInvariant();
-            if (existingByGlobalId.ContainsKey(globalId))
-                continue;
-
             var routeName = r.RouteShortName;
             if (string.IsNullOrEmpty(routeName))
                 routeName = r.RouteLongName;
@@ -632,6 +626,8 @@ public class FeedManager
                 rawStops.Count > 0 ? rawStops.Average(s => s.StopLon) : 0,
                 routeName);
 
+            onestopToRouteId[routeOnestopId] = r.RouteId;
+
             if (existingByOnestopId.ContainsKey(routeOnestopId))
                 continue;
 
@@ -642,7 +638,6 @@ public class FeedManager
 
             _db.CanonicalRoutes.Add(new CanonicalRoute
             {
-                GlobalId = globalId,
                 OnestopId = uniqueOnestopId,
                 ShortName = r.RouteShortName,
                 LongName = r.RouteLongName,
@@ -658,9 +653,18 @@ public class FeedManager
         await _db.SaveChangesAsync(ct);
         _logStore.AddEntry(feedVersionId, $"Phase 1: {routes.Count} routes saved");
 
-        return await _db.CanonicalRoutes
-            .Where(cr => cr.GlobalId.StartsWith(prefix))
-            .ToDictionaryAsync(cr => cr.GlobalId, cr => cr.Id, StringComparer.OrdinalIgnoreCase, ct);
+        var prefix = $"gt-{version.Feed.FeedId}-";
+        var allRoutes = await _db.CanonicalRoutes
+            .Where(cr => cr.OperatorId == operatorId)
+            .ToListAsync(ct);
+
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cr in allRoutes)
+        {
+            if (onestopToRouteId.TryGetValue(cr.OnestopId, out var routeId))
+                result[prefix + routeId.ToLowerInvariant()] = cr.Id;
+        }
+        return result;
     }
 
     private async Task<Dictionary<string, int>> ImportTripsShapesCalendarsPhaseAsync(int feedVersionId, FeedVersion version, string prefix, List<RawTripRecord> trips, Dictionary<string, NetTopologySuite.Geometries.LineString> shapes, List<RawCalendarRecord> calendar, List<RawCalendarDateRecord> calendarDates, Dictionary<string, int> canonicalRouteLookup, CancellationToken ct)

@@ -121,7 +121,7 @@ function renderRoutes(list) {
     <td>${esc(r.shortName||'-')}</td>
     <td>${rtBadge(r.routeType)}</td>
     <td>${esc(r.operatorName||'-')}</td>
-    <td><code>${esc(r.globalId)}</code></td>
+    <td><code>${esc(r.onestopId)}</code></td>
   </tr>`).join('');
   document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Short Name</th><th>Type</th><th>Operator</th><th>Global ID</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} route(s) shown</small>`;
 }

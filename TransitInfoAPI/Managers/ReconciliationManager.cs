@@ -133,7 +133,6 @@ public class ReconciliationManager
 
             var station = new CanonicalStation
             {
-                GlobalId = $"gt-{onestopId}",
                 OnestopId = onestopId,
                 Name = rawStop.Name,
                 Latitude = rawStop.Lat,
@@ -385,7 +384,6 @@ public class ReconciliationManager
 
         var station = new CanonicalStation
         {
-            GlobalId = $"gt-{onestopId}",
             OnestopId = onestopId,
             Name = rawStop.Name,
             Latitude = rawStop.Lat,
@@ -714,7 +712,7 @@ public class ReconciliationManager
         var mergeLog = new StationMergeLog
         {
             SourceStationId = sourceStationId,
-            SourceStationGlobalId = source.GlobalId,
+            SourceStationGlobalId = source.OnestopId,
             TargetStationId = targetStationId,
             RawStopsMovedCount = rawStops.Count,
             MovedRawStopIds = "[" + string.Join(",", rawStops.Select(rs => rs.Id)) + "]",

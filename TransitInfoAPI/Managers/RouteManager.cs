@@ -30,11 +30,4 @@ public class RouteManager
         return await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).Select(RouteMapper.ToResponseExpression).ToListAsync(ct);
     }
 
-    public async Task<RouteResponse?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
-    {
-        return await _db.CanonicalRoutes
-            .Where(r => r.GlobalId == globalId && r.IsActive)
-            .Select(RouteMapper.ToResponseExpression)
-            .FirstOrDefaultAsync(ct);
-    }
 }

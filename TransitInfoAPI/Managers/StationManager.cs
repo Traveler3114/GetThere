@@ -69,16 +69,6 @@ public class StationManager
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<StationResponse?> GetByGlobalIdAsync(string globalId, CancellationToken ct)
-    {
-        return await _db.CanonicalStations
-            .Include(cs => cs.Country)
-            .Include(cs => cs.City)
-            .Where(cs => cs.GlobalId == globalId && cs.IsActive && cs.StationType == StationType.Stop)
-            .Select(StationMapper.ToResponseExpression)
-            .FirstOrDefaultAsync(ct);
-    }
-
     public async Task<List<StationResponse>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations

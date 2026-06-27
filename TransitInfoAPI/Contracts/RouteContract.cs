@@ -4,7 +4,6 @@ namespace TransitInfoAPI.Contracts;
 public class RouteResponse
 {
     public int Id { get; set; }
-    public string GlobalId { get; set; } = string.Empty;
     public string OnestopId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? ShortName { get; set; }

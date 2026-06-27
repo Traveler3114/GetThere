@@ -3,7 +3,7 @@ namespace GetThereShared.Contracts;
 public class MapStationResponse
 {
     public int Id { get; set; }
-    public string GlobalId { get; set; } = string.Empty;
+    public string OnestopId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
@@ -13,7 +13,7 @@ public class MapStationResponse
 public class MapRouteResponse
 {
     public int Id { get; set; }
-    public string GlobalId { get; set; } = string.Empty;
+    public string OnestopId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? RouteType { get; set; }
     public string OperatorName { get; set; } = string.Empty;

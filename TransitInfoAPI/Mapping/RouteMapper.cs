@@ -11,7 +11,6 @@ public static class RouteMapper
         r => new RouteResponse
         {
             Id = r.Id,
-            GlobalId = r.GlobalId,
             OnestopId = r.OnestopId,
             Name = r.LongName,
             ShortName = r.ShortName,
@@ -23,7 +22,6 @@ public static class RouteMapper
     public static RouteResponse ToResponse(CanonicalRoute r) => new()
     {
         Id = r.Id,
-        GlobalId = r.GlobalId,
         OnestopId = r.OnestopId,
         Name = r.LongName,
         ShortName = r.ShortName,

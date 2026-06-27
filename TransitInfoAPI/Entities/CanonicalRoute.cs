@@ -7,7 +7,6 @@ namespace TransitInfoAPI.Entities;
 public class CanonicalRoute
 {
     public int Id { get; set; }
-    public string GlobalId { get; set; } = string.Empty;
     public string OnestopId { get; set; } = string.Empty;
     public string ShortName { get; set; } = string.Empty;
     public string LongName { get; set; } = string.Empty;

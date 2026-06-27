@@ -11,7 +11,6 @@ public static class StationMapper
         s => new StationResponse
         {
             Id = s.Id,
-            GlobalId = s.GlobalId,
             OnestopId = s.OnestopId,
             Name = s.Name,
             Latitude = s.Latitude,
@@ -25,7 +24,6 @@ public static class StationMapper
     public static StationResponse ToResponse(CanonicalStation s) => new()
     {
         Id = s.Id,
-        GlobalId = s.GlobalId,
         OnestopId = s.OnestopId,
         Name = s.Name,
         Latitude = s.Latitude,

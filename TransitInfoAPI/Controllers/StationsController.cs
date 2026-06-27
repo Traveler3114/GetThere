@@ -69,7 +69,6 @@ public class StationsController : ControllerBase
                 s => new Dictionary<string, object?>
                 {
                     ["id"] = s.Id,
-                    ["globalId"] = s.GlobalId,
                     ["onestopId"] = s.OnestopId,
                     ["name"] = s.Name,
                     ["stationType"] = s.StationType,
@@ -147,14 +146,6 @@ public class StationsController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(routes);
-    }
-
-    [HttpGet("by-global/{globalId}")]
-    public async Task<ActionResult<StationResponse>> GetByGlobalId(string globalId, CancellationToken ct = default)
-    {
-        var station = await _stationService.GetByGlobalIdAsync(globalId, ct);
-        if (station is null) return NotFound();
-        return Ok(station);
     }
 
     [HttpPost("{id}/rematch-place")]
@@ -369,7 +360,6 @@ public class StationsController : ControllerBase
         {
             StationId = station.Id,
             StationName = station.Name,
-            StationGlobalId = station.GlobalId,
             StationOnestopId = station.OnestopId,
             Latitude = station.Latitude,
             Longitude = station.Longitude,

@@ -12,7 +12,6 @@ namespace TransitInfoAPI.Entities;
 public class CanonicalStation
 {
     public int Id { get; set; }
-    public string GlobalId { get; set; } = string.Empty;
     public string OnestopId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public double Latitude { get; set; }

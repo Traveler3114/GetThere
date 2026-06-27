@@ -103,11 +103,11 @@ public class OperatorService
         }
     }
 
-    public async Task<OperationResult<List<MapDepartureResponse>>> GetStationDeparturesAsync(string globalId)
+    public async Task<OperationResult<List<MapDepartureResponse>>> GetStationDeparturesAsync(string onestopId)
     {
         try
         {
-            var response = await _http.GetAsync($"api/map/stations/{globalId}/departures");
+            var response = await _http.GetAsync($"api/map/stations/{onestopId}/departures");
             if (response.IsSuccessStatusCode)
             {
                 var data = await response.Content.ReadFromJsonAsync<List<MapDepartureResponse>>(JsonOptions);
@@ -123,11 +123,11 @@ public class OperatorService
         }
     }
 
-    public async Task<OperationResult<List<MapOperatorResponse>>> GetStationOperatorsAsync(string globalId)
+    public async Task<OperationResult<List<MapOperatorResponse>>> GetStationOperatorsAsync(string onestopId)
     {
         try
         {
-            var response = await _http.GetAsync($"api/map/stations/{globalId}/operators");
+            var response = await _http.GetAsync($"api/map/stations/{onestopId}/operators");
             if (response.IsSuccessStatusCode)
             {
                 var data = await response.Content.ReadFromJsonAsync<List<MapOperatorResponse>>(JsonOptions);

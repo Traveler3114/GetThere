@@ -44,7 +44,7 @@ public class MapProxyController : ControllerBase
         var result = stations.Select(s => new MapStationResponse
         {
             Id = s.GetProperty("id").GetInt32(),
-            GlobalId = s.GetProperty("globalId").GetString() ?? string.Empty,
+            OnestopId = s.GetProperty("onestopId").GetString() ?? string.Empty,
             Name = s.GetProperty("name").GetString() ?? string.Empty,
             Latitude = s.GetProperty("latitude").GetDouble(),
             Longitude = s.GetProperty("longitude").GetDouble(),
@@ -71,7 +71,7 @@ public class MapProxyController : ControllerBase
         var result = routes.Select(r => new MapRouteResponse
         {
             Id = r.GetProperty("id").GetInt32(),
-            GlobalId = r.GetProperty("globalId").GetString() ?? string.Empty,
+            OnestopId = r.GetProperty("onestopId").GetString() ?? string.Empty,
             Name = r.GetProperty("name").GetString() ?? string.Empty,
             RouteType = r.TryGetProperty("routeType", out var rt) ? rt.GetString() : null,
             OperatorName = string.Empty
@@ -151,13 +151,13 @@ public class MapProxyController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("stations/{globalId}/departures")]
+    [HttpGet("stations/{onestopId}/departures")]
     public async Task<ActionResult> GetDepartures(
-        string globalId, CancellationToken ct = default)
+        string onestopId, CancellationToken ct = default)
     {
         var client = CreateClient();
 
-        var stationResponse = await client.GetAsync($"/stations/by-global/{globalId}", ct);
+        var stationResponse = await client.GetAsync($"/stations/by-onestop/{onestopId}", ct);
         if (!stationResponse.IsSuccessStatusCode)
             return StatusCode((int)stationResponse.StatusCode);
 
@@ -187,13 +187,13 @@ public class MapProxyController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("stations/{globalId}/operators")]
+    [HttpGet("stations/{onestopId}/operators")]
     public async Task<ActionResult> GetStationOperators(
-        string globalId, CancellationToken ct = default)
+        string onestopId, CancellationToken ct = default)
     {
         var client = CreateClient();
 
-        var stationResponse = await client.GetAsync($"/stations/by-global/{globalId}", ct);
+        var stationResponse = await client.GetAsync($"/stations/by-onestop/{onestopId}", ct);
         if (!stationResponse.IsSuccessStatusCode)
             return StatusCode((int)stationResponse.StatusCode);
 

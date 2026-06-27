@@ -68,7 +68,6 @@ public class RoutesController : ControllerBase
                 r => new Dictionary<string, object?>
                 {
                     ["id"] = r.Id,
-                    ["globalId"] = r.GlobalId,
                     ["onestopId"] = r.OnestopId,
                     ["name"] = r.LongName,
                     ["shortName"] = r.ShortName,
