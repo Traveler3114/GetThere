@@ -62,7 +62,9 @@ public class MobilityManager
             if (provider is null) return;
 
             var http = _httpFactory.CreateClient();
-            var url = provider.InternalUrl ?? provider.ExternalUrl;
+            var url = provider.Url;
+
+            if (string.IsNullOrWhiteSpace(url)) return;
 
             if (provider.FeedFormat == FeedFormat.GBFS)
             {

@@ -51,7 +51,7 @@ public class FeedsController : ControllerBase
     {
         if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
             return Problem(statusCode: 400, title: $"Invalid feed type '{request.FeedType}'.");
-        var feed = await _feedService.CreateAsync(request.OperatorId, feedType, request.FeedId, request.ExternalUrl, request.RefreshIntervalSeconds, ct);
+        var feed = await _feedService.CreateAsync(request.OperatorId, feedType, request.FeedId, request.Url, request.RefreshIntervalSeconds, ct);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
         return CreatedAtAction(nameof(GetAll), new { }, dto);
     }

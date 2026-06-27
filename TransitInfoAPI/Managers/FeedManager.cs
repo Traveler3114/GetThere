@@ -86,11 +86,11 @@ public class FeedManager
 
     public async Task<Feed> CreateAsync(
         int operatorId, FeedType feedType,
-        string feedId, string? externalUrl, int refreshIntervalSeconds, CancellationToken ct)
+        string feedId, string? url, int refreshIntervalSeconds, CancellationToken ct)
     {
-        if (externalUrl is not null && (!Uri.TryCreate(externalUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
+        if (url is not null && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
             throw new InvalidOperationException("Invalid feed URL. Must be an absolute HTTP(S) URL.");
-        if (feedType == FeedType.GTFSStatic && externalUrl is not null && !externalUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        if (feedType == FeedType.GTFSStatic && url is not null && !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             _logger.LogWarning("Feed {FeedId} static URL does not end with .zip — may not be a valid GTFS archive", feedId);
         if (refreshIntervalSeconds < 60)
             throw new InvalidOperationException("Refresh interval must be at least 60 seconds.");
@@ -117,7 +117,7 @@ public class FeedManager
             OperatorId = operatorId,
             FeedType = feedType,
             FeedId = feedId,
-            ExternalUrl = externalUrl,
+            Url = url,
             RefreshIntervalSeconds = refreshIntervalSeconds,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -137,18 +137,15 @@ public class FeedManager
             return (false, $"Invalid feed type '{request.FeedType}'.");
         feed.FeedType = feedType;
 
-        if (request.ExternalUrl is not null && (!Uri.TryCreate(request.ExternalUrl, UriKind.Absolute, out var extUri) || extUri.Scheme is not ("http" or "https")))
+        if (request.Url is not null && (!Uri.TryCreate(request.Url, UriKind.Absolute, out var extUri) || extUri.Scheme is not ("http" or "https")))
             return (false, "Invalid feed URL. Must be an absolute HTTP(S) URL.");
         if (request.LicenseUrl is not null && !Uri.TryCreate(request.LicenseUrl, UriKind.Absolute, out _))
             return (false, "Invalid license URL.");
-        if (request.InternalUrl is not null && !Uri.TryCreate(request.InternalUrl, UriKind.Absolute, out _))
-            return (false, "Invalid internal URL.");
 
         if (request.RefreshIntervalSeconds < 60)
             return (false, "Refresh interval must be at least 60 seconds.");
 
-        feed.ExternalUrl = request.ExternalUrl;
-        feed.InternalUrl = request.InternalUrl;
+        feed.Url = request.Url;
         feed.IsActive = request.IsActive;
         feed.RefreshIntervalSeconds = request.RefreshIntervalSeconds;
         feed.LicenseName = request.LicenseName;
@@ -231,13 +228,12 @@ public class FeedManager
             string? remoteETag = null;
 
             // HEAD optimization only for external feeds
-            var url = feed.ExternalUrl ?? feed.InternalUrl;
-            if (!string.IsNullOrWhiteSpace(url) && !feed.IsInternal)
+            if (!string.IsNullOrWhiteSpace(feed.Url) && !feed.IsInternal)
             {
                 try
                 {
                     var http = _httpFactory.CreateClient();
-                    var head = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), ct);
+                    var head = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, feed.Url), ct);
                     remoteLastModified = head.Content.Headers.LastModified?.ToString();
                     remoteETag = head.Headers.ETag?.Tag;
                     if (remoteLastModified is not null || remoteETag is not null)
@@ -467,7 +463,9 @@ public class FeedManager
     public async Task<List<Feed>> GetActiveGtfsFeedsAsync(CancellationToken ct)
     {
         return await _db.Feeds
-            .Where(f => f.IsActive && f.FeedType == FeedType.GTFSStatic)
+            .Where(f => f.IsActive
+                && f.FeedType == FeedType.GTFSStatic
+                && (f.Url != null || f.CustomFeedId != null))
             .ToListAsync(ct);
     }
 

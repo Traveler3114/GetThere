@@ -18,7 +18,7 @@ public class ExternalFeedSource : IFeedSource
 
     public async Task<FeedFetchResult> FetchDataAsync(Feed feed, CancellationToken ct)
     {
-        var url = feed.ExternalUrl ?? feed.InternalUrl;
+        var url = feed.Url;
         if (string.IsNullOrWhiteSpace(url))
             throw new InvalidOperationException($"Feed {feed.Id} has no URL configured");
 

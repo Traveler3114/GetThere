@@ -7,8 +7,7 @@ public class Feed
     public int Id { get; set; }
     public string OnestopId { get; set; } = string.Empty;
     public FeedType FeedType { get; set; }
-    public string? ExternalUrl { get; set; }
-    public string? InternalUrl { get; set; }
+    public string? Url { get; set; }
     public string FeedId { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public bool IsInternal { get; set; }
