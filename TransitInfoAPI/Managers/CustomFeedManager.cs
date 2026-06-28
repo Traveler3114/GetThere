@@ -299,6 +299,23 @@ public class CustomFeedManager
     {
         if (await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct)) return;
 
+        // For GBFS feeds without a provider, auto-create one for the operator
+        if (feed.OutputFormat == OutputFormat.Gbfs && feed.MobilityProviderId is null)
+        {
+            var provider = new MobilityProvider
+            {
+                Name = feed.Name,
+                FeedFormat = FeedFormat.GBFS,
+                OperatorId = feed.OperatorId,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.MobilityProviders.Add(provider);
+            await _db.SaveChangesAsync(ct);
+            feed.MobilityProviderId = provider.Id;
+            _logger.LogInformation("Auto-created MobilityProvider {ProviderId} for GBFS custom feed {FeedId}", provider.Id, feed.Id);
+        }
+
         var feedType = feed.OutputFormat switch
         {
             OutputFormat.GtfsStatic => FeedType.GTFSStatic,

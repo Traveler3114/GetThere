@@ -97,6 +97,17 @@ public class MobilityController : ControllerBase
         return Ok(names);
     }
 
+    [HttpGet("providers")]
+    [HttpGet("/mobility-providers")]
+    public async Task<ActionResult<List<object>>> GetProviders(CancellationToken ct)
+    {
+        var providers = await _db.MobilityProviders
+            .OrderBy(p => p.Name)
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync(ct);
+        return Ok(providers);
+    }
+
     [HttpPost("providers/{id}/poll")]
     public async Task<IActionResult> PollProvider(int id, CancellationToken ct = default)
     {

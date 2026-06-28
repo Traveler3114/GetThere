@@ -138,14 +138,7 @@ public class MobilityPollingWorker : BackgroundService
                 try
                 {
                     var source = _feedSourceFactory.Resolve(entry.Feed!);
-                    var result = await source.FetchDataAsync(entry.Feed!, ct);
-
-                    if (result.Data.Length > 0)
-                    {
-                        using var scope = _scopeFactory.CreateScope();
-                        var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
-                        await mobility.UpsertStationsFromGbfsBytesAsync(entry.MobilityProviderId!.Value, result.Data, ct);
-                    }
+                    await source.FetchDataAsync(entry.Feed!, ct);
                 }
                 catch (Exception ex)
                 {
