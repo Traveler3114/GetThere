@@ -48,6 +48,7 @@ public class CustomFeedEngine
 
         int pageNumber = 0;
         bool hasMore = true;
+        string? cursorValue = null;
 
         while (hasMore && pageNumber < MaxPages)
         {
@@ -55,7 +56,7 @@ public class CustomFeedEngine
             string url = config.BaseUrl;
 
             if (config.PaginationConfig is not null && pageNumber > 1)
-                url = ApplyPagination(url, config.PaginationConfig, pageNumber);
+                url = ApplyPagination(url, config.PaginationConfig, pageNumber, cursorValue);
 
             log.Add($"Fetching page {pageNumber}...");
 
@@ -116,9 +117,15 @@ public class CustomFeedEngine
             result.Records.AddRange(pageRecords);
 
             if (config.PaginationConfig is null)
+            {
                 hasMore = false;
+            }
             else
-                hasMore = HasMorePages(body, config.PaginationConfig, result.Records.Count, pageNumber);
+            {
+                bool more;
+                (more, cursorValue) = HasMorePages(body, config.PaginationConfig, result.Records.Count, pageNumber);
+                hasMore = more;
+            }
         }
 
         log.Add($"Total raw records extracted: {result.Records.Count}");
@@ -264,7 +271,7 @@ public class CustomFeedEngine
         }
     }
 
-    private string ApplyPagination(string url, string paginationConfigJson, int pageNumber)
+    private string ApplyPagination(string url, string paginationConfigJson, int pageNumber, string? cursorValue = null)
     {
         try
         {
@@ -290,7 +297,11 @@ public class CustomFeedEngine
                     return $"{url}{separator}{offsetParam}={offset}&{limitParam}={limit}";
 
                 case "cursor":
-                    return url;
+                    if (string.IsNullOrWhiteSpace(cursorValue))
+                        return url;
+                    var cursorParam = root.GetProperty("cursorParam").GetString() ?? "cursor";
+                    separator = url.Contains('?') ? '&' : '?';
+                    return $"{url}{separator}{cursorParam}={Uri.EscapeDataString(cursorValue)}";
             }
         }
         catch { }
@@ -298,7 +309,7 @@ public class CustomFeedEngine
         return url;
     }
 
-    private bool HasMorePages(string body, string paginationConfigJson, int totalSoFar, int pageNumber)
+    private (bool hasMore, string? cursorValue) HasMorePages(string body, string paginationConfigJson, int totalSoFar, int pageNumber)
     {
         try
         {
@@ -311,8 +322,13 @@ public class CustomFeedEngine
                 using var bodyDoc = JsonDocument.Parse(body);
                 var cursorField = root.GetProperty("cursorField").GetString()?.TrimStart('$', '.');
                 if (cursorField is not null && bodyDoc.RootElement.TryGetProperty(cursorField, out var next))
-                    return next.ValueKind != JsonValueKind.Null && next.ValueKind != JsonValueKind.Undefined;
-                return false;
+                {
+                    if (next.ValueKind == JsonValueKind.Null || next.ValueKind == JsonValueKind.Undefined)
+                        return (false, null);
+                    var value = next.ToString();
+                    return (true, value);
+                }
+                return (false, null);
             }
 
             if (root.TryGetProperty("totalField", out var totalField))
@@ -323,13 +339,13 @@ public class CustomFeedEngine
                     using var bodyDoc = JsonDocument.Parse(body);
                     if (bodyDoc.RootElement.TryGetProperty(fieldName, out var totalElem) &&
                         totalElem.TryGetInt32(out var total))
-                        return totalSoFar < total;
+                        return (totalSoFar < total, null);
                 }
             }
 
-            return pageNumber < MaxPages;
+            return (pageNumber < MaxPages, null);
         }
-        catch { return false; }
+        catch { return (false, null); }
     }
 
     private List<Dictionary<string, object?>> ParseJsonRows(string body, string dataPath, List<string> log)

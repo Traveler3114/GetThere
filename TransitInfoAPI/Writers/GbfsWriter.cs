@@ -38,6 +38,8 @@ public class GbfsWriter
         if (isStations)
         {
             var stations = new List<object>();
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
             foreach (var record in records)
             {
                 var stationId = GetString(record, "station_id");
@@ -55,18 +57,18 @@ public class GbfsWriter
                     lat = lat.Value,
                     lon = lng.Value,
                     capacity = GetInt(record, "capacity"),
-                    vehicle_types_available = new[]
-                    {
-                        new { vehicle_type_id = "bike", count = GetInt(record, "availableVehicles") ?? 0 }
-                    }
+                    num_bikes_available = GetInt(record, "num_bikes_available") ?? 0,
+                    num_docks_available = GetInt(record, "num_docks_available") ?? 0,
+                    is_installed = 1,
+                    is_renting = 1,
+                    is_returning = 1,
+                    last_reported = now
                 });
             }
 
             var payload = new
             {
-                last_updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                ttl = 0,
-                data = new { stations }
+                stations
             };
 
             var json = JsonSerializer.Serialize(payload, _jsonOptions);

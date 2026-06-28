@@ -53,7 +53,7 @@ public class RealtimeManager
             var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
             activeRtFeeds = await db.Feeds
                 .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime)
-                .Where(f => f.Url != null)
+                .Where(f => f.Url != null || f.CustomFeedId != null)
                 .ToListAsync(ct);
         }
 

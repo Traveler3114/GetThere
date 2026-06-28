@@ -246,6 +246,64 @@ public class MobilityManager
         return upserted;
     }
 
+    public async Task<int> UpsertStationsFromGbfsBytesAsync(int providerId, byte[] gbfsData, CancellationToken ct = default)
+    {
+        var doc = JsonDocument.Parse(gbfsData);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("stations", out var stationsElement))
+            return 0;
+
+        var existingByStationId = await _db.MobilityStations
+            .Where(ms => ms.MobilityProviderId == providerId)
+            .ToDictionaryAsync(ms => ms.StationId, ct);
+
+        int upserted = 0;
+        foreach (var station in stationsElement.EnumerateArray())
+        {
+            var stationId = station.GetProperty("station_id").GetString();
+            var name = station.GetProperty("name").GetString();
+            if (stationId is null || name is null) continue;
+
+            var lat = station.GetProperty("lat").GetDouble();
+            var lon = station.GetProperty("lon").GetDouble();
+            var capacity = station.TryGetProperty("capacity", out var cap) ? cap.GetInt32() : 0;
+            var numBikes = station.TryGetProperty("num_bikes_available", out var bikes) ? bikes.GetInt32() : 0;
+            var numDocks = station.TryGetProperty("num_docks_available", out var docks) ? docks.GetInt32() : 0;
+
+            if (existingByStationId.TryGetValue(stationId, out var existing))
+            {
+                existing.Name = name;
+                existing.Latitude = lat;
+                existing.Longitude = lon;
+                existing.Capacity = capacity > 0 ? capacity : null;
+                existing.AvailableVehicles = numBikes;
+                existing.LastUpdated = DateTime.UtcNow;
+            }
+            else
+            {
+                _db.MobilityStations.Add(new MobilityStation
+                {
+                    MobilityProviderId = providerId,
+                    StationId = stationId,
+                    Name = name,
+                    Latitude = lat,
+                    Longitude = lon,
+                    Capacity = capacity > 0 ? capacity : null,
+                    AvailableVehicles = numBikes,
+                    CountryId = await _placeMatching.DeriveCountryIdAsync(lat, lon, ct),
+                    LastUpdated = DateTime.UtcNow
+                });
+            }
+
+            upserted++;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Upserted {Count} stations from custom GBFS feed for provider {ProviderId}", upserted, providerId);
+        return upserted;
+    }
+
     private static string? GetDictString(Dictionary<string, object?> dict, string key)
     {
         return dict.TryGetValue(key, out var v) ? v?.ToString() : null;
