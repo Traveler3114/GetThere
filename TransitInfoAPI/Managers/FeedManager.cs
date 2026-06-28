@@ -671,7 +671,7 @@ public class FeedManager
             existingByOnestopId[cr.OnestopId] = cr;
 
         var seenOnestopIds = new HashSet<string>(existingRoutes.Select(cr => cr.OnestopId), StringComparer.OrdinalIgnoreCase);
-        var onestopToRouteId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var onestopToRouteIds = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var r in routes)
         {
@@ -688,7 +688,9 @@ public class FeedManager
                 rawStops.Count > 0 ? rawStops.Average(s => s.StopLon) : 0,
                 routeName);
 
-            onestopToRouteId[routeOnestopId] = r.RouteId;
+            if (!onestopToRouteIds.TryGetValue(routeOnestopId, out var routeIds))
+                onestopToRouteIds[routeOnestopId] = routeIds = [];
+            routeIds.Add(r.RouteId);
 
             if (existingByOnestopId.ContainsKey(routeOnestopId))
                 continue;
@@ -723,8 +725,11 @@ public class FeedManager
         var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var cr in allRoutes)
         {
-            if (onestopToRouteId.TryGetValue(cr.OnestopId, out var routeId))
-                result[prefix + routeId.ToLowerInvariant()] = cr.Id;
+            if (onestopToRouteIds.TryGetValue(cr.OnestopId, out var routeIds))
+            {
+                foreach (var routeId in routeIds)
+                    result[prefix + routeId.ToLowerInvariant()] = cr.Id;
+            }
         }
         return result;
     }
@@ -747,7 +752,7 @@ public class FeedManager
                 ShapeId = t.ShapeId,
                 WheelchairAccessible = t.WheelchairAccessible switch { 1 => true, 2 => false, _ => null },
                 BikesAllowed = t.BikesAllowed.HasValue ? t.BikesAllowed == 1 : null,
-                CanonicalRouteId = canonicalRouteLookup.TryGetValue(globalId, out var crId) ? crId : null
+                CanonicalRouteId = canonicalRouteLookup.GetValueOrDefault(globalId)
             });
         }
 

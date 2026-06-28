@@ -519,7 +519,7 @@ function showStationDetails(id, props) {
     deps.forEach(d => {
       const time = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
       const delay = d.delaySeconds ? ` (${Math.round(d.delaySeconds / 60)} min delay)` : '';
-      depHtml += `<div class="departure-item"><strong>${time}</strong> ${d.headsign || ''} — ${d.routeName || ''}${delay}</div>`;
+      depHtml += `<div class="departure-item"><strong>${time}</strong> ${d.headsign ? d.headsign + ' — ' : ''}${d.routeName || ''}${delay}</div>`;
     });
     document.querySelector('.departures').innerHTML = depHtml;
   }).catch(() => {

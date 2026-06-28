@@ -40,9 +40,13 @@ public class ScheduleManager
                 st.Trip.ServiceId,
                 st.DepartureTime,
                 RouteName = st.Trip.CanonicalRoute != null
-                    ? (st.Trip.CanonicalRoute.ShortName != "" ? st.Trip.CanonicalRoute.ShortName : st.Trip.CanonicalRoute.LongName)
+                    ? (st.Trip.CanonicalRoute.ShortName != "" && st.Trip.CanonicalRoute.LongName != ""
+                        ? st.Trip.CanonicalRoute.ShortName + " - " + st.Trip.CanonicalRoute.LongName
+                        : st.Trip.CanonicalRoute.ShortName != ""
+                            ? st.Trip.CanonicalRoute.ShortName
+                            : st.Trip.CanonicalRoute.LongName)
                     : (st.Trip.TripShortName ?? ""),
-                Headsign = st.StopHeadsign ?? st.Trip.TripHeadsign ?? ""
+                Headsign = ""
             })
             .ToListAsync(ct);
 
