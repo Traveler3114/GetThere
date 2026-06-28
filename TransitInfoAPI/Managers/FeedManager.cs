@@ -363,8 +363,12 @@ public class FeedManager
                     await ValidateAndCleanupAsync(feedVersionId, version, archive, tempZipPath, sqlTx, ct);
                     if (version.ImportStatus == FeedImportStatus.Failed) return;
 
+                    _db.ChangeTracker.Clear();
+
                     var parsed = await ParseGtfsFilesAsync(feedVersionId, version, archive, tempZipPath, sqlTx, ct);
                     if (parsed is null) return;
+
+                    await AutoGenerateShapesIfMissing(feedVersionId, parsed, archive, ct);
 
                     var canonicalRouteLookup = await ImportRoutesPhaseAsync(feedVersionId, version, parsed.Routes, parsed.RawStops, parsed.OperatorId, ct);
 
@@ -373,7 +377,7 @@ public class FeedManager
 
                     await BackfillRouteGeometriesAsync(feedVersionId, canonicalRouteLookup, ct);
 
-                    var routeTypesPerStop = await ImportStopTimesBulkPhaseAsync(feedVersionId, archive, tripLookup, parsed.RouteByTrip, parsed.RouteTypeByRoute, sqlConn.ConnectionString, ct);
+                    var routeTypesPerStop = await ImportStopTimesBulkPhaseAsync(feedVersionId, archive, tripLookup, parsed.RouteByTrip, parsed.RouteTypeByRoute, sqlConn, sqlTx, ct);
 
                     await ImportAgenciesAndStopsPhaseAsync(feedVersionId, parsed.Agencies, parsed.RawStops, routeTypesPerStop, parsed.OperatorId, ct);
 
@@ -431,12 +435,6 @@ public class FeedManager
             await _db.SaveChangesAsync(ct);
             _logStore.AddEntry(version.Id, "Manual trigger, zip on disk, SHA1 computed");
         }
-        else if (version.ImportStatus == FeedImportStatus.Success)
-        {
-            _logStore.AddEntry(version.Id, "Already up to date (previous import succeeded)");
-            return version;
-        }
-
         await ImportFeedVersionAsync(version.Id, ct);
         return version;
     }
@@ -537,7 +535,12 @@ public class FeedManager
         }
 
         _logStore.AddEntry(feedVersionId, "Cleaning up existing data for this feed version...");
-        await _db.Database.ExecuteSqlRawAsync("WHILE 1=1 BEGIN DELETE TOP (50000) StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = @p0); IF @@ROWCOUNT = 0 BREAK END", new object[] { feedVersionId }, ct);
+        await _db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = @p0)",
+            new object[] { feedVersionId }, ct);
+        await _db.Database.ExecuteSqlRawAsync(
+            "UPDATE StopTimes SET RawStopEntityId = NULL WHERE RawStopEntityId IN (SELECT Id FROM RawStops WHERE FeedVersionId = @p0)",
+            new object[] { feedVersionId }, ct);
         await _db.CalendarDates.Where(cd => cd.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
         await _db.Calendars.Where(c => c.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
         await _db.Shapes.Where(s => s.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
@@ -547,6 +550,65 @@ public class FeedManager
         await _db.Agencies.Where(a => a.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
         _logStore.AddEntry(feedVersionId, "Cleanup complete");
         _logStore.AddEntry(feedVersionId, "Validation passed");
+    }
+
+    private async Task AutoGenerateShapesIfMissing(int feedVersionId, ParsedGtfsData parsed, ZipArchive archive, CancellationToken ct)
+    {
+        if (parsed.Shapes.Count > 0) return;
+
+        _logStore.AddEntry(feedVersionId, "No shapes.txt found — generating from stop_times...");
+
+        var stopTimes = _gtfs.ParseStopTimes(archive);
+
+        var byTrip = new Dictionary<string, List<RawStopTimeRecord>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var st in stopTimes)
+        {
+            if (!byTrip.TryGetValue(st.TripId, out var list))
+                byTrip[st.TripId] = list = [];
+            list.Add(st);
+        }
+
+        foreach (var list in byTrip.Values)
+            list.Sort((a, b) => a.StopSequence.CompareTo(b.StopSequence));
+
+        var stopsByStopId = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in parsed.RawStops)
+            stopsByStopId[s.StopId] = (s.StopLat, s.StopLon);
+
+        var tripMap = new Dictionary<string, RawTripRecord>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in parsed.Trips)
+            tripMap[t.TripId] = t;
+
+        var shapesFactory = new GeometryFactory(new PrecisionModel(), 4326);
+        var generatedCount = 0;
+
+        foreach (var trip in parsed.Trips)
+        {
+            if (!byTrip.TryGetValue(trip.TripId, out var tripStopTimes))
+                continue;
+
+            var coords = new List<Coordinate>(tripStopTimes.Count);
+            foreach (var st in tripStopTimes)
+            {
+                if (!stopsByStopId.TryGetValue(st.StopId, out var stop))
+                    continue;
+                if (stop.Lat == 0.0 && stop.Lon == 0.0)
+                    continue;
+                coords.Add(new Coordinate(stop.Lon, stop.Lat));
+            }
+
+            if (coords.Count < 2)
+                continue;
+
+            var shapeId = $"gen-{trip.TripId}";
+            if (!parsed.Shapes.ContainsKey(shapeId))
+                parsed.Shapes[shapeId] = shapesFactory.CreateLineString(coords.ToArray());
+            trip.ShapeId = shapeId;
+            generatedCount++;
+        }
+
+        _logStore.AddEntry(feedVersionId,
+            $"Generated {generatedCount} shapes from {parsed.Shapes.Count} unique paths for {parsed.Trips.Count} trips");
     }
 
     private record ParsedGtfsData(
@@ -685,7 +747,7 @@ public class FeedManager
                 ShapeId = t.ShapeId,
                 WheelchairAccessible = t.WheelchairAccessible switch { 1 => true, 2 => false, _ => null },
                 BikesAllowed = t.BikesAllowed.HasValue ? t.BikesAllowed == 1 : null,
-                CanonicalRouteId = canonicalRouteLookup.GetValueOrDefault(globalId)
+                CanonicalRouteId = canonicalRouteLookup.TryGetValue(globalId, out var crId) ? crId : null
             });
         }
 
@@ -765,14 +827,12 @@ public class FeedManager
         _logStore.AddEntry(feedVersionId, "Phase 2: route geometries backfilled from trip shapes");
     }
 
-    private async Task<Dictionary<string, RouteType>> ImportStopTimesBulkPhaseAsync(int feedVersionId, ZipArchive archive, Dictionary<string, int> tripLookup, Dictionary<string, string> routeByTrip, Dictionary<string, RouteType> routeTypeByRoute, string connectionString, CancellationToken ct)
+    private async Task<Dictionary<string, RouteType>> ImportStopTimesBulkPhaseAsync(int feedVersionId, ZipArchive archive, Dictionary<string, int> tripLookup, Dictionary<string, string> routeByTrip, Dictionary<string, RouteType> routeTypeByRoute, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, "Phase 3: Bulk importing stop_times...");
         var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
 
-        await using var bulkConn = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
-        await bulkConn.OpenAsync(ct);
-        using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(bulkConn)
+        using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(sqlConn, Microsoft.Data.SqlClient.SqlBulkCopyOptions.Default, sqlTx)
         {
             DestinationTableName = "StopTimes", BatchSize = 50000, BulkCopyTimeout = 180
         };
@@ -923,7 +983,7 @@ public class FeedManager
 
     private async Task FinalizeVersionPhaseAsync(int feedVersionId, FeedVersion version, int operatorId, List<RawRouteRecord> routes, List<RawStopRecord> rawStops, List<RawTripRecord> trips, List<RawCalendarRecord> calendar, List<RawCalendarDateRecord> calendarDates, List<RawAgencyRecord> agencies, string tempZipPath, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
     {
-        _db.Entry(version).State = EntityState.Modified;
+        version = (await _db.FeedVersions.Include(fv => fv.Feed).FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct))!;
 
         var prevActive = await _db.FeedVersions
             .Where(fv => fv.FeedId == version.Feed.Id && fv.IsActive && fv.Id != feedVersionId)

@@ -142,6 +142,14 @@ public class GtfsParser
         });
     }
 
+    public List<RawStopTimeRecord> ParseStopTimes(ZipArchive archive)
+    {
+        return ParseCsv<RawStopTimeRecord>(archive, "stop_times.txt", cfg =>
+        {
+            cfg.RegisterClassMap(new StopTimeMap());
+        });
+    }
+
     public Dictionary<string, LineString> ParseShapes(ZipArchive archive)
     {
         var entry = archive.Entries.FirstOrDefault(e =>
