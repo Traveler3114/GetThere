@@ -85,19 +85,19 @@ public class CustomFeedSource : IFeedSource
 
                 case OutputFormat.Gbfs:
                     outputData = await _gbfsWriter.ConvertAsync(
-                        engineResult.Records, customFeed.MobilityProviderId, ct);
+                        engineResult.Records, customFeed.OperatorId, ct);
                     recordsWritten = engineResult.RecordCount;
 
-                    if (customFeed.MobilityProviderId is not null && outputData.Length > 0)
+                    if (outputData.Length > 0)
                     {
                         try
                         {
                             var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
                             await mobility.UpsertStationsFromGbfsBytesAsync(
-                                customFeed.MobilityProviderId.Value, outputData, ct);
+                                customFeed.OperatorId, outputData, ct);
                             _logger.LogInformation(
-                                "Persisted GBFS data for custom feed {CustomFeedId} to provider {ProviderId}",
-                                customFeed.Id, customFeed.MobilityProviderId);
+                                "Persisted GBFS data for custom feed {CustomFeedId} to operator {OperatorId}",
+                                customFeed.Id, customFeed.OperatorId);
                         }
                         catch (Exception mobEx)
                         {

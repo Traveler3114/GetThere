@@ -37,7 +37,6 @@ public class CustomFeedManager
     {
         return await _db.CustomFeeds
             .Include(f => f.Operator)
-            .Include(f => f.MobilityProvider)
             .Include(f => f.FieldMappings)
             .Include(f => f.Runs.OrderByDescending(r => r.StartedAt).Take(1))
             .OrderBy(f => f.Id)
@@ -56,7 +55,6 @@ public class CustomFeedManager
     {
         var feed = await _db.CustomFeeds
             .Include(f => f.Operator)
-            .Include(f => f.MobilityProvider)
             .Include(f => f.FieldMappings.OrderBy(m => m.SortOrder))
             .Include(f => f.Runs.OrderByDescending(r => r.StartedAt).Take(1))
             .FirstOrDefaultAsync(f => f.Id == id, ct);
@@ -69,7 +67,6 @@ public class CustomFeedManager
         var feed = new CustomFeed
         {
             OperatorId = request.OperatorId,
-            MobilityProviderId = request.MobilityProviderId,
             Name = request.Name,
             BaseUrl = request.BaseUrl,
             HttpMethod = string.IsNullOrWhiteSpace(request.HttpMethod) ? "GET" : request.HttpMethod.ToUpperInvariant(),
@@ -108,7 +105,6 @@ public class CustomFeedManager
         if (feed is null) return false;
 
         if (request.OperatorId.HasValue) feed.OperatorId = request.OperatorId.Value;
-        if (request.MobilityProviderId.HasValue) feed.MobilityProviderId = request.MobilityProviderId.Value;
         if (request.Name is not null) feed.Name = request.Name;
         if (request.BaseUrl is not null) feed.BaseUrl = request.BaseUrl;
         if (request.HttpMethod is not null) feed.HttpMethod = request.HttpMethod.ToUpperInvariant();
@@ -298,23 +294,6 @@ public class CustomFeedManager
     private async Task EnsureHiddenFeedAsync(CustomFeed feed, CancellationToken ct)
     {
         if (await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct)) return;
-
-        // For GBFS feeds without a provider, auto-create one for the operator
-        if (feed.OutputFormat == OutputFormat.Gbfs && feed.MobilityProviderId is null)
-        {
-            var provider = new MobilityProvider
-            {
-                Name = feed.Name,
-                FeedFormat = FeedFormat.GBFS,
-                OperatorId = feed.OperatorId,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-            _db.MobilityProviders.Add(provider);
-            await _db.SaveChangesAsync(ct);
-            feed.MobilityProviderId = provider.Id;
-            _logger.LogInformation("Auto-created MobilityProvider {ProviderId} for GBFS custom feed {FeedId}", provider.Id, feed.Id);
-        }
 
         var feedType = feed.OutputFormat switch
         {

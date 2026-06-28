@@ -5,7 +5,6 @@ namespace TransitInfoAPI.Contracts;
 public class CreateCustomFeedRequest
 {
     [Range(1, int.MaxValue)] public int OperatorId { get; set; }
-    public int? MobilityProviderId { get; set; }
     [Required, StringLength(200)] public string Name { get; set; } = string.Empty;
     [Required, Url] public string BaseUrl { get; set; } = string.Empty;
     [StringLength(10)] public string HttpMethod { get; set; } = "GET";
@@ -22,7 +21,6 @@ public class CreateCustomFeedRequest
 public class UpdateCustomFeedRequest
 {
     public int? OperatorId { get; set; }
-    public int? MobilityProviderId { get; set; }
     [StringLength(200)] public string? Name { get; set; }
     [Url] public string? BaseUrl { get; set; }
     [StringLength(10)] public string? HttpMethod { get; set; }
@@ -49,8 +47,6 @@ public class CustomFeedResponse
     public int Id { get; set; }
     public int OperatorId { get; set; }
     public string OperatorName { get; set; } = string.Empty;
-    public int? MobilityProviderId { get; set; }
-    public string? MobilityProviderName { get; set; }
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public string HttpMethod { get; set; } = "GET";

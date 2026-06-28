@@ -11,8 +11,8 @@ public class MobilityStation
     public int AvailableVehicles { get; set; }
     public DateTime? LastUpdated { get; set; }
 
-    public int MobilityProviderId { get; set; }
-    public MobilityProvider MobilityProvider { get; set; } = null!;
+    public int OperatorId { get; set; }
+    public Operator Operator { get; set; } = null!;
 
     public int CountryId { get; set; }
     public Country Country { get; set; } = null!;

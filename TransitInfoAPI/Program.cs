@@ -110,24 +110,6 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
-app.MapGet("/mobility-providers", async (TransitDbContext db, CancellationToken ct) =>
-    await db.MobilityProviders
-        .Where(mp => mp.IsActive)
-        .Select(mp => new { mp.Id, mp.Name, mp.OperatorId })
-        .ToListAsync(ct));
-app.MapPost("/mobility-providers", async (TransitDbContext db, MobilityProviderCreateRequest body, CancellationToken ct) =>
-{
-    var provider = new MobilityProvider
-    {
-        OperatorId = body.OperatorId,
-        Name = body.Name,
-        IsActive = true,
-        CreatedAt = DateTime.UtcNow
-    };
-    db.MobilityProviders.Add(provider);
-    await db.SaveChangesAsync(ct);
-    return Results.Created($"/mobility-providers/{provider.Id}", new { provider.Id, provider.Name, provider.OperatorId });
-});
 
 app.MapControllers();
 
@@ -172,4 +154,4 @@ using (var scope = app.Services.CreateScope())
 
 await app.RunAsync();
 
-record MobilityProviderCreateRequest(int OperatorId, string Name);
+

@@ -1,9 +1,6 @@
-using System.Collections.Concurrent;
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-using TransitInfoAPI.Data;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Managers;
 using TransitInfoAPI.Services;
@@ -23,7 +20,6 @@ public class MobilityPollingWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<MobilityPollingOptions> _options;
     private readonly FeedSourceFactory _feedSourceFactory;
-    private readonly ConcurrentDictionary<int, int> _consecutiveFailures = new();
 
     public MobilityPollingWorker(
         ILogger<MobilityPollingWorker> logger,
@@ -48,7 +44,7 @@ public class MobilityPollingWorker : BackgroundService
         {
             try
             {
-                await PollProvidersAsync(ct);
+                await PollGbfsFeedsAsync(ct);
             }
             catch (Exception ex)
             {
@@ -59,103 +55,63 @@ public class MobilityPollingWorker : BackgroundService
         }
     }
 
-    private async Task PollProvidersAsync(CancellationToken ct)
+    private async Task PollGbfsFeedsAsync(CancellationToken ct)
     {
-        List<MobilityProviderEntry> activeProviders;
+        List<FeedEntry> gbfsFeeds;
         using (var scope = _scopeFactory.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<Data.TransitDbContext>();
-            activeProviders = await db.MobilityProviders
-                .Where(mp => mp.IsActive)
-                .Select(mp => new MobilityProviderEntry { Id = mp.Id })
-                .ToListAsync<MobilityProviderEntry>(ct);
-        }
-
-        _logger.LogInformation("Checking {Count} active mobility providers", activeProviders.Count);
-
-        foreach (var entry in activeProviders)
-        {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
-                await mobility.PollMobilityProviderAsync(entry.Id, ct);
-                _consecutiveFailures.TryRemove(entry.Id, out _);
-            }
-            catch (Exception ex)
-            {
-                var count = _consecutiveFailures.AddOrUpdate(entry.Id, 1, (_, c) => c + 1);
-                _logger.LogWarning(ex, "Failed to poll mobility provider {Id} ({FailCount} consecutive failures)",
-                    entry.Id, count);
-
-                var threshold = _options.CurrentValue.MaxConsecutiveFailuresBeforeDeactivate;
-                if (count >= threshold)
-                {
-                    _logger.LogWarning("Auto-deactivating mobility provider {Id} after {Count} consecutive failures",
-                        entry.Id, count);
-                    try
-                    {
-                        using var scope = _scopeFactory.CreateScope();
-                        var db = scope.ServiceProvider.GetRequiredService<Data.TransitDbContext>();
-                        var provider = await db.MobilityProviders.FindAsync([entry.Id], ct);
-                        if (provider is not null)
-                        {
-                            provider.IsActive = false;
-                            await db.SaveChangesAsync(ct);
-                        }
-                    }
-                    catch (Exception inner)
-                    {
-                        _logger.LogError(inner, "Failed to deactivate mobility provider {Id}", entry.Id);
-                    }
-                    _consecutiveFailures.TryRemove(entry.Id, out _);
-                }
-            }
-        }
-
-        // Poll GBFS custom feeds
-        List<GbfsCustomFeedEntry> gbfsCustomFeeds;
-        using (var scope = _scopeFactory.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
-            gbfsCustomFeeds = await db.Feeds
+            gbfsFeeds = await db.Feeds
                 .Where(f => f.IsActive && f.FeedType == FeedType.GBFS && f.CustomFeedId != null)
-                .Join(db.CustomFeeds, f => f.CustomFeedId, cf => cf.Id, (f, cf) => new GbfsCustomFeedEntry
+                .Join(db.CustomFeeds, f => f.CustomFeedId, cf => cf.Id, (f, cf) => new FeedEntry
                 {
                     Feed = f,
-                    MobilityProviderId = cf.MobilityProviderId
+                    OperatorId = cf.OperatorId
                 })
-                .Where(x => x.MobilityProviderId != null)
                 .ToListAsync(ct);
+
+            // Also include official GBFS feeds that have a URL
+            var officialFeeds = await db.Feeds
+                .Where(f => f.IsActive && f.FeedType == FeedType.GBFS && f.Url != null && f.CustomFeedId == null)
+                .Select(f => new FeedEntry
+                {
+                    Feed = f,
+                    OperatorId = f.OperatorId
+                })
+                .ToListAsync(ct);
+
+            gbfsFeeds.AddRange(officialFeeds);
         }
 
-        if (gbfsCustomFeeds.Count > 0)
+        if (gbfsFeeds.Count > 0)
         {
-            _logger.LogInformation("Polling {Count} GBFS custom feeds", gbfsCustomFeeds.Count);
+            _logger.LogInformation("Polling {Count} GBFS feeds", gbfsFeeds.Count);
 
-            foreach (var entry in gbfsCustomFeeds)
+            foreach (var entry in gbfsFeeds)
             {
                 try
                 {
                     var source = _feedSourceFactory.Resolve(entry.Feed!);
-                    await source.FetchDataAsync(entry.Feed!, ct);
+                    var result = await source.FetchDataAsync(entry.Feed!, ct);
+
+                    if (result.Data.Length > 0 && entry.Feed!.CustomFeedId is null)
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
+                        await mobility.UpsertStationsFromGbfsBytesAsync(entry.OperatorId, result.Data, ct);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to poll GBFS custom feed {FeedId}", entry.Feed?.FeedId);
+                    _logger.LogWarning(ex, "Failed to poll GBFS feed {FeedId}", entry.Feed?.FeedId);
                 }
             }
         }
     }
 
-    private class MobilityProviderEntry
-    {
-        public int Id { get; set; }
-    }
-
-    private class GbfsCustomFeedEntry
+    private class FeedEntry
     {
         public Entities.Feed? Feed { get; set; }
-        public int? MobilityProviderId { get; set; }
+        public int OperatorId { get; set; }
     }
 }

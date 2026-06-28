@@ -14,7 +14,7 @@ public static class MobilityStationMapper
         Longitude = ms.Longitude,
         AvailableVehicles = ms.AvailableVehicles,
         Capacity = ms.Capacity,
-        ProviderName = ms.MobilityProvider != null ? ms.MobilityProvider.Name : string.Empty,
+        ProviderName = ms.Operator?.Name ?? string.Empty,
         LastUpdated = ms.LastUpdated,
         CountryName = ms.Country?.Name,
         CountryCode = ms.Country?.IsoCode

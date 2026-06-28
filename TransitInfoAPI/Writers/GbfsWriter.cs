@@ -19,7 +19,7 @@ public class GbfsWriter
         _logger = logger;
     }
 
-    public Task<byte[]> ConvertAsync(List<Dictionary<string, object?>> records, int? mobilityProviderId, CancellationToken ct)
+    public Task<byte[]> ConvertAsync(List<Dictionary<string, object?>> records, int operatorId, CancellationToken ct)
     {
         if (records.Count == 0) return Task.FromResult(Array.Empty<byte>());
 

@@ -7,8 +7,6 @@ public class CustomFeed
     public int Id { get; set; }
     public int OperatorId { get; set; }
     public Operator Operator { get; set; } = null!;
-    public int? MobilityProviderId { get; set; }
-    public MobilityProvider? MobilityProvider { get; set; }
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public string HttpMethod { get; set; } = "GET";

@@ -23,7 +23,6 @@ public class TransitDbContext : DbContext
     public DbSet<CanonicalRoute> CanonicalRoutes { get; set; }
     public DbSet<RawStop> RawStops { get; set; }
     public DbSet<ReconciliationCandidate> ReconciliationCandidates { get; set; }
-    public DbSet<MobilityProvider> MobilityProviders { get; set; }
     public DbSet<MobilityStation> MobilityStations { get; set; }
     public DbSet<Alert> Alerts { get; set; }
     public DbSet<Place> Places { get; set; }
@@ -178,7 +177,7 @@ public class TransitDbContext : DbContext
         modelBuilder.Entity<ReconciliationCandidate>()
             .HasIndex(rc => rc.SuggestedCanonicalStationId);
         modelBuilder.Entity<MobilityStation>()
-            .HasIndex(ms => ms.MobilityProviderId);
+            .HasIndex(ms => ms.OperatorId);
         modelBuilder.Entity<City>()
             .HasIndex(c => c.CountryId);
 
@@ -186,11 +185,6 @@ public class TransitDbContext : DbContext
         modelBuilder.Entity<CustomFeed>(entity =>
         {
             entity.HasIndex(e => e.OperatorId);
-            entity.HasIndex(e => e.MobilityProviderId);
-            entity.HasOne(e => e.MobilityProvider)
-                .WithMany()
-                .HasForeignKey(e => e.MobilityProviderId)
-                .OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<Feed>(entity =>
         {

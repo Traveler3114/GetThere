@@ -32,8 +32,7 @@ public class MobilityController : ControllerBase
         CancellationToken ct = default)
     {
         var query = _db.MobilityStations
-            .Include(ms => ms.MobilityProvider)
-            .ThenInclude(mp => mp.Operator)
+            .Include(ms => ms.Operator)
             .Include(ms => ms.Country)
             .AsQueryable();
 
@@ -62,7 +61,7 @@ public class MobilityController : ControllerBase
                 {
                     id = "mob_" + s.Id,
                     name = s.Name,
-                    providerName = s.MobilityProvider?.Name ?? "",
+                    providerName = s.Operator?.Name ?? "",
                     stationId = s.StationId,
                     capacity = s.Capacity,
                     availableVehicles = s.AvailableVehicles,
@@ -95,23 +94,5 @@ public class MobilityController : ControllerBase
             .OrderBy(n => n)
             .ToListAsync(ct);
         return Ok(names);
-    }
-
-    [HttpGet("providers")]
-    [HttpGet("/mobility-providers")]
-    public async Task<ActionResult<List<object>>> GetProviders(CancellationToken ct)
-    {
-        var providers = await _db.MobilityProviders
-            .OrderBy(p => p.Name)
-            .Select(p => new { p.Id, p.Name })
-            .ToListAsync(ct);
-        return Ok(providers);
-    }
-
-    [HttpPost("providers/{id}/poll")]
-    public async Task<IActionResult> PollProvider(int id, CancellationToken ct = default)
-    {
-        await _mobility.PollMobilityProviderAsync(id, ct);
-        return NoContent();
     }
 }

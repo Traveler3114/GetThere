@@ -19,5 +19,4 @@ public class Operator
     public ICollection<Agency> Agencies { get; set; } = [];
     public ICollection<CanonicalRoute> Routes { get; set; } = [];
     public ICollection<CanonicalStationOperator> StationOperators { get; set; } = [];
-    public ICollection<MobilityProvider> MobilityProviders { get; set; } = [];
 }

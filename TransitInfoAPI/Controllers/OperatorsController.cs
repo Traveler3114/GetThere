@@ -311,13 +311,12 @@ public class OperatorsController : ControllerBase
             .Include(o => o.Feeds)
             .Include(o => o.Routes)
             .Include(o => o.StationOperators)
-            .Include(o => o.MobilityProviders)
             .FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
 
         if (op is null)
             return NotFound();
 
-        var totalAssociations = op.Agencies.Count + op.Feeds.Count + op.Routes.Count + op.StationOperators.Count + op.MobilityProviders.Count;
+        var totalAssociations = op.Agencies.Count + op.Feeds.Count + op.Routes.Count + op.StationOperators.Count;
         if (totalAssociations > 0)
             return Problem(statusCode: 409, title: $"Cannot delete operator: has {totalAssociations} associated record(s). Remove associations first.");
 

@@ -118,12 +118,6 @@
               <option value="agencies">agencies</option>
             </select>
           </div>
-          <div class="col-md-4" id="mobilityProviderRow" style="display:none">
-            <label class="form-label">Mobility Provider</label>
-            <select id="fieldMobilityProviderId" class="form-select form-select-sm">
-              <option value="">— None —</option>
-            </select>
-          </div>
           <div class="col-md-4">
             <label class="form-label">Refresh Interval (seconds)</label>
             <input type="number" id="fieldRefreshInterval" class="form-control form-control-sm" value="3600" min="60">
@@ -292,16 +286,6 @@ async function loadOperators() {
   } catch(e) { console.error('Failed to load operators', e); }
 }
 
-async function loadMobilityProviders() {
-  try {
-    const r = await fetch(BASE + '/mobility-providers');
-    if (!r.ok) return;
-    const providers = await r.json();
-    const sel = document.getElementById('fieldMobilityProviderId');
-    sel.innerHTML = '<option value="">— None —</option>' + providers.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-  } catch(e) { console.error('Failed to load mobility providers', e); }
-}
-
 function updateAuthFields() {
   const type = document.getElementById('fieldAuthType').value;
   const container = document.getElementById('authFields');
@@ -355,8 +339,6 @@ function updateTargetTable() {
   const sel = document.getElementById('fieldTargetTable');
   sel.disabled = fmt !== 'GtfsStatic';
   if (fmt !== 'GtfsStatic') sel.value = '';
-  const mpRow = document.getElementById('mobilityProviderRow');
-  if (mpRow) mpRow.style.display = fmt === 'Gbfs' ? '' : 'none';
   updateTargetFields();
 }
 
@@ -566,7 +548,6 @@ function getFieldMappings() {
 function getFormData() {
   return {
     operatorId: parseInt(document.getElementById('fieldOperatorId').value) || 0,
-    mobilityProviderId: parseInt(document.getElementById('fieldMobilityProviderId').value) || null,
     name: document.getElementById('fieldName').value,
     baseUrl: document.getElementById('fieldBaseUrl').value,
     httpMethod: document.getElementById('fieldHttpMethod').value,
@@ -667,7 +648,6 @@ async function loadForEdit(id) {
     document.getElementById('fieldOutputFormat').value = feed.outputFormat || 'Gbfs';
     document.getElementById('fieldDataPath').value = feed.dataPath || '';
     document.getElementById('fieldRefreshInterval').value = feed.refreshIntervalSeconds || 3600;
-    if (feed.mobilityProviderId) document.getElementById('fieldMobilityProviderId').value = feed.mobilityProviderId;
     updateDataPathHint();
     updateTargetTable();
 
@@ -776,7 +756,6 @@ document.getElementById('previewChips').addEventListener('click', e => {
 
 // Init
 loadOperators();
-loadMobilityProviders();
 const params = new URLSearchParams(location.search);
 const editIdParam = params.get('id');
 if (editIdParam) loadForEdit(editIdParam);
