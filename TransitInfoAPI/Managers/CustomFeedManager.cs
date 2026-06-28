@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
+using TransitInfoAPI.Exceptions;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
 namespace TransitInfoAPI.Managers;
@@ -212,13 +213,13 @@ public class CustomFeedManager
     {
         var customFeed = await _db.CustomFeeds
             .FirstOrDefaultAsync(f => f.Id == customFeedId, ct)
-            ?? throw new InvalidOperationException($"Custom feed {customFeedId} not found");
+            ?? throw new AppException($"Custom feed {customFeedId} not found", statusCode: 404, errorCode: "NotFound");
 
         var hiddenFeed = await _db.Feeds
             .FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
 
         if (hiddenFeed is null)
-            throw new InvalidOperationException($"No hidden feed found for custom feed {customFeedId}");
+            throw new AppException($"No hidden feed found for custom feed {customFeedId}", statusCode: 404, errorCode: "NotFound");
 
         var source = _feedSourceFactory.Resolve(hiddenFeed);
         await source.FetchDataAsync(hiddenFeed, ct);

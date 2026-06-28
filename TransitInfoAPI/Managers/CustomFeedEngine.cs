@@ -61,7 +61,7 @@ public class CustomFeedEngine
             log.Add($"Fetching page {pageNumber}...");
 
             var request = new HttpRequestMessage(new HttpMethod(config.HttpMethod), url);
-            ApplyAuth(request, config.AuthConfig, log);
+            await ApplyAuth(request, config.AuthConfig, log);
 
             HttpResponseMessage response;
             try
@@ -144,7 +144,7 @@ public class CustomFeedEngine
         return result;
     }
 
-    private void ApplyAuth(HttpRequestMessage request, string? authConfigJson, List<string> log)
+    private async Task ApplyAuth(HttpRequestMessage request, string? authConfigJson, List<string> log)
     {
         if (string.IsNullOrWhiteSpace(authConfigJson))
         {
@@ -187,7 +187,7 @@ public class CustomFeedEngine
                     var token = root.TryGetProperty("token", out var tokenProp) ? tokenProp.GetString() : null;
                     if (token is null && root.TryGetProperty("loginUrl", out var loginUrl))
                     {
-                        token = FetchBearerToken(root, log);
+                        token = await FetchBearerToken(root, log);
                     }
                     if (token is not null)
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -195,7 +195,7 @@ public class CustomFeedEngine
                     break;
 
                 case "oauth2":
-                    var oauthToken = FetchOAuth2Token(root, log);
+                    var oauthToken = await FetchOAuth2Token(root, log);
                     if (oauthToken is not null)
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken);
                     log.Add("Sending authenticated request (OAuth2)");
@@ -208,7 +208,7 @@ public class CustomFeedEngine
         }
     }
 
-    private string? FetchBearerToken(JsonElement config, List<string> log)
+    private async Task<string?> FetchBearerToken(JsonElement config, List<string> log)
     {
         try
         {
@@ -225,9 +225,9 @@ public class CustomFeedEngine
                 new KeyValuePair<string, string>("client_secret", clientSecret)
             });
 
-            var response = client.PostAsync(loginUrl, loginBody).Result;
+            var response = await client.PostAsync(loginUrl, loginBody);
             response.EnsureSuccessStatusCode();
-            var json = response.Content.ReadAsStringAsync().Result;
+            var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             return doc.RootElement.TryGetProperty(tokenField, out var t) ? t.GetString() : null;
         }
@@ -238,7 +238,7 @@ public class CustomFeedEngine
         }
     }
 
-    private string? FetchOAuth2Token(JsonElement config, List<string> log)
+    private async Task<string?> FetchOAuth2Token(JsonElement config, List<string> log)
     {
         try
         {
@@ -258,9 +258,9 @@ public class CustomFeedEngine
                 new KeyValuePair<string, string>("scope", scopes)
             });
 
-            var response = client.PostAsync(tokenUrl, body).Result;
+            var response = await client.PostAsync(tokenUrl, body);
             response.EnsureSuccessStatusCode();
-            var json = response.Content.ReadAsStringAsync().Result;
+            var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             return doc.RootElement.TryGetProperty("access_token", out var t) ? t.GetString() : null;
         }
@@ -643,7 +643,7 @@ public class CustomFeedEngine
         client.Timeout = TimeSpan.FromSeconds(30);
 
         var request = new HttpRequestMessage(new HttpMethod(config.HttpMethod), config.BaseUrl);
-        ApplyAuth(request, config.AuthConfig, log);
+        await ApplyAuth(request, config.AuthConfig, log);
 
         HttpResponseMessage response;
         try

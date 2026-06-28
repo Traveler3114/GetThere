@@ -97,20 +97,8 @@ public class CustomFeedsController : ControllerBase
     [HttpPost("{id:int}/execute")]
     public async Task<ActionResult<Contracts.CustomFeedRunResponse>> Execute(int id, CancellationToken ct = default)
     {
-        try
-        {
-            var run = await _manager.ExecuteAsync(id, ct);
-            return Ok(run);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return NotFound(new { title = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Custom feed {Id} execute failed", id);
-            return Problem(statusCode: 500, title: "Execution failed", detail: ex.Message);
-        }
+        var run = await _manager.ExecuteAsync(id, ct);
+        return Ok(run);
     }
 
     [HttpGet("{id:int}/runs")]
@@ -141,16 +129,8 @@ public class CustomFeedsController : ControllerBase
         if (!Enum.TryParse<Enums.ResponseFormat>(request.ResponseFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid ResponseFormat '{request.ResponseFormat}'.");
 
-        try
-        {
-            var result = await _manager.DiscoverAsync(request, ct);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Discover failed");
-            return Problem(statusCode: 400, title: "Discover failed", detail: ex.Message);
-        }
+        var result = await _manager.DiscoverAsync(request, ct);
+        return Ok(result);
     }
 
     [HttpPost("preview")]
@@ -165,15 +145,7 @@ public class CustomFeedsController : ControllerBase
         if (!Enum.TryParse<Enums.OutputFormat>(request.OutputFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid OutputFormat '{request.OutputFormat}'.");
 
-        try
-        {
-            var result = await _manager.PreviewAsync(request, ct);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Preview failed");
-            return Problem(statusCode: 400, title: "Preview failed", detail: ex.Message);
-        }
+        var result = await _manager.PreviewAsync(request, ct);
+        return Ok(result);
     }
 }
