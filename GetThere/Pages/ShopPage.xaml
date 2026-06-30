@@ -11,21 +11,84 @@
     <Grid>
         <components:AnimatedBackground />
 
-        <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="16" Padding="40">
-            <Label Text="Shop" FontSize="32" FontAttributes="Bold"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-            <Label Text="Coming Soon"
-                   FontSize="20"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-            <Label Text="Ticket purchasing will be available once operator SDK adapters are implemented."
-                   FontSize="14"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
-                   MaximumWidthRequest="400" />
-            <!-- TODO: Rebuild with ticketing SDK when adapters are implemented -->
-        </VerticalStackLayout>
-    </Grid>
+        <Grid RowDefinitions="Auto,*" Padding="20,32,20,96">
+            <VerticalStackLayout Grid.Row="0" Spacing="4">
+                <Label
+                    Text="Shop"
+                    FontSize="32"
+                    FontAttributes="Bold"
+                    TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                <Label
+                    Text="Available tickets"
+                    FontSize="15"
+                    TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}" />
+            </VerticalStackLayout>
 
+            <Grid Grid.Row="1" Margin="0,20,0,0">
+                <VerticalStackLayout
+                    x:Name="LoadingState"
+                    Spacing="12"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                    <ActivityIndicator IsRunning="True" />
+                    <Label
+                        Text="Loading ticket options..."
+                        TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}" />
+                </VerticalStackLayout>
+
+                <VerticalStackLayout
+                    x:Name="EmptyState"
+                    IsVisible="False"
+                    Spacing="10"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Padding="24">
+                    <Label
+                        Text="No tickets available"
+                        FontSize="22"
+                        FontAttributes="Bold"
+                        HorizontalTextAlignment="Center"
+                        TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                    <Label
+                        Text="Ticket options will appear here when active ticketing adapters are configured."
+                        FontSize="14"
+                        HorizontalTextAlignment="Center"
+                        TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
+                        MaximumWidthRequest="360" />
+                </VerticalStackLayout>
+
+                <VerticalStackLayout
+                    x:Name="ErrorState"
+                    IsVisible="False"
+                    Spacing="14"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Padding="24">
+                    <Label
+                        Text="Could not load shop"
+                        FontSize="22"
+                        FontAttributes="Bold"
+                        HorizontalTextAlignment="Center"
+                        TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                    <Label
+                        x:Name="ErrorMessageLabel"
+                        FontSize="14"
+                        HorizontalTextAlignment="Center"
+                        TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
+                        MaximumWidthRequest="360" />
+                    <Button
+                        Text="Try again"
+                        Clicked="OnRetryClicked"
+                        BackgroundColor="#009688"
+                        TextColor="White"
+                        CornerRadius="18"
+                        Padding="20,10" />
+                </VerticalStackLayout>
+
+                <ScrollView x:Name="OptionsScrollView" IsVisible="False">
+                    <VerticalStackLayout x:Name="OptionsList" Spacing="12" />
+                </ScrollView>
+            </Grid>
+        </Grid>
+    </Grid>
 </ContentPage>

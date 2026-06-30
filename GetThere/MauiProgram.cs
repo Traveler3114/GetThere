@@ -13,6 +13,18 @@ namespace GetThere;
 
 public static class MauiProgram
 {
+    private static HttpMessageHandler CreateDevHttpHandler()
+    {
+        var handler = new HttpClientHandler();
+
+#if DEBUG
+        handler.ServerCertificateCustomValidationCallback =
+            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+#endif
+
+        return handler;
+    }
+
     private static string GetApiBaseUrl()
     {
 #if ANDROID
@@ -42,12 +54,13 @@ public static class MauiProgram
         builder.Services.AddSingleton<CountryPreferenceService>();
 
         builder.Services.AddTransient<AuthService>(_ =>
-            new AuthService(new HttpClient { BaseAddress = new Uri(apiBase) }));
+            new AuthService(new HttpClient(CreateDevHttpHandler()) { BaseAddress = new Uri(apiBase) }));
 
         builder.Services.AddTransient<AuthenticatedHttpHandler>();
 
         builder.Services.AddHttpClient("GetThereAPI", client =>
             client.BaseAddress = new Uri(apiBase))
+            .ConfigurePrimaryHttpMessageHandler(CreateDevHttpHandler)
             .AddHttpMessageHandler<AuthenticatedHttpHandler>();
 
         builder.Services.AddTransient(sp =>
