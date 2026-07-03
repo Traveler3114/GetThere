@@ -124,17 +124,24 @@ public class ScheduleManager
     {
         // Known limitation: for bidirectional routes, GroupBy picks the first stop by sequence
         // for each station ID, which may arbitrarily select one direction's stop. See #99.
-        var stops = await _db.StopTimes
+        var firstStopPerStation = await _db.StopTimes
             .Where(st => st.Trip.CanonicalRouteId == canonicalRouteId)
             .Where(st => st.CanonicalStationId.HasValue)
             .GroupBy(st => st.CanonicalStationId)
-            .Select(g => g.OrderBy(st => st.StopSequence).First())
-            .OrderBy(st => st.StopSequence)
-            .Select(st => st.CanonicalStation!)
-            .Select(StationMapper.ToResponseExpression)
+            .Select(g => new { StationId = g.Key!.Value, MinSequence = g.Min(st => st.StopSequence) })
+            .OrderBy(x => x.MinSequence)
             .ToListAsync(ct);
 
-        return stops;
+        var stationIds = firstStopPerStation.Select(x => x.StationId).ToList();
+        var stations = await _db.CanonicalStations
+            .Where(cs => stationIds.Contains(cs.Id))
+            .ToListAsync(ct);
+
+        var stationMap = stations.ToDictionary(s => s.Id);
+        return firstStopPerStation
+            .Select(x => stationMap.TryGetValue(x.StationId, out var s) ? StationMapper.ToResponse(s) : null)
+            .Where(s => s is not null)
+            .ToList()!;
     }
 
     public async Task<List<TripResponse>> GetRouteTripsAsync(int canonicalRouteId, DateOnly date, CancellationToken ct)

@@ -189,7 +189,6 @@ function initDraw(geometry) {
   draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {},
-    defaultMode: 'direct_select',
     styles: [
       {
         id: 'gl-draw-line',
@@ -263,7 +262,7 @@ function initDraw(geometry) {
   });
   map.addControl(draw);
 
-  draw.set({
+  const ids = draw.set({
     type: 'FeatureCollection',
     features: [{
       type: 'Feature',
@@ -272,7 +271,9 @@ function initDraw(geometry) {
     }]
   });
 
-  draw.changeMode('direct_select', { featureId: draw.getAll().features[0].id });
+  if (ids && ids.length > 0) {
+    draw.changeMode('direct_select', { featureId: ids[0] });
+  }
 }
 
 map.on('load', async () => {
@@ -303,15 +304,18 @@ map.on('load', async () => {
       const shapeData = await shapeResp.json();
       if (shapeData && shapeData.geometry && shapeData.geometry.type === 'LineString') {
         originalGeometry = JSON.parse(JSON.stringify(shapeData.geometry));
-
-        map.once('idle', () => {
-          initDraw(shapeData.geometry);
-          fitMapToShape(shapeData.geometry);
-        });
-
+        initDraw(shapeData.geometry);
+        fitMapToShape(shapeData.geometry);
         document.getElementById('save-btn').disabled = false;
         shapeLoaded = true;
+      } else {
+        showToast('Shape data has no valid LineString geometry', 'error');
       }
+    } else {
+      const errMsg = shapeResp.status === 404
+        ? 'No shape generated yet for this route'
+        : 'Failed to load shape (HTTP ' + shapeResp.status + ')';
+      showToast(errMsg, 'error');
     }
   } catch (err) {
     document.getElementById('route-name').textContent = 'Error: ' + err.message;

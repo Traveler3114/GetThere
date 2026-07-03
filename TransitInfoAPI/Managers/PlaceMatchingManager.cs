@@ -38,8 +38,10 @@ public class PlaceMatchingManager
     private readonly int _maxDistanceMeters;
     private readonly int _cooldownHours;
     private List<Place>? _placeCache;
+    private Dictionary<string, List<Place>>? _placeGrid;
     private readonly Dictionary<string, int> _countryIdCache = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastMatchRun = DateTime.MinValue;
+    private const double GridCellSizeDeg = 0.5;
 
     public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
     {
@@ -54,24 +56,59 @@ public class PlaceMatchingManager
     {
         if (_placeCache is not null) return;
         _placeCache = await _db.Places.ToListAsync(ct);
-        _logger.LogInformation("Loaded {Count} places into cache", _placeCache.Count);
+        BuildPlaceGrid();
+        _logger.LogInformation("Loaded {Count} places into cache ({CellCount} grid cells)", _placeCache.Count, _placeGrid?.Count);
     }
 
-    // O(n) scan — acceptable for ~500 places. Monitor if dataset grows 10×.
+    private void BuildPlaceGrid()
+    {
+        _placeGrid = new Dictionary<string, List<Place>>();
+        foreach (var place in _placeCache!)
+        {
+            var key = GetGridCellKey(place.Lat, place.Lon);
+            if (!_placeGrid.TryGetValue(key, out var list))
+                _placeGrid[key] = list = [];
+            list.Add(place);
+        }
+    }
+
+    private static string GetGridCellKey(double lat, double lon)
+    {
+        var cellLat = Math.Round(lat / GridCellSizeDeg) * GridCellSizeDeg;
+        var cellLon = Math.Round(lon / GridCellSizeDeg) * GridCellSizeDeg;
+        return $"{cellLat:F1}:{cellLon:F1}";
+    }
+
     public Place? FindNearestPlace(double lat, double lon)
     {
         if (_placeCache is null || _placeCache.Count == 0) return null;
+        if (_placeGrid is null) BuildPlaceGrid();
 
         Place? nearest = null;
         var minDist = double.MaxValue;
 
-        foreach (var place in _placeCache)
+        var centerKey = GetGridCellKey(lat, lon);
+        var parts = centerKey.Split(':');
+        var centerLat = double.Parse(parts[0]);
+        var centerLon = double.Parse(parts[1]);
+
+        for (var dLat = -1; dLat <= 1; dLat++)
         {
-            var dist = GeoUtils.CalculateDistanceMeters(lat, lon, place.Lat, place.Lon);
-            if (dist < minDist)
+            for (var dLon = -1; dLon <= 1; dLon++)
             {
-                minDist = dist;
-                nearest = place;
+                var key = $"{(centerLat + dLat * GridCellSizeDeg):F1}:{(centerLon + dLon * GridCellSizeDeg):F1}";
+                if (_placeGrid!.TryGetValue(key, out var places))
+                {
+                    foreach (var place in places)
+                    {
+                        var dist = GeoUtils.CalculateDistanceMeters(lat, lon, place.Lat, place.Lon);
+                        if (dist < minDist)
+                        {
+                            minDist = dist;
+                            nearest = place;
+                        }
+                    }
+                }
             }
         }
 

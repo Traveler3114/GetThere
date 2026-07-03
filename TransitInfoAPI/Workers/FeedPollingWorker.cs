@@ -66,25 +66,29 @@ public class FeedPollingWorker : BackgroundService
 
         _logger.LogInformation("Checking {Count} active GTFS-static feeds", staticFeeds.Count);
 
-        foreach (var feed in staticFeeds)
+        await Parallel.ForEachAsync(staticFeeds, new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 3,
+            CancellationToken = ct
+        }, async (feed, innerCt) =>
         {
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var feedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
-                var newVersion = await feedManager.CheckAndFetchAsync(feed.Id, ct);
+                var newVersion = await feedManager.CheckAndFetchAsync(feed.Id, innerCt);
                 if (newVersion != null)
                 {
                     if (newVersion.ImportStatus == FeedImportStatus.Success)
                     {
                         _consecutiveFailures.TryRemove(feed.Id, out _);
                         _logger.LogDebug("Feed {FeedId} already up to date, skipping", feed.FeedId);
-                        continue;
+                        return;
                     }
                     _logger.LogInformation(
                         "New feed version detected for {FeedId}: {Sha1}, starting import",
                         feed.FeedId, newVersion.Sha1);
-                    await feedManager.ImportFeedVersionAsync(newVersion.Id, ct);
+                    await feedManager.ImportFeedVersionAsync(newVersion.Id, innerCt);
                 }
                 _consecutiveFailures.TryRemove(feed.Id, out _);
             }
@@ -103,11 +107,11 @@ public class FeedPollingWorker : BackgroundService
                     {
                         using var scope = _scopeFactory.CreateScope();
                         var db = scope.ServiceProvider.GetRequiredService<Data.TransitDbContext>();
-                        var dbFeed = await db.Feeds.FindAsync([feed.Id], ct);
+                        var dbFeed = await db.Feeds.FindAsync([feed.Id], innerCt);
                         if (dbFeed is not null)
                         {
                             dbFeed.IsActive = false;
-                            await db.SaveChangesAsync(ct);
+                            await db.SaveChangesAsync(innerCt);
                         }
                     }
                     catch (Exception inner)
@@ -117,6 +121,6 @@ public class FeedPollingWorker : BackgroundService
                     _consecutiveFailures.TryRemove(feed.Id, out _);
                 }
             }
-        }
+        });
     }
 }

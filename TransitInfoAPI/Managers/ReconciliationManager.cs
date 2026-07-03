@@ -191,6 +191,16 @@ public class ReconciliationManager
         // e.g. OBB's "Zagreb Glavni Kolodvor" merging with HZPP's.
         existingStations = existingStations.Where(s => !existingLinkedStationIds.Contains(s.Id)).ToList();
 
+        // Build spatial index for candidate lookup — ~0.2° grid cells (~20km)
+        var stationGrid = new Dictionary<string, List<CanonicalStation>>();
+        foreach (var station in existingStations)
+        {
+            var key = GetSpatialCellKey(station.Latitude, station.Longitude);
+            if (!stationGrid.TryGetValue(key, out var list))
+                stationGrid[key] = list = [];
+            list.Add(station);
+        }
+
         var addedOperatorLinks = new HashSet<(int CanonicalStationId, int OperatorId)>(
             existingLinkedStationIds.Select(id => (id, feedOperatorId)));
 
@@ -207,9 +217,12 @@ public class ReconciliationManager
             var station = onestopToStation[onestopId];
             rawStop.CanonicalStationId = station.Id;
 
+            var cellKey = GetSpatialCellKey(rawStop.Lat, rawStop.Lon);
+            var nearbyStations = stationGrid.TryGetValue(cellKey, out var bucket) ? bucket : [];
+
             var match = FindBestMatch(
                 rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType!.Value,
-                rawStop.RawStopId, existingStations, autoDistThreshold * 2,
+                rawStop.RawStopId, nearbyStations, autoDistThreshold * 2,
                 routeLookup, stationToRawStopIds);
 
             if (match is not null &&
@@ -1162,6 +1175,13 @@ public class ReconciliationManager
         }
 
         return d[m, n];
+    }
+
+    private static string GetSpatialCellKey(double lat, double lon)
+    {
+        var cellX = (int)Math.Floor(lat / 0.2);
+        var cellY = (int)Math.Floor(lon / 0.2);
+        return $"{cellX}:{cellY}";
     }
 
     internal static string ComputeMatchExplanation(

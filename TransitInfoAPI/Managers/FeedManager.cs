@@ -339,9 +339,22 @@ public class FeedManager
         if (version is null) throw new InvalidOperationException("FeedVersion not found.");
 
         var feedLock = _feedLocks.GetOrAdd(version.Feed.Id, _ => new SemaphoreSlim(1, 1));
-        await feedLock.WaitAsync(ct);
+        await feedLock.WaitAsync(CancellationToken.None);
         try
         {
+            // Re-fetch version after acquiring lock — another caller may have
+            // already imported it while we were waiting.
+            version = await _db.FeedVersions
+                .Include(fv => fv.Feed)
+                    .ThenInclude(f => f.Operator)
+                .FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct);
+            if (version is null) throw new InvalidOperationException("FeedVersion not found.");
+            if (version.ImportStatus == FeedImportStatus.Success)
+            {
+                _logger.LogInformation("FeedVersion {VersionId} already imported, skipping", feedVersionId);
+                return;
+            }
+
             var tempZipPath = PrepareImportTempZip(version, feedVersionId);
             if (tempZipPath is null)
             {
@@ -385,10 +398,6 @@ public class FeedManager
 
                     archive.Dispose();
 
-                    await ReconcileAndBackfillAsync(feedVersionId, version, ct);
-
-                    await MatchPlacesAsync(ct);
-
                     await FinalizeVersionPhaseAsync(feedVersionId, version, parsed.OperatorId, parsed.Routes, parsed.RawStops, parsed.Trips, parsed.Calendar, parsed.CalendarDates, parsed.Agencies, tempZipPath, sqlTx, ct);
                 }
                 finally
@@ -401,6 +410,30 @@ public class FeedManager
             {
                 await HandleImportErrorAsync(feedVersionId, sqlConn, sqlTx, ex, tempZipPath, ct);
                 throw;
+            }
+
+            // Clear the committed transaction from the context so subsequent
+            // SaveChangesAsync calls (reconciliation, place matching) don't try to
+            // create savepoints on an already-committed transaction.
+            _db.Database.UseTransaction(null);
+
+            try
+            {
+                await ReconcileAndBackfillAsync(feedVersionId, version, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Reconciliation failed after successful import for FeedVersion {VersionId}", feedVersionId);
+                _logStore.AddEntry(feedVersionId, $"Reconciliation failed (non-fatal): {ex.Message}");
+            }
+            try
+            {
+                await MatchPlacesAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Place matching failed after successful import for FeedVersion {VersionId}", feedVersionId);
+                _logStore.AddEntry(feedVersionId, $"Place matching failed (non-fatal): {ex.Message}");
             }
         }
         finally
@@ -437,7 +470,8 @@ public class FeedManager
             await _db.SaveChangesAsync(ct);
             _logStore.AddEntry(version.Id, "Manual trigger, zip on disk, SHA1 computed");
         }
-        await ImportFeedVersionAsync(version.Id, ct);
+        if (version.ImportStatus != FeedImportStatus.Success)
+            await ImportFeedVersionAsync(version.Id, ct);
         return version;
     }
 
@@ -1071,8 +1105,13 @@ public class FeedManager
         _logStore.AddEntry(feedVersionId, "Backfilling station references...");
         try
         {
+            // This UPDATE joins StopTimes (potentially millions of rows) with RawStops
+            // and may exceed the default 30s timeout. Raise it for this query only.
+            var prevTimeout = _db.Database.GetCommandTimeout();
+            _db.Database.SetCommandTimeout(600);
             var rows = await _db.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", ct);
+            _db.Database.SetCommandTimeout(prevTimeout);
             _logStore.AddEntry(feedVersionId, $"Backfill complete: {rows} rows updated");
         }
         catch (Exception backfillEx)
