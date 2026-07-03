@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 
 using TransitInfoAPI.Data;
+using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Common;
@@ -72,7 +73,8 @@ public class RoutesController : ControllerBase
                     ["name"] = r.LongName,
                     ["shortName"] = r.ShortName,
                     ["routeType"] = r.RouteType.ToString(),
-                    ["operatorId"] = r.OperatorId
+                    ["operatorId"] = r.OperatorId,
+                    ["shapeEdited"] = r.ShapeEdited
                 });
             return Ok(fc);
         }
@@ -131,6 +133,31 @@ public class RoutesController : ControllerBase
             },
             properties = new { }
         });
+    }
+
+    [HttpPut("{id}/shape")]
+    public async Task<ActionResult> UpdateShape(int id, [FromBody] GeoJsonLineStringGeometry body, CancellationToken ct = default)
+    {
+        var route = await _db.CanonicalRoutes.FindAsync([id], ct);
+        if (route is null) return NotFound();
+
+        var shape = await _routeManager.GetActiveShapeForRouteAsync(id, ct);
+        if (shape is null) return NotFound();
+
+        var coords = body.Coordinates.Select(c => new Coordinate(c[0], c[1])).ToArray();
+        if (coords.Length < 2)
+            return BadRequest(new { error = "LineString must have at least 2 coordinates" });
+
+        var gf = new GeometryFactory(new PrecisionModel(), 4326);
+        shape.Geometry = gf.CreateLineString(coords);
+        shape.IsManuallyEdited = true;
+
+        route.Geometry = shape.Geometry;
+        route.ShapeEdited = true;
+
+        await _db.SaveChangesAsync(ct);
+
+        return NoContent();
     }
 
     [HttpGet("{id}/stops")]

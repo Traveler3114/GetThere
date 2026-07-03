@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 
+using NetTopologySuite.Geometries;
+
 using TransitInfoAPI.Data;
+using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
@@ -28,6 +31,23 @@ public class RouteManager
             query = query.Where(r => r.LongName.Contains(q) || r.ShortName.Contains(q));
 
         return await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).Select(RouteMapper.ToResponseExpression).ToListAsync(ct);
+    }
+
+    public async Task<Shape?> GetActiveShapeForRouteAsync(int canonicalRouteId, CancellationToken ct)
+    {
+        var shapeCounts = await _db.Trips
+            .Where(t => t.CanonicalRouteId == canonicalRouteId && t.FeedVersion.IsActive && t.ShapeId != null)
+            .GroupBy(t => t.ShapeId)
+            .Select(g => new { ShapeId = g.Key!, Count = g.Count() })
+            .ToListAsync(ct);
+
+        if (shapeCounts.Count == 0) return null;
+
+        var mostCommonShapeId = shapeCounts.OrderByDescending(x => x.Count).Select(x => x.ShapeId).First();
+
+        return await _db.Shapes
+            .Where(s => s.ShapeId == mostCommonShapeId && s.FeedVersion.IsActive)
+            .FirstOrDefaultAsync(ct);
     }
 
 }

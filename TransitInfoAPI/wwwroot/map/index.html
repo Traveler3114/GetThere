@@ -223,11 +223,12 @@ map.on('load', () => {
     clusterRadius: 40
   });
 
-  // Route lines colored by type
+  // Route lines colored by type (solid for normal, dashed if manually edited)
   map.addLayer({
     id: 'routes-line',
     type: 'line',
     source: routesSource,
+    filter: ['!=', ['get', 'shapeEdited'], true],
     paint: {
       'line-color': [
         'match', ['get', 'routeType'],
@@ -248,6 +249,34 @@ map.on('load', () => {
       ],
       'line-width': 2,
       'line-opacity': 0.7
+    }
+  });
+  map.addLayer({
+    id: 'routes-line-edited',
+    type: 'line',
+    source: routesSource,
+    filter: ['==', ['get', 'shapeEdited'], true],
+    paint: {
+      'line-color': [
+        'match', ['get', 'routeType'],
+        'Tram', '#1f78b4',
+        'Subway', '#e31a1c',
+        'Train', '#b15928',
+        'Bus', '#126400',
+        'Ferry', '#6a3d9a',
+        'CableTram', '#fb9a99',
+        'CableCar', '#fb9a99',
+        'Funicular', '#fdbf6f',
+        'Trolleybus', '#33a02c',
+        'Monorail', '#cab2d6',
+        'Bicycle', '#a6cee3',
+        'Scooter', '#ff7f00',
+        'Airplane', '#b2df8a',
+        '#888'
+      ],
+      'line-width': 2,
+      'line-opacity': 0.7,
+      'line-dasharray': [3, 2]
     }
   });
 
@@ -481,6 +510,21 @@ map.on('mouseleave', 'stations-cluster', () => { map.getCanvas().style.cursor = 
 map.on('mouseenter', 'stations-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
 map.on('mouseleave', 'stations-circle', () => { map.getCanvas().style.cursor = ''; });
 
+// Route line interaction
+map.on('mouseenter', 'routes-line', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'routes-line', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'routes-line-edited', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'routes-line-edited', () => { map.getCanvas().style.cursor = ''; });
+
+map.on('click', 'routes-line', (e) => {
+  const props = e.features[0].properties;
+  showRouteDetails(props);
+});
+map.on('click', 'routes-line-edited', (e) => {
+  const props = e.features[0].properties;
+  showRouteDetails(props);
+});
+
 function showStationDetails(id, props) {
   const content = document.getElementById('sidebar-content');
   const type = props.stationType || 'unknown';
@@ -649,6 +693,26 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+function showRouteDetails(props) {
+  const content = document.getElementById('sidebar-content');
+  const color = getRouteColor(props.routeType || 'default');
+  const name = props.name || props.shortName || 'Unknown';
+  const edited = props.shapeEdited ? ' (edited)' : '';
+
+  let html = `
+    <h2>${esc(name)}${edited}</h2>
+    <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${props.routeType || '-'}</span></div>
+    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <a href="/admin/shape-editor.html?routeId=${props.id}" style="display:inline-block;padding:8px 16px;background:#1f78b4;color:#fff;border-radius:6px;text-decoration:none;font-size:0.85rem;font-weight:600">Edit Shape</a>
+    </div>
+  `;
+
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+  content.innerHTML = html;
 }
 
 function showMobilityStationSidebar(props) {

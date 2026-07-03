@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Shape Editor</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.js"></script>
+<script src="/route-colors.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+#map { height: 100%; width: 100%; }
+#top-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: #fff; padding: 10px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  display: flex; align-items: center; gap: 12px; font-size: 0.9rem;
+}
+#top-bar .route-name { font-weight: 700; font-size: 1rem; }
+#top-bar .hint { color: #888; font-size: 0.8rem; margin-left: auto; }
+#top-bar .actions { display: flex; gap: 8px; }
+.action-btn {
+  padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; border: none; transition: background 0.15s;
+}
+.action-btn.save { background: #27ae60; color: #fff; }
+.action-btn.save:hover { background: #219a52; }
+.action-btn.cancel { background: #e0e0e0; color: #333; }
+.action-btn.cancel:hover { background: #ccc; }
+.action-btn.reset { background: #fff; color: #e74c3c; border: 1px solid #e74c3c; }
+.action-btn.reset:hover { background: #fee2e2; }
+.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  z-index: 2000; padding: 10px 24px; border-radius: 8px; font-size: 0.9rem;
+  font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: opacity 0.3s; display: none;
+}
+.toast.success { background: #27ae60; color: #fff; }
+.toast.error { background: #e74c3c; color: #fff; }
+.loading { color: #999; font-style: italic; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="top-bar">
+  <span class="route-name" id="route-name">Loading...</span>
+  <span id="route-badge"></span>
+  <span class="hint">Drag vertices to edit the line. Click on the line to add a vertex.</span>
+  <div class="actions">
+    <button class="action-btn cancel" onclick="cancelEdit()">Cancel</button>
+    <button class="action-btn reset" onclick="resetShape()">Reset to auto</button>
+    <button class="action-btn save" onclick="saveShape()" disabled id="save-btn">Save</button>
+  </div>
+</div>
+<div id="map"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const routeId = params.get('routeId');
+
+if (!routeId) {
+  document.getElementById('route-name').textContent = 'No route specified';
+  document.getElementById('save-btn').disabled = true;
+}
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: '/map/style.json',
+  center: [16.0, 45.8],
+  zoom: 12
+});
+
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+let draw = null;
+let currentShapeId = null;
+let stopMarkers = [];
+let originalGeometry = null;
+let shapeLoaded = false;
+
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function cancelEdit() {
+  window.location.href = '/map/index.html';
+}
+
+function addStopMarkers(stops) {
+  stops.forEach(s => {
+    if (!s.latitude || !s.longitude) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'width:14px;height:14px;background:#27ae60;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:pointer;';
+    const popup = new maplibregl.Popup({ offset: 10, closeButton: false })
+      .setText(s.name || 'Stop');
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat([s.longitude, s.latitude])
+      .setPopup(popup)
+      .addTo(map);
+    marker.getElement().addEventListener('mouseenter', () => marker.togglePopup());
+    marker.getElement().addEventListener('mouseleave', () => marker.togglePopup());
+    stopMarkers.push(marker);
+  });
+}
+
+function getDrawGeoJSON() {
+  if (!draw) return null;
+  const data = draw.getAll();
+  if (!data || !data.features || data.features.length === 0) return null;
+  const feature = data.features[0];
+  if (!feature || !feature.geometry || feature.geometry.type !== 'LineString') return null;
+  return feature.geometry;
+}
+
+async function saveShape() {
+  const geometry = getDrawGeoJSON();
+  if (!geometry) {
+    showToast('No shape to save. Edit the line first.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const resp = await fetch('/routes/' + routeId + '/shape', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geometry)
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'HTTP ' + resp.status }));
+      throw new Error(err.error || 'Save failed');
+    }
+
+    showToast('Shape saved successfully', 'success');
+    originalGeometry = JSON.parse(JSON.stringify(geometry));
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+function fitMapToShape(geometry) {
+  if (!geometry || !geometry.coordinates) return;
+  const bounds = new maplibregl.LngLatBounds();
+  geometry.coordinates.forEach(c => bounds.extend(c));
+  map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+}
+
+function resetShape() {
+  if (!confirm('Reset to auto-generated shape? This will discard your manual edits.')) return;
+  location.reload();
+}
+
+function initDraw(geometry) {
+  if (draw) {
+    draw.deleteAll();
+    draw.set({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: geometry,
+        properties: {}
+      }]
+    });
+    return;
+  }
+
+  draw = new MapboxDraw({
+    displayControlsDefault: false,
+    controls: {},
+    defaultMode: 'direct_select',
+    styles: [
+      {
+        id: 'gl-draw-line',
+        type: 'line',
+        filter: ['all', ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#1f78b4',
+          'line-width': 3,
+          'line-opacity': 0.9
+        }
+      },
+      {
+        id: 'gl-draw-polygon-and-line-fill',
+        type: 'fill',
+        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        paint: { 'fill-color': '#1f78b4', 'fill-outline-color': '#1f78b4', 'fill-opacity': 0.1 }
+      },
+      {
+        id: 'gl-draw-line-active',
+        type: 'line',
+        filter: ['all', ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        paint: {
+          'line-color': '#e31a1c',
+          'line-width': 1.5,
+          'line-dasharray': [2, 2]
+        }
+      },
+      {
+        id: 'gl-draw-polygon-and-line-fill-active',
+        type: 'fill',
+        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        paint: { 'fill-color': '#e31a1c', 'fill-outline-color': '#e31a1c', 'fill-opacity': 0.1 }
+      },
+      {
+        id: 'gl-draw-point',
+        type: 'circle',
+        filter: ['all', ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#1f78b4',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff'
+        }
+      },
+      {
+        id: 'gl-draw-point-active',
+        type: 'circle',
+        filter: ['all', ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#e31a1c',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff'
+        }
+      },
+      {
+        id: 'gl-draw-polygon-and-line-fill-static',
+        type: 'fill',
+        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'mode', 'static']],
+        paint: { 'fill-color': '#000', 'fill-outline-color': '#000', 'fill-opacity': 0.1 }
+      },
+      {
+        id: 'gl-draw-line-static',
+        type: 'line',
+        filter: ['all', ['==', '$type', 'LineString'], ['==', 'mode', 'static']],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#000', 'line-width': 3, 'line-opacity': 0.9 }
+      }
+    ]
+  });
+  map.addControl(draw);
+
+  draw.set({
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      geometry: geometry,
+      properties: {}
+    }]
+  });
+
+  draw.changeMode('direct_select', { featureId: draw.getAll().features[0].id });
+}
+
+map.on('load', async () => {
+  if (!routeId) return;
+
+  try {
+    const [routeResp, shapeResp, stopsResp] = await Promise.all([
+      fetch('/routes/' + routeId),
+      fetch('/routes/' + routeId + '/shape'),
+      fetch('/routes/' + routeId + '/stops')
+    ]);
+
+    if (!routeResp.ok) throw new Error('Route not found');
+
+    const route = await routeResp.json();
+    document.getElementById('route-name').textContent = route.name || route.shortName || 'Route #' + routeId;
+    if (route.routeType) {
+      const color = getRouteColor(route.routeType);
+      document.getElementById('route-badge').innerHTML = `<span class="route-type-badge" style="background:${color}">${formatEnumName(route.routeType)}</span>`;
+    }
+
+    if (stopsResp.ok) {
+      const stops = await stopsResp.json();
+      addStopMarkers(stops);
+    }
+
+    if (shapeResp.ok) {
+      const shapeData = await shapeResp.json();
+      if (shapeData && shapeData.geometry && shapeData.geometry.type === 'LineString') {
+        originalGeometry = JSON.parse(JSON.stringify(shapeData.geometry));
+
+        map.once('idle', () => {
+          initDraw(shapeData.geometry);
+          fitMapToShape(shapeData.geometry);
+        });
+
+        document.getElementById('save-btn').disabled = false;
+        shapeLoaded = true;
+      }
+    }
+  } catch (err) {
+    document.getElementById('route-name').textContent = 'Error: ' + err.message;
+  }
+});
+</script>
+</body>
+</html>

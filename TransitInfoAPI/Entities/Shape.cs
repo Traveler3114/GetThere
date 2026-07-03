@@ -10,4 +10,5 @@ public class Shape
 
     public string ShapeId { get; set; } = string.Empty;
     public LineString Geometry { get; set; } = null!;
+    public bool IsManuallyEdited { get; set; }
 }

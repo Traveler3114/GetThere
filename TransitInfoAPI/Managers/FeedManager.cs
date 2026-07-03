@@ -370,10 +370,12 @@ public class FeedManager
 
                     await AutoGenerateShapesIfMissing(feedVersionId, parsed, archive, ct);
 
+                    var carryForwardShapeIds = await CarryForwardManualEditsAsync(feedVersionId, version, parsed, archive, ct);
+
                     var canonicalRouteLookup = await ImportRoutesPhaseAsync(feedVersionId, version, parsed.Routes, parsed.RawStops, parsed.OperatorId, ct);
 
                     var prefix = $"gt-{version.Feed.FeedId}-";
-                    var tripLookup = await ImportTripsShapesCalendarsPhaseAsync(feedVersionId, version, prefix, parsed.Trips, parsed.Shapes, parsed.Calendar, parsed.CalendarDates, canonicalRouteLookup, ct);
+                    var tripLookup = await ImportTripsShapesCalendarsPhaseAsync(feedVersionId, version, prefix, parsed.Trips, parsed.Shapes, parsed.Calendar, parsed.CalendarDates, canonicalRouteLookup, carryForwardShapeIds, ct);
 
                     await BackfillRouteGeometriesAsync(feedVersionId, canonicalRouteLookup, ct);
 
@@ -611,6 +613,108 @@ public class FeedManager
             $"Generated {generatedCount} shapes from {parsed.Shapes.Count} unique paths for {parsed.Trips.Count} trips");
     }
 
+    private async Task<HashSet<string>> CarryForwardManualEditsAsync(int feedVersionId, FeedVersion version, ParsedGtfsData parsed, ZipArchive archive, CancellationToken ct)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var prevActive = await _db.FeedVersions
+            .FirstOrDefaultAsync(fv => fv.FeedId == version.Feed.Id && fv.IsActive && fv.Id != feedVersionId, ct);
+        if (prevActive is null) return result;
+
+        var oldEditedShapes = await _db.Shapes
+            .Where(s => s.FeedVersionId == prevActive.Id && s.IsManuallyEdited)
+            .ToListAsync(ct);
+        if (oldEditedShapes.Count == 0) return result;
+
+        var oldEditedShapeIds = oldEditedShapes.Select(s => s.ShapeId).ToList();
+
+        var oldStopData = await _db.StopTimes
+            .Where(st => st.Trip.FeedVersionId == prevActive.Id
+                && st.Trip.ShapeId != null
+                && oldEditedShapeIds.Contains(st.Trip.ShapeId))
+            .OrderBy(st => st.TripId).ThenBy(st => st.StopSequence)
+            .Select(st => new { ShapeId = st.Trip.ShapeId ?? "", st.Trip.TripId, st.RawStopId })
+            .ToListAsync(ct);
+
+        var oldSequences = new Dictionary<string, Dictionary<string, List<string>>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sd in oldStopData)
+        {
+            if (!oldSequences.TryGetValue(sd.ShapeId, out var byTrip))
+                oldSequences[sd.ShapeId] = byTrip = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            if (!byTrip.TryGetValue(sd.TripId, out var list))
+                byTrip[sd.TripId] = list = [];
+            list.Add(sd.RawStopId);
+        }
+
+        var newStopTimes = _gtfs.ParseStopTimes(archive);
+        var newSequences = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var st in newStopTimes)
+        {
+            if (!newSequences.TryGetValue(st.TripId, out var list))
+                newSequences[st.TripId] = list = [];
+            list.Add(st.StopId);
+        }
+
+        var shapeIdSet = new HashSet<string>(parsed.Shapes.Keys, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var oldShape in oldEditedShapes)
+        {
+            if (!shapeIdSet.Contains(oldShape.ShapeId))
+                continue;
+
+            if (!oldSequences.TryGetValue(oldShape.ShapeId, out var oldByTrip))
+                continue;
+
+            var newTrips = parsed.Trips.Where(t =>
+                string.Equals(t.ShapeId, oldShape.ShapeId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (newTrips.Count == 0)
+                continue;
+
+            var allMatch = true;
+
+            foreach (var newTrip in newTrips)
+            {
+                if (!oldByTrip.TryGetValue(newTrip.TripId, out var oldTripStops))
+                    continue;
+
+                if (!newSequences.TryGetValue(newTrip.TripId, out var newTripStops))
+                {
+                    allMatch = false;
+                    break;
+                }
+
+                if (oldTripStops.Count != newTripStops.Count)
+                {
+                    allMatch = false;
+                    break;
+                }
+
+                for (int i = 0; i < oldTripStops.Count; i++)
+                {
+                    if (!string.Equals(oldTripStops[i], newTripStops[i], StringComparison.OrdinalIgnoreCase))
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                }
+
+                if (!allMatch) break;
+            }
+
+            if (allMatch && oldShape.Geometry is not null)
+            {
+                result.Add(oldShape.ShapeId);
+                parsed.Shapes[oldShape.ShapeId] = oldShape.Geometry;
+            }
+        }
+
+        if (result.Count > 0)
+            _logStore.AddEntry(feedVersionId, $"Carried forward {result.Count} manually-edited shape(s) from previous feed version");
+
+        return result;
+    }
+
     private record ParsedGtfsData(
         List<RawAgencyRecord> Agencies,
         List<RawStopRecord> RawStops,
@@ -734,7 +838,7 @@ public class FeedManager
         return result;
     }
 
-    private async Task<Dictionary<string, int>> ImportTripsShapesCalendarsPhaseAsync(int feedVersionId, FeedVersion version, string prefix, List<RawTripRecord> trips, Dictionary<string, NetTopologySuite.Geometries.LineString> shapes, List<RawCalendarRecord> calendar, List<RawCalendarDateRecord> calendarDates, Dictionary<string, int> canonicalRouteLookup, CancellationToken ct)
+    private async Task<Dictionary<string, int>> ImportTripsShapesCalendarsPhaseAsync(int feedVersionId, FeedVersion version, string prefix, List<RawTripRecord> trips, Dictionary<string, NetTopologySuite.Geometries.LineString> shapes, List<RawCalendarRecord> calendar, List<RawCalendarDateRecord> calendarDates, Dictionary<string, int> canonicalRouteLookup, HashSet<string> carryForwardShapeIds, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, $"Phase 2: Saving {trips.Count} trips, {shapes.Count} shapes, {calendar.Count} calendars...");
         foreach (var t in trips)
@@ -757,7 +861,7 @@ public class FeedManager
         }
 
         foreach (var kvp in shapes)
-            _db.Shapes.Add(new Shape { FeedVersionId = feedVersionId, ShapeId = kvp.Key, Geometry = kvp.Value });
+            _db.Shapes.Add(new Shape { FeedVersionId = feedVersionId, ShapeId = kvp.Key, Geometry = kvp.Value, IsManuallyEdited = carryForwardShapeIds.Contains(kvp.Key) });
 
         foreach (var c in calendar)
             _db.Calendars.Add(new Calendar
@@ -812,9 +916,9 @@ public class FeedManager
             })
             .ToList();
 
-        var shapeGeometries = await _db.Shapes
+        var shapeData = await _db.Shapes
             .Where(s => s.FeedVersionId == feedVersionId)
-            .ToDictionaryAsync(s => s.ShapeId, s => s.Geometry, ct);
+            .ToDictionaryAsync(s => s.ShapeId, s => new { s.Geometry, s.IsManuallyEdited }, ct);
 
         var canonicalRoutes = await _db.CanonicalRoutes
             .Where(cr => routeIds.Contains(cr.Id)).ToListAsync(ct);
@@ -823,8 +927,11 @@ public class FeedManager
         foreach (var rs in routeShapes)
         {
             if (routeLookup.TryGetValue(rs.RouteId, out var cr) &&
-                shapeGeometries.TryGetValue(rs.MostCommonShapeId!, out var geom))
-                cr.Geometry = geom;
+                shapeData.TryGetValue(rs.MostCommonShapeId!, out var sd))
+            {
+                cr.Geometry = sd.Geometry;
+                cr.ShapeEdited = sd.IsManuallyEdited;
+            }
         }
 
         _db.ChangeTracker.DetectChanges();
@@ -999,6 +1106,11 @@ public class FeedManager
         var prevActiveIds = prevActive.Select(pv => pv.Id).ToList();
         if (prevActiveIds.Count > 0)
             await _db.Shapes.Where(s => prevActiveIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync(ct);
+
+        _db.ChangeTracker.DetectChanges();
+        await _db.SaveChangesAsync(ct);
+
+        version = (await _db.FeedVersions.Include(fv => fv.Feed).FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct))!;
 
         version.StopCount = rawStops.Count;
         version.RouteCount = routes.Count;

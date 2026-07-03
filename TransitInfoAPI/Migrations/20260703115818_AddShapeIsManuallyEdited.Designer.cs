@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260703115818_AddShapeIsManuallyEdited")]
+    partial class AddShapeIsManuallyEdited
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -69,7 +72,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("Agencies", (string)null);
+                    b.ToTable("Agencies");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Alert", b =>
@@ -126,7 +129,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("FeedId");
 
-                    b.ToTable("Alerts", (string)null);
+                    b.ToTable("Alerts");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Calendar", b =>
@@ -175,7 +178,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("FeedVersionId");
 
-                    b.ToTable("Calendars", (string)null);
+                    b.ToTable("Calendars");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CalendarDate", b =>
@@ -203,7 +206,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("FeedVersionId");
 
-                    b.ToTable("CalendarDates", (string)null);
+                    b.ToTable("CalendarDates");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CanonicalRoute", b =>
@@ -259,7 +262,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("CanonicalRoutes", (string)null);
+                    b.ToTable("CanonicalRoutes");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CanonicalStation", b =>
@@ -332,7 +335,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("PlaceId");
 
-                    b.ToTable("CanonicalStations", (string)null);
+                    b.ToTable("CanonicalStations");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CanonicalStationOperator", b =>
@@ -347,7 +350,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("CanonicalStationOperators", (string)null);
+                    b.ToTable("CanonicalStationOperators");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.City", b =>
@@ -375,7 +378,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("CountryId");
 
-                    b.ToTable("Cities", (string)null);
+                    b.ToTable("Cities");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Country", b =>
@@ -403,7 +406,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("IsoCode")
                         .IsUnique();
 
-                    b.ToTable("Countries", (string)null);
+                    b.ToTable("Countries");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeed", b =>
@@ -468,7 +471,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("CustomFeeds", (string)null);
+                    b.ToTable("CustomFeeds");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedFieldMapping", b =>
@@ -502,7 +505,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("CustomFeedId");
 
-                    b.ToTable("CustomFeedFieldMappings", (string)null);
+                    b.ToTable("CustomFeedFieldMappings");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedRun", b =>
@@ -538,7 +541,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("CustomFeedId");
 
-                    b.ToTable("CustomFeedRuns", (string)null);
+                    b.ToTable("CustomFeedRuns");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
@@ -610,7 +613,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("Feeds", (string)null);
+                    b.ToTable("Feeds");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.FeedVersion", b =>
@@ -681,7 +684,7 @@ namespace TransitInfoAPI.Migrations
                         .IsUnique()
                         .HasFilter("[IsActive] = 1");
 
-                    b.ToTable("FeedVersions", (string)null);
+                    b.ToTable("FeedVersions");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.MobilityStation", b =>
@@ -727,7 +730,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("MobilityStations", (string)null);
+                    b.ToTable("MobilityStations");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Operator", b =>
@@ -777,7 +780,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("OnestopId")
                         .IsUnique();
 
-                    b.ToTable("Operators", (string)null);
+                    b.ToTable("Operators");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Place", b =>
@@ -810,7 +813,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Places", (string)null);
+                    b.ToTable("Places");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.RawStop", b =>
@@ -883,7 +886,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("FeedVersionId", "RawStopId")
                         .IsUnique();
 
-                    b.ToTable("RawStops", (string)null);
+                    b.ToTable("RawStops");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.ReconciliationCandidate", b =>
@@ -984,7 +987,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("SuggestedCanonicalStationId");
 
-                    b.ToTable("ReconciliationCandidates", (string)null);
+                    b.ToTable("ReconciliationCandidates");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Shape", b =>
@@ -1013,7 +1016,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("FeedVersionId");
 
-                    b.ToTable("Shapes", (string)null);
+                    b.ToTable("Shapes");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.StationMergeLog", b =>
@@ -1049,7 +1052,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("TargetStationId");
 
-                    b.ToTable("StationMergeLogs", (string)null);
+                    b.ToTable("StationMergeLogs");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.StationMergeMovedRawStop", b =>
@@ -1070,7 +1073,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("StationMergeLogId");
 
-                    b.ToTable("StationMergeMovedRawStop", (string)null);
+                    b.ToTable("StationMergeMovedRawStop");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.StationSplitLog", b =>
@@ -1104,7 +1107,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("CandidateStationId");
 
-                    b.ToTable("StationSplitLogs", (string)null);
+                    b.ToTable("StationSplitLogs");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.StopTime", b =>
@@ -1160,7 +1163,7 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasIndex("TripId");
 
-                    b.ToTable("StopTimes", (string)null);
+                    b.ToTable("StopTimes");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Trip", b =>
@@ -1214,7 +1217,7 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("FeedVersionId", "TripId")
                         .IsUnique();
 
-                    b.ToTable("Trips", (string)null);
+                    b.ToTable("Trips");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Agency", b =>

@@ -17,6 +17,7 @@ public class CanonicalRoute
 
     public string? SupersedesIds { get; set; }
     public Geometry? Geometry { get; set; }
+    public bool ShapeEdited { get; set; }
 
     public int OperatorId { get; set; }
     public Operator Operator { get; set; } = null!;
