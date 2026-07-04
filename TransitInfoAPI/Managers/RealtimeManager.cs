@@ -59,13 +59,18 @@ public class RealtimeManager
 
         _logger.LogInformation("Polling {Count} active GTFS-RT feeds", activeRtFeeds.Count);
 
+        var allTripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
+
         foreach (var feed in activeRtFeeds)
         {
             try
             {
-                await PollFeedAsync(feed, ct);
+                var feedUpdates = await PollFeedAsync(feed, ct);
                 lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
+
+                foreach (var kvp in feedUpdates)
+                    allTripUpdates[kvp.Key] = kvp.Value;
             }
             catch (Exception ex)
             {
@@ -101,6 +106,8 @@ public class RealtimeManager
             }
         }
 
+        Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>(allTripUpdates));
+
         // Vehicle stale cutoff matches realtime poll interval. Move to per-feed config if needed.
         var cutoff = DateTime.UtcNow.AddMinutes(-_vehicleStaleCutoffMinutes);
         foreach (var key in _vehicleCache.Keys)
@@ -110,7 +117,7 @@ public class RealtimeManager
         }
     }
 
-    private async Task PollFeedAsync(Feed feed, CancellationToken ct)
+    private async Task<ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>> PollFeedAsync(Feed feed, CancellationToken ct)
     {
         var source = _feedSourceFactory.Resolve(feed);
         var result = await source.FetchDataAsync(feed, ct);
@@ -126,6 +133,7 @@ public class RealtimeManager
             {
                 var vp = entity.Vehicle;
                 if (vp.Position == null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
+                if (string.IsNullOrEmpty(vp.Trip?.TripId)) continue;
 
                 var vehicleId = vp.Vehicle?.Id ?? entity.Id;
                 var vehicleDto = new VehicleResponse
@@ -170,8 +178,6 @@ public class RealtimeManager
             if (entity.Alert != null)
                 alerts.Add(entity);
         }
-
-        Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>(tripUpdates));
 
         // Alerts persisted because they carry reference value across restarts (active disruptions).
         // Vehicle positions are ephemeral and remain in-memory only.
@@ -246,6 +252,8 @@ public class RealtimeManager
         {
             _logger.LogWarning(ex, "Failed to persist alerts for feed {FeedId}", feed.FeedId);
         }
+
+        return tripUpdates;
     }
 
     public (int? DelaySeconds, DateTime? EstimatedDeparture) GetStopDelay(

@@ -216,17 +216,20 @@ public class StationsController : ControllerBase
                 .ToListAsync(ct);
 
             // Load routes for this station (to compute matched/unmatched lines)
+            var canonicalRouteIds = await _db.StopTimes
+                .Where(st => st.CanonicalStationId == id && st.Trip.CanonicalRouteId != null)
+                .Select(st => st.Trip.CanonicalRouteId!.Value)
+                .Distinct()
+                .ToListAsync(ct);
+
             var stationRoutes = await _db.CanonicalRoutes
-                .Where(r => _db.StopTimes.Any(st =>
-                    st.CanonicalStationId == id
-                    && st.Trip.CanonicalRouteId == r.Id))
+                .Where(r => canonicalRouteIds.Contains(r.Id))
                 .Select(r => new
                 {
                     r.ShortName,
                     r.LongName,
                     Display = r.ShortName != null && r.ShortName != "" ? r.ShortName : r.LongName
                 })
-                .Distinct()
                 .ToListAsync(ct);
             var stationLineIds = stationRoutes.Select(r => r.Display).ToHashSet();
 

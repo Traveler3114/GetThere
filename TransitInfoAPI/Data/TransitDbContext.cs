@@ -155,7 +155,8 @@ public class TransitDbContext : DbContext
         modelBuilder.Entity<StopTime>()
             .HasIndex(st => st.TripId);
         modelBuilder.Entity<StopTime>()
-            .HasIndex(st => st.CanonicalStationId);
+            .HasIndex(st => new { st.CanonicalStationId, st.DepartureTime })
+            .IncludeProperties(st => st.TripId);
         modelBuilder.Entity<StopTime>()
             .HasIndex(st => st.RawStopEntityId);
         modelBuilder.Entity<StopTime>()

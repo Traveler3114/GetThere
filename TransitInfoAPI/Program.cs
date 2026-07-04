@@ -18,7 +18,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
 builder.Services.AddDbContext<TransitDbContext>(options =>
-    options.UseSqlServer(connectionString, x => x.UseNetTopologySuite()));
+    options.UseSqlServer(connectionString, x => x.UseNetTopologySuite().CommandTimeout(120)));
 
 builder.Services.AddHttpClient("gtfs", client =>
 {
