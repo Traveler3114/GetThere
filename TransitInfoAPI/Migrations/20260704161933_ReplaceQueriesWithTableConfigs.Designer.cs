@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704161933_ReplaceQueriesWithTableConfigs")]
+    partial class ReplaceQueriesWithTableConfigs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -556,15 +559,9 @@ namespace TransitInfoAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("DistinctBy")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("HttpMethod")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsStatic")
-                        .HasColumnType("bit");
 
                     b.Property<string>("PaginationConfig")
                         .HasColumnType("nvarchar(max)");

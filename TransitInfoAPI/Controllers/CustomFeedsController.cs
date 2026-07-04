@@ -45,7 +45,9 @@ public class CustomFeedsController : ControllerBase
         [FromBody] Contracts.CreateCustomFeedRequest request,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.DataPath))
+        var isStaticWithTables = request.OutputFormat == "GtfsStatic"
+            && request.TableConfigs is { Count: > 0 };
+        if (!isStaticWithTables && string.IsNullOrWhiteSpace(request.DataPath))
             return Problem(statusCode: 400, title: "DataPath is required.");
         if (!Enum.TryParse<Enums.ResponseFormat>(request.ResponseFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid ResponseFormat '{request.ResponseFormat}'.");
@@ -56,6 +58,21 @@ public class CustomFeedsController : ControllerBase
         {
             if (!Enum.TryParse<Enums.MappingKind>(m.MappingKind, true, out _))
                 return Problem(statusCode: 400, title: $"Invalid MappingKind '{m.MappingKind}'.");
+        }
+        foreach (var tc in request.TableConfigs)
+        {
+            if (!tc.IsStatic)
+            {
+                if (string.IsNullOrWhiteSpace(tc.Url))
+                    return Problem(statusCode: 400, title: $"Table '{tc.TargetTable}': Url is required for non-static table configs.");
+                if (!Uri.TryCreate(tc.Url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "ftp"))
+                    return Problem(statusCode: 400, title: $"Table '{tc.TargetTable}': Url '{tc.Url}' is not a valid URL.");
+            }
+            foreach (var m in tc.FieldMappings)
+            {
+                if (!Enum.TryParse<Enums.MappingKind>(m.MappingKind, true, out _))
+                    return Problem(statusCode: 400, title: $"Invalid MappingKind '{m.MappingKind}' in table '{tc.TargetTable}'.");
+            }
         }
 
         var feed = await _manager.CreateAsync(request, ct);
@@ -78,6 +95,24 @@ public class CustomFeedsController : ControllerBase
             {
                 if (!Enum.TryParse<Enums.MappingKind>(m.MappingKind, true, out _))
                     return Problem(statusCode: 400, title: $"Invalid MappingKind '{m.MappingKind}'.");
+            }
+        }
+        if (request.TableConfigs is not null)
+        {
+            foreach (var tc in request.TableConfigs)
+            {
+                if (!tc.IsStatic)
+                {
+                    if (string.IsNullOrWhiteSpace(tc.Url))
+                        return Problem(statusCode: 400, title: $"Table '{tc.TargetTable}': Url is required for non-static table configs.");
+                    if (!Uri.TryCreate(tc.Url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "ftp"))
+                        return Problem(statusCode: 400, title: $"Table '{tc.TargetTable}': Url '{tc.Url}' is not a valid URL.");
+                }
+                foreach (var m in tc.FieldMappings)
+                {
+                    if (!Enum.TryParse<Enums.MappingKind>(m.MappingKind, true, out _))
+                        return Problem(statusCode: 400, title: $"Invalid MappingKind '{m.MappingKind}' in table '{tc.TargetTable}'.");
+                }
             }
         }
 
@@ -138,12 +173,30 @@ public class CustomFeedsController : ControllerBase
         [FromBody] Contracts.CreateCustomFeedRequest request,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.DataPath))
+        var isStaticWithTables = request.OutputFormat == "GtfsStatic"
+            && request.TableConfigs is { Count: > 0 };
+        if (!isStaticWithTables && string.IsNullOrWhiteSpace(request.DataPath))
             return Problem(statusCode: 400, title: "DataPath is required for preview.");
         if (!Enum.TryParse<Enums.ResponseFormat>(request.ResponseFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid ResponseFormat '{request.ResponseFormat}'.");
         if (!Enum.TryParse<Enums.OutputFormat>(request.OutputFormat, true, out _))
             return Problem(statusCode: 400, title: $"Invalid OutputFormat '{request.OutputFormat}'.");
+
+        foreach (var tc in request.TableConfigs)
+        {
+            if (!tc.IsStatic)
+            {
+                if (string.IsNullOrWhiteSpace(tc.Url))
+                    return Problem(statusCode: 400, title: $"Table '{tc.TargetTable}': Url is required for non-static table configs.");
+                if (!Uri.TryCreate(tc.Url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "ftp"))
+                    return Problem(statusCode: 400, title: $"Table '{tc.TargetTable}': Url '{tc.Url}' is not a valid URL.");
+            }
+            foreach (var m in tc.FieldMappings)
+            {
+                if (!Enum.TryParse<Enums.MappingKind>(m.MappingKind, true, out _))
+                    return Problem(statusCode: 400, title: $"Invalid MappingKind '{m.MappingKind}' in table '{tc.TargetTable}'.");
+            }
+        }
 
         var result = await _manager.PreviewAsync(request, ct);
         return Ok(result);

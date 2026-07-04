@@ -15,6 +15,8 @@ public class TransitDbContext : DbContext
     public DbSet<CustomFeed> CustomFeeds { get; set; }
     public DbSet<CustomFeedFieldMapping> CustomFeedFieldMappings { get; set; }
     public DbSet<CustomFeedRun> CustomFeedRuns { get; set; }
+    public DbSet<CustomFeedTableConfig> CustomFeedTableConfigs { get; set; }
+    public DbSet<CustomFeedTableFieldMapping> CustomFeedTableFieldMappings { get; set; }
     public DbSet<Feed> Feeds { get; set; }
     public DbSet<FeedVersion> FeedVersions { get; set; }
     public DbSet<Agency> Agencies { get; set; }
@@ -209,6 +211,22 @@ public class TransitDbContext : DbContext
             entity.HasOne(e => e.CustomFeed)
                 .WithMany(e => e.Runs)
                 .HasForeignKey(e => e.CustomFeedId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CustomFeedTableConfig>(entity =>
+        {
+            entity.HasIndex(e => e.CustomFeedId);
+            entity.HasOne(e => e.CustomFeed)
+                .WithMany(e => e.TableConfigs)
+                .HasForeignKey(e => e.CustomFeedId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CustomFeedTableFieldMapping>(entity =>
+        {
+            entity.HasIndex(e => e.CustomFeedTableConfigId);
+            entity.HasOne(e => e.CustomFeedTableConfig)
+                .WithMany(e => e.FieldMappings)
+                .HasForeignKey(e => e.CustomFeedTableConfigId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

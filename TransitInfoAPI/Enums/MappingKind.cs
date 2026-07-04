@@ -4,5 +4,7 @@ public enum MappingKind
 {
     Direct,
     Static,
-    Expression
+    Expression,
+    TimeExtract,
+    DateExtract
 }

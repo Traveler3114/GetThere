@@ -44,6 +44,35 @@ public static class CustomFeedMapper
                     TargetField = m.TargetField,
                     MappingKind = m.MappingKind.ToString()
                 })
+                .ToList(),
+            TableConfigs = f.TableConfigs
+                .OrderBy(t => t.SortOrder)
+                .Select(t => new TableConfigResponse
+                {
+                    Id = t.Id,
+                    CustomFeedId = t.CustomFeedId,
+                    SortOrder = t.SortOrder,
+                    Url = t.Url,
+                    HttpMethod = t.HttpMethod,
+                    ResponseFormat = t.ResponseFormat.ToString(),
+                    DataPath = t.DataPath,
+                    TargetTable = t.TargetTable,
+                    PaginationConfig = t.PaginationConfig,
+                    DistinctBy = t.DistinctBy,
+                    IsStatic = t.IsStatic,
+                    FieldMappings = t.FieldMappings
+                        .OrderBy(m => m.SortOrder)
+                        .Select(m => new FieldMappingResponse
+                        {
+                            Id = m.Id,
+                            CustomFeedId = 0,
+                            SortOrder = m.SortOrder,
+                            SourceExpression = m.SourceExpression,
+                            TargetField = m.TargetField,
+                            MappingKind = m.MappingKind.ToString()
+                        })
+                        .ToList()
+                })
                 .ToList()
         };
 
@@ -78,7 +107,36 @@ public static class CustomFeedMapper
                 TargetField = m.TargetField,
                 MappingKind = m.MappingKind.ToString()
             })
-            .ToList() ?? []
+            .ToList() ?? [],
+        TableConfigs = f.TableConfigs?
+            .OrderBy(t => t.SortOrder)
+            .Select(t => new TableConfigResponse
+            {
+                Id = t.Id,
+                CustomFeedId = t.CustomFeedId,
+                SortOrder = t.SortOrder,
+                Url = t.Url,
+                HttpMethod = t.HttpMethod,
+                ResponseFormat = t.ResponseFormat.ToString(),
+                DataPath = t.DataPath,
+                TargetTable = t.TargetTable,
+                PaginationConfig = t.PaginationConfig,
+                    DistinctBy = t.DistinctBy,
+                    IsStatic = t.IsStatic,
+                    FieldMappings = t.FieldMappings?
+                        .OrderBy(m => m.SortOrder)
+                        .Select(m => new FieldMappingResponse
+                        {
+                            Id = m.Id,
+                            CustomFeedId = 0,
+                            SortOrder = m.SortOrder,
+                            SourceExpression = m.SourceExpression,
+                            TargetField = m.TargetField,
+                            MappingKind = m.MappingKind.ToString()
+                        })
+                        .ToList() ?? []
+                })
+                .ToList() ?? []
     };
 
     public static FieldMappingResponse ToFieldMappingResponse(CustomFeedFieldMapping m) => new()

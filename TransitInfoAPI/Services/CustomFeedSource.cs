@@ -46,6 +46,8 @@ public class CustomFeedSource : IFeedSource
 
         var customFeed = await db.CustomFeeds
             .Include(f => f.FieldMappings)
+            .Include(f => f.TableConfigs)
+                .ThenInclude(t => t.FieldMappings)
             .FirstOrDefaultAsync(f => f.Id == feed.CustomFeedId.Value, ct);
 
         if (customFeed is null)
@@ -73,8 +75,16 @@ public class CustomFeedSource : IFeedSource
             switch (customFeed.OutputFormat)
             {
                 case OutputFormat.GtfsStatic:
-                    outputData = await _gtfsStaticWriter.ConvertAsync(
-                        engineResult.Records, customFeed.TargetTable, ct);
+                    if (engineResult.TableRecords is not null)
+                    {
+                        outputData = await _gtfsStaticWriter.ConvertAsync(
+                            engineResult.TableRecords, ct);
+                    }
+                    else
+                    {
+                        outputData = await _gtfsStaticWriter.ConvertAsync(
+                            engineResult.Records, customFeed.TargetTable, ct);
+                    }
                     recordsWritten = engineResult.RecordCount;
                     break;
 

@@ -39,6 +39,8 @@ public class CustomFeedManager
         return await _db.CustomFeeds
             .Include(f => f.Operator)
             .Include(f => f.FieldMappings)
+            .Include(f => f.TableConfigs)
+                .ThenInclude(t => t.FieldMappings)
             .Include(f => f.Runs.OrderByDescending(r => r.StartedAt).Take(1))
             .OrderBy(f => f.Id)
             .Skip((page - 1) * perPage)
@@ -57,6 +59,8 @@ public class CustomFeedManager
         var feed = await _db.CustomFeeds
             .Include(f => f.Operator)
             .Include(f => f.FieldMappings.OrderBy(m => m.SortOrder))
+            .Include(f => f.TableConfigs.OrderBy(t => t.SortOrder))
+                .ThenInclude(t => t.FieldMappings.OrderBy(m => m.SortOrder))
             .Include(f => f.Runs.OrderByDescending(r => r.StartedAt).Take(1))
             .FirstOrDefaultAsync(f => f.Id == id, ct);
 
@@ -86,6 +90,25 @@ public class CustomFeedManager
                 SourceExpression = m.SourceExpression,
                 TargetField = m.TargetField,
                 MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+            }).ToList(),
+            TableConfigs = request.TableConfigs.Select((t, i) => new CustomFeedTableConfig
+            {
+                SortOrder = i + 1,
+                Url = t.Url,
+                HttpMethod = string.IsNullOrWhiteSpace(t.HttpMethod) ? "GET" : t.HttpMethod.ToUpperInvariant(),
+                ResponseFormat = Enum.Parse<ResponseFormat>(t.ResponseFormat, true),
+                DataPath = t.DataPath,
+                TargetTable = t.TargetTable,
+                PaginationConfig = t.PaginationConfig,
+                DistinctBy = t.DistinctBy,
+                IsStatic = t.IsStatic,
+                FieldMappings = t.FieldMappings.Select((m, j) => new CustomFeedTableFieldMapping
+                {
+                    SortOrder = j + 1,
+                    SourceExpression = m.SourceExpression,
+                    TargetField = m.TargetField,
+                    MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                }).ToList()
             }).ToList()
         };
 
@@ -137,6 +160,38 @@ public class CustomFeedManager
             }).ToList();
         }
 
+        // Replace table configs if provided
+        if (request.TableConfigs is not null)
+        {
+            // Load existing table configs with field mappings to remove them
+            var existingConfigs = await _db.CustomFeedTableConfigs
+                .Include(t => t.FieldMappings)
+                .Where(t => t.CustomFeedId == feed.Id)
+                .ToListAsync(ct);
+            _db.CustomFeedTableConfigs.RemoveRange(existingConfigs);
+
+            feed.TableConfigs = request.TableConfigs.Select((t, i) => new CustomFeedTableConfig
+            {
+                CustomFeedId = feed.Id,
+                SortOrder = i + 1,
+                Url = t.Url,
+                HttpMethod = string.IsNullOrWhiteSpace(t.HttpMethod) ? "GET" : t.HttpMethod.ToUpperInvariant(),
+                ResponseFormat = Enum.Parse<ResponseFormat>(t.ResponseFormat, true),
+                DataPath = t.DataPath,
+                TargetTable = t.TargetTable,
+                PaginationConfig = t.PaginationConfig,
+                DistinctBy = t.DistinctBy,
+                IsStatic = t.IsStatic,
+                FieldMappings = t.FieldMappings.Select((m, j) => new CustomFeedTableFieldMapping
+                {
+                    SortOrder = j + 1,
+                    SourceExpression = m.SourceExpression,
+                    TargetField = m.TargetField,
+                    MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                }).ToList()
+            }).ToList();
+        }
+
         await _db.SaveChangesAsync(ct);
 
         // If OutputFormat changed, recreate hidden Feed with new type
@@ -144,7 +199,13 @@ public class CustomFeedManager
         {
             var hasHiddenFeed = await _db.Feeds.AnyAsync(f => f.CustomFeedId == feed.Id, ct);
             if (hasHiddenFeed)
-                await RemoveHiddenFeedAsync(feed.Id, ct);
+            {
+                var hasVersions = await _db.FeedVersions.AnyAsync(fv => fv.Feed.CustomFeedId == feed.Id, ct);
+                if (hasVersions)
+                    await DeactivateHiddenFeedAsync(feed.Id, ct);
+                else
+                    await RemoveHiddenFeedAsync(feed.Id, ct);
+            }
             await EnsureHiddenFeedAsync(feed, ct);
         }
 
@@ -272,22 +333,53 @@ public class CustomFeedManager
                 SourceExpression = m.SourceExpression,
                 TargetField = m.TargetField,
                 MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+            }).ToList(),
+            TableConfigs = request.TableConfigs.Select((t, i) => new CustomFeedTableConfig
+            {
+                SortOrder = i + 1,
+                Url = t.Url,
+                HttpMethod = string.IsNullOrWhiteSpace(t.HttpMethod) ? "GET" : t.HttpMethod.ToUpperInvariant(),
+                ResponseFormat = Enum.Parse<ResponseFormat>(t.ResponseFormat, true),
+                DataPath = t.DataPath,
+                TargetTable = t.TargetTable,
+                PaginationConfig = t.PaginationConfig,
+                DistinctBy = t.DistinctBy,
+                IsStatic = t.IsStatic,
+                FieldMappings = t.FieldMappings.Select((m, j) => new CustomFeedTableFieldMapping
+                {
+                    SortOrder = j + 1,
+                    SourceExpression = m.SourceExpression,
+                    TargetField = m.TargetField,
+                    MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                }).ToList()
             }).ToList()
         };
 
         var engineResult = await _engine.ExecuteAsync(tempConfig, ct);
 
-        var columns = engineResult.Records
-            .SelectMany(r => r.Keys)
-            .Distinct()
-            .OrderBy(k => k)
-            .ToList();
+        List<string> columns;
+        List<Dictionary<string, object?>> rows;
+        int totalRows;
+
+        if (engineResult.TableRecords is not null)
+        {
+            var firstTable = engineResult.TableRecords.Values.FirstOrDefault();
+            columns = firstTable?.SelectMany(r => r.Keys).Distinct().OrderBy(k => k).ToList() ?? [];
+            rows = firstTable?.Take(20).ToList() ?? [];
+            totalRows = firstTable?.Count ?? 0;
+        }
+        else
+        {
+            columns = engineResult.Records.SelectMany(r => r.Keys).Distinct().OrderBy(k => k).ToList();
+            rows = engineResult.Records.Take(20).ToList();
+            totalRows = engineResult.Records.Count;
+        }
 
         return new CustomFeedPreviewResponse
         {
             Columns = columns,
-            Rows = engineResult.Records.Take(20).ToList(),
-            TotalRows = engineResult.Records.Count,
+            Rows = rows,
+            TotalRows = totalRows,
             LogLines = engineResult.LogLines
         };
     }

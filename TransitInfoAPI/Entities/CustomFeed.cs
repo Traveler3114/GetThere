@@ -22,4 +22,5 @@ public class CustomFeed
     public DateTime? LastRunAt { get; set; }
     public ICollection<CustomFeedFieldMapping> FieldMappings { get; set; } = [];
     public ICollection<CustomFeedRun> Runs { get; set; } = [];
+    public ICollection<CustomFeedTableConfig> TableConfigs { get; set; } = [];
 }

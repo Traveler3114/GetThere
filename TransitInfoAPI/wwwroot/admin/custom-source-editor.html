@@ -31,7 +31,7 @@
           </div>
           <div class="col-md-8">
             <label class="form-label">Base URL</label>
-            <input type="url" id="fieldBaseUrl" class="form-control form-control-sm" required placeholder="https://api.example.com/data">
+            <input type="url" id="fieldBaseUrl" class="form-control form-control-sm" placeholder="https://api.example.com/data">
           </div>
           <div class="col-md-4">
             <label class="form-label">HTTP Method</label>
@@ -57,14 +57,15 @@
             <option value="apiKey">API Key</option>
             <option value="bearer">Bearer Token</option>
             <option value="oauth2">OAuth2</option>
+            <option value="loginToken">Login Token</option>
           </select>
         </div>
         <div id="authFields" class="d-none"></div>
       </div>
     </div>
 
-    <!-- Response -->
-    <div class="card mb-3">
+    <!-- Response & Data Path (non-static) -->
+    <div class="card mb-3" id="responseCard">
       <div class="card-header"><strong>Response & Data Path</strong></div>
       <div class="card-body">
         <div class="row g-3">
@@ -79,7 +80,7 @@
           <div class="col-md-8">
             <label class="form-label">Data Path</label>
             <div class="input-group input-group-sm">
-              <input type="text" id="fieldDataPath" class="form-control form-control-sm" placeholder="$.countries[*].cities[*].places[*]" required>
+              <input type="text" id="fieldDataPath" class="form-control form-control-sm" placeholder="$.countries[*].cities[*].places[*]">
               <button class="btn btn-outline-info" type="button" onclick="runDiscover()" title="Explore JSON structure to find DataPath"><i class="bi bi-diagram-3"></i> Discover</button>
             </div>
             <div class="form-text" id="dataPathHint">JSONPath expression to the data array. Example: <code>$.data[*]</code> or <code>$.countries[*].cities[*].places[*]</code></div>
@@ -98,7 +99,7 @@
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label">Output Format</label>
-            <select id="fieldOutputFormat" class="form-select form-select-sm" onchange="updateTargetTable()">
+            <select id="fieldOutputFormat" class="form-select form-select-sm" onchange="onOutputFormatChange()">
               <option value="Gbfs">GBFS (Mobility)</option>
               <option value="GtfsRealtime">GTFS Realtime</option>
               <option value="GtfsStatic">GTFS Static</option>
@@ -126,8 +127,8 @@
       </div>
     </div>
 
-    <!-- Pagination -->
-    <div class="card mb-3">
+    <!-- Pagination (non-static) -->
+    <div class="card mb-3" id="paginationCard">
       <div class="card-header"><strong>Pagination</strong></div>
       <div class="card-body">
         <div class="mb-3">
@@ -143,8 +144,8 @@
       </div>
     </div>
 
-    <!-- Field Mappings -->
-    <div class="card mb-3">
+    <!-- Field Mappings (non-static) -->
+    <div class="card mb-3" id="mappingsCard">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-1">
         <strong>Field Mappings</strong>
         <div>
@@ -164,6 +165,18 @@
           For Direct mappings, use a JSONPath relative to each row. Example: <code>$.name</code>, <code>$.bikes_available_to_rent</code>, <code>$.country_name</code>.
           Static mappings use the literal value as-is.
         </div>
+      </div>
+    </div>
+
+    <!-- Table Configs (GTFS Static) -->
+    <div class="card mb-3 d-none" id="tableConfigsCard">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Table Configs</strong>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addTableConfig()"><i class="bi bi-plus-lg"></i> Add Table</button>
+      </div>
+      <div class="card-body">
+        <div id="tableConfigsContainer"></div>
+        <div class="text-muted small">Each table config defines one GTFS .txt file. Configure URL, data path, and field mappings per table.</div>
       </div>
     </div>
   </form>
@@ -199,6 +212,7 @@
 const BASE = '';
 let editId = null;
 let mappingCounter = 0;
+let tableConfigCounter = 0;
 let lastPreviewColumns = [];
 
 const TARGET_FIELDS = {
@@ -212,7 +226,7 @@ const TARGET_FIELDS = {
     shapes: ['shape_id', 'shape_pt_sequence', 'shape_pt_lat', 'shape_pt_lon'],
     calendar: ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'],
     calendar_dates: ['service_id', 'date', 'exception_type'],
-    agencies: ['agency_id', 'agency_name', 'agency_url', 'agency_timezone', 'agency_lang', 'agency_phone']
+    agency: ['agency_id', 'agency_name', 'agency_url', 'agency_timezone', 'agency_lang', 'agency_phone']
   }
 };
 
@@ -242,8 +256,7 @@ function getTargetFields(format, table) {
 
 function populateTargetSelect(sel, currentVal) {
   const format = document.getElementById('fieldOutputFormat').value;
-  const table = document.getElementById('fieldTargetTable').value;
-  const fields = getTargetFields(format, table);
+  const fields = getTargetFields(format, '');
   let html = '<option value="">Select target\u2026</option>';
   for (const f of fields) {
     html += `<option value="${esc(f)}"${f === currentVal ? ' selected' : ''}>${esc(f)}</option>`;
@@ -253,6 +266,44 @@ function populateTargetSelect(sel, currentVal) {
   }
   sel.innerHTML = html;
 }
+
+function populateTableTargetSelect(sel, currentVal) {
+  const allTables = ['stops','routes','trips','stop_times','shapes','calendar','calendar_dates','agency'];
+  let html = '';
+  for (const t of allTables) {
+    html += `<option value="${t}"${t === currentVal ? ' selected' : ''}>${t}</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+function populateTableTargetFieldsSelect(sel, tableName, currentVal) {
+  const fields = getTargetFields('GtfsStatic', tableName);
+  let html = '<option value="">Select target\u2026</option>';
+  for (const f of fields) {
+    html += `<option value="${esc(f)}"${f === currentVal ? ' selected' : ''}>${esc(f)}</option>`;
+  }
+  if (currentVal && !fields.includes(currentVal)) {
+    html += `<option value="${esc(currentVal)}" selected>${esc(currentVal)} (custom)</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+function onOutputFormatChange() {
+  const fmt = document.getElementById('fieldOutputFormat').value;
+  const isStatic = fmt === 'GtfsStatic';
+  const sel = document.getElementById('fieldTargetTable');
+  sel.disabled = !isStatic;
+  if (!isStatic) sel.value = '';
+
+  document.getElementById('responseCard').classList.toggle('d-none', isStatic);
+  document.getElementById('mappingsCard').classList.toggle('d-none', isStatic);
+  document.getElementById('paginationCard').classList.toggle('d-none', isStatic);
+  document.getElementById('tableConfigsCard').classList.toggle('d-none', !isStatic);
+
+  if (!isStatic) updateTargetFields();
+}
+
+// --- Single table field mappings (non-static) ---
 
 function updateTargetFields() {
   const format = document.getElementById('fieldOutputFormat').value;
@@ -268,12 +319,269 @@ function updateTargetFields() {
     tr.innerHTML = `<td class="text-muted">${mappingCounter}</td>
       <td><input type="text" class="form-control form-control-sm map-source" placeholder="$.${f}"></td>
       <td><select class="form-select form-select-sm map-target"></select></td>
-      <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option></select></td>
+      <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option><option value="TimeExtract">TimeExtract</option><option value="DateExtract">DateExtract</option></select></td>
       <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
     tbody.appendChild(tr);
     populateTargetSelect(tr.querySelector('.map-target'), f);
   }
 }
+
+function addMappingRow() {
+  mappingCounter++;
+  const tbody = document.getElementById('mappingsBody');
+  const tr = document.createElement('tr');
+  tr.id = 'mappingRow_' + mappingCounter;
+  tr.innerHTML = `<td class="text-muted">${mappingCounter}</td>
+    <td><input type="text" class="form-control form-control-sm map-source" placeholder="$.name"></td>
+    <td><select class="form-select form-select-sm map-target"></select></td>
+    <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option><option value="TimeExtract">TimeExtract</option><option value="DateExtract">DateExtract</option></select></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
+  tbody.appendChild(tr);
+  populateTargetSelect(tr.querySelector('.map-target'), '');
+}
+
+// --- Table configs (GTFS Static) ---
+
+function addTableConfig(data) {
+  tableConfigCounter++;
+  const idx = tableConfigCounter;
+  const container = document.getElementById('tableConfigsContainer');
+
+  const card = document.createElement('div');
+  card.id = 'tableConfig_' + idx;
+  card.className = 'card mb-2 border-secondary';
+  card.style.borderLeft = '3px solid var(--bs-secondary)';
+
+  const httpMethods = ['GET','POST','PUT'].map(m =>
+    `<option value="${m}"${(data?.httpMethod || 'GET') === m ? ' selected' : ''}>${m}</option>`
+  ).join('');
+
+  const responseFormats = ['JSON','XML','CSV'].map(f =>
+    `<option value="${f}"${(data?.responseFormat || 'JSON') === f ? ' selected' : ''}>${f}</option>`
+  ).join('');
+
+  const pagTypes = ['','page','offset','cursor'].map(t =>
+    `<option value="${t}"${(data?.paginationType || '') === t ? ' selected' : ''}>${t ? t.charAt(0).toUpperCase()+t.slice(1)+'-based' : 'None'}</option>`
+  ).join('');
+
+  const kindOptions = ['Direct','Static','Expression','TimeExtract','DateExtract'];
+
+  let mappingsHtml = '';
+  const savedMappings = data?.fieldMappings || [];
+  if (savedMappings.length) {
+    savedMappings.forEach((m, mi) => {
+      const mn = mi + 1;
+      const kindOpts = kindOptions.map(k => `<option value="${k}"${k === m.mappingKind ? ' selected' : ''}>${k}</option>`).join('');
+      mappingsHtml += `<tr>
+        <td class="text-muted">${mn}</td>
+        <td><input type="text" class="form-control form-control-sm tbl-source" value="${esc(m.sourceExpression || '')}" placeholder="$.field"></td>
+        <td><select class="form-select form-select-sm tbl-target" data-table="${data?.targetTable || 'stops'}"></select></td>
+        <td><select class="form-select form-select-sm tbl-kind">${kindOpts}</select></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>
+      </tr>`;
+    });
+  }
+
+  card.innerHTML = `<div class="card-header py-2 d-flex justify-content-between align-items-center">
+    <span class="fw-bold small">Table #<span class="tbl-idx">${idx}</span>: <span class="tbl-label">${data?.targetTable || 'new'}</span></span>
+    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeTableConfig(${idx})"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="card-body py-2">
+    <div class="row g-2 mb-2">
+      <div class="col-md-6">
+        <label class="form-label small">URL</label>
+        <input type="url" class="form-control form-control-sm tbl-url" value="${esc(data?.url || '')}" placeholder="https://api.example.com/endpoint">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Method</label>
+        <select class="form-select form-select-sm tbl-http-method">${httpMethods}</select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Format</label>
+        <select class="form-select form-select-sm tbl-resp-format">${responseFormats}</select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Target Table</label>
+        <select class="form-select form-select-sm tbl-target-table" onchange="onTableTargetChange(this)"></select>
+      </div>
+    </div>
+    <div class="row g-2 mb-2">
+      <div class="col-md-6">
+        <label class="form-label small">Data Path</label>
+        <input type="text" class="form-control form-control-sm tbl-data-path" value="${esc(data?.dataPath || '')}" placeholder="$.data[*]">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Pagination</label>
+        <select class="form-select form-select-sm tbl-pagination">${pagTypes}</select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">DistinctBy</label>
+        <input type="text" class="form-control form-control-sm tbl-distinct-by" value="${esc(data?.distinctBy || '')}" placeholder="fieldName">
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input tbl-is-static" id="isStatic_${idx}"${data?.isStatic ? ' checked' : ''}>
+          <label class="form-check-label small" for="isStatic_${idx}">Static</label>
+        </div>
+      </div>
+    </div>
+    <div class="mt-2">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="small fw-bold">Field Mappings</span>
+        <div>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="autoFillTableMappings(${idx})" title="Match columns from preview"><i class="bi bi-magic"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetTableMappings(${idx})" title="Reset to defaults"><i class="bi bi-arrow-counterclockwise"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addTableMappingRow(${idx})"><i class="bi bi-plus-lg"></i></button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Source</th><th>Target</th><th>Kind</th><th></th></tr></thead>
+          <tbody id="tblMappingsBody_${idx}">${mappingsHtml}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  container.appendChild(card);
+
+  // Populate target table dropdown
+  const tableSel = card.querySelector('.tbl-target-table');
+  populateTableTargetSelect(tableSel, data?.targetTable || 'stops');
+  tableSel.addEventListener('change', function() {
+    const label = card.querySelector('.tbl-label');
+    label.textContent = this.value || 'new';
+    // Update target dropdowns in existing mappings
+    card.querySelectorAll('.tbl-target').forEach(sel => {
+      sel.dataset.table = this.value;
+      const currentVal = sel.value;
+      populateTableTargetFieldsSelect(sel, this.value, currentVal);
+    });
+  });
+
+  // Populate field dropdowns for existing mappings
+  if (savedMappings.length) {
+    card.querySelectorAll('.tbl-target').forEach((sel, mi) => {
+      populateTableTargetFieldsSelect(sel, data?.targetTable || 'stops', savedMappings[mi]?.targetField || '');
+    });
+  }
+
+  // Restore pagination config JSON
+  if (data?.paginationConfig) {
+    try {
+      const pag = JSON.parse(data.paginationConfig);
+      card.querySelector('.tbl-pagination').value = pag.type || '';
+    } catch(e) {}
+  }
+
+  return idx;
+}
+
+function removeTableConfig(idx) {
+  const card = document.getElementById('tableConfig_' + idx);
+  if (card) card.remove();
+}
+
+function onTableTargetChange(sel) {
+  const card = sel.closest('.card');
+  const label = card.querySelector('.tbl-label');
+  label.textContent = sel.value || 'new';
+}
+
+function addTableMappingRow(tableIdx) {
+  const tbody = document.getElementById('tblMappingsBody_' + tableIdx);
+  if (!tbody) return;
+  const card = document.getElementById('tableConfig_' + tableIdx);
+  const targetTable = card ? card.querySelector('.tbl-target-table')?.value || 'stops' : 'stops';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="text-muted">${tbody.children.length + 1}</td>
+    <td><input type="text" class="form-control form-control-sm tbl-source" placeholder="$.field"></td>
+    <td><select class="form-select form-select-sm tbl-target"></select></td>
+    <td><select class="form-select form-select-sm tbl-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option><option value="TimeExtract">TimeExtract</option><option value="DateExtract">DateExtract</option></select></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
+  tbody.appendChild(tr);
+  populateTableTargetFieldsSelect(tr.querySelector('.tbl-target'), targetTable, '');
+  // Re-number
+  Array.from(tbody.children).forEach((tr, i) => {
+    tr.children[0].textContent = i + 1;
+  });
+}
+
+function resetTableMappings(tableIdx) {
+  const tbody = document.getElementById('tblMappingsBody_' + tableIdx);
+  if (!tbody) return;
+  const card = document.getElementById('tableConfig_' + tableIdx);
+  const targetTable = card ? card.querySelector('.tbl-target-table')?.value || 'stops' : 'stops';
+  const fields = getTargetFields('GtfsStatic', targetTable);
+  tbody.innerHTML = '';
+  fields.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="text-muted">${tbody.children.length + 1}</td>
+      <td><input type="text" class="form-control form-control-sm tbl-source" placeholder="$.${f}"></td>
+      <td><select class="form-select form-select-sm tbl-target"></select></td>
+      <td><select class="form-select form-select-sm tbl-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option><option value="TimeExtract">TimeExtract</option><option value="DateExtract">DateExtract</option></select></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
+    tbody.appendChild(tr);
+    populateTableTargetFieldsSelect(tr.querySelector('.tbl-target'), targetTable, f);
+  });
+}
+
+async function autoFillTableMappings(tableIdx) {
+  const card = document.getElementById('tableConfig_' + tableIdx);
+  if (!card) return;
+
+  // Run preview with just this table's config to get raw columns
+  const url = card.querySelector('.tbl-url')?.value;
+  const dataPath = card.querySelector('.tbl-data-path')?.value;
+  const targetTable = card.querySelector('.tbl-target-table')?.value || 'stops';
+  const httpMethod = card.querySelector('.tbl-http-method')?.value || 'GET';
+  const respFormat = card.querySelector('.tbl-resp-format')?.value || 'JSON';
+
+  if (!url || !dataPath) return;
+
+  // Build a request with this table as the only table config
+  const baseData = getBaseFormData();
+  const previewReq = {
+    ...baseData,
+    baseUrl: url,
+    dataPath: dataPath,
+    httpMethod: httpMethod,
+    responseFormat: respFormat,
+    fieldMappings: [],
+    tableConfigs: []
+  };
+
+  let rawColumns = [];
+  try {
+    const r = await fetch(BASE + '/custom-feeds/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(previewReq)
+    });
+    if (r.ok) {
+      const result = await r.json();
+      rawColumns = result.columns || [];
+    }
+  } catch(e) {}
+
+  if (!rawColumns.length) {
+    alert('Run the main Fetch & Preview first so columns are available, or check the URL/dataPath.');
+    return;
+  }
+
+  const rows = card.querySelectorAll('#tblMappingsBody_' + tableIdx + ' tr');
+  for (const tr of rows) {
+    const sel = tr.querySelector('.tbl-target');
+    const src = tr.querySelector('.tbl-source');
+    if (!sel || !src || src.value.trim()) continue;
+    const target = sel.value;
+    if (!target) continue;
+    const match = findColumnMatch(target, rawColumns);
+    if (match) src.value = '$.' + match;
+  }
+}
+
+// --- Common ---
 
 async function loadOperators() {
   try {
@@ -316,6 +624,11 @@ function updateAuthFields() {
       <div class="col"><label class="form-label">Client Secret</label><input type="password" id="oauthClientSecret" class="form-control form-control-sm"></div></div>
       <div class="mt-1"><label class="form-label">Scopes (comma-separated)</label><input type="text" id="oauthScopes" class="form-control form-control-sm" placeholder="read,write"></div>`;
       break;
+    case 'loginToken':
+      html = `<div class="mb-2"><label class="form-label">Login URL</label><input type="url" id="ltLoginUrl" class="form-control form-control-sm" placeholder="https://api.example.com/token/login"></div>
+      <div class="row g-2"><div class="col"><label class="form-label">Username</label><input type="text" id="ltUsername" class="form-control form-control-sm"></div>
+      <div class="col"><label class="form-label">Password</label><input type="password" id="ltPassword" class="form-control form-control-sm"></div></div>`;
+      break;
   }
   container.innerHTML = html;
 }
@@ -332,14 +645,6 @@ function updateDataPathHint() {
   if (fmt === 'JSON') hint.innerHTML = 'JSONPath to data array. Example: <code>$.data[*]</code> or <code>$.countries[*].cities[*].places[*]</code>';
   else if (fmt === 'XML') hint.innerHTML = 'XPath to data nodes. Example: <code>//place</code>';
   else hint.innerHTML = 'Comma-separated column names (empty = all columns). Example: <code>name,lat,lng</code>';
-}
-
-function updateTargetTable() {
-  const fmt = document.getElementById('fieldOutputFormat').value;
-  const sel = document.getElementById('fieldTargetTable');
-  sel.disabled = fmt !== 'GtfsStatic';
-  if (fmt !== 'GtfsStatic') sel.value = '';
-  updateTargetFields();
 }
 
 function updatePaginationFields() {
@@ -367,25 +672,9 @@ function updatePaginationFields() {
   container.innerHTML = html;
 }
 
-function addMappingRow() {
-  mappingCounter++;
-  const tbody = document.getElementById('mappingsBody');
-  const tr = document.createElement('tr');
-  tr.id = 'mappingRow_' + mappingCounter;
-  tr.innerHTML = `<td class="text-muted">${mappingCounter}</td>
-    <td><input type="text" class="form-control form-control-sm map-source" placeholder="$.name"></td>
-    <td><select class="form-select form-select-sm map-target"></select></td>
-    <td><select class="form-select form-select-sm map-kind"><option value="Direct">Direct</option><option value="Static">Static</option><option value="Expression">Expression</option></select></td>
-    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>`;
-  tbody.appendChild(tr);
-  populateTargetSelect(tr.querySelector('.map-target'), '');
-}
-
 async function autoFillMappings() {
-  // Fetch raw columns without field mappings so we can match source field names
   const data = getFormData();
   data.fieldMappings = [];
-  // Preview doesn't use operatorId, but the validator requires it — use a dummy value
   if (!data.operatorId) data.operatorId = 1;
   let rawColumns = [];
   try {
@@ -400,14 +689,8 @@ async function autoFillMappings() {
     }
   } catch (e) { /* fall through */ }
 
-  if (!rawColumns.length) {
-    // Fall back to last preview columns (might be mapped but better than nothing)
-    rawColumns = lastPreviewColumns;
-  }
-  if (!rawColumns.length) {
-    alert('Run Fetch & Preview first so columns are available');
-    return;
-  }
+  if (!rawColumns.length) rawColumns = lastPreviewColumns;
+  if (!rawColumns.length) { alert('Run Fetch & Preview first'); return; }
 
   const rows = document.querySelectorAll('#mappingsBody tr');
   for (const tr of rows) {
@@ -465,7 +748,7 @@ async function runDiscover() {
       }
       html += '</div>';
     } else {
-      html += '<div class="text-warning small mb-2">No array-of-objects paths found. Try a different URL or check the log.</div>';
+      html += '<div class="text-warning small mb-2">No array-of-objects paths found.</div>';
     }
     html += '<div class="small text-muted mb-1">Structure tree:</div>';
     html += '<div class="border p-2 bg-light" style="max-height:400px;overflow:auto;font-size:0.8rem;">';
@@ -519,6 +802,8 @@ function getAuthConfig() {
     }
     case 'oauth2':
       return JSON.stringify({ type: 'oauth2', tokenUrl: document.getElementById('oauthTokenUrl').value, clientId: document.getElementById('oauthClientId').value, clientSecret: document.getElementById('oauthClientSecret').value, scopes: (document.getElementById('oauthScopes').value || '').split(',').map(s => s.trim()).filter(Boolean) });
+    case 'loginToken':
+      return JSON.stringify({ type: 'loginToken', loginUrl: document.getElementById('ltLoginUrl').value, loginMethod: 'GET', loginHeaders: { Username: document.getElementById('ltUsername').value, Password: document.getElementById('ltPassword').value }, tokenLocation: 'header', tokenName: 'token' });
   }
 }
 
@@ -545,7 +830,26 @@ function getFieldMappings() {
   })).filter(m => m.sourceExpression && m.targetField);
 }
 
-function getFormData() {
+function getTableConfigs() {
+  const cards = document.querySelectorAll('#tableConfigsContainer .card');
+  return Array.from(cards).map(card => ({
+    url: card.querySelector('.tbl-url')?.value || '',
+    httpMethod: card.querySelector('.tbl-http-method')?.value || 'GET',
+    responseFormat: card.querySelector('.tbl-resp-format')?.value || 'JSON',
+    dataPath: card.querySelector('.tbl-data-path')?.value || '',
+    targetTable: card.querySelector('.tbl-target-table')?.value || '',
+    paginationConfig: null,
+    distinctBy: card.querySelector('.tbl-distinct-by')?.value || null,
+    isStatic: card.querySelector('.tbl-is-static')?.checked || false,
+    fieldMappings: Array.from(card.querySelectorAll('tbody tr')).map(tr => ({
+      sourceExpression: tr.querySelector('.tbl-source')?.value || '',
+      targetField: tr.querySelector('.tbl-target')?.value || '',
+      mappingKind: tr.querySelector('.tbl-kind')?.value || 'Direct'
+    })).filter(m => m.sourceExpression && m.targetField)
+  }));
+}
+
+function getBaseFormData() {
   return {
     operatorId: parseInt(document.getElementById('fieldOperatorId').value) || 0,
     name: document.getElementById('fieldName').value,
@@ -558,8 +862,13 @@ function getFormData() {
     targetTable: document.getElementById('fieldTargetTable').disabled ? null : document.getElementById('fieldTargetTable').value || null,
     paginationConfig: getPaginationConfig(),
     refreshIntervalSeconds: parseInt(document.getElementById('fieldRefreshInterval').value) || 3600,
-    fieldMappings: getFieldMappings()
+    fieldMappings: getFieldMappings(),
+    tableConfigs: getTableConfigs()
   };
+}
+
+function getFormData() {
+  return getBaseFormData();
 }
 
 async function runPreview() {
@@ -585,7 +894,6 @@ async function runPreview() {
     document.getElementById('previewRowCount').textContent = result.totalRows;
     document.getElementById('previewLog').textContent = (result.logLines || []).join('\n');
 
-    // Render column chips
     const chipContainer = document.getElementById('previewChips');
     if (lastPreviewColumns.length) {
       chipContainer.innerHTML = '<span class="text-muted small me-2">Columns:</span>' +
@@ -616,10 +924,22 @@ async function runPreview() {
 
 async function saveSource() {
   const data = getFormData();
-  if (!data.name || !data.baseUrl || !data.dataPath || !data.operatorId) {
-    alert('Please fill in all required fields (Name, Base URL, Data Path, Operator).');
+  const isStatic = data.outputFormat === 'GtfsStatic';
+  const hasTables = data.tableConfigs && data.tableConfigs.length > 0;
+
+  if (!data.name || !data.operatorId) {
+    alert('Please fill in all required fields (Name, Operator).');
     return;
   }
+  if (isStatic && !hasTables) {
+    alert('Please add at least one table config for GTFS Static feeds.');
+    return;
+  }
+  if (!isStatic && (!data.baseUrl || !data.dataPath)) {
+    alert('Please fill in Base URL and Data Path.');
+    return;
+  }
+
   try {
     const url = editId ? (BASE + '/custom-feeds/' + editId) : (BASE + '/custom-feeds');
     const method = editId ? 'PUT' : 'POST';
@@ -649,7 +969,7 @@ async function loadForEdit(id) {
     document.getElementById('fieldDataPath').value = feed.dataPath || '';
     document.getElementById('fieldRefreshInterval').value = feed.refreshIntervalSeconds || 3600;
     updateDataPathHint();
-    updateTargetTable();
+    onOutputFormatChange();
 
     if (feed.targetTable) {
       document.getElementById('fieldTargetTable').value = feed.targetTable;
@@ -682,6 +1002,10 @@ async function loadForEdit(id) {
           if (document.getElementById('oauthTokenUrl')) document.getElementById('oauthTokenUrl').value = auth.tokenUrl || '';
           if (document.getElementById('oauthClientId')) document.getElementById('oauthClientId').value = auth.clientId || '';
           if (document.getElementById('oauthScopes')) document.getElementById('oauthScopes').value = (auth.scopes || []).join(', ');
+        } else if (auth.type === 'loginToken') {
+          if (document.getElementById('ltLoginUrl')) document.getElementById('ltLoginUrl').value = auth.loginUrl || '';
+          if (document.getElementById('ltUsername')) document.getElementById('ltUsername').value = (auth.loginHeaders && auth.loginHeaders.Username) || '';
+          if (document.getElementById('ltPassword')) document.getElementById('ltPassword').value = (auth.loginHeaders && auth.loginHeaders.Password) || '';
         }
       } catch(e) { /* ignore auth parse errors */ }
     }
@@ -711,8 +1035,25 @@ async function loadForEdit(id) {
       } catch(e) { /* ignore pagination parse errors */ }
     }
 
-    // Field mappings — replace defaults with saved data
-    if (feed.fieldMappings && feed.fieldMappings.length > 0) {
+    // Table configs
+    if (feed.tableConfigs && feed.tableConfigs.length > 0) {
+      feed.tableConfigs.forEach(tc => {
+        addTableConfig({
+          url: tc.url,
+          httpMethod: tc.httpMethod,
+          responseFormat: tc.responseFormat,
+          dataPath: tc.dataPath,
+          targetTable: tc.targetTable,
+          paginationConfig: tc.paginationConfig,
+          distinctBy: tc.distinctBy,
+          isStatic: tc.isStatic,
+          fieldMappings: tc.fieldMappings || []
+        });
+      });
+    }
+
+    // Field mappings (non-static)
+    if (feed.fieldMappings && feed.fieldMappings.length > 0 && feed.outputFormat !== 'GtfsStatic') {
       document.getElementById('mappingsBody').innerHTML = '';
       mappingCounter = 0;
       feed.fieldMappings.forEach(m => {
@@ -732,7 +1073,7 @@ async function loadForEdit(id) {
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
-// Click-to-fill from preview chips
+// Click-to-fill from preview chips (non-static)
 document.getElementById('previewChips').addEventListener('click', e => {
   const btn = e.target.closest('.preview-chip');
   if (!btn) return;

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -16,7 +17,10 @@ namespace TransitInfoAPI.Managers;
 public class CustomFeedRunResult
 {
     public List<Dictionary<string, object?>> Records { get; set; } = [];
-    public int RecordCount => Records.Count;
+    public Dictionary<string, List<Dictionary<string, object?>>>? TableRecords { get; set; }
+    public int RecordCount => TableRecords is not null
+        ? TableRecords.Values.Sum(t => t.Count)
+        : Records.Count;
     public List<string> LogLines { get; set; } = [];
 }
 
@@ -25,6 +29,9 @@ public class CustomFeedEngine
     private readonly IHttpClientFactory _httpClientFactory;
     private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const int MaxPages = 100;
+    private static readonly ConcurrentDictionary<int, LoginTokenEntry> _loginTokenCache = new();
+
+    private record LoginTokenEntry(string Token, DateTime FetchedAt);
 
     public CustomFeedEngine(IHttpClientFactory httpClientFactory)
     {
@@ -37,36 +44,209 @@ public class CustomFeedEngine
         var log = result.LogLines;
 
         log.Add($"Starting custom feed: {config.Name}");
+        log.Add($"Output format: {config.OutputFormat}");
+
+        // Multi-table path (GTFS static with per-table configs)
+        if (config.TableConfigs is { Count: > 0 })
+        {
+            log.Add("Multi-table mode active — processing each table config...");
+            var tableRecords = new Dictionary<string, List<Dictionary<string, object?>>>();
+
+            foreach (var table in config.TableConfigs.OrderBy(t => t.SortOrder))
+            {
+                log.Add($"--- Table: {table.TargetTable} ---");
+                log.Add($"URL: {table.Url}");
+                log.Add($"Data path: {table.DataPath}");
+                if (table.IsStatic) log.Add("Static table — generating single record from mappings");
+                if (table.DistinctBy is not null) log.Add($"DistinctBy: {table.DistinctBy}");
+
+                var tableRows = new List<Dictionary<string, object?>>();
+
+                if (table.IsStatic)
+                {
+                    // Static table: generate a single empty record, mappings set the values
+                    tableRows.Add(new Dictionary<string, object?>());
+                    log.Add("Generated 1 empty record for static table");
+                }
+                else
+                {
+                    var client = _httpClientFactory.CreateClient("CustomFeed");
+                    client.Timeout = TimeSpan.FromSeconds(30);
+
+                    int pageNumber = 0;
+                    bool hasMore = true;
+                    string? cursorValue = null;
+
+                    while (hasMore && pageNumber < MaxPages)
+                    {
+                        pageNumber++;
+                        string url = table.Url;
+
+                        if (table.PaginationConfig is not null && pageNumber > 1)
+                            url = ApplyPagination(url, table.PaginationConfig, pageNumber, cursorValue);
+
+                        log.Add($"Fetching page {pageNumber}...");
+
+                        var request = new HttpRequestMessage(new HttpMethod(table.HttpMethod), url);
+                        await ApplyAuth(request, config.AuthConfig, log, config.Id);
+
+                        HttpResponseMessage response;
+                        try
+                        {
+                            response = await client.SendAsync(request, ct);
+
+                            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && IsLoginTokenAuth(config.AuthConfig))
+                            {
+                                log.Add("Got 401 — clearing login token cache and retrying...");
+                                if (config.Id > 0)
+                                    _loginTokenCache.TryRemove(config.Id, out _);
+                                request = new HttpRequestMessage(new HttpMethod(table.HttpMethod), url);
+                                await ApplyAuth(request, config.AuthConfig, log, config.Id);
+                                response = await client.SendAsync(request, ct);
+                            }
+
+                            response.EnsureSuccessStatusCode();
+                        }
+                        catch (Exception ex)
+                        {
+                            log.Add($"HTTP request failed: {ex.Message}");
+                            tableRows.Clear();
+                            break;
+                        }
+
+                        log.Add($"Response status: {(int)response.StatusCode}");
+
+                        string body;
+                        try
+                        {
+                            body = await response.Content.ReadAsStringAsync(ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            log.Add($"Failed to read response body: {ex.Message}");
+                            break;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(body))
+                        {
+                            log.Add("Empty response body");
+                            break;
+                        }
+
+                        List<Dictionary<string, object?>> pageRecords;
+
+                        try
+                        {
+                            pageRecords = table.ResponseFormat switch
+                            {
+                                ResponseFormat.JSON => ParseJsonRows(body, table.DataPath, log),
+                                ResponseFormat.XML => ParseXmlRows(body, table.DataPath, log),
+                                ResponseFormat.CSV => ParseCsvRows(body, table.DataPath, log),
+                                _ => throw new InvalidOperationException($"Unsupported response format: {table.ResponseFormat}")
+                            };
+                        }
+                        catch (Exception ex)
+                        {
+                            log.Add($"Parse failed: {ex.Message}");
+                            break;
+                        }
+
+                        log.Add($"Extracted {pageRecords.Count} records from page {pageNumber}");
+                        tableRows.AddRange(pageRecords);
+
+                        if (table.PaginationConfig is null)
+                        {
+                            hasMore = false;
+                        }
+                        else
+                        {
+                            bool more;
+                            (more, cursorValue) = HasMorePages(body, table.PaginationConfig, tableRows.Count, pageNumber);
+                            hasMore = more;
+                        }
+                    }
+                }
+
+                log.Add($"Total raw records for {table.TargetTable}: {tableRows.Count}");
+
+                if (table.FieldMappings is { Count: > 0 })
+                {
+                    log.Add($"Applying field mappings for {table.TargetTable}...");
+                    var defs = table.FieldMappings.OrderBy(m => m.SortOrder)
+                        .Select(m => new MappingDef(m.SourceExpression, m.TargetField, m.MappingKind))
+                        .ToList();
+                    tableRows = ApplyMappings(tableRows, defs, log);
+                }
+
+                // Apply DistinctBy if configured
+                if (table.DistinctBy is { Length: > 0 } && tableRows.Count > 0)
+                {
+                    var before = tableRows.Count;
+                    var seen = new HashSet<string>();
+                    tableRows = tableRows.Where(r =>
+                    {
+                        var key = r.TryGetValue(table.DistinctBy, out var v) ? v?.ToString() ?? "" : "";
+                        return seen.Add(key);
+                    }).ToList();
+                    log.Add($"DistinctBy '{table.DistinctBy}': {before} → {tableRows.Count} records");
+                }
+
+                var tableName = table.TargetTable;
+                if (tableRecords.TryGetValue(tableName, out var existing))
+                    existing.AddRange(tableRows);
+                else
+                    tableRecords[tableName] = tableRows;
+
+                log.Add($"--- End table: {tableName} ---");
+            }
+
+            result.TableRecords = tableRecords;
+            log.Add($"Multi-table complete — tables: {string.Join(", ", tableRecords.Keys)}");
+            return result;
+        }
+
+        // Single-query path (original behavior)
         log.Add($"URL: {config.BaseUrl}");
         log.Add($"Method: {config.HttpMethod}");
         log.Add($"Response format: {config.ResponseFormat}");
-        log.Add($"Output format: {config.OutputFormat}");
         log.Add($"Data path: {config.DataPath}");
 
-        var client = _httpClientFactory.CreateClient("CustomFeed");
-        client.Timeout = TimeSpan.FromSeconds(30);
+        var singleClient = _httpClientFactory.CreateClient("CustomFeed");
+        singleClient.Timeout = TimeSpan.FromSeconds(30);
 
-        int pageNumber = 0;
-        bool hasMore = true;
-        string? cursorValue = null;
+        int sp = 0;
+        bool morePages = true;
+        string? cursor = null;
 
-        while (hasMore && pageNumber < MaxPages)
+        while (morePages && sp < MaxPages)
         {
-            pageNumber++;
+            sp++;
             string url = config.BaseUrl;
 
-            if (config.PaginationConfig is not null && pageNumber > 1)
-                url = ApplyPagination(url, config.PaginationConfig, pageNumber, cursorValue);
+            if (config.PaginationConfig is not null && sp > 1)
+                url = ApplyPagination(url, config.PaginationConfig, sp, cursor);
 
-            log.Add($"Fetching page {pageNumber}...");
+            log.Add($"Fetching page {sp}...");
 
             var request = new HttpRequestMessage(new HttpMethod(config.HttpMethod), url);
-            await ApplyAuth(request, config.AuthConfig, log);
+            await ApplyAuth(request, config.AuthConfig, log, config.Id);
 
             HttpResponseMessage response;
             try
             {
-                response = await client.SendAsync(request, ct);
+                response = await singleClient.SendAsync(request, ct);
+
+                // Retry once on 401 if loginToken auth
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && IsLoginTokenAuth(config.AuthConfig))
+                {
+                    log.Add("Got 401 — clearing login token cache and retrying...");
+                    if (config.Id > 0)
+                        _loginTokenCache.TryRemove(config.Id, out _);
+                    request = new HttpRequestMessage(new HttpMethod(config.HttpMethod), url);
+                    await ApplyAuth(request, config.AuthConfig, log, config.Id);
+                    response = await singleClient.SendAsync(request, ct);
+                }
+
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception ex)
@@ -113,18 +293,18 @@ public class CustomFeedEngine
                 break;
             }
 
-            log.Add($"Extracted {pageRecords.Count} records from page {pageNumber}");
+            log.Add($"Extracted {pageRecords.Count} records from page {sp}");
             result.Records.AddRange(pageRecords);
 
             if (config.PaginationConfig is null)
             {
-                hasMore = false;
+                morePages = false;
             }
             else
             {
-                bool more;
-                (more, cursorValue) = HasMorePages(body, config.PaginationConfig, result.Records.Count, pageNumber);
-                hasMore = more;
+                bool m;
+                (m, cursor) = HasMorePages(body, config.PaginationConfig, result.Records.Count, sp);
+                morePages = m;
             }
         }
 
@@ -133,7 +313,10 @@ public class CustomFeedEngine
         if (config.FieldMappings.Count > 0)
         {
             log.Add("Applying field mappings...");
-            result.Records = ApplyMappings(result.Records, config.FieldMappings.OrderBy(m => m.SortOrder).ToList(), log);
+            var mappings = config.FieldMappings.OrderBy(m => m.SortOrder)
+                .Select(m => new MappingDef(m.SourceExpression, m.TargetField, m.MappingKind))
+                .ToList();
+            result.Records = ApplyMappings(result.Records, mappings, log);
             log.Add($"Mapped records: {result.Records.Count}");
         }
         else
@@ -144,7 +327,18 @@ public class CustomFeedEngine
         return result;
     }
 
-    private async Task ApplyAuth(HttpRequestMessage request, string? authConfigJson, List<string> log)
+    private static bool IsLoginTokenAuth(string? authConfigJson)
+    {
+        if (string.IsNullOrWhiteSpace(authConfigJson)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(authConfigJson);
+            return doc.RootElement.TryGetProperty("type", out var t) && t.GetString() == "loginToken";
+        }
+        catch { return false; }
+    }
+
+    private async Task ApplyAuth(HttpRequestMessage request, string? authConfigJson, List<string> log, int feedId = 0)
     {
         if (string.IsNullOrWhiteSpace(authConfigJson))
         {
@@ -200,11 +394,71 @@ public class CustomFeedEngine
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", oauthToken);
                     log.Add("Sending authenticated request (OAuth2)");
                     break;
+
+                case "loginToken":
+                    await ApplyLoginTokenAuth(request, root, log, feedId);
+                    log.Add("Sending authenticated request (LoginToken)");
+                    break;
             }
         }
         catch (Exception ex)
         {
             log.Add($"Auth config error: {ex.Message}");
+        }
+    }
+
+    private async Task ApplyLoginTokenAuth(HttpRequestMessage request, JsonElement config, List<string> log, int feedId)
+    {
+        var loginUrl = config.GetProperty("loginUrl").GetString()!;
+        var loginMethod = config.TryGetProperty("loginMethod", out var lm) ? lm.GetString() ?? "GET" : "GET";
+        var tokenLocation = config.TryGetProperty("tokenLocation", out var tl) ? tl.GetString() ?? "header" : "header";
+        var tokenName = config.TryGetProperty("tokenName", out var tn) ? tn.GetString() ?? "token" : "token";
+
+        // Parse login headers
+        var loginHeaders = new Dictionary<string, string>();
+        if (config.TryGetProperty("loginHeaders", out var lh))
+        {
+            foreach (var h in lh.EnumerateObject())
+                loginHeaders[h.Name] = h.Value.GetString() ?? "";
+        }
+
+        // Check cache
+        string? token = null;
+        if (feedId > 0 && _loginTokenCache.TryGetValue(feedId, out var entry))
+        {
+            // Cache for 1 hour
+            if (DateTime.UtcNow - entry.FetchedAt < TimeSpan.FromHours(1))
+                token = entry.Token;
+            else
+                _loginTokenCache.TryRemove(feedId, out _);
+        }
+
+        if (token is null)
+        {
+            log.Add($"Fetching token from {loginUrl}");
+            var client = _httpClientFactory.CreateClient("CustomFeed");
+            var loginRequest = new HttpRequestMessage(new HttpMethod(loginMethod), loginUrl);
+            foreach (var h in loginHeaders)
+                loginRequest.Headers.TryAddWithoutValidation(h.Key, h.Value);
+
+            var loginResponse = await client.SendAsync(loginRequest);
+            loginResponse.EnsureSuccessStatusCode();
+            token = await loginResponse.Content.ReadAsStringAsync();
+            token = token.Trim('"').Trim();
+
+            if (feedId > 0)
+                _loginTokenCache[feedId] = new LoginTokenEntry(token, DateTime.UtcNow);
+
+            log.Add("Token obtained and cached");
+        }
+
+        if (tokenLocation == "header")
+            request.Headers.TryAddWithoutValidation(tokenName, token);
+        else if (tokenLocation == "query")
+        {
+            var uri = request.RequestUri?.ToString() ?? "";
+            var separator = uri.Contains('?') ? '&' : '?';
+            request.RequestUri = new Uri($"{uri}{separator}{tokenName}={Uri.EscapeDataString(token)}");
         }
     }
 
@@ -353,14 +607,7 @@ public class CustomFeedEngine
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
 
-        // Split path into segments: $.countries[*].cities[*].places[*]
-        // -> ["countries", "cities", "places"]
-        var path = dataPath.TrimStart('$').TrimStart('.');
-        var segments = path
-            .Split(new[] { "[*]." }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Replace("[*]", "").Trim('.'))
-            .Where(s => s.Length > 0)
-            .ToList();
+        var segments = ParseDataPathSegments(dataPath);
 
         if (segments.Count == 0)
         {
@@ -375,9 +622,60 @@ public class CustomFeedEngine
         return result;
     }
 
+    private static List<(string Name, bool IsIterable)> ParseDataPathSegments(string dataPath)
+    {
+        var path = dataPath.TrimStart('$').TrimStart('.');
+        var result = new List<(string, bool)>();
+
+        int pos = 0;
+        while (pos < path.Length)
+        {
+            if (path[pos] == '.')
+            {
+                pos++;
+                continue;
+            }
+
+            // Find the next [*] or dot or end
+            int starIdx = path.IndexOf("[*]", pos);
+            int dotIdx = path.IndexOf('.', pos);
+            if (dotIdx < 0) dotIdx = path.Length;
+
+            string name;
+            bool isIterable;
+
+            if (starIdx >= 0 && starIdx < dotIdx)
+            {
+                // [*] comes before the next dot — segment is iterable
+                name = path[pos..starIdx].Trim('.');
+                isIterable = true;
+                pos = starIdx + 3; // skip past [*]
+            }
+            else if (starIdx >= 0 && starIdx == dotIdx - 3 && path[starIdx..dotIdx] == "[*]")
+            {
+                // [*] is right before the dot: "name[*]."
+                name = path[pos..starIdx];
+                isIterable = true;
+                pos = dotIdx + 1;
+            }
+            else
+            {
+                // No [*] — regular segment
+                name = path[pos..dotIdx];
+                isIterable = false;
+                pos = dotIdx + 1;
+            }
+
+            if (name.Length > 0)
+                result.Add((name, isIterable));
+        }
+
+        return result;
+    }
+
     private void TraverseAndAccumulate(
         JsonElement current,
-        List<string> segments,
+        List<(string Name, bool IsIterable)> segments,
         int depth,
         Dictionary<string, object?> context,
         List<Dictionary<string, object?>> results,
@@ -393,7 +691,7 @@ public class CustomFeedEngine
                     // If a context field has the same name, rename it with parent-level prefix
                     if (context.ContainsKey(prop.Name) && segments.Count >= 2)
                     {
-                        var parentPrefix = Singularize(segments[^2]) + "_";
+                        var parentPrefix = Singularize(segments[^2].Name) + "_";
                         row[parentPrefix + prop.Name] = context[prop.Name];
                     }
                     row[prop.Name] = ElementToObject(prop.Value);
@@ -403,23 +701,35 @@ public class CustomFeedEngine
             return;
         }
 
-        var segmentName = segments[depth];
+        var seg = segments[depth];
         JsonElement? next;
 
-        if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(segmentName, out var propValue))
+        if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(seg.Name, out var propValue))
             next = propValue;
         else
             next = null;
 
         if (next is null)
         {
-            log.Add($"Segment '{segmentName}' not found at depth {depth}");
+            log.Add($"Segment '{seg.Name}' not found at depth {depth}");
             return;
         }
 
-        var items = next.Value.ValueKind == JsonValueKind.Array
-            ? next.Value.EnumerateArray().ToList()
-            : new List<JsonElement> { next.Value };
+        // When IsIterable is true and value is an Object, iterate property values (dictionary-as-array)
+        // When value is an Array, always iterate items (regardless of IsIterable)
+        List<JsonElement> items;
+        if (next.Value.ValueKind == JsonValueKind.Array)
+        {
+            items = next.Value.EnumerateArray().ToList();
+        }
+        else if (seg.IsIterable && next.Value.ValueKind == JsonValueKind.Object)
+        {
+            items = next.Value.EnumerateObject().Select(p => p.Value).ToList();
+        }
+        else
+        {
+            items = [next.Value];
+        }
 
         foreach (var item in items)
         {
@@ -429,7 +739,7 @@ public class CustomFeedEngine
             {
                 foreach (var prop in current.EnumerateObject())
                 {
-                    if (prop.Name != segmentName)
+                    if (prop.Name != seg.Name)
                         newContext[prop.Name] = ElementToObject(prop.Value);
                 }
             }
@@ -530,13 +840,13 @@ public class CustomFeedEngine
         return result;
     }
 
+    private record MappingDef(string SourceExpression, string TargetField, MappingKind MappingKind);
+
     private List<Dictionary<string, object?>> ApplyMappings(
         List<Dictionary<string, object?>> rows,
-        List<CustomFeedFieldMapping> mappings,
+        IReadOnlyList<MappingDef> mappings,
         List<string> log)
     {
-        var targetFields = mappings.Select(m => m.TargetField).ToHashSet();
-        // Collect source fields used by Direct mappings (strip $ prefix)
         var mappedSourceFields = mappings
             .Where(m => m.MappingKind == MappingKind.Direct)
             .Select(m => m.SourceExpression.TrimStart('$').TrimStart('.'))
@@ -581,6 +891,42 @@ public class CustomFeedEngine
                         foreach (var kv in row)
                             expr = expr.Replace($"{{{kv.Key}}}", kv.Value?.ToString() ?? "");
                         mapped[mapping.TargetField] = expr;
+                        break;
+
+                    case MappingKind.TimeExtract:
+                        if (row.TryGetValue(sourceExpr, out var timeVal) && timeVal is not null)
+                        {
+                            var str = timeVal.ToString() ?? "";
+                            if (DateTime.TryParse(str, out var timeDt))
+                                mapped[mapping.TargetField] = timeDt.ToString("HH:mm:ss");
+                            else if (str.Length >= 10 && DateTime.TryParse(str[..10], out var dateOnly))
+                                mapped[mapping.TargetField] = dateOnly.ToString("HH:mm:ss");
+                            else if (str.Length == 8 && str[2] == ':' && str[5] == ':')
+                                mapped[mapping.TargetField] = str; // already HH:mm:ss
+                            else
+                                mapped[mapping.TargetField] = str; // pass through as fallback
+                        }
+                        else
+                        {
+                            mapped[mapping.TargetField] = "00:00:00"; // default time
+                        }
+                        break;
+
+                    case MappingKind.DateExtract:
+                        if (row.TryGetValue(sourceExpr, out var dateVal) && dateVal is not null)
+                        {
+                            var str = dateVal.ToString() ?? "";
+                            if (DateTime.TryParse(str, out var dateDt))
+                                mapped[mapping.TargetField] = dateDt.ToString("yyyyMMdd");
+                            else if (str.Length >= 10 && DateTime.TryParse(str[..10], out var dateOnly))
+                                mapped[mapping.TargetField] = dateOnly.ToString("yyyyMMdd");
+                            else
+                                mapped[mapping.TargetField] = str; // pass through as fallback
+                        }
+                        else
+                        {
+                            mapped[mapping.TargetField] = "20250101"; // default date
+                        }
                         break;
                 }
             }

@@ -16,6 +16,7 @@ public class CreateCustomFeedRequest
     public string? PaginationConfig { get; set; }
     [Range(60, int.MaxValue)] public int RefreshIntervalSeconds { get; set; } = 3600;
     public List<CreateFieldMappingRequest> FieldMappings { get; set; } = [];
+    public List<CreateTableConfigRequest> TableConfigs { get; set; } = [];
 }
 
 public class UpdateCustomFeedRequest
@@ -33,6 +34,7 @@ public class UpdateCustomFeedRequest
     [Range(60, int.MaxValue)] public int? RefreshIntervalSeconds { get; set; }
     public bool? IsActive { get; set; }
     public List<CreateFieldMappingRequest>? FieldMappings { get; set; }
+    public List<CreateTableConfigRequest>? TableConfigs { get; set; }
 }
 
 public class CreateFieldMappingRequest
@@ -40,6 +42,19 @@ public class CreateFieldMappingRequest
     [Required, StringLength(200)] public string SourceExpression { get; set; } = string.Empty;
     [Required, StringLength(100)] public string TargetField { get; set; } = string.Empty;
     [Required] public string MappingKind { get; set; } = string.Empty;
+}
+
+public class CreateTableConfigRequest
+{
+    public string Url { get; set; } = string.Empty;
+    [StringLength(10)] public string HttpMethod { get; set; } = "GET";
+    [Required] public string ResponseFormat { get; set; } = string.Empty;
+    public string DataPath { get; set; } = string.Empty;
+    [Required, StringLength(100)] public string TargetTable { get; set; } = string.Empty;
+    public string? PaginationConfig { get; set; }
+    public string? DistinctBy { get; set; }
+    public bool IsStatic { get; set; }
+    public List<CreateFieldMappingRequest> FieldMappings { get; set; } = [];
 }
 
 public class CustomFeedResponse
@@ -62,6 +77,7 @@ public class CustomFeedResponse
     public DateTime? LastRunAt { get; set; }
     public string? LastRunStatus { get; set; }
     public List<FieldMappingResponse> FieldMappings { get; set; } = [];
+    public List<TableConfigResponse> TableConfigs { get; set; } = [];
 }
 
 public class FieldMappingResponse
@@ -72,6 +88,22 @@ public class FieldMappingResponse
     public string SourceExpression { get; set; } = string.Empty;
     public string TargetField { get; set; } = string.Empty;
     public string MappingKind { get; set; } = string.Empty;
+}
+
+public class TableConfigResponse
+{
+    public int Id { get; set; }
+    public int CustomFeedId { get; set; }
+    public int SortOrder { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public string HttpMethod { get; set; } = "GET";
+    public string ResponseFormat { get; set; } = string.Empty;
+    public string DataPath { get; set; } = string.Empty;
+    public string TargetTable { get; set; } = string.Empty;
+    public string? PaginationConfig { get; set; }
+    public string? DistinctBy { get; set; }
+    public bool IsStatic { get; set; }
+    public List<FieldMappingResponse> FieldMappings { get; set; } = [];
 }
 
 public class CustomFeedRunResponse

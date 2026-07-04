@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704154241_AddCustomFeedQueries")]
+    partial class AddCustomFeedQueries
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -453,6 +456,9 @@ namespace TransitInfoAPI.Migrations
                     b.Property<string>("PaginationConfig")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Queries")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("RefreshIntervalSeconds")
                         .HasColumnType("int");
 
@@ -539,91 +545,6 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("CustomFeedId");
 
                     b.ToTable("CustomFeedRuns");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedTableConfig", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CustomFeedId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("DataPath")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DistinctBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("HttpMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsStatic")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PaginationConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ResponseFormat")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TargetTable")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomFeedId");
-
-                    b.ToTable("CustomFeedTableConfigs");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedTableFieldMapping", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CustomFeedTableConfigId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("MappingKind")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SourceExpression")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TargetField")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomFeedTableConfigId");
-
-                    b.ToTable("CustomFeedTableFieldMappings");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
@@ -1454,28 +1375,6 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("CustomFeed");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedTableConfig", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.CustomFeed", "CustomFeed")
-                        .WithMany("TableConfigs")
-                        .HasForeignKey("CustomFeedId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CustomFeed");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedTableFieldMapping", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.CustomFeedTableConfig", "CustomFeedTableConfig")
-                        .WithMany("FieldMappings")
-                        .HasForeignKey("CustomFeedTableConfigId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CustomFeedTableConfig");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
                 {
                     b.HasOne("TransitInfoAPI.Entities.CustomFeed", "CustomFeed")
@@ -1673,13 +1572,6 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("FieldMappings");
 
                     b.Navigation("Runs");
-
-                    b.Navigation("TableConfigs");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedTableConfig", b =>
-                {
-                    b.Navigation("FieldMappings");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>

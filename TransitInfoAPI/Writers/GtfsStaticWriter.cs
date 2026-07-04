@@ -28,23 +28,85 @@ public class GtfsStaticWriter
             return [];
         }
 
-        var csvContent = BuildCsv(records, table.Columns);
+        var tableRecords = new Dictionary<string, List<Dictionary<string, object?>>>
+        {
+            [table.Name] = records
+        };
 
+        return await ConvertMultiAsync(tableRecords, ct);
+    }
+
+    public async Task<byte[]> ConvertAsync(
+        Dictionary<string, List<Dictionary<string, object?>>> tableRecords,
+        CancellationToken ct)
+    {
+        return await ConvertMultiAsync(tableRecords, ct);
+    }
+
+    private async Task<byte[]> ConvertMultiAsync(
+        Dictionary<string, List<Dictionary<string, object?>>> tableRecords,
+        CancellationToken ct)
+    {
         using var ms = new MemoryStream();
         using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
-            var entry = archive.CreateEntry(table.FileName, CompressionLevel.Optimal);
-            await using (var writer = new StreamWriter(entry.Open(), Encoding.UTF8))
+            foreach (var (tableName, records) in tableRecords)
             {
-                await writer.WriteAsync(csvContent);
+                if (records.Count == 0) continue;
+
+                // Find table by name or detect from columns
+                var table = KnownTables.FirstOrDefault(t =>
+                    t.Name.Equals(tableName, StringComparison.OrdinalIgnoreCase) ||
+                    t.FileName.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+
+                if (table is null)
+                {
+                    // Auto-detect from first record's keys
+                    table = DetectTable(records[0]);
+                }
+
+                if (table is null)
+                {
+                    _logger.LogWarning(
+                        "GtfsStaticWriter: could not resolve table '{Table}' from records, skipping",
+                        tableName);
+                    continue;
+                }
+
+                var csvContent = BuildCsv(records, table.Columns);
+                var entry = archive.CreateEntry(table.FileName, CompressionLevel.Optimal);
+                await using (var writer = new StreamWriter(entry.Open(), Encoding.UTF8))
+                {
+                    await writer.WriteAsync(csvContent);
+                }
+
+                _logger.LogInformation(
+                    "GtfsStaticWriter: converted {Count} records to {File}",
+                    records.Count, table.FileName);
             }
         }
 
-        _logger.LogInformation(
-            "GtfsStaticWriter: converted {Count} records to {File}",
-            records.Count, table.FileName);
-
         return ms.ToArray();
+    }
+
+    private static TableInfo? DetectTable(Dictionary<string, object?> firstRecord)
+    {
+        var keys = firstRecord.Keys;
+        if (keys.Contains("stop_id"))
+            return KnownTables.First(t => t.Name == "stops");
+        if (keys.Contains("route_id") && !keys.Contains("trip_id"))
+            return KnownTables.First(t => t.Name == "routes");
+        if (keys.Contains("trip_id") && keys.Contains("stop_sequence"))
+            return KnownTables.First(t => t.Name == "stop_times");
+        if (keys.Contains("trip_id") && !keys.Contains("stop_sequence"))
+            return KnownTables.First(t => t.Name == "trips");
+        if (keys.Contains("service_id") && keys.Contains("start_date"))
+            return KnownTables.First(t => t.Name == "calendar");
+        if (keys.Contains("shape_id") && keys.Contains("shape_pt_sequence"))
+            return KnownTables.First(t => t.Name == "shapes");
+        if (keys.Contains("agency_name"))
+            return KnownTables.First(t => t.Name == "agency");
+        return KnownTables.FirstOrDefault(t => t.Name == "calendar_dates");
     }
 
     private static TableInfo? ResolveTable(List<Dictionary<string, object?>> records, string? targetTable)
