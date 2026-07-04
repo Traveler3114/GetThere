@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using TransitInfoAPI.Data;
@@ -33,6 +34,7 @@ public class PlaceMatchingManager
     };
 
     private readonly TransitDbContext _db;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PlaceMatchingManager> _logger;
     private readonly IOptions<PlaceMatchingOptions> _options;
     private readonly int _maxDistanceMeters;
@@ -43,9 +45,10 @@ public class PlaceMatchingManager
     private DateTime _lastMatchRun = DateTime.MinValue;
     private const double GridCellSizeDeg = 0.5;
 
-    public PlaceMatchingManager(TransitDbContext db, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
+    public PlaceMatchingManager(TransitDbContext db, IServiceScopeFactory scopeFactory, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
     {
         _db = db;
+        _scopeFactory = scopeFactory;
         _logger = logger;
         _options = options;
         _maxDistanceMeters = options.Value.MaxDistanceMeters;
@@ -211,8 +214,12 @@ public class PlaceMatchingManager
             }
             var countryName = CountryNames.TryGetValue(iso, out var n) ? n : iso;
             country = new Country { IsoCode = iso, Name = countryName, Continent = "Unknown" };
-            _db.Countries.Add(country);
-            await _db.SaveChangesAsync(ct);
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var scopedDb = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
+                scopedDb.Countries.Add(country);
+                await scopedDb.SaveChangesAsync(ct);
+            }
             _countryIdCache[iso] = country.Id;
             return country.Id;
         }

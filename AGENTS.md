@@ -100,6 +100,19 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 | 6 | #52 | `OperatorContract.cs` | [MinLength(1)] on UpdateOperatorRequest.Name |
 | 6 | #69 | `FeedManager.cs` | Log warning for non-.zip static feed URLs |
 | 6 | #140 | `GeoJsonContract.cs`, `GeoJsonGeometry.cs` | Typed GeoJson geometry classes replace anonymous types |
+| — | — | `ReconciliationManager.cs` | Spatial grid index (~0.2°), pre-bucket station lookup |
+| — | — | `PlaceMatchingManager.cs` | 0.5° grid-cell spatial index for FindNearestPlace |
+| — | — | `FeedManager.cs` | ReconcileAndBackfillAsync moved outside SQL transaction |
+| — | — | `FeedManager.cs` | UseTransaction(null) after commit to clear EF Core tx ref |
+| — | — | `FeedManager.cs` | Re-fetch FeedVersion after semaphore lock + skip if already Success |
+| — | — | `FeedManager.cs` | feedLock.WaitAsync(CancellationToken.None) so manual trigger waits |
+| — | — | `FeedManager.cs` | Command timeout 600s for StopTimes backfill UPDATE |
+| — | — | `FeedManager.cs` | Early return in TriggerImportAsync when already Success |
+| — | — | `PlaceMatchingManager.cs` | Fixed DeriveCountryIdAsync to use scoped DbContext |
+| — | — | `FeedPollingWorker.cs` | Parallel.ForEachAsync(maxDegreeOfParallelism: 3) |
+| — | — | `ScheduleManager.cs` | Fixed GetRouteStopsAsync LINQ GroupBy translation |
+| — | — | `shape-editor.html` | Removed map.once('idle') wrapper, direct_select default mode fix |
+| — | — | `FeedManager.cs` | Reactivation query (line 1194) broadened to cover all operators |
 
 ## Reference
 

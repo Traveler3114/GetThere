@@ -20,7 +20,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<TransitDbContext>(options =>
     options.UseSqlServer(connectionString, x => x.UseNetTopologySuite()));
 
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("gtfs", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
 builder.Services.AddHttpClient("gtfsrt", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);

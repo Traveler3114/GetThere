@@ -126,11 +126,11 @@ function renderFeeds(feeds, totalCount) {
   const rows = feeds.map(f => {
     const isInternal = f.isInternal === true;
     return `<tr${isInternal ? ' class="table-info"' : ''}>
-    <td>${esc(f.feedId)}${isInternal ? ' <span class="badge bg-info">Internal</span>' : ''}</td>
+    <td>${esc(f.feedId)}</td>
     <td><code class="small">${esc(f.onestopId||'-')}</code></td>
     <td>${feedTypeBadge(f.feedType)}</td>
     <td>${esc(f.operatorName||'-')}</td>
-    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="${esc(f.externalUrl||'#')}" target="_blank" class="text-decoration-none small">${esc(f.externalUrl||'-')}</a></td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isInternal ? '<span class="small">Internal</span>' : '<a href="' + esc(f.externalUrl||'#') + '" target="_blank" class="text-decoration-none small">' + esc(f.externalUrl) + '</a>'}</td>
     <td>${f.isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
     <td class="small">${f.refreshIntervalSeconds}s</td>
     <td>

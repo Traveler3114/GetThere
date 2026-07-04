@@ -22,7 +22,7 @@ public class ExternalFeedSource : IFeedSource
         if (string.IsNullOrWhiteSpace(url))
             throw new InvalidOperationException($"Feed {feed.Id} has no URL configured");
 
-        var http = _httpFactory.CreateClient();
+        var http = _httpFactory.CreateClient("gtfs");
         var response = await http.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
 
