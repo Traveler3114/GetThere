@@ -141,6 +141,7 @@ public class CustomFeedManager
         if (request.PaginationConfig is not null) feed.PaginationConfig = request.PaginationConfig;
         if (request.RefreshIntervalSeconds.HasValue) feed.RefreshIntervalSeconds = request.RefreshIntervalSeconds.Value;
         if (request.IsActive.HasValue) feed.IsActive = request.IsActive.Value;
+        if (request.IsScheduleCapable.HasValue) feed.IsScheduleCapable = request.IsScheduleCapable.Value;
 
         // AuthConfig: null or empty = preserve, valid JSON = replace
         if (request.AuthConfig is not null)
@@ -215,24 +216,12 @@ public class CustomFeedManager
     public async Task<bool> DeleteAsync(int id, CancellationToken ct)
     {
         var feed = await _db.CustomFeeds
-            .Include(f => f.Runs.Take(1))
             .FirstOrDefaultAsync(f => f.Id == id, ct);
 
         if (feed is null) return false;
 
-        bool hasRuns = feed.Runs.Count > 0;
-
-        if (hasRuns)
-        {
-            feed.IsActive = false;
-            await DeactivateHiddenFeedAsync(feed.Id, ct);
-        }
-        else
-        {
-            await RemoveHiddenFeedAsync(feed.Id, ct);
-            _db.CustomFeeds.Remove(feed);
-        }
-
+        await RemoveHiddenFeedAsync(feed.Id, ct);
+        _db.CustomFeeds.Remove(feed);
         await _db.SaveChangesAsync(ct);
         return true;
     }
@@ -361,18 +350,65 @@ public class CustomFeedManager
         List<Dictionary<string, object?>> rows;
         int totalRows;
 
+        List<string> tablesPresent = [];
+        bool? hardRequirementMet = null;
+        bool? softRequirementMet = null;
+        string? analysisWarning = null;
+
+        var isGtfsStatic = request.OutputFormat?.Equals("GtfsStatic", StringComparison.OrdinalIgnoreCase) == true;
+
         if (engineResult.TableRecords is not null)
         {
             var firstTable = engineResult.TableRecords.Values.FirstOrDefault();
             columns = firstTable?.SelectMany(r => r.Keys).Distinct().OrderBy(k => k).ToList() ?? [];
             rows = firstTable?.Take(20).ToList() ?? [];
             totalRows = firstTable?.Count ?? 0;
+
+            tablesPresent = engineResult.TableRecords
+                .Where(kvp => kvp.Value.Count > 0)
+                .Select(kvp => kvp.Key)
+                .OrderBy(k => k)
+                .ToList();
+
+            if (isGtfsStatic)
+            {
+                var hasStops = tablesPresent.Contains("stops");
+                var hasRoutes = tablesPresent.Contains("routes");
+                var hasTrips = tablesPresent.Contains("trips");
+                var hasStopTimes = tablesPresent.Contains("stop_times");
+                var hasCalendar = tablesPresent.Contains("calendar");
+                var hasCalendarDates = tablesPresent.Contains("calendar_dates");
+
+                hardRequirementMet = hasStops && hasRoutes && hasTrips && hasStopTimes;
+                softRequirementMet = hasCalendar || hasCalendarDates;
+
+                if (hardRequirementMet == false)
+                {
+                    var missing = new List<string>();
+                    if (!hasStops) missing.Add("stops");
+                    if (!hasRoutes) missing.Add("routes");
+                    if (!hasTrips) missing.Add("trips");
+                    if (!hasStopTimes) missing.Add("stop_times");
+                    analysisWarning = $"Route type cannot be derived — missing table(s): {string.Join(", ", missing)}. " +
+                        "Reconciliation will mark all stops as Inactive.";
+                }
+                else if (softRequirementMet == false)
+                {
+                    analysisWarning = "No calendar or calendar_dates table — service schedule will be unavailable.";
+                }
+            }
         }
         else
         {
             columns = engineResult.Records.SelectMany(r => r.Keys).Distinct().OrderBy(k => k).ToList();
             rows = engineResult.Records.Take(20).ToList();
             totalRows = engineResult.Records.Count;
+
+            if (isGtfsStatic && engineResult.Records.Count > 0)
+            {
+                var targetTable = request.TargetTable ?? "stops";
+                tablesPresent = [targetTable];
+            }
         }
 
         return new CustomFeedPreviewResponse
@@ -380,7 +416,11 @@ public class CustomFeedManager
             Columns = columns,
             Rows = rows,
             TotalRows = totalRows,
-            LogLines = engineResult.LogLines
+            LogLines = engineResult.LogLines,
+            TablesPresent = tablesPresent,
+            HardRequirementMet = hardRequirementMet,
+            SoftRequirementMet = softRequirementMet,
+            AnalysisWarning = analysisWarning
         };
     }
 
@@ -423,6 +463,25 @@ public class CustomFeedManager
     {
         var hidden = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
         if (hidden is null) return;
+
+        var versionIds = await _db.FeedVersions
+            .Where(fv => fv.FeedId == hidden.Id)
+            .Select(fv => fv.Id)
+            .ToListAsync(ct);
+
+        foreach (var vid in versionIds)
+        {
+            await _db.StopTimes.Where(st => st.Trip.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.CalendarDates.Where(cd => cd.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.Calendars.Where(c => c.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.Shapes.Where(s => s.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.Trips.Where(t => t.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.ReconciliationCandidates.Where(rc => rc.RawStop.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.RawStops.Where(rs => rs.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+            await _db.Agencies.Where(a => a.FeedVersionId == vid).ExecuteDeleteAsync(ct);
+        }
+
+        await _db.FeedVersions.Where(fv => versionIds.Contains(fv.Id)).ExecuteDeleteAsync(ct);
         _db.Feeds.Remove(hidden);
         await _db.SaveChangesAsync(ct);
     }

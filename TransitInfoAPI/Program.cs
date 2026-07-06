@@ -32,6 +32,7 @@ builder.Services.AddHttpClient("gtfsrt", client =>
 builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
 builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
 builder.Services.Configure<PlaceMatchingOptions>(builder.Configuration.GetSection("PlaceMatching"));
+builder.Services.Configure<CustomFeedImportOptions>(builder.Configuration.GetSection("CustomFeedImport"));
 
 builder.Services.AddScoped<TransitInfoAPI.Services.GtfsParser>();
 builder.Services.AddSingleton<OnestopIdManager>();
@@ -49,6 +50,7 @@ builder.Services.AddSingleton<RealtimeManager>();
 // Custom Feed services
 builder.Services.AddScoped<CustomFeedManager>();
 builder.Services.AddSingleton<CustomFeedEngine>();
+builder.Services.AddScoped<CustomFeedDirectImporter>();
 builder.Services.AddSingleton<GtfsStaticWriter>();
 builder.Services.AddSingleton<GtfsRealtimeWriter>();
 builder.Services.AddSingleton<GbfsWriter>();

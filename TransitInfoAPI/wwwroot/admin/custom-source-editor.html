@@ -124,6 +124,16 @@
             <input type="number" id="fieldRefreshInterval" class="form-control form-control-sm" value="3600" min="60">
           </div>
         </div>
+        <div class="row mt-3">
+          <div class="col-12">
+            <div class="form-check">
+              <input type="checkbox" id="fieldIsScheduleCapable" class="form-check-input" checked>
+              <label class="form-check-label" for="fieldIsScheduleCapable">
+                Schedule-capable <small class="text-muted">(uncheck for position-only feeds with no trip/schedule data — disables reconciliation)</small>
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -193,6 +203,7 @@
       <div id="previewResult" class="d-none">
         <div class="mb-2"><strong>Rows: <span id="previewRowCount">0</span></strong> (showing first 20)</div>
         <div id="previewChips" class="d-flex flex-wrap gap-1 mb-2 d-none"></div>
+        <div id="previewAnalysis" class="mb-2"></div>
         <div class="table-responsive" id="previewTable"></div>
         <div class="mt-2"><strong>Log:</strong></div>
         <pre id="previewLog" class="border p-2 bg-light" style="max-height:200px;overflow:auto;font-size:0.85rem;"></pre>
@@ -862,6 +873,7 @@ function getBaseFormData() {
     targetTable: document.getElementById('fieldTargetTable').disabled ? null : document.getElementById('fieldTargetTable').value || null,
     paginationConfig: getPaginationConfig(),
     refreshIntervalSeconds: parseInt(document.getElementById('fieldRefreshInterval').value) || 3600,
+    isScheduleCapable: document.getElementById('fieldIsScheduleCapable').checked,
     fieldMappings: getFieldMappings(),
     tableConfigs: getTableConfigs()
   };
@@ -893,6 +905,31 @@ async function runPreview() {
     lastPreviewColumns = result.columns || [];
     document.getElementById('previewRowCount').textContent = result.totalRows;
     document.getElementById('previewLog').textContent = (result.logLines || []).join('\n');
+
+    // Table analysis
+    const analysisEl = document.getElementById('previewAnalysis');
+    if (result.tablesPresent && result.tablesPresent.length > 0) {
+      const tables = result.tablesPresent.map(t => '<span class="badge bg-secondary me-1">' + esc(t) + '</span>').join('');
+      let hardHtml = '';
+      let softHtml = '';
+      if (result.hardRequirementMet === true) {
+        hardHtml = '<span class="badge bg-success"><i class="bi bi-check-lg"></i> Route types derivable</span> <small class="text-muted">Stops will be reconciled</small>';
+      } else if (result.hardRequirementMet === false) {
+        hardHtml = '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Route types cannot be derived</span> <small class="text-muted">Reconciliation will mark stops as Inactive</small>';
+      }
+      if (result.softRequirementMet === true) {
+        softHtml = ' <span class="badge bg-success"><i class="bi bi-check-lg"></i> Calendar data present</span>';
+      } else if (result.softRequirementMet === false) {
+        softHtml = ' <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> No calendar data</span> <small class="text-muted">Service schedule will be unavailable</small>';
+      }
+      const warning = result.analysisWarning
+        ? '<div class="alert alert-warning py-1 mb-0 small"><i class="bi bi-info-circle"></i> ' + esc(result.analysisWarning) + '</div>'
+        : '';
+      analysisEl.innerHTML = '<div class="border rounded p-2 bg-light"><div class="mb-1"><strong>Tables:</strong> ' + tables + '</div><div>' + hardHtml + softHtml + '</div>' + warning + '</div>';
+      analysisEl.classList.remove('d-none');
+    } else {
+      analysisEl.classList.add('d-none');
+    }
 
     const chipContainer = document.getElementById('previewChips');
     if (lastPreviewColumns.length) {
@@ -968,6 +1005,7 @@ async function loadForEdit(id) {
     document.getElementById('fieldOutputFormat').value = feed.outputFormat || 'Gbfs';
     document.getElementById('fieldDataPath').value = feed.dataPath || '';
     document.getElementById('fieldRefreshInterval').value = feed.refreshIntervalSeconds || 3600;
+    document.getElementById('fieldIsScheduleCapable').checked = feed.isScheduleCapable !== false;
     updateDataPathHint();
     onOutputFormatChange();
 

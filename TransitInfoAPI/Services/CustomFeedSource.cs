@@ -67,6 +67,7 @@ public class CustomFeedSource : IFeedSource
 
         byte[] outputData;
         int recordsWritten;
+        var alreadyHandled = false;
 
         try
         {
@@ -75,17 +76,20 @@ public class CustomFeedSource : IFeedSource
             switch (customFeed.OutputFormat)
             {
                 case OutputFormat.GtfsStatic:
-                    if (engineResult.TableRecords is not null)
+                    var mappedRecords = engineResult.TableRecords;
+                    if (mappedRecords is null)
                     {
-                        outputData = await _gtfsStaticWriter.ConvertAsync(
-                            engineResult.TableRecords, ct);
+                        mappedRecords = new Dictionary<string, List<Dictionary<string, object?>>>
+                        {
+                            [customFeed.TargetTable ?? "stops"] = engineResult.Records
+                        };
                     }
-                    else
-                    {
-                        outputData = await _gtfsStaticWriter.ConvertAsync(
-                            engineResult.Records, customFeed.TargetTable, ct);
-                    }
+                    var importer = scope.ServiceProvider
+                        .GetRequiredService<CustomFeedDirectImporter>();
+                    await importer.ImportAndActivateAsync(customFeed, mappedRecords, ct);
+                    outputData = [];
                     recordsWritten = engineResult.RecordCount;
+                    alreadyHandled = true;
                     break;
 
                 case OutputFormat.GtfsRealtime:
@@ -128,9 +132,14 @@ public class CustomFeedSource : IFeedSource
             run.LogText = string.Join("\n", engineResult.LogLines);
             customFeed.LastRunAt = DateTime.UtcNow;
 
-            _logger.LogInformation(
-                "CustomFeedSource: feed {CustomFeedId} produced {Length} bytes ({Records} records)",
-                customFeed.Id, outputData.Length, recordsWritten);
+            if (alreadyHandled)
+                _logger.LogInformation(
+                    "CustomFeedSource: feed {CustomFeedId} imported {Records} records directly",
+                    customFeed.Id, recordsWritten);
+            else if (outputData.Length > 0)
+                _logger.LogInformation(
+                    "CustomFeedSource: feed {CustomFeedId} produced {Length} bytes ({Records} records)",
+                    customFeed.Id, outputData.Length, recordsWritten);
         }
         catch (Exception ex)
         {
@@ -143,7 +152,7 @@ public class CustomFeedSource : IFeedSource
         }
 
         await db.SaveChangesAsync(ct);
-        return new FeedFetchResult(outputData, null, null, null);
+        return new FeedFetchResult(outputData, null, null, null) { AlreadyHandled = alreadyHandled };
     }
 
     public string ComputeHash(Feed feed, byte[] data)

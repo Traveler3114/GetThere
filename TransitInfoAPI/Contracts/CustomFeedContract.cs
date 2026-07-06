@@ -33,6 +33,7 @@ public class UpdateCustomFeedRequest
     public string? PaginationConfig { get; set; }
     [Range(60, int.MaxValue)] public int? RefreshIntervalSeconds { get; set; }
     public bool? IsActive { get; set; }
+    public bool? IsScheduleCapable { get; set; }
     public List<CreateFieldMappingRequest>? FieldMappings { get; set; }
     public List<CreateTableConfigRequest>? TableConfigs { get; set; }
 }
@@ -73,6 +74,7 @@ public class CustomFeedResponse
     public string? PaginationConfig { get; set; }
     public int RefreshIntervalSeconds { get; set; }
     public bool IsActive { get; set; }
+    public bool IsScheduleCapable { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public DateTime? LastRunAt { get; set; }
     public string? LastRunStatus { get; set; }
@@ -123,6 +125,10 @@ public class CustomFeedPreviewResponse
     public List<Dictionary<string, object?>> Rows { get; set; } = [];
     public int TotalRows { get; set; }
     public List<string> LogLines { get; set; } = [];
+    public List<string> TablesPresent { get; set; } = [];
+    public bool? HardRequirementMet { get; set; }
+    public bool? SoftRequirementMet { get; set; }
+    public string? AnalysisWarning { get; set; }
 }
 
 public class CustomFeedDiscoverResponse

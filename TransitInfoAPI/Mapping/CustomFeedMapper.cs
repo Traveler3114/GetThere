@@ -27,6 +27,7 @@ public static class CustomFeedMapper
             PaginationConfig = f.PaginationConfig,
             RefreshIntervalSeconds = f.RefreshIntervalSeconds,
             IsActive = f.IsActive,
+            IsScheduleCapable = f.IsScheduleCapable,
             CreatedAt = f.CreatedAt,
             LastRunAt = f.LastRunAt,
             LastRunStatus = f.Runs

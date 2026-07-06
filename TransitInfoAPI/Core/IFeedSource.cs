@@ -5,7 +5,10 @@ public record FeedFetchResult(
     string? ContentType,
     string? ETag,
     DateTime? LastModified
-);
+)
+{
+    public bool AlreadyHandled { get; init; }
+}
 
 public interface IFeedSource
 {

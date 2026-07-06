@@ -260,6 +260,12 @@ public class FeedManager
             var source = _feedSourceFactory.Resolve(feed);
             var result = await source.FetchDataAsync(feed, ct);
 
+            if (result.AlreadyHandled)
+            {
+                _logger.LogInformation("Feed {FeedId}: import handled directly by source, skipping disk write", feed.FeedId);
+                return null;
+            }
+
             // Content-type validation for external HTTP responses
             if (result.ContentType is not null
                 && result.ContentType != "application/zip"

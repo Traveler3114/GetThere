@@ -18,6 +18,7 @@ public class CustomFeed
     public string? PaginationConfig { get; set; }
     public int RefreshIntervalSeconds { get; set; } = 3600;
     public bool IsActive { get; set; } = true;
+    public bool IsScheduleCapable { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public DateTime? LastRunAt { get; set; }
     public ICollection<CustomFeedFieldMapping> FieldMappings { get; set; } = [];
