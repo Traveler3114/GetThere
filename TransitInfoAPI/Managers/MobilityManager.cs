@@ -99,4 +99,84 @@ public class MobilityManager
         _logger.LogInformation("Upserted {Count} stations from GBFS data for operator {OperatorId}", upserted, operatorId);
         return upserted;
     }
+
+    public async Task<int> UpsertStationsFromRecordsAsync(int operatorId, List<Dictionary<string, object?>> records, CancellationToken ct = default)
+    {
+        if (records.Count == 0) return 0;
+
+        var existingByStationId = await _db.MobilityStations
+            .Where(ms => ms.OperatorId == operatorId)
+            .ToDictionaryAsync(ms => ms.StationId, ct);
+
+        int upserted = 0;
+        foreach (var record in records)
+        {
+            var stationId = GetString(record, "station_id");
+            var name = GetString(record, "name");
+            var lat = GetDouble(record, "lat");
+            var lon = GetDouble(record, "lon");
+
+            if (stationId is null || name is null || lat is null || lon is null)
+                continue;
+
+            var capacity = GetInt(record, "capacity");
+            var numBikes = GetInt(record, "num_bikes_available") ?? 0;
+
+            if (existingByStationId.TryGetValue(stationId, out var existing))
+            {
+                existing.Name = name;
+                existing.Latitude = lat.Value;
+                existing.Longitude = lon.Value;
+                existing.Capacity = capacity > 0 ? capacity : null;
+                existing.AvailableVehicles = numBikes;
+                existing.LastUpdated = DateTime.UtcNow;
+            }
+            else
+            {
+                _db.MobilityStations.Add(new MobilityStation
+                {
+                    OperatorId = operatorId,
+                    StationId = stationId,
+                    Name = name,
+                    Latitude = lat.Value,
+                    Longitude = lon.Value,
+                    Capacity = capacity > 0 ? capacity : null,
+                    AvailableVehicles = numBikes,
+                    CountryId = await _placeMatching.DeriveCountryIdAsync(lat.Value, lon.Value, ct),
+                    LastUpdated = DateTime.UtcNow
+                });
+            }
+
+            upserted++;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Upserted {Count} stations from records for operator {OperatorId}", upserted, operatorId);
+        return upserted;
+    }
+
+    private static string? GetString(Dictionary<string, object?> dict, string key)
+    {
+        return dict.TryGetValue(key, out var v) ? v?.ToString() : null;
+    }
+
+    private static double? GetDouble(Dictionary<string, object?> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var v) || v is null) return null;
+        if (v is double d) return d;
+        if (v is int i) return i;
+        if (v is long l) return l;
+        if (v is decimal m) return (double)m;
+        if (double.TryParse(v.ToString(), out var parsed)) return parsed;
+        return null;
+    }
+
+    private static int? GetInt(Dictionary<string, object?> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var v) || v is null) return null;
+        if (v is int i) return i;
+        if (v is long l) return (int)l;
+        if (int.TryParse(v.ToString(), out var parsed)) return parsed;
+        return null;
+    }
 }

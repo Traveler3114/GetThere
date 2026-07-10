@@ -7,7 +7,6 @@ using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Writers;
 
 namespace TransitInfoAPI.Services;
 
@@ -15,24 +14,15 @@ public class CustomFeedSource : IFeedSource
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CustomFeedEngine _engine;
-    private readonly GtfsStaticWriter _gtfsStaticWriter;
-    private readonly GtfsRealtimeWriter _gtfsRealtimeWriter;
-    private readonly GbfsWriter _gbfsWriter;
     private readonly ILogger<CustomFeedSource> _logger;
 
     public CustomFeedSource(
         IServiceScopeFactory scopeFactory,
         CustomFeedEngine engine,
-        GtfsStaticWriter gtfsStaticWriter,
-        GtfsRealtimeWriter gtfsRealtimeWriter,
-        GbfsWriter gbfsWriter,
         ILogger<CustomFeedSource> logger)
     {
         _scopeFactory = scopeFactory;
         _engine = engine;
-        _gtfsStaticWriter = gtfsStaticWriter;
-        _gtfsRealtimeWriter = gtfsRealtimeWriter;
-        _gbfsWriter = gbfsWriter;
         _logger = logger;
     }
 
@@ -92,34 +82,21 @@ public class CustomFeedSource : IFeedSource
                     alreadyHandled = true;
                     break;
 
-                case OutputFormat.GtfsRealtime:
-                    outputData = await _gtfsRealtimeWriter.ConvertAsync(engineResult.Records, ct);
-                    recordsWritten = engineResult.RecordCount;
-                    break;
-
                 case OutputFormat.Gbfs:
-                    outputData = await _gbfsWriter.ConvertAsync(
-                        engineResult.Records, customFeed.OperatorId, ct);
-                    recordsWritten = engineResult.RecordCount;
-
-                    if (outputData.Length > 0)
                     {
-                        try
-                        {
-                            var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
-                            await mobility.UpsertStationsFromGbfsBytesAsync(
-                                customFeed.OperatorId, outputData, ct);
-                            _logger.LogInformation(
-                                "Persisted GBFS data for custom feed {CustomFeedId} to operator {OperatorId}",
-                                customFeed.Id, customFeed.OperatorId);
-                        }
-                        catch (Exception mobEx)
-                        {
-                            _logger.LogWarning(mobEx,
-                                "Failed to persist GBFS data for custom feed {CustomFeedId}",
-                                customFeed.Id);
-                        }
+                        var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
+                        await mobility.UpsertStationsFromRecordsAsync(customFeed.OperatorId, engineResult.Records, ct);
+                        outputData = [];
+                        recordsWritten = engineResult.RecordCount;
+                        alreadyHandled = true;
+                        break;
                     }
+
+                case OutputFormat.GtfsRealtime:
+                    _logger.LogWarning("GtfsRealtime custom feeds should be polled via RealtimeManager, not CustomFeedSource");
+                    outputData = [];
+                    recordsWritten = 0;
+                    alreadyHandled = true;
                     break;
 
                 default:

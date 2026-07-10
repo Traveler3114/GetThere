@@ -10,7 +10,6 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Managers;
 using TransitInfoAPI.Workers;
-using TransitInfoAPI.Writers;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders().AddConsole().AddDebug();
@@ -55,9 +54,6 @@ builder.Services.AddSingleton<RealtimeManager>();
 builder.Services.AddScoped<CustomFeedManager>();
 builder.Services.AddSingleton<CustomFeedEngine>();
 builder.Services.AddScoped<CustomFeedDirectImporter>();
-builder.Services.AddSingleton<GtfsStaticWriter>();
-builder.Services.AddSingleton<GtfsRealtimeWriter>();
-builder.Services.AddSingleton<GbfsWriter>();
 builder.Services.AddSingleton<TransitInfoAPI.Services.ExternalFeedSource>();
 builder.Services.AddSingleton<TransitInfoAPI.Services.CustomFeedSource>();
 builder.Services.AddSingleton<TransitInfoAPI.Services.FeedSourceFactory>();
