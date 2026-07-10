@@ -115,6 +115,10 @@
                         <Label.GestureRecognizers><TapGestureRecognizer Tapped="RegisterButton_Clicked" /></Label.GestureRecognizers>
                     </Label>
 
+                    <Label x:Name="ContinueAsGuestLabel" Text="{localization:Translate Login_ContinueAsGuest}" TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}" FontSize="14" HorizontalOptions="Center" Margin="0,0,0,5">
+                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnContinueAsGuestClicked" /></Label.GestureRecognizers>
+                    </Label>
+
                     <HorizontalStackLayout HorizontalOptions="Center" Spacing="20" Margin="0,15,0,0">
                         <Border WidthRequest="44" HeightRequest="44" Stroke="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}">
                              <Border.StrokeShape><RoundRectangle CornerRadius="22"/></Border.StrokeShape>

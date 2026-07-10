@@ -94,6 +94,7 @@
   <data name="Login_InvalidEmail" xml:space="preserve"><value>Unesite valjanu adresu e-pošte.</value></data>
   <data name="Login_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 8 znakova.</value></data>
   <data name="Login_Failed" xml:space="preserve"><value>Prijava nije uspjela.</value></data>
+  <data name="Login_ContinueAsGuest" xml:space="preserve"><value>Nastavi kao gost</value></data>
 
   <!-- Stranica za registraciju -->
   <data name="Register_Title" xml:space="preserve"><value>Pridruži se GetThere</value></data>
@@ -163,6 +164,10 @@
   <data name="Profile_RegionTitle" xml:space="preserve"><value>Jezik i regija</value></data>
 
   <!-- Stranica trgovine -->
+  <data name="Shop_AccountRequired" xml:space="preserve"><value>Potreban račun</value></data>
+  <data name="Shop_AccountRequiredDesc" xml:space="preserve"><value>Prijavite se za kupnju karata.</value></data>
+  <data name="Shop_ComingSoon" xml:space="preserve"><value>Uskoro</value></data>
+  <data name="Shop_ComingSoonDesc" xml:space="preserve"><value>Kupnja karata bit će dostupna kada se implementiraju SDK adapteri operatora.</value></data>
   <data name="Shop_Title" xml:space="preserve"><value>Trgovina</value></data>
   <data name="Shop_AllCountries" xml:space="preserve"><value>Sve države</value></data>
   <data name="Shop_NoOperators" xml:space="preserve"><value>Nema dostupnih operatera za kupnju karata.</value></data>
@@ -180,6 +185,10 @@
   <data name="TicketPurchase_SubtitleBajs" xml:space="preserve"><value>Kupite karte za gradske bicikle</value></data>
 
   <!-- Stranica karata -->
+  <data name="Tickets_AccountRequired" xml:space="preserve"><value>Potreban račun</value></data>
+  <data name="Tickets_AccountRequiredDesc" xml:space="preserve"><value>Prijavite se za pregled karata.</value></data>
+  <data name="Tickets_ComingSoon" xml:space="preserve"><value>Uskoro</value></data>
+  <data name="Tickets_ComingSoonDesc" xml:space="preserve"><value>Vaše kupljene karte će se ovdje pojaviti kada SDK za karte bude integriran.</value></data>
   <data name="Tickets_Title" xml:space="preserve"><value>Moje karte</value></data>
   <data name="Tickets_Active" xml:space="preserve"><value>Aktivne</value></data>
   <data name="Tickets_Expired" xml:space="preserve"><value>Istekle</value></data>

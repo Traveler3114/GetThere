@@ -134,4 +134,10 @@ public partial class LoginPage : ContentPage
         RememberMeCheckbox.IsChecked = !RememberMeCheckbox.IsChecked;
     }
 
+    private void OnContinueAsGuestClicked(object? sender, TappedEventArgs e)
+    {
+        AuthService.SetGuest();
+        App.GoToApp();
+    }
+
 }

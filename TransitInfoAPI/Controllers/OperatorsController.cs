@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -225,6 +226,7 @@ public class OperatorsController : ControllerBase
         return Ok(new Paginated<FeedResponse>(feeds, feeds.Count, 1, feeds.Count));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<OperatorResponse>> Create([FromBody] CreateOperatorRequest request, CancellationToken ct = default)
     {
@@ -272,6 +274,7 @@ public class OperatorsController : ControllerBase
         return CreatedAtAction(nameof(GetAll), null, dto);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{globalId}")]
     public async Task<ActionResult<OperatorResponse>> Update(string globalId, [FromBody] UpdateOperatorRequest request, CancellationToken ct = default)
     {
@@ -303,6 +306,7 @@ public class OperatorsController : ControllerBase
         return Ok(dto);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{globalId}")]
     public async Task<ActionResult> Delete(string globalId, CancellationToken ct = default)
     {

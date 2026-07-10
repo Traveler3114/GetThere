@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -85,9 +86,7 @@ public class StationsController : ControllerBase
         return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
-    // TODO: Before Phase 3 (public launch), this endpoint is used by the
-    // reconciliation-map.html search UI (Task 4.4) and exposes station data
-    // used to locate reconciliation candidates. Must be restricted to admin-only.
+    [Authorize(Roles = "Admin")]
     [HttpGet("search")]
     public async Task<ActionResult<Paginated<StationResponse>>> Search(
         [FromQuery] string? q,
@@ -148,6 +147,7 @@ public class StationsController : ControllerBase
         return Ok(routes);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("{id}/rematch-place")]
     public async Task<IActionResult> RematchPlace(int id, CancellationToken ct = default)
     {
@@ -169,8 +169,7 @@ public class StationsController : ControllerBase
         return Ok(new Paginated<DepartureResponse>(departures, departures.Count, 1, departures.Count));
     }
 
-    // TODO: Before Phase 3 (public launch), this endpoint exposes reconciliation
-    // internals on the public-facing API. It must be restricted to admin-only access.
+    [Authorize(Roles = "Admin")]
     [HttpGet("{id}/reconciliation-detail")]
     public async Task<ActionResult<StationReconciliationDetailResponse>> GetReconciliationDetail(int id, CancellationToken ct = default)
     {

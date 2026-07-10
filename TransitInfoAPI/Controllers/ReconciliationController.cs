@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("reconciliation")]
+[Authorize(Roles = "Admin")]
 public class ReconciliationController : ControllerBase
 {
     private readonly ReconciliationManager _reconciliationService;

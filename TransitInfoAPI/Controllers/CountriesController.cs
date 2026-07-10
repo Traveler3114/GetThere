@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -42,6 +43,7 @@ public class CountriesController : ControllerBase
         return Ok(new Paginated<CountryResponse>(countries, total, page, perPage));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult> Create([FromBody] CreateCountryRequest request, CancellationToken ct)
     {

@@ -1,6 +1,8 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +13,7 @@ namespace GetThereAPI.Controllers;
 
 [ApiController]
 [Route("api/map")]
+[Authorize]
 public class MapProxyController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
@@ -23,8 +26,14 @@ public class MapProxyController : ControllerBase
         _db = db;
     }
 
-    private HttpClient CreateClient() =>
-        _httpClientFactory.CreateClient("TransitInfoApi");
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = _httpClientFactory.CreateClient("TransitInfoApi");
+        var authHeader = HttpContext.Request.Headers.Authorization.FirstOrDefault();
+        if (authHeader is not null)
+            client.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse(authHeader);
+        return client;
+    }
 
     [HttpGet("stations")]
     public async Task<ActionResult> GetStations(
@@ -32,7 +41,7 @@ public class MapProxyController : ControllerBase
         [FromQuery] double? radiusKm, [FromQuery] int? countryId,
         CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
         var query = BuildQuery(("lat", lat), ("lon", lon), ("radiusKm", radiusKm), ("countryId", countryId));
         var response = await client.GetAsync($"/stations{query}", ct);
         if (!response.IsSuccessStatusCode)
@@ -59,7 +68,7 @@ public class MapProxyController : ControllerBase
         [FromQuery] int? operatorId, [FromQuery] string? routeType,
         CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
         var query = BuildQuery(("operatorId", operatorId), ("routeType", routeType));
         var response = await client.GetAsync($"/routes{query}", ct);
         if (!response.IsSuccessStatusCode)
@@ -86,7 +95,7 @@ public class MapProxyController : ControllerBase
         [FromQuery] double? radiusKm,
         CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
         var query = BuildQuery(("lat", lat), ("lon", lon), ("radiusKm", radiusKm));
         var response = await client.GetAsync($"/mobility/stations{query}", ct);
         if (!response.IsSuccessStatusCode)
@@ -115,7 +124,7 @@ public class MapProxyController : ControllerBase
         [FromQuery] double? lon, [FromQuery] double? radiusKm,
         CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
         double? minLat = null, minLon = null, maxLat = null, maxLon = null;
         if (lat.HasValue && lon.HasValue && radiusKm.HasValue)
         {
@@ -155,7 +164,7 @@ public class MapProxyController : ControllerBase
     public async Task<ActionResult> GetDepartures(
         string onestopId, CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
 
         var stationResponse = await client.GetAsync($"/stations/by-onestop/{onestopId}", ct);
         if (!stationResponse.IsSuccessStatusCode)
@@ -191,7 +200,7 @@ public class MapProxyController : ControllerBase
     public async Task<ActionResult> GetStationOperators(
         string onestopId, CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
 
         var stationResponse = await client.GetAsync($"/stations/by-onestop/{onestopId}", ct);
         if (!stationResponse.IsSuccessStatusCode)
@@ -232,7 +241,7 @@ public class MapProxyController : ControllerBase
     [HttpGet("operators/types")]
     public async Task<ActionResult> GetTransportTypes(CancellationToken ct = default)
     {
-        var client = CreateClient();
+        var client = await CreateClientAsync();
         var response = await client.GetAsync("/operators/types", ct);
         if (!response.IsSuccessStatusCode)
             return StatusCode((int)response.StatusCode);

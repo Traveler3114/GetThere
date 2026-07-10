@@ -68,12 +68,6 @@ public static class MauiProgram
             return new CountryService(clientFactory.CreateClient("GetThereAPI"));
         });
 
-        builder.Services.AddTransient(sp =>
-        {
-            var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
-            return new OperatorService(clientFactory.CreateClient("GetThereAPI"));
-        });
-
         var assembly = Assembly.GetExecutingAssembly();
 
         var pageTypes = assembly

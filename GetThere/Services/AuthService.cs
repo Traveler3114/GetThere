@@ -88,6 +88,7 @@ public class AuthService
 
         SecureStorage.Default.Remove(TokenKey);
         SecureStorage.Default.Remove(RefreshTokenKey);
+        ClearGuest();
         await StoreRememberMeAsync(false);
     }
 
@@ -121,6 +122,12 @@ public class AuthService
 
     public async Task<bool> IsLoggedInAsync() =>
         await SecureStorage.Default.GetAsync(TokenKey) is not null;
+
+    public static bool IsGuest() => Preferences.Default.Get("is_guest", false);
+
+    public static void SetGuest() => Preferences.Default.Set("is_guest", true);
+
+    public static void ClearGuest() => Preferences.Default.Remove("is_guest");
 
     public bool GetRememberMe() => Preferences.Default.Get("remember_me", false);
 

@@ -10,6 +10,8 @@ namespace GetThereAPI.Controllers;
 [ApiController]
 [Route("[controller]")]
 [Authorize]
+public record SetRoleRequest(string RoleName);
+
 public class AdminController : ControllerBase
 {
     private readonly AdminManager _adminManager;
@@ -25,6 +27,14 @@ public class AdminController : ControllerBase
     {
         var result = await _adminManager.GetUsersAsync(page, pageSize);
         return Ok(result);
+    }
+
+    [HttpPost("users/{userId}/role")]
+    public async Task<ActionResult> SetUserRole(string userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
+    {
+        var user = await _adminManager.SetUserRoleAsync(userId, request.RoleName);
+        if (user is null) return NotFound();
+        return Ok(new { message = $"User role set to '{request.RoleName}'." });
     }
 
     [HttpGet("audit")]

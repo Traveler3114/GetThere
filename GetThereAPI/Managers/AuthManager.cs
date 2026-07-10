@@ -39,6 +39,8 @@ public class AuthManager
 
         if (!result.Succeeded)
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+
+        await _userManager.AddToRoleAsync(user, "User");
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, bool rememberMe, string? deviceInfo)

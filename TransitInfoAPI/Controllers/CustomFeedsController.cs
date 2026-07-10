@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using TransitInfoAPI.Common;
@@ -10,6 +11,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("custom-feeds")]
+[Authorize(Roles = "Admin")]
 public class CustomFeedsController : ControllerBase
 {
     private readonly CustomFeedManager _manager;

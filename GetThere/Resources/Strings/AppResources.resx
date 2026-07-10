@@ -94,6 +94,7 @@
   <data name="Login_InvalidEmail" xml:space="preserve"><value>Please enter a valid email address.</value></data>
   <data name="Login_PasswordTooShort" xml:space="preserve"><value>Password must be at least 8 characters.</value></data>
   <data name="Login_Failed" xml:space="preserve"><value>Login failed.</value></data>
+  <data name="Login_ContinueAsGuest" xml:space="preserve"><value>Continue as Guest</value></data>
 
   <!-- Registration page -->
   <data name="Register_Title" xml:space="preserve"><value>Join GetThere</value></data>
@@ -163,6 +164,10 @@
   <data name="Profile_RegionTitle" xml:space="preserve"><value>Language &amp; Region</value></data>
 
   <!-- Shop page -->
+  <data name="Shop_AccountRequired" xml:space="preserve"><value>Account Required</value></data>
+  <data name="Shop_AccountRequiredDesc" xml:space="preserve"><value>Sign in to purchase tickets.</value></data>
+  <data name="Shop_ComingSoon" xml:space="preserve"><value>Coming Soon</value></data>
+  <data name="Shop_ComingSoonDesc" xml:space="preserve"><value>Ticket purchasing will be available once operator SDK adapters are implemented.</value></data>
   <data name="Shop_Title" xml:space="preserve"><value>Shop</value></data>
   <data name="Shop_AllCountries" xml:space="preserve"><value>All countries</value></data>
   <data name="Shop_NoOperators" xml:space="preserve"><value>No operators available for ticket purchase.</value></data>
@@ -180,6 +185,10 @@
   <data name="TicketPurchase_SubtitleBajs" xml:space="preserve"><value>Buy tickets for city bikes</value></data>
 
   <!-- Tickets page -->
+  <data name="Tickets_AccountRequired" xml:space="preserve"><value>Account Required</value></data>
+  <data name="Tickets_AccountRequiredDesc" xml:space="preserve"><value>Sign in to view your tickets.</value></data>
+  <data name="Tickets_ComingSoon" xml:space="preserve"><value>Coming Soon</value></data>
+  <data name="Tickets_ComingSoonDesc" xml:space="preserve"><value>Your purchased tickets will appear here once the ticketing SDK is integrated.</value></data>
   <data name="Tickets_Title" xml:space="preserve"><value>My Tickets</value></data>
   <data name="Tickets_Active" xml:space="preserve"><value>Active</value></data>
   <data name="Tickets_Expired" xml:space="preserve"><value>Expired</value></data>

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -135,6 +136,7 @@ public class RoutesController : ControllerBase
         });
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}/shape")]
     public async Task<ActionResult> UpdateShape(int id, [FromBody] GeoJsonLineStringGeometry body, CancellationToken ct = default)
     {

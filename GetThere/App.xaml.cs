@@ -28,6 +28,9 @@ namespace GetThere;
                     return new Window(new AppShell());
             }
 
+            if (AuthService.IsGuest())
+                return new Window(new AppShell());
+
             return new Window(new LoginShell());
         }
 

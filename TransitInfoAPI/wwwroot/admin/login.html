@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin Login</title>
+<link rel="stylesheet" href="style.css">
+<style>
+body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5; }
+.login-box { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); width: 340px; }
+.login-box h1 { margin-bottom: 24px; font-size: 1.5rem; text-align: center; }
+.login-box label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; }
+.login-box input { width: 100%; padding: 10px; margin-bottom: 16px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
+.login-box button { width: 100%; padding: 12px; background: #1f78b4; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+.login-box button:hover { background: #155a8a; }
+.login-box .error { color: #dc3545; margin-bottom: 12px; font-size: 0.85rem; display: none; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <h1>TransitInfo Admin</h1>
+  <div class="error" id="loginError">Invalid credentials.</div>
+  <form id="loginForm">
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  var errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  try {
+    var resp = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: document.getElementById('username').value, password: document.getElementById('password').value })
+    });
+    if (!resp.ok) { errEl.style.display = 'block'; return; }
+    var data = await resp.json();
+    sessionStorage.setItem('auth_token', data.accessToken);
+    var redirect = sessionStorage.getItem('redirect_after_login') || '/admin/';
+    sessionStorage.removeItem('redirect_after_login');
+    window.location.href = redirect;
+  } catch (ex) {
+    errEl.textContent = 'Network error.';
+    errEl.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>

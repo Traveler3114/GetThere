@@ -224,6 +224,7 @@ public partial class ProfilePage : ContentPage
     {
         if (await DisplayAlertAsync(LocalizationService.Instance["Profile_SignOut"], LocalizationService.Instance["Profile_SignOutConfirm"], LocalizationService.Instance["App_Yes"], LocalizationService.Instance["App_No"]))
         {
+            AuthService.ClearGuest();
             await _authService.Logout();
             App.GoToLogin();
         }
