@@ -12,9 +12,9 @@ public partial class MapPage : ContentPage
     private static string GetTransitMapUrl()
     {
 #if ANDROID
-        return "http://10.0.2.2:5000/map/";
+        return "http://10.0.2.2:5000/map/public.html";
 #else
-        return "http://localhost:5000/map/";
+        return "http://localhost:5000/map/public.html";
 #endif
     }
 

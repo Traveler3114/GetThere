@@ -341,8 +341,23 @@ public class CustomFeedDirectImporter
             var centerLat = stops.Count > 0 ? stops.Average(static s => s.Lat) : 0;
             var centerLon = stops.Count > 0 ? stops.Average(static s => s.Lon) : 0;
 
-            var routes = GetTableRecords(tableRecords, "routes") is { } routeRecs
+            var existingRoutes = await _db.CanonicalRoutes
+                .Where(cr => cr.OperatorId == feed.OperatorId)
+                .ToListAsync(ct);
+            var existingByOnestopId = new Dictionary<string, CanonicalRoute>(
+                existingRoutes.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var er in existingRoutes)
+                existingByOnestopId[er.OnestopId] = er;
+
+            var allRoutes = GetTableRecords(tableRecords, "routes") is { } routeRecs
                 ? MapRoutes(routeRecs, centerLat, centerLon) : [];
+
+            var newRoutes = allRoutes.Where(r => !existingByOnestopId.ContainsKey(r.OnestopId)).ToList();
+
+            var routeRecordsForLookup = GetTableRecords(tableRecords, "routes") ?? [];
+
+            foreach (var route in newRoutes)
+                route.OperatorId = feed.OperatorId;
 
             var trips = GetTableRecords(tableRecords, "trips") is { } tripRecs
                 ? MapTrips(tripRecs) : [];
@@ -359,18 +374,6 @@ public class CustomFeedDirectImporter
                     trips,
                     GetTableRecords(tableRecords, "stop_times") ?? [],
                     stops);
-
-            var routeRecordsForLookup = GetTableRecords(tableRecords, "routes") ?? [];
-            var routeIdToRoute = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (rec, route) in routeRecordsForLookup.Zip(routes))
-            {
-                var routeId = GetString(rec, "route_id");
-                if (routeId is not null)
-                    routeIdToRoute[routeId] = route;
-            }
-
-            foreach (var route in routes)
-                route.OperatorId = feed.OperatorId;
 
             var stopsWithRouteType = DeriveStopRouteTypes(
                 stops,
@@ -403,17 +406,17 @@ public class CustomFeedDirectImporter
             foreach (var w in validation.Warnings)
                 _logger.LogWarning("CustomFeed {CustomFeedId}: {Warning}", customFeed.Id, w);
 
-            if (ShouldAbortCutover(activeVersion, stops, routes))
+            if (ShouldAbortCutover(activeVersion, stops, allRoutes))
             {
                 _logger.LogError(
                     "CustomFeed {CustomFeedId}: cutover aborted — new version has {StopCount} stops " +
                     "(previous active had {PrevStopCount}) and {RouteCount} routes (previous had {PrevRouteCount})",
                     customFeed.Id, stops.Count, activeVersion?.StopCount ?? 0,
-                    routes.Count, activeVersion?.RouteCount ?? 0);
+                    allRoutes.Count, activeVersion?.RouteCount ?? 0);
                 version.ImportStatus = FeedImportStatus.Failed;
                 version.ImportError =
                     $"Cutover aborted: stop count {stops.Count} vs previous {activeVersion?.StopCount ?? 0}, " +
-                    $"route count {routes.Count} vs previous {activeVersion?.RouteCount ?? 0}";
+                    $"route count {allRoutes.Count} vs previous {activeVersion?.RouteCount ?? 0}";
                 await _db.SaveChangesAsync(ct);
                 return;
             }
@@ -429,12 +432,35 @@ public class CustomFeedDirectImporter
             try
             {
                 _db.RawStops.AddRange(stops);
-                _db.CanonicalRoutes.AddRange(routes);
+                _db.CanonicalRoutes.AddRange(newRoutes);
                 _db.Trips.AddRange(trips);
                 _db.Calendars.AddRange(calendar);
                 _db.CalendarDates.AddRange(calendarDates);
                 _db.Agencies.AddRange(agency);
                 await _db.SaveChangesAsync(ct);
+
+                var allRoutesByOnestopId = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
+                foreach (var er in existingRoutes)
+                    allRoutesByOnestopId[er.OnestopId] = er;
+                foreach (var nr in newRoutes)
+                    allRoutesByOnestopId[nr.OnestopId] = nr;
+
+                var routeIdToRoute = new Dictionary<string, CanonicalRoute>(StringComparer.OrdinalIgnoreCase);
+                foreach (var rec in routeRecordsForLookup)
+                {
+                    var routeId = GetString(rec, "route_id");
+                    if (routeId is null) continue;
+                    var shortName = GetString(rec, "route_short_name") ?? string.Empty;
+                    var longName = GetString(rec, "route_long_name") ?? string.Empty;
+                    var routeName = shortName;
+                    if (string.IsNullOrEmpty(routeName)) routeName = longName;
+                    if (string.IsNullOrEmpty(routeName)) routeName = routeId;
+                    if (string.IsNullOrEmpty(routeName)) routeName = "unknown";
+                    var onestopId = _onestopId.GenerateRouteOnestopId(centerLat, centerLon, routeName);
+
+                    if (allRoutesByOnestopId.TryGetValue(onestopId, out var route))
+                        routeIdToRoute[routeId] = route;
+                }
 
                 foreach (var trip in trips)
                 {
@@ -458,10 +484,10 @@ public class CustomFeedDirectImporter
                 _db.StopTimes.AddRange(stopTimes);
                 await _db.SaveChangesAsync(ct);
 
-                BackfillRouteGeometries(trips, shapes, routes);
+                BackfillRouteGeometries(trips, shapes, allRoutes);
 
                 version.StopCount = stops.Count;
-                version.RouteCount = routes.Count;
+                version.RouteCount = allRoutes.Count;
                 version.TripCount = trips.Count;
                 version.AgencyCount = agency.Count;
 
@@ -481,7 +507,7 @@ public class CustomFeedDirectImporter
                 _logger.LogInformation(
                     "CustomFeed {CustomFeedId}: import complete — version {VersionId} active " +
                     "({RouteCount} routes, {StopCount} stops, {TripCount} trips)",
-                    customFeed.Id, feedVersionId, routes.Count, stops.Count, trips.Count);
+                    customFeed.Id, feedVersionId, allRoutes.Count, stops.Count, trips.Count);
 
                 await PruneOldVersionsAsync(feed.Id, ct);
             }
