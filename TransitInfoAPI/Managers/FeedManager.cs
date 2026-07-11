@@ -384,6 +384,10 @@ public class FeedManager
 
                     archive.Dispose();
 
+                    _logStore.AddEntry(feedVersionId, "Reconciling stations...");
+                    await ReconcileAndBackfillAsync(feedVersionId, version, ct);
+                    _logStore.AddEntry(feedVersionId, "Reconciliation complete");
+
                     await FinalizeVersionPhaseAsync(feedVersionId, version, parsed.OperatorId, parsed.Routes, parsed.RawStops, parsed.Trips, parsed.Calendar, parsed.CalendarDates, parsed.Agencies, tempZipPath, sqlTx, ct);
                 }
                 finally
@@ -398,20 +402,6 @@ public class FeedManager
                 throw;
             }
 
-            // Clear the committed transaction from the context so subsequent
-            // SaveChangesAsync calls (reconciliation, place matching) don't try to
-            // create savepoints on an already-committed transaction.
-            _db.Database.UseTransaction(null);
-
-            try
-            {
-                await ReconcileAndBackfillAsync(feedVersionId, version, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Reconciliation failed after successful import for FeedVersion {VersionId}", feedVersionId);
-                _logStore.AddEntry(feedVersionId, $"Reconciliation failed (non-fatal): {ex.Message}");
-            }
             try
             {
                 await MatchPlacesAsync(ct);
