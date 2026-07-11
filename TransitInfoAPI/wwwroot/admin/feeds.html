@@ -88,8 +88,7 @@ async function checkFeedHealth() {
     const results = await Promise.all(batch.map(async feed => {
       try {
         const r = await fetch(BASE + '/feeds/' + feed.id + '/versions');
-        const j = await r.json();
-        const versions = j.data || [];
+        const versions = await r.json();
         const latest = versions[0];
         if (feed.feedType !== 'GTFSStatic') return null;
         if (!latest) return feed;
@@ -158,8 +157,7 @@ async function expandVersions(feedId, btn) {
   row.insertAdjacentHTML('afterend', html);
   try {
     const r = await fetch(BASE + '/feeds/' + feedId + '/versions');
-    const j = await r.json();
-    const versions = j.data || [];
+    const versions = await r.json();
     const vHtml = versions.length ? '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>SHA1</th><th>Status</th><th>Active</th><th>Fetched</th><th>Service</th><th>Stops</th><th>Routes</th><th>Trips</th></tr></thead><tbody>' + versions.map(v => `<tr>
       <td><code class="small">${esc(v.sha1.substring(0, 16))}...</code></td>
       <td>${statusBadge(v.importStatus)}</td>
@@ -263,17 +261,15 @@ async function fetchFeed(id) {
 
   // Before starting, check what versions already exist
   try {
-    const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
-    const vj = await vr.json();
-    const existingVersions = vj.data || [];
-    if (existingVersions.length > 0) knownFirstVersionId = existingVersions[0].id;
+      const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+      const existingVersions = await vr.json();
+      knownFirstVersionId = existingVersions.length > 0 ? existingVersions[0].id : null;
   } catch(e) {}
 
   pollTimer = setInterval(async () => {
     try {
       const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
-      const vj = await vr.json();
-      const versions = vj.data || [];
+      const versions = await vr.json();
       if (versions.length > 0) {
         const latest = versions[0];
         if (latest.id !== knownFirstVersionId || (latest.importStatus === 'Importing' || latest.importStatus === 'Pending')) {
@@ -286,8 +282,7 @@ async function fetchFeed(id) {
           logPollTimer = setInterval(async () => {
             try {
               const lr = await fetch(BASE + '/feeds/versions/' + versionId + '/logs');
-              const lj = await lr.json();
-              const logs = lj.data || [];
+              const logs = await lr.json();
               // Only append new entries
               const currentCount = logContent.children.length;
               for (let i = currentCount; i < logs.length; i++) {
@@ -313,10 +308,9 @@ async function fetchFeed(id) {
   // If we never discovered the version ID, try one more time now
   if (!versionId) {
     try {
-      const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
-      const vj = await vr.json();
-      const versions = vj.data || [];
-      if (versions.length > 0) versionId = versions[0].id;
+    const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+    const versions = await vr.json();
+    if (versions.length > 0) versionId = versions[0].id;
     } catch(e) {}
   }
 
@@ -324,8 +318,7 @@ async function fetchFeed(id) {
   if (versionId) {
     try {
       const lr = await fetch(BASE + '/feeds/versions/' + versionId + '/logs');
-      const lj = await lr.json();
-      const logs = lj.data || [];
+      const logs = await lr.json();
       const currentCount = logContent.children.length;
       for (let i = currentCount; i < logs.length; i++) appendLog(logs[i]);
     } catch(e) {}

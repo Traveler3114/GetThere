@@ -231,35 +231,11 @@ public class FeedManager
             string? remoteLastModified = null;
             string? remoteETag = null;
 
-            // HEAD optimization only for external feeds
-            if (!string.IsNullOrWhiteSpace(feed.Url) && !feed.IsInternal)
-            {
-                try
-                {
-                    var http = _httpFactory.CreateClient("gtfs");
-                    var head = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, feed.Url), ct);
-                    remoteLastModified = head.Content.Headers.LastModified?.ToString();
-                    remoteETag = head.Headers.ETag?.Tag;
-                    if (remoteLastModified is not null || remoteETag is not null)
-                    {
-                        var match = await _db.FeedVersions
-                            .Where(fv => fv.FeedId == feedId && fv.LastModified != null && fv.ETag != null)
-                            .OrderByDescending(fv => fv.FetchedAt)
-                            .FirstOrDefaultAsync(ct);
-                        if (match is not null
-                            && match.LastModified?.ToString() == remoteLastModified
-                            && match.ETag == remoteETag)
-                        {
-                            _logger.LogInformation("Feed {FeedId} unchanged (ETag/LastModified match), skipping", feed.FeedId);
-                            return match;
-                        }
-                    }
-                }
-                catch
-                {
-                    // HEAD not supported — fall through to fetch
-                }
-            }
+            // Removed: HEAD/ETag pre-check. It matched against any past FeedVersion (including
+            // inactive/failed ones) and short-circuited real re-imports whenever an upstream
+            // server returned a stale or unstable ETag/Last-Modified. The SHA1 check below,
+            // done on full downloaded content, is the reliable "unchanged" signal — no need
+            // for a second, less trustworthy one.
 
             var source = _feedSourceFactory.Resolve(feed);
             var result = await source.FetchDataAsync(feed, ct);
@@ -459,6 +435,20 @@ public class FeedManager
         {
             var feed = await _db.Feeds.FindAsync([feedId], ct);
             if (feed is null) throw new InvalidOperationException("Feed not found.");
+
+            if (feed.IsInternal || feed.CustomFeedId is not null)
+            {
+                // Custom feeds fetch + import themselves via CustomFeedSource ->
+                // CustomFeedDirectImporter. CheckAndFetchAsync returning null here just
+                // means that already ran (no-op if unchanged, or already imported+activated).
+                // There is no zip on disk for these — do NOT fall into the zip pipeline below.
+                var active = await GetActiveFeedVersionAsync(feedId, ct);
+                if (active is not null) return active;
+
+                throw new Exceptions.AppException(
+                    "Custom feed ran but produced no active version — check its run history for errors.",
+                    500, "CustomFeedNoActiveVersion");
+            }
 
             var zipPath = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId, "gtfs.zip");
             var sha1 = $"{feed.FeedId}-manual-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():n}";

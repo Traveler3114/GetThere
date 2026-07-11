@@ -191,8 +191,8 @@ async function toggleDetail(row, onestopId) {
         fetch(BASE + '/stations/' + station.id + '/operators').then(r=>r.json()),
         fetch(BASE + '/stations/' + station.id + '/departures').then(r=>r.json())
       ]);
-      const operators = oR.data || [];
-      const departures = dR.data || [];
+      const operators = oR || [];
+      const departures = dR || [];
       const oHtml = operators.length ? '<h6>Operators</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>' + operators.map(op => `<tr><td>${esc(op.name)}</td><td>${esc(op.operatorType)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No operators at this station.</p>';
       const dHtml = departures.length ? '<h6>Departures</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Route</th><th>Headsign</th><th>Scheduled</th><th>Estimated</th><th>Delay</th></tr></thead><tbody>' + departures.map(dp => {
         const delay = dp.delaySeconds != null ? (dp.delaySeconds > 0 ? '<span class="text-danger">+' + Math.round(dp.delaySeconds/60) + 'm</span>' : '<span class="text-success">On time</span>') : '-';

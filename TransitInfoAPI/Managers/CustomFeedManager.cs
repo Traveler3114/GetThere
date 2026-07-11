@@ -269,7 +269,14 @@ public class CustomFeedManager
             .FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
 
         if (hiddenFeed is null)
-            throw new AppException($"No hidden feed found for custom feed {customFeedId}", statusCode: 404, errorCode: "NotFound");
+        {
+            _logger.LogWarning("Hidden feed missing for CustomFeed {Id} — recreating", customFeedId);
+            await EnsureHiddenFeedAsync(customFeed, ct);
+            hiddenFeed = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomFeedId == customFeedId, ct);
+
+            if (hiddenFeed is null)
+                throw new AppException($"Could not create hidden feed for custom feed {customFeedId}", statusCode: 500, errorCode: "HiddenFeedCreateFailed");
+        }
 
         var source = _feedSourceFactory.Resolve(hiddenFeed);
         await source.FetchDataAsync(hiddenFeed, ct);

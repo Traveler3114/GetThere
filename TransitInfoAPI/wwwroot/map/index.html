@@ -187,7 +187,7 @@ function loadMapData() {
 
 function loadVehicles() {
   fetch('/realtime/vehicles').then(r => r.json()).then(resp => {
-    const vehicles = resp.data || [];
+    const vehicles = resp || [];
     const fc = {
       type: 'FeatureCollection',
       features: vehicles.map(v => ({
@@ -554,7 +554,7 @@ function showStationDetails(id, props) {
   content.innerHTML = html;
 
   fetch(`/stations/${id}/departures?count=5`).then(r => r.json()).then(resp => {
-    const deps = resp.data || [];
+    const deps = resp || [];
     if (deps.length === 0) {
       document.querySelector('.departures .loading').textContent = 'No upcoming departures';
       return;

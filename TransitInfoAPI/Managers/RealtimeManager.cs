@@ -28,7 +28,11 @@ public class RealtimeManager
 
     private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
 
-    private volatile ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> _tripUpdateCache = new();
+    private record TripUpdateBundle(
+        Dictionary<int, StopTimeUpdateData> BySequence,
+        Dictionary<string, StopTimeUpdateData> ByStopId);
+
+    private volatile ConcurrentDictionary<string, TripUpdateBundle> _tripUpdateCache = new();
 
     public RealtimeManager(
         IHttpClientFactory httpFactory,
@@ -59,7 +63,7 @@ public class RealtimeManager
 
         _logger.LogInformation("Polling {Count} active GTFS-RT feeds", activeRtFeeds.Count);
 
-        ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> allTripUpdates = [];
+        ConcurrentDictionary<string, TripUpdateBundle> allTripUpdates = [];
 
         foreach (var feed in activeRtFeeds)
         {
@@ -106,7 +110,7 @@ public class RealtimeManager
             }
         }
 
-        Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>(allTripUpdates));
+        Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, TripUpdateBundle>(allTripUpdates));
 
         // Vehicle stale cutoff matches realtime poll interval. Move to per-feed config if needed.
         var cutoff = DateTime.UtcNow.AddMinutes(-_vehicleStaleCutoffMinutes);
@@ -117,7 +121,7 @@ public class RealtimeManager
         }
     }
 
-    private async Task<ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>> PollFeedAsync(Feed feed, CancellationToken ct)
+    private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync(Feed feed, CancellationToken ct)
     {
         if (feed.CustomFeedId is not null)
             return await PollCustomFeedAsync(feed, feed.CustomFeedId.Value, ct);
@@ -127,7 +131,7 @@ public class RealtimeManager
 
         var feedMessage = FeedMessage.Parser.ParseFrom(new MemoryStream(result.Data));
 
-        ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> tripUpdates = [];
+        ConcurrentDictionary<string, TripUpdateBundle> tripUpdates = [];
         List<FeedEntity> alerts = [];
 
         foreach (var entity in feedMessage.Entity)
@@ -165,17 +169,29 @@ public class RealtimeManager
                 var tripId = tu.Trip?.TripId;
                 if (string.IsNullOrEmpty(tripId)) continue;
 
-                ConcurrentDictionary<int, StopTimeUpdateData> stopUpdates = [];
+                var bySequence = new Dictionary<int, StopTimeUpdateData>();
+                var byStopId = new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal);
+
                 foreach (var stu in tu.StopTimeUpdate)
                 {
                     var delay = stu.Departure?.Delay ?? stu.Arrival?.Delay;
                     var time = stu.Departure?.Time ?? stu.Arrival?.Time ?? 0;
-                    if (delay.HasValue || time > 0)
-                        stopUpdates[(int)stu.StopSequence] = new StopTimeUpdateData(delay ?? 0, time > 0 ? time : null);
+                    if (!delay.HasValue && time <= 0) continue;
+
+                    var data = new StopTimeUpdateData(delay ?? 0, time > 0 ? time : null);
+
+                    // stop_sequence often defaults to 0 when producers only populate stop_id —
+                    // store both so lookup can prefer the more reliable field (stop_id).
+                    if (stu.StopSequence > 0)
+                        bySequence[(int)stu.StopSequence] = data;
+                    if (!string.IsNullOrEmpty(stu.StopId))
+                        byStopId[stu.StopId] = data;
                 }
 
-                if (stopUpdates.Count > 0)
-                    tripUpdates[tripId] = stopUpdates;
+                if (bySequence.Count > 0 || byStopId.Count > 0)
+                    tripUpdates[tripId] = new TripUpdateBundle(bySequence, byStopId);
+                else
+                    _logger.LogDebug("TripUpdate for trip {TripId} on feed {FeedId} has neither stop_id nor stop_sequence — unmatchable", tripId, feed.FeedId);
             }
 
             if (entity.Alert is not null)
@@ -259,7 +275,7 @@ public class RealtimeManager
         return tripUpdates;
     }
 
-    private async Task<ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>> PollCustomFeedAsync(Feed feed, int customFeedId, CancellationToken ct)
+    private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollCustomFeedAsync(Feed feed, int customFeedId, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
@@ -303,7 +319,7 @@ public class RealtimeManager
             throw;
         }
 
-        ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> tripUpdates = [];
+        ConcurrentDictionary<string, TripUpdateBundle> tripUpdates = [];
 
         foreach (var record in engineResult.Records)
         {
@@ -335,13 +351,16 @@ public class RealtimeManager
             else
             {
                 var tripId = GetString(record, "tripId") ?? GetString(record, "trip_id");
+                var stopId = GetString(record, "stopId") ?? GetString(record, "stop_id");
                 var stopSequence = GetInt(record, "stopSequence") ?? GetInt(record, "stop_sequence");
                 var delaySeconds = GetInt(record, "delaySeconds") ?? GetInt(record, "delay_seconds");
 
-                if (tripId is not null && stopSequence is not null)
+                if (tripId is not null && (stopSequence is not null || stopId is not null))
                 {
-                    var stopUpdates = tripUpdates.GetOrAdd(tripId, _ => []);
-                    stopUpdates[stopSequence.Value] = new StopTimeUpdateData(delaySeconds ?? 0, null);
+                    var bundle = tripUpdates.GetOrAdd(tripId, _ => new TripUpdateBundle([], new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal)));
+                    var data = new StopTimeUpdateData(delaySeconds ?? 0, null);
+                    if (stopSequence is not null) bundle.BySequence[stopSequence.Value] = data;
+                    if (stopId is not null) bundle.ByStopId[stopId] = data;
                 }
             }
         }
@@ -384,16 +403,22 @@ public class RealtimeManager
     }
 
     public (int? DelaySeconds, DateTime? EstimatedDeparture) GetStopDelay(
-        string tripId, int stopSequence, DateTime scheduledDeparture)
+        string tripId, string? rawStopId, int stopSequence, DateTime scheduledDeparture)
     {
-        if (_tripUpdateCache.TryGetValue(tripId, out var stops) &&
-            stops.TryGetValue(stopSequence, out var data))
-        {
-            if (data.EstimatedTimeUnix.HasValue)
-                return (data.DelaySeconds, DateTime.UnixEpoch.AddSeconds(data.EstimatedTimeUnix.Value));
-            return (data.DelaySeconds, scheduledDeparture + TimeSpan.FromSeconds(data.DelaySeconds));
-        }
-        return (null, null);
+        if (!_tripUpdateCache.TryGetValue(tripId, out var bundle))
+            return (null, null);
+
+        StopTimeUpdateData? data = null;
+        if (!string.IsNullOrEmpty(rawStopId) && bundle.ByStopId.TryGetValue(rawStopId, out var byId))
+            data = byId;
+        else if (bundle.BySequence.TryGetValue(stopSequence, out var bySeq))
+            data = bySeq;
+
+        if (data is null) return (null, null);
+
+        return data.EstimatedTimeUnix.HasValue
+            ? (data.DelaySeconds, DateTime.UnixEpoch.AddSeconds(data.EstimatedTimeUnix.Value))
+            : (data.DelaySeconds, scheduledDeparture + TimeSpan.FromSeconds(data.DelaySeconds));
     }
 
     public Task<List<VehicleResponse>> GetVehiclesAsync(
@@ -456,14 +481,16 @@ public class RealtimeManager
         _vehicleCache[key] = vehicle;
     }
 
-    public void UpdateTripUpdate(string tripId, int stopSequence, int? delaySeconds)
+    public void UpdateTripUpdate(string tripId, string? rawStopId, int stopSequence, int? delaySeconds)
     {
         var tripCache = _tripUpdateCache;
-        if (!tripCache.TryGetValue(tripId, out var stops))
+        if (!tripCache.TryGetValue(tripId, out var bundle))
         {
-            stops = new ConcurrentDictionary<int, StopTimeUpdateData>();
-            tripCache[tripId] = stops;
+            bundle = new TripUpdateBundle([], new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal));
+            tripCache[tripId] = bundle;
         }
-        stops[stopSequence] = new StopTimeUpdateData(delaySeconds ?? 0, null);
+        var data = new StopTimeUpdateData(delaySeconds ?? 0, null);
+        bundle.BySequence[stopSequence] = data;
+        if (!string.IsNullOrEmpty(rawStopId)) bundle.ByStopId[rawStopId] = data;
     }
 }

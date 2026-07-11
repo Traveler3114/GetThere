@@ -275,7 +275,10 @@ public class CustomFeedDirectImporter
             .FirstOrDefaultAsync(f => f.CustomFeedId == customFeed.Id, ct);
         if (feed is null)
         {
-            _logger.LogError("No Feed found for CustomFeed {CustomFeedId}", customFeed.Id);
+            _logger.LogError(
+                "No hidden Feed found for CustomFeed {CustomFeedId} — this indicates the hidden feed " +
+                "was deleted or never created. Re-save the custom source in the admin UI to recreate it.",
+                customFeed.Id);
             return;
         }
 

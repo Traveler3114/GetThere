@@ -32,6 +32,7 @@ public class ScheduleManager
             {
                 st.Trip.TripId,
                 st.StopSequence,
+                st.RawStopId,
                 st.Trip.FeedVersionId,
                 st.Trip.ServiceId,
                 st.DepartureTime,
@@ -57,7 +58,7 @@ public class ScheduleManager
                 var departureTime = d.DepartureTime >= 86400
                     ? from.Date.AddDays(1).AddSeconds(d.DepartureTime - 86400)
                     : from.Date.AddSeconds(d.DepartureTime);
-                var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.StopSequence, departureTime);
+                var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.RawStopId, d.StopSequence, departureTime);
                 return new DepartureResponse
                 {
                     TripId = d.TripId,
