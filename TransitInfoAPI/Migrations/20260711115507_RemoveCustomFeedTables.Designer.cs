@@ -13,8 +13,8 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    [Migration("20260626053000_AddCustomFeedTables")]
-    partial class AddCustomFeedTables
+    [Migration("20260711115507_RemoveCustomFeedTables")]
+    partial class RemoveCustomFeedTables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -223,10 +223,6 @@ namespace TransitInfoAPI.Migrations
                     b.Property<Geometry>("Geometry")
                         .HasColumnType("geography");
 
-                    b.Property<string>("GlobalId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -245,6 +241,9 @@ namespace TransitInfoAPI.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("ShapeEdited")
+                        .HasColumnType("bit");
 
                     b.Property<string>("ShortName")
                         .IsRequired()
@@ -291,10 +290,6 @@ namespace TransitInfoAPI.Migrations
 
                     b.Property<Point>("Geometry")
                         .HasColumnType("geography");
-
-                    b.Property<string>("GlobalId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -414,141 +409,6 @@ namespace TransitInfoAPI.Migrations
                     b.ToTable("Countries");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeed", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AuthConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("BaseUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DataPath")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("HttpMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastRunAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("OperatorId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("OutputFormat")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("PaginationConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RefreshIntervalSeconds")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ResponseFormat")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("TargetTable")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperatorId");
-
-                    b.ToTable("CustomFeeds");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedFieldMapping", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CustomFeedId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("MappingKind")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SourceExpression")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TargetField")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomFeedId");
-
-                    b.ToTable("CustomFeedFieldMappings");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedRun", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CustomFeedId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("LogText")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RecordsProduced")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomFeedId");
-
-                    b.ToTable("CustomFeedRuns");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
                 {
                     b.Property<int>("Id")
@@ -560,9 +420,6 @@ namespace TransitInfoAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ExternalUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("FeedId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -572,10 +429,10 @@ namespace TransitInfoAPI.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("InternalUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsInternal")
                         .HasColumnType("bit");
 
                     b.Property<bool?>("LicenseCommercialUseAllowed")
@@ -603,12 +460,10 @@ namespace TransitInfoAPI.Migrations
                     b.Property<int>("RefreshIntervalSeconds")
                         .HasColumnType("int");
 
-                    b.Property<string>("SourceType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("SupersedesIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Url")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
@@ -692,52 +547,6 @@ namespace TransitInfoAPI.Migrations
                     b.ToTable("FeedVersions");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.MobilityProvider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ApiKey")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ConverterConfig")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ExternalUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("FeedFormat")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("InternalUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("OperatorId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperatorId");
-
-                    b.ToTable("MobilityProviders");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.MobilityStation", b =>
                 {
                     b.Property<int>("Id")
@@ -749,10 +558,7 @@ namespace TransitInfoAPI.Migrations
                     b.Property<int>("AvailableVehicles")
                         .HasColumnType("int");
 
-                    b.Property<int>("Capacity")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CityId")
+                    b.Property<int?>("Capacity")
                         .HasColumnType("int");
 
                     b.Property<int>("CountryId")
@@ -767,12 +573,12 @@ namespace TransitInfoAPI.Migrations
                     b.Property<double>("Longitude")
                         .HasColumnType("float");
 
-                    b.Property<int>("MobilityProviderId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OperatorId")
+                        .HasColumnType("int");
 
                     b.Property<string>("StationId")
                         .IsRequired()
@@ -780,11 +586,9 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CityId");
-
                     b.HasIndex("CountryId");
 
-                    b.HasIndex("MobilityProviderId");
+                    b.HasIndex("OperatorId");
 
                     b.ToTable("MobilityStations");
                 });
@@ -1061,6 +865,9 @@ namespace TransitInfoAPI.Migrations
                         .IsRequired()
                         .HasColumnType("geography");
 
+                    b.Property<bool>("IsManuallyEdited")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ShapeId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1208,11 +1015,15 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CanonicalStationId");
-
                     b.HasIndex("RawStopEntityId");
 
+                    b.HasIndex("RawStopId");
+
                     b.HasIndex("TripId");
+
+                    b.HasIndex("CanonicalStationId", "DepartureTime");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CanonicalStationId", "DepartureTime"), new[] { "TripId" });
 
                     b.ToTable("StopTimes");
                 });
@@ -1388,39 +1199,6 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("Country");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeed", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
-                        .WithMany()
-                        .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Operator");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedFieldMapping", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.CustomFeed", "CustomFeed")
-                        .WithMany("FieldMappings")
-                        .HasForeignKey("CustomFeedId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CustomFeed");
-                });
-
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeedRun", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.CustomFeed", "CustomFeed")
-                        .WithMany("Runs")
-                        .HasForeignKey("CustomFeedId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CustomFeed");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
                 {
                     b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
@@ -1443,41 +1221,23 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("Feed");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.MobilityProvider", b =>
-                {
-                    b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
-                        .WithMany("MobilityProviders")
-                        .HasForeignKey("OperatorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Operator");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.MobilityStation", b =>
                 {
-                    b.HasOne("TransitInfoAPI.Entities.City", "City")
-                        .WithMany()
-                        .HasForeignKey("CityId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("TransitInfoAPI.Entities.Country", "Country")
                         .WithMany("MobilityStations")
                         .HasForeignKey("CountryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("TransitInfoAPI.Entities.MobilityProvider", "MobilityProvider")
+                    b.HasOne("TransitInfoAPI.Entities.Operator", "Operator")
                         .WithMany()
-                        .HasForeignKey("MobilityProviderId")
+                        .HasForeignKey("OperatorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("City");
-
                     b.Navigation("Country");
 
-                    b.Navigation("MobilityProvider");
+                    b.Navigation("Operator");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.RawStop", b =>
@@ -1624,13 +1384,6 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("MobilityStations");
                 });
 
-            modelBuilder.Entity("TransitInfoAPI.Entities.CustomFeed", b =>
-                {
-                    b.Navigation("FieldMappings");
-
-                    b.Navigation("Runs");
-                });
-
             modelBuilder.Entity("TransitInfoAPI.Entities.Feed", b =>
                 {
                     b.Navigation("FeedVersions");
@@ -1648,8 +1401,6 @@ namespace TransitInfoAPI.Migrations
                     b.Navigation("Agencies");
 
                     b.Navigation("Feeds");
-
-                    b.Navigation("MobilityProviders");
 
                     b.Navigation("Routes");
 

@@ -19,9 +19,9 @@ public class MobilityPollingWorker : BackgroundService
     private readonly ILogger<MobilityPollingWorker> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<MobilityPollingOptions> _options;
-    private readonly FeedSourceFactory _feedSourceFactory;
+    private readonly ExternalFeedSource _externalFeedSource;
 
-    public MobilityPollingWorker(ILogger<MobilityPollingWorker> logger, IServiceScopeFactory scopeFactory, IOptionsMonitor<MobilityPollingOptions> options, FeedSourceFactory feedSourceFactory) { _logger = logger; _scopeFactory = scopeFactory; _options = options; _feedSourceFactory = feedSourceFactory; }
+    public MobilityPollingWorker(ILogger<MobilityPollingWorker> logger, IServiceScopeFactory scopeFactory, IOptionsMonitor<MobilityPollingOptions> options, ExternalFeedSource externalFeedSource) { _logger = logger; _scopeFactory = scopeFactory; _options = options; _externalFeedSource = externalFeedSource; }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -52,25 +52,13 @@ public class MobilityPollingWorker : BackgroundService
         {
             var db = scope.ServiceProvider.GetRequiredService<Data.TransitDbContext>();
             gbfsFeeds = await db.Feeds
-                .Where(f => f.IsActive && f.FeedType == FeedType.GBFS && f.CustomFeedId != null)
-                .Join(db.CustomFeeds, f => f.CustomFeedId, cf => cf.Id, (f, cf) => new FeedEntry
-                {
-                    Feed = f,
-                    OperatorId = cf.OperatorId
-                })
-                .ToListAsync(ct);
-
-            // Also include official GBFS feeds that have a URL
-            var officialFeeds = await db.Feeds
-                .Where(f => f.IsActive && f.FeedType == FeedType.GBFS && f.Url != null && f.CustomFeedId == null)
+                .Where(f => f.IsActive && f.FeedType == FeedType.GBFS && f.Url != null)
                 .Select(f => new FeedEntry
                 {
                     Feed = f,
                     OperatorId = f.OperatorId
                 })
                 .ToListAsync(ct);
-
-            gbfsFeeds.AddRange(officialFeeds);
         }
 
         if (gbfsFeeds.Count > 0)
@@ -81,10 +69,9 @@ public class MobilityPollingWorker : BackgroundService
             {
                 try
                 {
-                    var source = _feedSourceFactory.Resolve(entry.Feed!);
-                    var result = await source.FetchDataAsync(entry.Feed!, ct);
+                    var result = await _externalFeedSource.FetchDataAsync(entry.Feed!, ct);
 
-                    if (result.Data.Length > 0 && entry.Feed!.CustomFeedId is null)
+                    if (result.Data.Length > 0)
                     {
                         using var scope = _scopeFactory.CreateScope();
                         var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();

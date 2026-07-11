@@ -9,6 +9,7 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Workers;
+using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Managers;
 
@@ -17,7 +18,7 @@ public class RealtimeManager
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly Services.FeedSourceFactory _feedSourceFactory;
+    private readonly ExternalFeedSource _externalFeedSource;
     private readonly int _vehicleStaleCutoffMinutes;
     private readonly int _maxFailuresBeforeDeactivate;
     // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
@@ -38,13 +39,13 @@ public class RealtimeManager
         IHttpClientFactory httpFactory,
         ILogger<RealtimeManager> logger,
         IServiceScopeFactory scopeFactory,
-        Services.FeedSourceFactory feedSourceFactory,
+        ExternalFeedSource externalFeedSource,
         Microsoft.Extensions.Options.IOptions<RealtimePollingOptions> options)
     {
         _httpFactory = httpFactory;
         _logger = logger;
         _scopeFactory = scopeFactory;
-        _feedSourceFactory = feedSourceFactory;
+        _externalFeedSource = externalFeedSource;
         _vehicleStaleCutoffMinutes = options.Value.VehicleStaleCutoffMinutes;
         _maxFailuresBeforeDeactivate = options.Value.MaxConsecutiveFailuresBeforeDeactivate;
     }
@@ -56,8 +57,7 @@ public class RealtimeManager
         {
             var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
             activeRtFeeds = await db.Feeds
-                .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime)
-                .Where(f => f.Url != null || f.CustomFeedId != null)
+                .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime && f.Url != null)
                 .ToListAsync(ct);
         }
 
@@ -123,11 +123,7 @@ public class RealtimeManager
 
     private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync(Feed feed, CancellationToken ct)
     {
-        if (feed.CustomFeedId is not null)
-            return await PollCustomFeedAsync(feed, feed.CustomFeedId.Value, ct);
-
-        var source = _feedSourceFactory.Resolve(feed);
-        var result = await source.FetchDataAsync(feed, ct);
+        var result = await _externalFeedSource.FetchDataAsync(feed, ct);
 
         var feedMessage = FeedMessage.Parser.ParseFrom(new MemoryStream(result.Data));
 
@@ -273,133 +269,6 @@ public class RealtimeManager
         }
 
         return tripUpdates;
-    }
-
-    private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollCustomFeedAsync(Feed feed, int customFeedId, CancellationToken ct)
-    {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
-        var engine = scope.ServiceProvider.GetRequiredService<CustomFeedEngine>();
-
-        var customFeed = await db.CustomFeeds
-            .Include(f => f.FieldMappings)
-            .Include(f => f.TableConfigs)
-                .ThenInclude(t => t.FieldMappings)
-            .FirstOrDefaultAsync(f => f.Id == customFeedId, ct);
-
-        if (customFeed is null)
-        {
-            _logger.LogWarning("CustomFeed {CustomFeedId} not found for feed {FeedId}", customFeedId, feed.FeedId);
-            return [];
-        }
-
-        var run = new CustomFeedRun
-        {
-            CustomFeedId = customFeed.Id,
-            StartedAt = DateTime.UtcNow,
-            Status = CustomFeedRunStatus.Running,
-            RecordsProduced = 0,
-            LogText = string.Empty
-        };
-        db.CustomFeedRuns.Add(run);
-        await db.SaveChangesAsync(ct);
-
-        CustomFeedRunResult engineResult;
-        try
-        {
-            engineResult = await engine.ExecuteAsync(customFeed, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Custom feed {CustomFeedId} engine execution failed", customFeed.Id);
-            run.Status = CustomFeedRunStatus.Failed;
-            run.CompletedAt = DateTime.UtcNow;
-            run.LogText = $"Exception: {ex.Message}\n{ex.StackTrace}";
-            await db.SaveChangesAsync(ct);
-            throw;
-        }
-
-        ConcurrentDictionary<string, TripUpdateBundle> tripUpdates = [];
-
-        foreach (var record in engineResult.Records)
-        {
-            var vehicleId = GetString(record, "vehicleId") ?? GetString(record, "vehicle_id");
-            var lat = GetDouble(record, "latitude") ?? GetDouble(record, "lat");
-            var lng = GetDouble(record, "longitude") ?? GetDouble(record, "lng") ?? GetDouble(record, "lon");
-
-            if (vehicleId is not null && lat is not null && lng is not null)
-            {
-                var routeId = GetString(record, "routeId") ?? GetString(record, "route_id");
-                var tripId = GetString(record, "tripId") ?? GetString(record, "trip_id");
-                var bearing = GetDouble(record, "bearing");
-
-                _vehicleCache[$"{feed.Id}:{vehicleId}"] = new VehicleResponse
-                {
-                    VehicleId = vehicleId,
-                    FeedId = feed.FeedId,
-                    RouteId = routeId,
-                    TripId = tripId,
-                    RouteShortName = null,
-                    IsRealtime = true,
-                    BlockId = null,
-                    Latitude = lat.Value,
-                    Longitude = lng.Value,
-                    Bearing = bearing,
-                    LastUpdated = DateTime.UtcNow
-                };
-            }
-            else
-            {
-                var tripId = GetString(record, "tripId") ?? GetString(record, "trip_id");
-                var stopId = GetString(record, "stopId") ?? GetString(record, "stop_id");
-                var stopSequence = GetInt(record, "stopSequence") ?? GetInt(record, "stop_sequence");
-                var delaySeconds = GetInt(record, "delaySeconds") ?? GetInt(record, "delay_seconds");
-
-                if (tripId is not null && (stopSequence is not null || stopId is not null))
-                {
-                    var bundle = tripUpdates.GetOrAdd(tripId, _ => new TripUpdateBundle([], new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal)));
-                    var data = new StopTimeUpdateData(delaySeconds ?? 0, null);
-                    if (stopSequence is not null) bundle.BySequence[stopSequence.Value] = data;
-                    if (stopId is not null) bundle.ByStopId[stopId] = data;
-                }
-            }
-        }
-
-        run.Status = CustomFeedRunStatus.Success;
-        run.CompletedAt = DateTime.UtcNow;
-        run.RecordsProduced = engineResult.RecordCount;
-        run.LogText = string.Join("\n", engineResult.LogLines);
-        customFeed.LastRunAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Custom RT feed {CustomFeedId}: {Count} records processed", customFeed.Id, engineResult.RecordCount);
-
-        return tripUpdates;
-    }
-
-    private static string? GetString(Dictionary<string, object?> dict, string key)
-    {
-        return dict.TryGetValue(key, out var v) ? v?.ToString() : null;
-    }
-
-    private static double? GetDouble(Dictionary<string, object?> dict, string key)
-    {
-        if (!dict.TryGetValue(key, out var v) || v is null) return null;
-        if (v is double d) return d;
-        if (v is int i) return i;
-        if (v is long l) return l;
-        if (v is decimal m) return (double)m;
-        if (double.TryParse(v.ToString(), out var parsed)) return parsed;
-        return null;
-    }
-
-    private static int? GetInt(Dictionary<string, object?> dict, string key)
-    {
-        if (!dict.TryGetValue(key, out var v) || v is null) return null;
-        if (v is int i) return i;
-        if (v is long l) return (int)l;
-        if (int.TryParse(v.ToString(), out var parsed)) return parsed;
-        return null;
     }
 
     public (int? DelaySeconds, DateTime? EstimatedDeparture) GetStopDelay(

@@ -25,8 +25,5 @@ public class Feed
     public int OperatorId { get; set; }
     public Operator Operator { get; set; } = null!;
 
-    public int? CustomFeedId { get; set; }
-    public CustomFeed? CustomFeed { get; set; }
-
     public ICollection<FeedVersion> FeedVersions { get; set; } = [];
 }

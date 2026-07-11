@@ -12,11 +12,6 @@ public class TransitDbContext : DbContext
     public DbSet<Country> Countries { get; set; }
     public DbSet<City> Cities { get; set; }
     public DbSet<Operator> Operators { get; set; }
-    public DbSet<CustomFeed> CustomFeeds { get; set; }
-    public DbSet<CustomFeedFieldMapping> CustomFeedFieldMappings { get; set; }
-    public DbSet<CustomFeedRun> CustomFeedRuns { get; set; }
-    public DbSet<CustomFeedTableConfig> CustomFeedTableConfigs { get; set; }
-    public DbSet<CustomFeedTableFieldMapping> CustomFeedTableFieldMappings { get; set; }
     public DbSet<Feed> Feeds { get; set; }
     public DbSet<FeedVersion> FeedVersions { get; set; }
     public DbSet<Agency> Agencies { get; set; }
@@ -183,51 +178,5 @@ public class TransitDbContext : DbContext
             .HasIndex(ms => ms.OperatorId);
         modelBuilder.Entity<City>()
             .HasIndex(c => c.CountryId);
-
-        // Custom Feed tables
-        modelBuilder.Entity<CustomFeed>(entity =>
-        {
-            entity.HasIndex(e => e.OperatorId);
-        });
-        modelBuilder.Entity<Feed>(entity =>
-        {
-            entity.HasOne(e => e.CustomFeed)
-                .WithMany()
-                .HasForeignKey(e => e.CustomFeedId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-        modelBuilder.Entity<CustomFeedFieldMapping>(entity =>
-        {
-            entity.HasIndex(e => e.CustomFeedId);
-            entity.HasOne(e => e.CustomFeed)
-                .WithMany(e => e.FieldMappings)
-                .HasForeignKey(e => e.CustomFeedId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-        modelBuilder.Entity<CustomFeedRun>(entity =>
-        {
-            entity.HasIndex(e => e.CustomFeedId);
-            entity.Property(e => e.LogText).HasColumnType("nvarchar(max)");
-            entity.HasOne(e => e.CustomFeed)
-                .WithMany(e => e.Runs)
-                .HasForeignKey(e => e.CustomFeedId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-        modelBuilder.Entity<CustomFeedTableConfig>(entity =>
-        {
-            entity.HasIndex(e => e.CustomFeedId);
-            entity.HasOne(e => e.CustomFeed)
-                .WithMany(e => e.TableConfigs)
-                .HasForeignKey(e => e.CustomFeedId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-        modelBuilder.Entity<CustomFeedTableFieldMapping>(entity =>
-        {
-            entity.HasIndex(e => e.CustomFeedTableConfigId);
-            entity.HasOne(e => e.CustomFeedTableConfig)
-                .WithMany(e => e.FieldMappings)
-                .HasForeignKey(e => e.CustomFeedTableConfigId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
     }
 }

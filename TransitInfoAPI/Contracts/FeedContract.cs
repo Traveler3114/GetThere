@@ -13,7 +13,6 @@ public class FeedResponse
     [JsonPropertyName("externalUrl")] public string? Url { get; set; }
     public bool IsActive { get; set; }
     public bool IsInternal { get; set; }
-    public int? CustomFeedId { get; set; }
     public int RefreshIntervalSeconds { get; set; }
     public string? OperatorName { get; set; }
     public string? LicenseName { get; set; }
