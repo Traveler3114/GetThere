@@ -46,6 +46,7 @@ builder.Services.AddScoped<StationManager>();
 builder.Services.AddScoped<RouteManager>();
 builder.Services.AddScoped<OperatorManager>();
 builder.Services.AddScoped<FeedManager>();
+builder.Services.AddScoped<CountryManager>();
 builder.Services.AddSingleton<TransitInfoAPI.Services.ImportLogStore>();
 builder.Services.AddSingleton<RealtimeManager>();
 
