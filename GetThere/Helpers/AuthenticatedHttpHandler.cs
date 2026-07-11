@@ -11,10 +11,7 @@ public class AuthenticatedHttpHandler : DelegatingHandler
     private readonly AuthService _authService;
     private static readonly HttpRequestOptionsKey<bool> AlreadyRetriedAfterRefreshKey = new("AlreadyRetriedAfterRefresh");
 
-    public AuthenticatedHttpHandler(AuthService authService)
-    {
-        _authService = authService;
-    }
+public AuthenticatedHttpHandler(AuthService authService) { _authService = authService; }
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)

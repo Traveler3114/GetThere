@@ -1,15 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
-using TransitInfoAPI.Entities;
-using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Managers;
 using TransitInfoAPI.Common;
 using TransitInfoAPI.Mapping;
-using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -19,18 +15,8 @@ namespace TransitInfoAPI.Controllers;
 public class FeedsController : ControllerBase
 {
     private readonly FeedManager _feedService;
-    private readonly TransitDbContext _db;
-    private readonly ILogger<FeedsController> _logger;
 
-    public FeedsController(
-        FeedManager feedManager,
-        TransitDbContext db,
-        ILogger<FeedsController> logger)
-    {
-        _feedService = feedManager;
-        _db = db;
-        _logger = logger;
-    }
+public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
 
     [HttpGet]
     public async Task<ActionResult<Paginated<FeedResponse>>> GetAll(
@@ -39,10 +25,7 @@ public class FeedsController : ControllerBase
         [FromQuery] bool showInternal = false,
         CancellationToken ct = default)
     {
-        var feeds = await _feedService.GetAllAsync(page, perPage, showInternal, ct);
-        var total = showInternal
-            ? await _db.Feeds.CountAsync(ct)
-            : await _db.Feeds.CountAsync(f => !f.IsInternal, ct);
+        var (feeds, total) = await _feedService.GetAllAsync(page, perPage, showInternal, ct);
         return Ok(new Paginated<FeedResponse>(feeds, total, page, perPage));
     }
 
@@ -51,9 +34,7 @@ public class FeedsController : ControllerBase
         [FromBody] CreateFeedRequest request,
         CancellationToken ct = default)
     {
-        if (!Enum.TryParse<FeedType>(request.FeedType, true, out var feedType))
-            return Problem(statusCode: 400, title: $"Invalid feed type '{request.FeedType}'.");
-        var feed = await _feedService.CreateAsync(request.OperatorId, feedType, request.FeedId, request.Url, request.RefreshIntervalSeconds, ct);
+        var feed = await _feedService.CreateAsync(request.OperatorId, request.FeedType, request.FeedId, request.Url, request.RefreshIntervalSeconds, ct);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
         return CreatedAtAction(nameof(GetAll), new { }, dto);
     }
@@ -78,22 +59,14 @@ public class FeedsController : ControllerBase
     public ActionResult<List<string>> GetVersionLogs(int versionId, CancellationToken ct = default)
     {
         var logs = _feedService.GetImportLogs(versionId);
-        return Ok(new { data = logs, total = logs.Count });
+        return Ok(logs);
     }
 
     [HttpPost("{id}/fetch")]
     public async Task<ActionResult> Fetch(int id, CancellationToken ct = default)
     {
-        try
-        {
-            var version = await _feedService.TriggerImportAsync(id, ct);
-            return Ok(new { message = $"Import succeeded: {version.RouteCount} routes, {version.StopCount} stops, {version.TripCount} trips." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fetch/import failed for feed {Id}", id);
-            return Problem(statusCode: 500, title: "Import failed", detail: ex.Message);
-        }
+        var version = await _feedService.TriggerImportAsync(id, ct);
+        return Ok(new { message = $"Import succeeded: {version.RouteCount} routes, {version.StopCount} stops, {version.TripCount} trips." });
     }
 
     [HttpGet("{id}/versions")]
@@ -101,6 +74,6 @@ public class FeedsController : ControllerBase
     {
         var versions = await _feedService.GetFeedVersionsAsync(id, ct);
         var dtos = versions.Select(FeedVersionMapper.ToResponse).ToList();
-        return Ok(new Paginated<FeedVersionResponse>(dtos, dtos.Count, 1, dtos.Count));
+        return Ok(dtos);
     }
 }

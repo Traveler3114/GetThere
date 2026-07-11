@@ -4,21 +4,23 @@ using Microsoft.EntityFrameworkCore;
 
 using Microsoft.Data.SqlClient;
 
+using NetTopologySuite.Geometries;
+
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Exceptions;
-using TransitInfoAPI.Contracts;
-using NetTopologySuite.Geometries;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 
 public class ReconciliationManager
 {
-    private static readonly Regex KolPattern = new(@"(?<!\w)kol\.(?=\s|$)", RegexOptions.Compiled);
-    private static readonly Regex UlPattern = new(@"(?<!\w)ul\.(?=\s|$)", RegexOptions.Compiled);
-    private static readonly Regex StPattern = new(@"(?<!\w)st\.(?=\s|$)", RegexOptions.Compiled);
-    private static readonly Regex SvPattern = new(@"(?<!\w)sv\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex _kolPattern = new(@"(?<!\w)kol\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex _ulPattern = new(@"(?<!\w)ul\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex _stPattern = new(@"(?<!\w)st\.(?=\s|$)", RegexOptions.Compiled);
+    private static readonly Regex _svPattern = new(@"(?<!\w)sv\.(?=\s|$)", RegexOptions.Compiled);
 
     private readonly TransitDbContext _db;
     private readonly ILogger<ReconciliationManager> _logger;
@@ -88,7 +90,7 @@ public class ReconciliationManager
         // Phase 1: build deduplicated station lookup by OnestopId
         var onestopToStation = existingStations.ToDictionary(s => s.OnestopId, s => s);
         var onestopSeen = new HashSet<string>(existingStations.Select(s => s.OnestopId), StringComparer.OrdinalIgnoreCase);
-        var newStationList = new List<CanonicalStation>();
+        List<CanonicalStation> newStationList = [];
 
         foreach (var rawStop in rawStops)
         {
@@ -192,7 +194,7 @@ public class ReconciliationManager
         existingStations = existingStations.Where(s => !existingLinkedStationIds.Contains(s.Id)).ToList();
 
         // Build spatial index for candidate lookup — ~0.2° grid cells (~20km)
-        var stationGrid = new Dictionary<string, List<CanonicalStation>>();
+        Dictionary<string, List<CanonicalStation>> stationGrid = [];
         foreach (var station in existingStations)
         {
             var key = GetSpatialCellKey(station.Latitude, station.Longitude);
@@ -369,7 +371,7 @@ public class ReconciliationManager
             })
             .ToListAsync(ct);
 
-        var lookup = new Dictionary<string, List<(string LineIdentity, int? DirectionId)>>();
+        Dictionary<string, List<(string LineIdentity, int? DirectionId)>> lookup = [];
         foreach (var row in stopRoutes)
         {
             var line = !string.IsNullOrEmpty(row.ShortName) ? row.ShortName
@@ -558,10 +560,10 @@ public class ReconciliationManager
         var stationB = await _db.CanonicalStations.FindAsync([stationBId], ct);
         if (stationA is null || stationB is null) return null;
 
-        var linesA = new HashSet<string>();
-        var linesB = new HashSet<string>();
-        var dirsA = new Dictionary<string, HashSet<int?>>();
-        var dirsB = new Dictionary<string, HashSet<int?>>();
+        HashSet<string> linesA = [];
+        HashSet<string> linesB = [];
+        Dictionary<string, HashSet<int?>> dirsA = [];
+        Dictionary<string, HashSet<int?>> dirsB = [];
 
         await LoadStationRouteDataAsync(stationAId, linesA, dirsA, ct);
         await LoadStationRouteDataAsync(stationBId, linesB, dirsB, ct);
@@ -579,7 +581,7 @@ public class ReconciliationManager
         if (DirectionSetsConflict(dirsA, dirsB))
         {
             var shared = dirsA.Keys.Intersect(dirsB.Keys).OrderBy(x => x);
-            var details = new List<string>();
+            List<string> details = [];
             foreach (var line in shared)
             {
                 var aStr = string.Join(",", dirsA[line].Select(d => d?.ToString() ?? "null"));
@@ -652,10 +654,10 @@ public class ReconciliationManager
                 $"Cannot merge stations with different primary route types ({source.PrimaryRouteType} vs {target.PrimaryRouteType})", 400);
 
         // Check route-set conflicts
-        var linesSrc = new HashSet<string>();
-        var linesTgt = new HashSet<string>();
-        var dirsSrc = new Dictionary<string, HashSet<int?>>();
-        var dirsTgt = new Dictionary<string, HashSet<int?>>();
+        HashSet<string> linesSrc = [];
+        HashSet<string> linesTgt = [];
+        Dictionary<string, HashSet<int?>> dirsSrc = [];
+        Dictionary<string, HashSet<int?>> dirsTgt = [];
         await LoadStationRouteDataAsync(sourceStationId, linesSrc, dirsSrc, ct);
         await LoadStationRouteDataAsync(targetStationId, linesTgt, dirsTgt, ct);
         if (linesSrc.Count > 0 && linesTgt.Count > 0 && !HasRouteSetOverlap(linesSrc, linesTgt))
@@ -669,7 +671,7 @@ public class ReconciliationManager
         if (linesSrc.Count > 0 && linesTgt.Count > 0 && HasRouteSetOverlap(linesSrc, linesTgt) && DirectionSetsConflict(dirsSrc, dirsTgt))
         {
             var shared = dirsSrc.Keys.Intersect(dirsTgt.Keys).OrderBy(x => x);
-            var details = new List<string>();
+            List<string> details = [];
             foreach (var line in shared)
             {
                 var aStr = string.Join(",", dirsSrc[line].Select(d => d?.ToString() ?? "null"));
@@ -901,7 +903,7 @@ public class ReconciliationManager
         if (!stationToRawStopIds.TryGetValue(stationId, out var linkedRawStopIds))
             return false;
 
-        var stationLineIds = new HashSet<string>();
+        HashSet<string> stationLineIds = [];
         foreach (var linkedId in linkedRawStopIds)
         {
             if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
@@ -914,7 +916,7 @@ public class ReconciliationManager
         if (stationLineIds.Count == 0)
             return false;
 
-        var incomingLineIds = new HashSet<string>();
+        HashSet<string> incomingLineIds = [];
         foreach (var (line, _) in incomingRoutes)
             incomingLineIds.Add(line);
 
@@ -935,7 +937,7 @@ public class ReconciliationManager
         var linkedRawStopIds = stationToRawStopIds[stationId];
 
         var incomingByLine = GroupByLineIdentity(incomingRoutes);
-        var stationByLine = new Dictionary<string, HashSet<int?>>();
+        Dictionary<string, HashSet<int?>> stationByLine = [];
         foreach (var linkedId in linkedRawStopIds)
         {
             if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
@@ -959,7 +961,7 @@ public class ReconciliationManager
         Dictionary<string, HashSet<int?>> dirsA,
         Dictionary<string, HashSet<int?>> dirsB)
     {
-        var sharedLines = new HashSet<string>();
+        HashSet<string> sharedLines = [];
         foreach (var line in dirsA.Keys)
         {
             if (dirsB.ContainsKey(line))
@@ -998,7 +1000,7 @@ public class ReconciliationManager
     private static Dictionary<string, HashSet<int?>> GroupByLineIdentity(
         List<(string LineIdentity, int? DirectionId)> routes)
     {
-        var result = new Dictionary<string, HashSet<int?>>();
+        Dictionary<string, HashSet<int?>> result = [];
         foreach (var (line, dir) in routes)
         {
             if (!result.TryGetValue(line, out var dirs))
@@ -1021,7 +1023,7 @@ public class ReconciliationManager
 
         var incomingLines = incomingRoutes.Select(r => r.LineIdentity).Distinct().OrderBy(x => x).ToList();
 
-        var stationLines = new HashSet<string>();
+        HashSet<string> stationLines = [];
         if (stationToRawStopIds.TryGetValue(stationId, out var linkedIds))
         {
             foreach (var linkedId in linkedIds)
@@ -1037,7 +1039,7 @@ public class ReconciliationManager
         var incomingOnly = incomingLines.Except(stationLines).OrderBy(x => x).ToList();
         var stationOnly = stationLines.Except(incomingLines).OrderBy(x => x).ToList();
 
-        var parts = new List<string>();
+        List<string> parts = [];
         if (incomingOnly.Count > 0)
             parts.Add($"raw-only lines: [{string.Join(", ", incomingOnly)}]");
         if (stationOnly.Count > 0)
@@ -1055,7 +1057,7 @@ public class ReconciliationManager
         var linkedRawStopIds = stationToRawStopIds[stationId];
 
         var incomingByLine = GroupByLineIdentity(incomingRoutes);
-        var stationByLine = new Dictionary<string, HashSet<int?>>();
+        Dictionary<string, HashSet<int?>> stationByLine = [];
         foreach (var linkedId in linkedRawStopIds)
         {
             if (routeLookup.TryGetValue(linkedId, out var linkedRoutes))
@@ -1072,7 +1074,7 @@ public class ReconciliationManager
             }
         }
 
-        var conflicts = new List<string>();
+        List<string> conflicts = [];
         foreach (var line in incomingByLine.Keys.Intersect(stationByLine.Keys).OrderBy(x => x))
         {
             var inDirs = incomingByLine[line];
@@ -1123,10 +1125,10 @@ public class ReconciliationManager
     {
         var lower = name.ToLowerInvariant().Trim();
 
-        lower = KolPattern.Replace(lower, "kolodvor");
-        lower = UlPattern.Replace(lower, "ulica");
-        lower = StPattern.Replace(lower, "sveti");
-        lower = SvPattern.Replace(lower, "sveti");
+        lower = _kolPattern.Replace(lower, "kolodvor");
+        lower = _ulPattern.Replace(lower, "ulica");
+        lower = _stPattern.Replace(lower, "sveti");
+        lower = _svPattern.Replace(lower, "sveti");
 
         var sb = new System.Text.StringBuilder(lower.Length);
         foreach (var c in lower)
@@ -1190,7 +1192,7 @@ public class ReconciliationManager
         double autoNameThreshold, double autoDistThreshold,
         double manualNameThreshold, double manualDistThreshold)
     {
-        var parts = new List<string>();
+        List<string> parts = [];
         var namePct = (nameSimilarity * 100).ToString("F0");
         var distStr = distanceMeters < 1000
             ? distanceMeters.ToString("F0") + " m"
@@ -1238,7 +1240,7 @@ public class ReconciliationManager
         if (status == "Rejected")
             return "\u2717 REJECTED";
 
-        var failures = new List<string>();
+        List<string> failures = [];
 
         if (!nameMatched)
         {
@@ -1266,5 +1268,348 @@ public class ReconciliationManager
             return "\u26A0 PENDING \u2014 unknown reason";
 
         return "\u274C PENDING \u2014 " + string.Join(", ", failures);
+    }
+
+    public async Task<(List<ReconciliationResponse> Items, int Total)> GetPendingAsync(
+        int? feedVersionId, string? routeType, string? status, string? q,
+        int page, int perPage, CancellationToken ct)
+    {
+        var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
+        var autoDistThreshold = _config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100);
+        var manualNameThreshold = _config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70);
+        var manualDistThreshold = _config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300);
+
+        var query = _db.ReconciliationCandidates
+            .Include(rc => rc.Feed)
+            .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
+            .Where(rc => rc.Status == ReconciliationStatus.Pending)
+            .AsQueryable();
+
+        if (feedVersionId.HasValue)
+            query = query.Where(rc => _db.RawStops.Any(rs => rs.Id == rc.RawStopId && rs.FeedVersionId == feedVersionId.Value));
+        if (!string.IsNullOrWhiteSpace(routeType))
+            query = query.Where(rc => rc.RawRouteType.ToString() == routeType);
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (Enum.TryParse<ReconciliationStatus>(status, out var st))
+                query = query.Where(rc => rc.Status == st);
+        }
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(rc =>
+                rc.RawStopName.Contains(q) ||
+                rc.Feed.FeedId.Contains(q) ||
+                rc.RawStop.RawStopId.Contains(q));
+
+        var total = await query.CountAsync(ct);
+        var candidates = await query
+            .OrderBy(rc => rc.Id)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .Select(rc => new ReconciliationResponse
+            {
+                Id = rc.Id,
+                RawStopId = rc.RawStopId,
+                RawStopName = rc.RawStopName,
+                RawStopLat = rc.RawStopLat,
+                RawStopLon = rc.RawStopLon,
+                RawStopGtfsId = rc.RawStop.RawStopId,
+                RawRouteType = rc.RawRouteType.ToString(),
+                CanonicalRouteType = rc.CanonicalRouteType != null ? rc.CanonicalRouteType.Value.ToString() : null,
+                ConfidenceScore = rc.ConfidenceScore,
+                NameSimilarityScore = rc.NameSimilarityScore,
+                DistanceMeters = rc.DistanceMeters,
+                NameMatched = rc.NameMatched,
+                DistanceMatched = rc.DistanceMatched,
+                RouteTypeMatched = rc.RouteTypeMatched,
+                AutoReconciled = rc.AutoReconciled,
+                Status = rc.Status.ToString(),
+                CreatedAt = rc.CreatedAt,
+                FeedId = rc.Feed.FeedId,
+                SuggestedStationId = rc.SuggestedCanonicalStationId,
+                SuggestedStationName = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Name : null,
+                SuggestedStationLat = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Latitude : null,
+                SuggestedStationLon = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Longitude : null,
+                AutoMergeNameThreshold = autoNameThreshold,
+                AutoMergeDistanceMeters = autoDistThreshold,
+                ManualReviewNameThreshold = manualNameThreshold,
+                ManualReviewDistanceMeters = manualDistThreshold
+            })
+            .ToListAsync(ct);
+
+        foreach (var c in candidates)
+        {
+            c.MatchExplanation = ComputeMatchExplanation(
+                c.NameSimilarityScore, c.DistanceMeters,
+                c.NameMatched, c.DistanceMatched, c.RouteTypeMatched,
+                autoNameThreshold, autoDistThreshold, manualNameThreshold, manualDistThreshold);
+            c.AutoMergeVerdict = ComputeAutoMergeVerdict(
+                c.NameSimilarityScore, c.DistanceMeters,
+                c.NameMatched, c.DistanceMatched, c.RouteTypeMatched,
+                c.RawRouteType, c.CanonicalRouteType,
+                autoNameThreshold, autoDistThreshold, c.Status);
+        }
+
+        return (candidates, total);
+    }
+
+    public async Task<(List<ReconciliationResponse> Items, int Total)> GetAutoMergedAsync(
+        string? routeType, string? q, int page, int perPage, CancellationToken ct)
+    {
+        var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
+        var autoDistThreshold = _config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100);
+        var manualNameThreshold = _config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70);
+        var manualDistThreshold = _config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300);
+
+        var query = _db.ReconciliationCandidates
+            .Include(rc => rc.Feed)
+            .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
+            .Where(rc => rc.Status == ReconciliationStatus.AutoMerged)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(routeType))
+            query = query.Where(rc => rc.RawRouteType.ToString() == routeType);
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(rc =>
+                rc.RawStopName.Contains(q) ||
+                rc.Feed.FeedId.Contains(q) ||
+                rc.RawStop.RawStopId.Contains(q));
+
+        var total = await query.CountAsync(ct);
+        var candidates = await query
+            .OrderBy(rc => rc.Id)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .Select(rc => new ReconciliationResponse
+            {
+                Id = rc.Id,
+                RawStopId = rc.RawStopId,
+                RawStopName = rc.RawStopName,
+                RawStopLat = rc.RawStopLat,
+                RawStopLon = rc.RawStopLon,
+                RawStopGtfsId = rc.RawStop.RawStopId,
+                RawRouteType = rc.RawRouteType.ToString(),
+                CanonicalRouteType = rc.CanonicalRouteType != null ? rc.CanonicalRouteType.Value.ToString() : null,
+                ConfidenceScore = rc.ConfidenceScore,
+                NameSimilarityScore = rc.NameSimilarityScore,
+                DistanceMeters = rc.DistanceMeters,
+                NameMatched = rc.NameMatched,
+                DistanceMatched = rc.DistanceMatched,
+                RouteTypeMatched = rc.RouteTypeMatched,
+                AutoReconciled = rc.AutoReconciled,
+                Status = rc.Status.ToString(),
+                CreatedAt = rc.CreatedAt,
+                FeedId = rc.Feed.FeedId,
+                SuggestedStationId = rc.SuggestedCanonicalStationId,
+                SuggestedStationName = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Name : null,
+                SuggestedStationLat = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Latitude : null,
+                SuggestedStationLon = rc.SuggestedCanonicalStation != null ? rc.SuggestedCanonicalStation.Longitude : null,
+                AutoMergeNameThreshold = autoNameThreshold,
+                AutoMergeDistanceMeters = autoDistThreshold,
+                ManualReviewNameThreshold = manualNameThreshold,
+                ManualReviewDistanceMeters = manualDistThreshold
+            })
+            .ToListAsync(ct);
+
+        foreach (var c in candidates)
+        {
+            c.MatchExplanation = ComputeMatchExplanation(
+                c.NameSimilarityScore, c.DistanceMeters,
+                c.NameMatched, c.DistanceMatched, c.RouteTypeMatched,
+                autoNameThreshold, autoDistThreshold, manualNameThreshold, manualDistThreshold);
+            c.AutoMergeVerdict = ComputeAutoMergeVerdict(
+                c.NameSimilarityScore, c.DistanceMeters,
+                c.NameMatched, c.DistanceMatched, c.RouteTypeMatched,
+                c.RawRouteType, c.CanonicalRouteType,
+                autoNameThreshold, autoDistThreshold, c.Status);
+        }
+
+        return (candidates, total);
+    }
+
+    public async Task<List<ReconciliationDetailResponse>> GetByStationAsync(int stationId, CancellationToken ct)
+    {
+        var stationExists = await _db.CanonicalStations.AnyAsync(cs => cs.Id == stationId, ct);
+        if (!stationExists) return null!;
+
+        var candidates = await _db.ReconciliationCandidates
+            .Include(rc => rc.Feed)
+            .ThenInclude(f => f.Operator)
+            .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
+            .Where(rc => rc.SuggestedCanonicalStationId == stationId)
+            .OrderBy(rc => rc.CreatedAt)
+            .ToListAsync(ct);
+
+        var results = new List<ReconciliationDetailResponse>(candidates.Count);
+        foreach (var candidate in candidates)
+            results.Add(await ToDetailResponseAsync(candidate, ct));
+
+        return results;
+    }
+
+    public async Task<ReconciliationDetailResponse?> GetByIdAsync(int id, CancellationToken ct)
+    {
+        var candidate = await _db.ReconciliationCandidates
+            .Include(rc => rc.Feed)
+            .ThenInclude(f => f.Operator)
+            .Include(rc => rc.SuggestedCanonicalStation)
+            .Include(rc => rc.RawStop)
+            .FirstOrDefaultAsync(rc => rc.Id == id, ct);
+
+        if (candidate is null)
+            return null;
+
+        return await ToDetailResponseAsync(candidate, ct);
+    }
+
+    public async Task<List<StationSplitLogResponse>> GetSplitLogAsync(int candidateStationId, CancellationToken ct)
+    {
+        var logs = await _db.StationSplitLogs
+            .Where(sl => sl.CandidateStationId == candidateStationId)
+            .OrderBy(sl => sl.CreatedAt)
+            .Select(sl => new StationSplitLogResponse
+            {
+                Id = sl.Id,
+                RawStopId = sl.RawStopId,
+                FeedVersionId = sl.FeedVersionId,
+                CandidateStationId = sl.CandidateStationId,
+                Reason = sl.Reason,
+                Detail = sl.Detail,
+                CreatedAt = sl.CreatedAt
+            })
+            .ToListAsync(ct);
+
+        return logs;
+    }
+
+    public async Task<ReconciliationDetailResponse?> ToDetailResponseAsync(ReconciliationCandidate candidate, CancellationToken ct)
+        {
+            var autoNameThreshold = (double)(candidate.AutoMergeNameThresholdAtDecision
+                ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90));
+            var autoDistThreshold = (double)(candidate.AutoMergeDistanceMetersAtDecision
+                ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100));
+            var manualNameThreshold = (double)(candidate.ManualReviewNameThresholdAtDecision
+                ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70));
+            var manualDistThreshold = (double)(candidate.ManualReviewDistanceMetersAtDecision
+                ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300));
+
+            var normalizedRaw = ReconciliationManager.NormalizeName(candidate.RawStopName);
+            var normalizedStation = candidate.SuggestedCanonicalStation is not null
+                ? ReconciliationManager.NormalizeName(candidate.SuggestedCanonicalStation.Name)
+                : null;
+
+            var explanation = ReconciliationManager.ComputeMatchExplanation(
+                candidate.NameSimilarityScore, candidate.DistanceMeters,
+                candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
+                autoNameThreshold, autoDistThreshold,
+                manualNameThreshold, manualDistThreshold);
+
+            StationDetailResponse? rawDetail = null;
+            if (candidate.RawStop is not null)
+            {
+                var rawRouteEntities = await _db.CanonicalRoutes
+                    .Include(r => r.Operator)
+                    .Where(r => _db.StopTimes.Any(st =>
+                        st.RawStopEntityId == candidate.RawStopId
+                        && st.Trip.CanonicalRouteId == r.Id))
+                    .ToListAsync(ct);
+                var rawRoutes = rawRouteEntities.Select(RouteMapper.ToInfoResponse).ToList();
+
+                var feedOp = candidate.Feed?.Operator;
+                List<OperatorBriefResponse> ops = [];
+                if (feedOp is not null)
+                {
+                    ops.Add(new OperatorBriefResponse
+                    {
+                        GlobalId = feedOp.GlobalId,
+                        Name = feedOp.Name,
+                        ShortName = feedOp.ShortName
+                    });
+                }
+
+                rawDetail = new StationDetailResponse
+                {
+                    Id = candidate.RawStop.Id,
+                    Name = candidate.RawStop.Name,
+                    Latitude = candidate.RawStop.Lat,
+                    Longitude = candidate.RawStop.Lon,
+                    RouteType = candidate.RawStop.RouteType?.ToString() ?? "?",
+                    Operators = ops,
+                    Routes = rawRoutes
+                };
+            }
+
+            StationDetailResponse? suggestedDetail = null;
+            if (candidate.SuggestedCanonicalStationId.HasValue && candidate.SuggestedCanonicalStation is not null)
+            {
+                var stationId = candidate.SuggestedCanonicalStationId.Value;
+
+                var operators = await _db.CanonicalStationOperators
+                    .Where(cso => cso.CanonicalStationId == stationId)
+                    .Select(cso => new OperatorBriefResponse
+                    {
+                        GlobalId = cso.Operator.GlobalId,
+                        Name = cso.Operator.Name,
+                        ShortName = cso.Operator.ShortName
+                    })
+                    .ToListAsync(ct);
+
+                var routeEntities = await _db.CanonicalRoutes
+                    .Include(r => r.Operator)
+                    .Where(r => _db.StopTimes.Any(st =>
+                        st.CanonicalStationId == stationId
+                        && st.Trip.CanonicalRouteId == r.Id))
+                    .ToListAsync(ct);
+                var routes = routeEntities.Select(RouteMapper.ToInfoResponse).ToList();
+
+                suggestedDetail = new StationDetailResponse
+                {
+                    Id = stationId,
+                    Name = candidate.SuggestedCanonicalStation.Name,
+                    Latitude = candidate.SuggestedCanonicalStation.Latitude,
+                    Longitude = candidate.SuggestedCanonicalStation.Longitude,
+                    RouteType = candidate.SuggestedCanonicalStation.PrimaryRouteType.ToString(),
+                    Operators = operators,
+                    Routes = routes
+                };
+            }
+
+            var verdict = ReconciliationManager.ComputeAutoMergeVerdict(
+                candidate.NameSimilarityScore, candidate.DistanceMeters,
+                candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
+                candidate.RawRouteType.ToString(), candidate.CanonicalRouteType?.ToString(),
+                autoNameThreshold, autoDistThreshold,
+                candidate.Status.ToString());
+
+            return ReconciliationMapper.ToDetailResponse(
+                candidate,
+                autoNameThreshold, autoDistThreshold,
+                manualNameThreshold, manualDistThreshold,
+                normalizedRaw, normalizedStation,
+                explanation, verdict,
+                rawDetail, suggestedDetail);
+        }
+
+        public async Task<List<StationMergeLogResponse>> GetMergeLogAsync(CancellationToken ct)
+    {
+        var logs = await _db.StationMergeLogs
+            .OrderByDescending(ml => ml.MergedAt)
+            .Select(ml => new StationMergeLogResponse
+            {
+                Id = ml.Id,
+                SourceStationId = ml.SourceStationId,
+                SourceStationName = ml.Source.Name,
+                SourceStationGlobalId = ml.SourceStationGlobalId,
+                TargetStationId = ml.TargetStationId,
+                TargetStationName = ml.Target.Name,
+                RawStopsMovedCount = ml.RawStopsMovedCount,
+                MergedAt = ml.MergedAt,
+                Unmerged = ml.Source.IsActive
+            })
+            .ToListAsync(ct);
+
+        return logs;
     }
 }

@@ -13,10 +13,7 @@ public class TicketingController : ControllerBase
 {
     private readonly TicketingManager _ticketingManager;
 
-    public TicketingController(TicketingManager ticketingManager)
-    {
-        _ticketingManager = ticketingManager;
-    }
+public TicketingController(TicketingManager ticketingManager) { _ticketingManager = ticketingManager; }
 
     [HttpGet("options")]
     public async Task<ActionResult<List<TicketOptionResponse>>> GetOptions(CancellationToken ct = default)
@@ -37,12 +34,12 @@ public class TicketingController : ControllerBase
 
     [HttpPost("purchase")]
     public async Task<ActionResult<TicketResponse>> Purchase(
-        TicketPurchaseRequest request, CancellationToken ct = default)
+        PurchaseTicketRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _ticketingManager.PurchaseTicketAsync(userId, request.AdapterId, request.OptionId, ct);
-        return Ok(result);
+        return CreatedAtAction(nameof(GetMyTickets), new { }, result);
     }
 }

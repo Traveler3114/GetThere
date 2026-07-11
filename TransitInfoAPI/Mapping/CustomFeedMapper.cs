@@ -19,7 +19,7 @@ public static class CustomFeedMapper
             Name = f.Name,
             BaseUrl = f.BaseUrl,
             HttpMethod = f.HttpMethod,
-            AuthConfig = f.AuthConfig != null ? StripAuthSecrets(f.AuthConfig) : null,
+            AuthConfig = f.AuthConfig,
             ResponseFormat = f.ResponseFormat.ToString(),
             OutputFormat = f.OutputFormat.ToString(),
             DataPath = f.DataPath,
@@ -85,7 +85,7 @@ public static class CustomFeedMapper
         Name = f.Name,
         BaseUrl = f.BaseUrl,
         HttpMethod = f.HttpMethod,
-        AuthConfig = f.AuthConfig != null ? StripAuthSecrets(f.AuthConfig) : null,
+        AuthConfig = f.AuthConfig is not null ? StripAuthSecrets(f.AuthConfig) : null,
         ResponseFormat = f.ResponseFormat.ToString(),
         OutputFormat = f.OutputFormat.ToString(),
         DataPath = f.DataPath,
@@ -93,6 +93,7 @@ public static class CustomFeedMapper
         PaginationConfig = f.PaginationConfig,
         RefreshIntervalSeconds = f.RefreshIntervalSeconds,
         IsActive = f.IsActive,
+        IsScheduleCapable = f.IsScheduleCapable,
         CreatedAt = f.CreatedAt,
         LastRunAt = f.LastRunAt,
         LastRunStatus = f.Runs?
@@ -170,7 +171,7 @@ public static class CustomFeedMapper
         {
             using var doc = JsonDocument.Parse(authConfigJson);
             var root = doc.RootElement.Clone();
-            var dict = new Dictionary<string, JsonElement?>();
+            Dictionary<string, JsonElement?> dict = [];
             foreach (var prop in root.EnumerateObject())
                 dict[prop.Name] = prop.Value;
 

@@ -13,10 +13,7 @@ public class AuthController : ControllerBase
 {
     private readonly IConfiguration _config;
 
-    public AuthController(IConfiguration config)
-    {
-        _config = config;
-    }
+public AuthController(IConfiguration config) { _config = config; }
 
     public record LoginRequest(string Username, string Password);
 

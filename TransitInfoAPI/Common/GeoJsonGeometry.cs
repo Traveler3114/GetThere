@@ -15,7 +15,7 @@ public static class GeoJsonGeometry
 
         if (geom is Polygon poly)
         {
-            var rings = new List<IEnumerable<double[]>>();
+            List<IEnumerable<double[]>> rings = [];
             rings.Add(poly.Shell.Coordinates.Select(c => new[] { c.X, c.Y }));
             foreach (var hole in poly.Holes)
                 rings.Add(hole.Coordinates.Select(c => new[] { c.X, c.Y }));
@@ -42,7 +42,7 @@ public static class GeoJsonGeometry
                 Coordinates = mpoly.Geometries.Select(g =>
                 {
                     var polyG = (Polygon)g;
-                    var rings = new List<IEnumerable<double[]>>();
+                    List<IEnumerable<double[]>> rings = [];
                     rings.Add(polyG.Shell.Coordinates.Select(c => new[] { c.X, c.Y }));
                     foreach (var hole in polyG.Holes)
                         rings.Add(hole.Coordinates.Select(c => new[] { c.X, c.Y }));
@@ -78,10 +78,10 @@ public static class GeoJsonGeometry
             var geom = getGeometry(item);
             return new GeoJsonFeature
             {
-                Geometry = geom != null ? FromNtsGeometry(geom) : null,
+                Geometry = geom is not null ? FromNtsGeometry(geom) : null,
                 Properties = getProps(item)
             };
-        }).Where(f => f.Geometry != null).ToList();
+        }).Where(f => f.Geometry is not null).ToList();
 
         return new GeoJsonFeatureCollection { Features = features };
     }

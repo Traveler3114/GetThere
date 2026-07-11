@@ -17,12 +17,7 @@ public class TicketingManager
     private readonly AdapterRegistry _registry;
     private readonly WalletManager _walletManager;
 
-    public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager walletManager)
-    {
-        _db = db;
-        _registry = registry;
-        _walletManager = walletManager;
-    }
+public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager walletManager) { _db = db; _registry = registry; _walletManager = walletManager; }
 
     public async Task<List<TicketOptionResponse>> GetTicketOptionsAsync(CancellationToken ct = default)
     {

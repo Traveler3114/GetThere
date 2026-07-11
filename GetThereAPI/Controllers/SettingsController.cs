@@ -26,12 +26,12 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPut]
-    public async Task<ActionResult<UserSettingsResponse>> Update(UpdateSettingsRequest request, CancellationToken ct = default)
+    public async Task<IActionResult> Update(UpdateSettingsRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
 
-        var result = await _settingsManager.UpdateSettingsAsync(userId, request, ct);
-        return Ok(result);
+        await _settingsManager.UpdateSettingsAsync(userId, request, ct);
+        return NoContent();
     }
 }

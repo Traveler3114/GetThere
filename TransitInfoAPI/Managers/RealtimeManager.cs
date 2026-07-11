@@ -2,13 +2,13 @@ using System.Collections.Concurrent;
 
 using Microsoft.EntityFrameworkCore;
 
+using TransitRealtime;
+
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Workers;
-
-using TransitRealtime;
 
 namespace TransitInfoAPI.Managers;
 
@@ -59,7 +59,7 @@ public class RealtimeManager
 
         _logger.LogInformation("Polling {Count} active GTFS-RT feeds", activeRtFeeds.Count);
 
-        var allTripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
+        ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> allTripUpdates = [];
 
         foreach (var feed in activeRtFeeds)
         {
@@ -127,15 +127,15 @@ public class RealtimeManager
 
         var feedMessage = FeedMessage.Parser.ParseFrom(new MemoryStream(result.Data));
 
-        var tripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
-        var alerts = new List<FeedEntity>();
+        ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> tripUpdates = [];
+        List<FeedEntity> alerts = [];
 
         foreach (var entity in feedMessage.Entity)
         {
-            if (entity.Vehicle != null)
+            if (entity.Vehicle is not null)
             {
                 var vp = entity.Vehicle;
-                if (vp.Position == null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
+                if (vp.Position is null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
                 if (string.IsNullOrEmpty(vp.Trip?.TripId)) continue;
 
                 var vehicleId = vp.Vehicle?.Id ?? entity.Id;
@@ -159,13 +159,13 @@ public class RealtimeManager
                 _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
             }
 
-            if (entity.TripUpdate != null)
+            if (entity.TripUpdate is not null)
             {
                 var tu = entity.TripUpdate;
                 var tripId = tu.Trip?.TripId;
                 if (string.IsNullOrEmpty(tripId)) continue;
 
-                var stopUpdates = new ConcurrentDictionary<int, StopTimeUpdateData>();
+                ConcurrentDictionary<int, StopTimeUpdateData> stopUpdates = [];
                 foreach (var stu in tu.StopTimeUpdate)
                 {
                     var delay = stu.Departure?.Delay ?? stu.Arrival?.Delay;
@@ -178,7 +178,7 @@ public class RealtimeManager
                     tripUpdates[tripId] = stopUpdates;
             }
 
-            if (entity.Alert != null)
+            if (entity.Alert is not null)
                 alerts.Add(entity);
         }
 
@@ -212,7 +212,7 @@ public class RealtimeManager
                 var affectedRouteIds = string.Join(",", alert.InformedEntity
                     .Where(e => e.HasRouteId).Select(e => e.RouteId));
                 var affectedTripIds = string.Join(",", alert.InformedEntity
-                    .Where(e => e.Trip != null && !string.IsNullOrEmpty(e.Trip.TripId)).Select(e => e.Trip.TripId));
+                    .Where(e => e.Trip is not null && !string.IsNullOrEmpty(e.Trip.TripId)).Select(e => e.Trip.TripId));
                 var affectedAgencyIds = string.Join(",", alert.InformedEntity
                     .Where(e => e.HasAgencyId).Select(e => e.AgencyId));
 
@@ -303,7 +303,7 @@ public class RealtimeManager
             throw;
         }
 
-        var tripUpdates = new ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>>();
+        ConcurrentDictionary<string, ConcurrentDictionary<int, StopTimeUpdateData>> tripUpdates = [];
 
         foreach (var record in engineResult.Records)
         {

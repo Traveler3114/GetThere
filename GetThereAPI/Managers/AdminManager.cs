@@ -13,13 +13,9 @@ public class AdminManager
     private readonly AppDbContext _db;
     private readonly UserManager<AppUser> _userManager;
 
-    public AdminManager(AppDbContext db, UserManager<AppUser> userManager)
-    {
-        _db = db;
-        _userManager = userManager;
-    }
+public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = db; _userManager = userManager; }
 
-    public async Task<AppUser?> SetUserRoleAsync(string userId, string roleName)
+    public async Task<AppUser?> SetUserRoleAsync(string userId, string roleName, CancellationToken ct = default)
     {
         var user = await _userManager.FindByIdAsync(userId);
         if (user is null) return null;
@@ -32,11 +28,11 @@ public class AdminManager
         return user;
     }
 
-    public async Task<PagedResult<UserListItem>> GetUsersAsync(int page = 1, int pageSize = 20)
+    public async Task<PagedResult<UserListItem>> GetUsersAsync(int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         var query = _userManager.Users.OrderBy(u => u.Email);
 
-        var totalCount = await query.CountAsync();
+        var totalCount = await query.CountAsync(ct);
         var items = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -48,24 +44,22 @@ public class AdminManager
                 CreatedAt = u.CreatedAt,
                 LastLogin = u.LastLogin
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
-        return new PagedResult<UserListItem>
+        return new PagedResult<UserListItem>(items, totalCount)
         {
-            Items = items,
-            TotalCount = totalCount,
             Page = page,
             PageSize = pageSize
         };
     }
 
-    public async Task<PagedResult<AuditLogEntry>> GetAuditLogsAsync(int page = 1, int pageSize = 50)
+    public async Task<PagedResult<AuditLogEntry>> GetAuditLogsAsync(int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var query = _db.AuditLogs
             .Include(al => al.User)
             .OrderByDescending(al => al.CreatedAt);
 
-        var totalCount = await query.CountAsync();
+        var totalCount = await query.CountAsync(ct);
         var items = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -81,12 +75,10 @@ public class AdminManager
                 NewValues = al.NewValues,
                 CreatedAt = al.CreatedAt
             })
-            .ToListAsync();
+            .ToListAsync(ct);
 
-        return new PagedResult<AuditLogEntry>
+        return new PagedResult<AuditLogEntry>(items, totalCount)
         {
-            Items = items,
-            TotalCount = totalCount,
             Page = page,
             PageSize = pageSize
         };

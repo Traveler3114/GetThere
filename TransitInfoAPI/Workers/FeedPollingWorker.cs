@@ -21,15 +21,7 @@ public class FeedPollingWorker : BackgroundService
     private readonly IOptionsMonitor<FeedPollingOptions> _options;
     private readonly ConcurrentDictionary<int, int> _consecutiveFailures = new();
 
-    public FeedPollingWorker(
-        ILogger<FeedPollingWorker> logger,
-        IServiceScopeFactory scopeFactory,
-        IOptionsMonitor<FeedPollingOptions> options)
-    {
-        _logger = logger;
-        _scopeFactory = scopeFactory;
-        _options = options;
-    }
+    public FeedPollingWorker(ILogger<FeedPollingWorker> logger, IServiceScopeFactory scopeFactory, IOptionsMonitor<FeedPollingOptions> options) { _logger = logger; _scopeFactory = scopeFactory; _options = options; }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -77,7 +69,7 @@ public class FeedPollingWorker : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var feedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
                 var newVersion = await feedManager.CheckAndFetchAsync(feed.Id, innerCt);
-                if (newVersion != null)
+                if (newVersion is not null)
                 {
                     if (newVersion.ImportStatus == FeedImportStatus.Success)
                     {

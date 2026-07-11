@@ -1,4 +1,3 @@
-#nullable enable
 using Microsoft.Maui.Controls.Shapes;
 
 namespace GetThere.Components;

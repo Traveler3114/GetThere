@@ -16,23 +16,20 @@ public class AdminController : ControllerBase
 {
     private readonly AdminManager _adminManager;
 
-    public AdminController(AdminManager adminManager)
-    {
-        _adminManager = adminManager;
-    }
+public AdminController(AdminManager adminManager) { _adminManager = adminManager; }
 
     [HttpGet("users")]
     public async Task<ActionResult<PagedResult<UserListItem>>> GetUsers(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
-        var result = await _adminManager.GetUsersAsync(page, pageSize);
+        var result = await _adminManager.GetUsersAsync(page, pageSize, ct);
         return Ok(result);
     }
 
     [HttpPost("users/{userId}/role")]
     public async Task<ActionResult> SetUserRole(string userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
     {
-        var user = await _adminManager.SetUserRoleAsync(userId, request.RoleName);
+        var user = await _adminManager.SetUserRoleAsync(userId, request.RoleName, ct);
         if (user is null) return NotFound();
         return Ok(new { message = $"User role set to '{request.RoleName}'." });
     }
@@ -41,7 +38,7 @@ public class AdminController : ControllerBase
     public async Task<ActionResult<PagedResult<AuditLogEntry>>> GetAuditLogs(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
     {
-        var result = await _adminManager.GetAuditLogsAsync(page, pageSize);
+        var result = await _adminManager.GetAuditLogsAsync(page, pageSize, ct);
         return Ok(result);
     }
 }

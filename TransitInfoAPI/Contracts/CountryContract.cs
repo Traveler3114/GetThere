@@ -10,7 +10,7 @@ public class CountryResponse
     public string Continent { get; set; } = string.Empty;
 }
 
-public class CreateCountryRequest
+public record CreateCountryRequest
 {
     [Required, StringLength(200)] public string Name { get; set; } = string.Empty;
     [Required, StringLength(10)] public string IsoCode { get; set; } = string.Empty;

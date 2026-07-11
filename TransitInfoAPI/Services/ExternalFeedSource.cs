@@ -10,11 +10,7 @@ public class ExternalFeedSource : IFeedSource
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<ExternalFeedSource> _logger;
 
-    public ExternalFeedSource(IHttpClientFactory httpFactory, ILogger<ExternalFeedSource> logger)
-    {
-        _httpFactory = httpFactory;
-        _logger = logger;
-    }
+    public ExternalFeedSource(IHttpClientFactory httpFactory, ILogger<ExternalFeedSource> logger) { _httpFactory = httpFactory; _logger = logger; }
 
     public async Task<FeedFetchResult> FetchDataAsync(Feed feed, CancellationToken ct)
     {

@@ -20,7 +20,7 @@ public class OperatorBriefResponse
     public string ShortName { get; set; } = string.Empty;
 }
 
-public class CreateOperatorRequest
+public record CreateOperatorRequest
 {
     [Required, StringLength(200)] public string Name { get; set; } = string.Empty;
     [StringLength(100)] public string ShortName { get; set; } = string.Empty;
@@ -28,7 +28,7 @@ public class CreateOperatorRequest
     [StringLength(50)] public string? GlobalId { get; set; }
 }
 
-public class UpdateOperatorRequest
+public record UpdateOperatorRequest
 {
     [StringLength(200), MinLength(1)] public string? Name { get; set; }
     [StringLength(100)] public string? ShortName { get; set; }

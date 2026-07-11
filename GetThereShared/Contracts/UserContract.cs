@@ -8,7 +8,7 @@ public class UserSettingsResponse
     public string? MapStyle { get; set; }
 }
 
-public class UpdateSettingsRequest
+public record UpdateSettingsRequest
 {
     public string? Theme { get; set; }
     public string? Language { get; set; }

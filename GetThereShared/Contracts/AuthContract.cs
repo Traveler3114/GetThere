@@ -26,7 +26,7 @@ public class UserResponse
     public string? FullName { get; set; }
 }
 
-public class UpdateProfileRequest
+public record UpdateProfileRequest
 {
     public string? FullName { get; set; }
     public string? Email { get; set; }

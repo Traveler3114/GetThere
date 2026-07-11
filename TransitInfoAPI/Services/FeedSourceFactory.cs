@@ -8,11 +8,7 @@ public class FeedSourceFactory
     private readonly ExternalFeedSource _external;
     private readonly CustomFeedSource _custom;
 
-    public FeedSourceFactory(ExternalFeedSource external, CustomFeedSource custom)
-    {
-        _external = external;
-        _custom = custom;
-    }
+    public FeedSourceFactory(ExternalFeedSource external, CustomFeedSource custom) { _external = external; _custom = custom; }
 
     public IFeedSource Resolve(Feed feed)
     {

@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Globalization;
 
@@ -196,7 +194,7 @@ public partial class ProfilePage : ContentPage
         var input = await DisplayPromptAsync(LocalizationService.Instance["Profile_TopUp_Title"], LocalizationService.Instance["Profile_TopUp_AmountLabel"], LocalizationService.Instance["Profile_TopUp_Next"], LocalizationService.Instance["App_Cancel"], "10.00", -1, Keyboard.Numeric);
         if (string.IsNullOrWhiteSpace(input)) return;
 
-        if (decimal.TryParse(input.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
+        if (decimal.TryParse(input.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var amount) && amount > 0)
         {
             try
             {

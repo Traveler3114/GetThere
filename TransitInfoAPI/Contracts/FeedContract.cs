@@ -43,7 +43,7 @@ public class FeedVersionResponse
 }
 
 /// <summary>Request body for creating a new feed.</summary>
-public class CreateFeedRequest
+public record CreateFeedRequest
 {
     [Range(1, int.MaxValue)] public int OperatorId { get; set; }
     [Required, StringLength(50)] public string FeedType { get; set; } = string.Empty;
@@ -53,7 +53,7 @@ public class CreateFeedRequest
 }
 
 /// <summary>Request body for updating an existing feed.</summary>
-public class UpdateFeedRequest
+public record UpdateFeedRequest
 {
     [Required, StringLength(50)] public string FeedType { get; set; } = string.Empty;
     [JsonPropertyName("externalUrl"), Url] public string? Url { get; set; }

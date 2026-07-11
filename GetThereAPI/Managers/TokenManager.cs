@@ -15,11 +15,7 @@ public class TokenManager
     private readonly IConfiguration _config;
     private readonly UserManager<AppUser> _userManager;
 
-    public TokenManager(IConfiguration config, UserManager<AppUser> userManager)
-    {
-        _config = config;
-        _userManager = userManager;
-    }
+public TokenManager(IConfiguration config, UserManager<AppUser> userManager) { _config = config; _userManager = userManager; }
 
     public string CreateToken(AppUser user)
     {

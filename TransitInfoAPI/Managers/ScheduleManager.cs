@@ -12,11 +12,7 @@ public class ScheduleManager
     private readonly TransitDbContext _db;
     private readonly RealtimeManager _realtime;
 
-    public ScheduleManager(TransitDbContext db, RealtimeManager realtime)
-    {
-        _db = db;
-        _realtime = realtime;
-    }
+    public ScheduleManager(TransitDbContext db, RealtimeManager realtime) { _db = db; _realtime = realtime; }
 
     public async Task<List<DepartureResponse>> GetDeparturesAsync(
         int canonicalStationId, DateTime from, int count, CancellationToken ct)
@@ -108,7 +104,7 @@ public class ScheduleManager
             .Select(cd => new { cd.FeedVersionId, cd.ServiceId })
             .ToListAsync(ct);
 
-        var valid = new HashSet<(int, string)>();
+        HashSet<(int, string)> valid = [];
         foreach (var c in activeCalendars)
             valid.Add((c.FeedVersionId, c.ServiceId));
         foreach (var cd in addedExceptions)

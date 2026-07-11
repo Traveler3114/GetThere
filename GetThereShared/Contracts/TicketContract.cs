@@ -29,7 +29,7 @@ public class TicketResponse
     public TicketOptionResponse Option { get; set; } = null!;
 }
 
-public class TicketPurchaseRequest
+public record PurchaseTicketRequest
 {
     public int AdapterId { get; set; }
     public int OptionId { get; set; }

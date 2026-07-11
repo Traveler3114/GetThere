@@ -24,15 +24,16 @@ public class RealtimeController : ControllerBase
         CancellationToken ct = default)
     {
         var vehicles = await _realtime.GetVehiclesAsync(feedId, minLat, minLon, maxLat, maxLon, ct);
-        return Ok(new Paginated<VehicleResponse>(vehicles, vehicles.Count, 1, vehicles.Count));
+        return Ok(vehicles);
     }
 
     [HttpGet("alerts")]
-    public async Task<List<AlertResponse>> GetAlerts(
+    public async Task<ActionResult<List<AlertResponse>>> GetAlerts(
         [FromQuery] string? stopOnestopId = null,
         [FromQuery] string? routeOnestopId = null,
         CancellationToken ct = default)
     {
-        return await _realtime.GetAlertsAsync(stopOnestopId, routeOnestopId, ct);
+        var alerts = await _realtime.GetAlertsAsync(stopOnestopId, routeOnestopId, ct);
+        return Ok(alerts);
     }
 }

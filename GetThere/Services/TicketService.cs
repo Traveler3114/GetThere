@@ -39,7 +39,7 @@ public class TicketService
         }
     }
 
-    public async Task<OperationResult<TicketResponse>> PurchaseTicketAsync(TicketPurchaseRequest request)
+    public async Task<OperationResult<TicketResponse>> PurchaseTicketAsync(PurchaseTicketRequest request)
     {
         try
         {

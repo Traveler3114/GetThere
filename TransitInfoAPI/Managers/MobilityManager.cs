@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-
 using Microsoft.EntityFrameworkCore;
-
+using Microsoft.Extensions.Configuration;
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 
@@ -14,13 +16,9 @@ public class MobilityManager
     private readonly TransitDbContext _db;
     private readonly ILogger<MobilityManager> _logger;
     private readonly PlaceMatchingManager _placeMatching;
+    private readonly IConfiguration _config;
 
-    public MobilityManager(TransitDbContext db, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching)
-    {
-        _db = db;
-        _logger = logger;
-        _placeMatching = placeMatching;
-    }
+    public MobilityManager(TransitDbContext db, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching, IConfiguration config) { _db = db; _logger = logger; _placeMatching = placeMatching; _config = config; }
 
     public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
@@ -41,6 +39,109 @@ public class MobilityManager
         }
 
         return await query.ToListAsync(ct);
+    }
+
+    public async Task<List<MobilityStationResponse>> GetAllAsync(
+        double? lat, double? lon, double? radiusKm, int? countryId,
+        int page, int perPage, CancellationToken ct)
+    {
+        var query = _db.MobilityStations
+            .Include(ms => ms.Operator)
+            .Include(ms => ms.Country)
+            .AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(ms => ms.CountryId == countryId.Value);
+
+        if (lat is not null && lon is not null && radiusKm is not null)
+        {
+            var latRange = radiusKm.Value / 111.0;
+            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            query = query.Where(ms =>
+                ms.Latitude >= lat.Value - latRange &&
+                ms.Latitude <= lat.Value + latRange &&
+                ms.Longitude >= lon.Value - lonRange &&
+                ms.Longitude <= lon.Value + lonRange);
+        }
+
+        return await query
+            .OrderBy(ms => ms.Id)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .Select(MobilityStationMapper.ToResponseExpression)
+            .ToListAsync(ct);
+    }
+
+    public async Task<int> GetTotalCountAsync(
+        double? lat, double? lon, double? radiusKm, int? countryId, CancellationToken ct)
+    {
+        var query = _db.MobilityStations.AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(ms => ms.CountryId == countryId.Value);
+
+        if (lat is not null && lon is not null && radiusKm is not null)
+        {
+            var latRange = radiusKm.Value / 111.0;
+            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            query = query.Where(ms =>
+                ms.Latitude >= lat.Value - latRange &&
+                ms.Latitude <= lat.Value + latRange &&
+                ms.Longitude >= lon.Value - lonRange &&
+                ms.Longitude <= lon.Value + lonRange);
+        }
+
+        return await query.CountAsync(ct);
+    }
+
+    public async Task<object> GetAllGeoJsonAsync(
+        double? lat, double? lon, double? radiusKm, int? countryId, int limit, CancellationToken ct)
+    {
+        var query = _db.MobilityStations
+            .Include(ms => ms.Country)
+            .AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(ms => ms.CountryId == countryId.Value);
+
+        if (lat is not null && lon is not null && radiusKm is not null)
+        {
+            var latRange = radiusKm.Value / 111.0;
+            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            query = query.Where(ms =>
+                ms.Latitude >= lat.Value - latRange &&
+                ms.Latitude <= lat.Value + latRange &&
+                ms.Longitude >= lon.Value - lonRange &&
+                ms.Longitude <= lon.Value + lonRange);
+        }
+
+        var stations = await query.OrderBy(ms => ms.Id).Take(limit)
+            .Select(MobilityStationMapper.ToResponseExpression)
+            .ToListAsync(ct);
+
+        return GeoJsonGeometry.ToPointCollection(stations,
+            s => s.Latitude, s => s.Longitude,
+            s => new Dictionary<string, object?>
+            {
+                ["id"] = s.Id,
+                ["stationId"] = s.StationId,
+                ["name"] = s.Name,
+                ["providerName"] = s.ProviderName,
+                ["capacity"] = s.Capacity,
+                ["availableVehicles"] = s.AvailableVehicles,
+                ["countryName"] = s.CountryName
+            });
+    }
+
+    public async Task<List<string>> GetCountriesAsync(CancellationToken ct)
+    {
+        var names = await _db.MobilityStations
+            .Where(ms => ms.Country != null)
+            .Select(ms => ms.Country.Name)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync(ct);
+        return names;
     }
 
     public async Task<int> UpsertStationsFromGbfsBytesAsync(int operatorId, byte[] gbfsData, CancellationToken ct = default)

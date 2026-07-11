@@ -40,7 +40,6 @@ builder.Services.AddHttpClient("TransitInfoApi", client =>
 });
 
 builder.Services.AddSingleton<AdapterRegistry>();
-builder.Services.AddScoped<TokenManager>();
 
 var managerTypes = typeof(Program).Assembly.GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers" && t is { IsClass: true, IsAbstract: false });

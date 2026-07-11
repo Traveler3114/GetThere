@@ -1,5 +1,3 @@
-#nullable enable
-
 using Microsoft.Maui.Controls;
 
 using GetThere.State;

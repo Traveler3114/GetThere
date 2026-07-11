@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Data;
 using System.IO.Compression;
-
 using System.Text.Json;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+
+using NetTopologySuite.Geometries;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -13,10 +15,6 @@ using TransitInfoAPI.Enums;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Services;
-
-using Microsoft.Data.SqlClient;
-
-using NetTopologySuite.Geometries;
 
 namespace TransitInfoAPI.Managers;
 
@@ -58,7 +56,7 @@ public class FeedManager
         _feedSourceFactory = feedSourceFactory;
     }
 
-    public async Task<List<FeedResponse>> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
+    public async Task<(List<FeedResponse> Feeds, int Total)> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
     {
         var query = _db.Feeds
             .Include(f => f.Operator)
@@ -68,11 +66,14 @@ public class FeedManager
         if (!showInternal)
             query = query.Where(f => !f.IsInternal);
 
-        return await query
+        var total = await query.CountAsync(ct);
+        var feeds = await query
             .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(FeedMapper.ToResponseExpression)
             .ToListAsync(ct);
+
+        return (feeds, total);
     }
 
     public async Task<FeedResponse?> GetByIdAsync(int id, CancellationToken ct)
@@ -85,25 +86,28 @@ public class FeedManager
     }
 
     public async Task<Feed> CreateAsync(
-        int operatorId, FeedType feedType,
+        int operatorId, string feedType,
         string feedId, string? url, int refreshIntervalSeconds, CancellationToken ct)
     {
+        if (!Enum.TryParse<FeedType>(feedType, true, out var parsedFeedType))
+            throw new Exceptions.AppException($"Invalid feed type '{feedType}'.", 400, "INVALID_FEED_TYPE");
+        
         if (url is not null && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
-            throw new InvalidOperationException("Invalid feed URL. Must be an absolute HTTP(S) URL.");
-        if (feedType == FeedType.GTFSStatic && url is not null && !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            throw new Exceptions.AppException("Invalid feed URL. Must be an absolute HTTP(S) URL.", 400, "INVALID_FEED_URL");
+        if (parsedFeedType == FeedType.GTFSStatic && url is not null && !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             _logger.LogWarning("Feed {FeedId} static URL does not end with .zip — may not be a valid GTFS archive", feedId);
         if (refreshIntervalSeconds < 60)
-            throw new InvalidOperationException("Refresh interval must be at least 60 seconds.");
+            throw new Exceptions.AppException("Refresh interval must be at least 60 seconds.", 400, "INVALID_REFRESH_INTERVAL");
 
         var op = await _db.Operators.FindAsync([operatorId], ct)
             ?? throw new Exceptions.AppException("Operator not found.", 404);
 
-        var typeSuffix = feedType switch
+        var typeSuffix = parsedFeedType switch
         {
             FeedType.GTFSStatic => "gtfs-static",
             FeedType.GTFSRealtime => "gtfs-rt",
             FeedType.GBFS => "gbfs",
-            _ => feedType.ToString().ToLowerInvariant()
+            _ => parsedFeedType.ToString().ToLowerInvariant()
         };
         var onestopId = _onestopId.GenerateFeedOnestopId(0, 0, $"{feedId}-{typeSuffix}");
         if (await _db.Feeds.AnyAsync(f => f.OnestopId == onestopId, ct))
@@ -115,7 +119,7 @@ public class FeedManager
         {
             OnestopId = onestopId,
             OperatorId = operatorId,
-            FeedType = feedType,
+            FeedType = parsedFeedType,
             FeedId = feedId,
             Url = url,
             RefreshIntervalSeconds = refreshIntervalSeconds,
@@ -315,7 +319,7 @@ public class FeedManager
                 FetchedAt = DateTime.UtcNow,
                 ImportStatus = FeedImportStatus.Pending,
                 IsActive = false,
-                LastModified = remoteLastModified is not null ? DateTimeOffset.Parse(remoteLastModified).UtcDateTime : null,
+                LastModified = remoteLastModified is not null && DateTimeOffset.TryParse(remoteLastModified, out var lm) ? lm.UtcDateTime : null,
                 ETag = remoteETag
             };
 

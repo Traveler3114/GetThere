@@ -34,7 +34,7 @@ public class WalletController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _walletManager.TopUpAsync(userId, request.Amount, request.PaymentMethod, ct);
-        return Ok(result);
+        return CreatedAtAction(nameof(GetWallet), new { }, result);
     }
 
     [HttpPost("ensure")]
@@ -45,6 +45,6 @@ public class WalletController : ControllerBase
 
         var wallet = await _walletManager.EnsureWalletAsync(userId, ct);
         var response = await _walletManager.GetWalletAsync(userId, ct);
-        return Ok(response);
+        return CreatedAtAction(nameof(GetWallet), new { }, response);
     }
 }

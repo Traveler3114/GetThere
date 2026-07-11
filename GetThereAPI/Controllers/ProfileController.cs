@@ -14,10 +14,7 @@ public class ProfileController : ControllerBase
 {
     private readonly ProfileManager _profileManager;
 
-    public ProfileController(ProfileManager profileManager)
-    {
-        _profileManager = profileManager;
-    }
+public ProfileController(ProfileManager profileManager) { _profileManager = profileManager; }
 
     [HttpGet]
     public async Task<ActionResult<UserResponse>> Get(CancellationToken ct = default)
@@ -25,24 +22,24 @@ public class ProfileController : ControllerBase
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
 
-        var user = await _profileManager.GetUserByIdAsync(userId);
+        var user = await _profileManager.GetUserByIdAsync(userId, ct);
         if (user is null) return Problem(statusCode: 404, title: "User not found.");
 
         return Ok(AuthMapper.ToResponse(user));
     }
 
     [HttpPut]
-    public async Task<ActionResult<UserResponse>> Update(
+    public async Task<ActionResult> Update(
         [FromBody] UpdateProfileRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (userId is null) return Unauthorized();
 
-        var user = await _profileManager.GetUserByIdAsync(userId);
+        var user = await _profileManager.GetUserByIdAsync(userId, ct);
         if (user is null) return Problem(statusCode: 404, title: "User not found.");
 
-        await _profileManager.UpdateProfileAsync(user, request);
+        await _profileManager.UpdateProfileAsync(user, request, ct);
 
-        return Ok(AuthMapper.ToResponse(user));
+        return NoContent();
     }
 }

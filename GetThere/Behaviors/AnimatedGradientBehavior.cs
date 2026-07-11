@@ -1,4 +1,3 @@
-#nullable enable
 #pragma warning disable CA1416
 
 using System;

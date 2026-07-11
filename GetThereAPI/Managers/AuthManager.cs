@@ -16,19 +16,9 @@ public class AuthManager
     private readonly TokenManager _tokenManager;
     private readonly AppDbContext _db;
 
-    public AuthManager(
-        UserManager<AppUser> userManager,
-        SignInManager<AppUser> signInManager,
-        TokenManager tokenManager,
-        AppDbContext db)
-    {
-        _userManager = userManager;
-        _signInManager = signInManager;
-        _tokenManager = tokenManager;
-        _db = db;
-    }
+    public AuthManager(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, TokenManager tokenManager, AppDbContext db) { _userManager = userManager; _signInManager = signInManager; _tokenManager = tokenManager; _db = db; }
 
-    public async Task RegisterAsync(RegisterRequest request)
+    public async Task RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser is not null)
@@ -43,7 +33,7 @@ public class AuthManager
         await _userManager.AddToRoleAsync(user, "User");
     }
 
-    public async Task<LoginResponse> LoginAsync(LoginRequest request, bool rememberMe, string? deviceInfo)
+    public async Task<LoginResponse> LoginAsync(LoginRequest request, bool rememberMe, string? deviceInfo, CancellationToken ct = default)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user is null)
@@ -67,7 +57,7 @@ public class AuthManager
         };
 
         _db.RefreshTokens.Add(refreshToken);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         return new LoginResponse
         {
@@ -77,7 +67,7 @@ public class AuthManager
         };
     }
 
-    public async Task<RefreshTokenResponse> RefreshAsync(string rawRefreshToken, string? deviceInfo)
+    public async Task<RefreshTokenResponse> RefreshAsync(string rawRefreshToken, string? deviceInfo, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(rawRefreshToken))
             throw new AppException("Invalid refresh token.", 401, "INVALID_REFRESH_TOKEN");
@@ -85,7 +75,7 @@ public class AuthManager
         var incomingTokenHash = _tokenManager.HashToken(rawRefreshToken);
         var existingRefreshToken = await _db.RefreshTokens
             .Include(rt => rt.User)
-            .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash);
+            .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
         if (existingRefreshToken is null || !existingRefreshToken.IsActive)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
@@ -109,7 +99,7 @@ public class AuthManager
         existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
 
         _db.RefreshTokens.Add(newRefreshTokenEntity);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         var newAccessToken = _tokenManager.CreateToken(existingRefreshToken.User);
 
@@ -120,18 +110,18 @@ public class AuthManager
         };
     }
 
-    public async Task LogoutAsync(string rawRefreshToken)
+    public async Task LogoutAsync(string rawRefreshToken, CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(rawRefreshToken))
         {
             var tokenHash = _tokenManager.HashToken(rawRefreshToken);
             var existingRefreshToken = await _db.RefreshTokens
-                .FirstOrDefaultAsync(rt => rt.Token == tokenHash);
+                .FirstOrDefaultAsync(rt => rt.Token == tokenHash, ct);
 
             if (existingRefreshToken is not null && !existingRefreshToken.RevokedAt.HasValue)
             {
                 existingRefreshToken.RevokedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
+                await _db.SaveChangesAsync(ct);
             }
         }
     }

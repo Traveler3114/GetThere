@@ -2,10 +2,10 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 
+using Microsoft.Extensions.Logging;
+
 using CsvHelper;
 using CsvHelper.Configuration;
-
-using Microsoft.Extensions.Logging;
 
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Algorithm;
@@ -19,10 +19,7 @@ public class GtfsParser
     private readonly GeometryFactory _geometryFactory = new(new PrecisionModel(), 4326);
     private readonly ILogger<GtfsParser> _logger;
 
-    public GtfsParser(ILogger<GtfsParser> logger)
-    {
-        _logger = logger;
-    }
+public GtfsParser(ILogger<GtfsParser> logger) { _logger = logger; }
 
     public string ComputeGtfsSha1(ZipArchive archive)
     {
@@ -157,7 +154,7 @@ public class GtfsParser
         if (entry is null) return [];
 
         using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, CsvConfig);
+        using var csv = new CsvReader(reader, _csvConfig);
         csv.Context.RegisterClassMap(new ShapePointMap());
 
         var pointsByShape = new Dictionary<string, List<ShapePointRecord>>(StringComparer.OrdinalIgnoreCase);
@@ -168,7 +165,7 @@ public class GtfsParser
             pointsByShape[record.ShapeId].Add(record);
         }
 
-        var result = new Dictionary<string, LineString>();
+        Dictionary<string, LineString> result = [];
         foreach (var kvp in pointsByShape)
         {
             var ordered = kvp.Value.OrderBy(s => s.ShapePtSequence).ToList();
@@ -213,7 +210,7 @@ public class GtfsParser
         if (entry is null) return [];
 
         using var csvReader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(csvReader, CsvConfig);
+        using var csv = new CsvReader(csvReader, _csvConfig);
         configure?.Invoke(csv.Context);
         return csv.GetRecords<T>().ToList();
     }
@@ -226,7 +223,7 @@ public class GtfsParser
         if (entry is null) yield break;
 
         using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, CsvConfig);
+        using var csv = new CsvReader(reader, _csvConfig);
         configure?.Invoke(csv.Context);
 
         var batch = new List<T>(batchSize);
@@ -243,7 +240,7 @@ public class GtfsParser
             yield return batch;
     }
 
-    private static readonly CsvConfiguration CsvConfig = new(CultureInfo.InvariantCulture)
+    private static readonly CsvConfiguration _csvConfig = new(CultureInfo.InvariantCulture)
     {
         HasHeaderRecord = true,
         MissingFieldFound = null,

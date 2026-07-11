@@ -18,15 +18,7 @@ public class RealtimePollingWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<RealtimePollingOptions> _options;
 
-    public RealtimePollingWorker(
-        ILogger<RealtimePollingWorker> logger,
-        IServiceScopeFactory scopeFactory,
-        IOptionsMonitor<RealtimePollingOptions> options)
-    {
-        _logger = logger;
-        _scopeFactory = scopeFactory;
-        _options = options;
-    }
+    public RealtimePollingWorker(ILogger<RealtimePollingWorker> logger, IServiceScopeFactory scopeFactory, IOptionsMonitor<RealtimePollingOptions> options) { _logger = logger; _scopeFactory = scopeFactory; _options = options; }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {

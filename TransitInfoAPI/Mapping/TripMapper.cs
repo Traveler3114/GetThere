@@ -12,8 +12,8 @@ public static class TripMapper
         Headsign = t.TripHeadsign,
         ShortName = t.TripShortName,
         DirectionId = t.DirectionId,
-        RouteName = t.CanonicalRoute != null ? t.CanonicalRoute.LongName : null,
-        RouteType = t.CanonicalRoute != null ? t.CanonicalRoute.RouteType.ToString() : null,
+        RouteName = t.CanonicalRoute is not null ? t.CanonicalRoute.LongName : null,
+        RouteType = t.CanonicalRoute is not null ? t.CanonicalRoute.RouteType.ToString() : null,
         ActiveToday = false
     };
 }

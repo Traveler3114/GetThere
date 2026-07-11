@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TransitInfoAPI.Contracts;
 
-public class CreateCustomFeedRequest
+public record CreateCustomFeedRequest
 {
     [Range(1, int.MaxValue)] public int OperatorId { get; set; }
     [Required, StringLength(200)] public string Name { get; set; } = string.Empty;
@@ -19,7 +19,7 @@ public class CreateCustomFeedRequest
     public List<CreateTableConfigRequest> TableConfigs { get; set; } = [];
 }
 
-public class UpdateCustomFeedRequest
+public record UpdateCustomFeedRequest
 {
     public int? OperatorId { get; set; }
     [StringLength(200)] public string? Name { get; set; }
@@ -38,14 +38,14 @@ public class UpdateCustomFeedRequest
     public List<CreateTableConfigRequest>? TableConfigs { get; set; }
 }
 
-public class CreateFieldMappingRequest
+public record CreateFieldMappingRequest
 {
     [Required, StringLength(200)] public string SourceExpression { get; set; } = string.Empty;
     [Required, StringLength(100)] public string TargetField { get; set; } = string.Empty;
     [Required] public string MappingKind { get; set; } = string.Empty;
 }
 
-public class CreateTableConfigRequest
+public record CreateTableConfigRequest
 {
     public string Url { get; set; } = string.Empty;
     [StringLength(10)] public string HttpMethod { get; set; } = "GET";

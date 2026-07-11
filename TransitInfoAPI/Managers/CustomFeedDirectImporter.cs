@@ -666,7 +666,7 @@ public class CustomFeedDirectImporter
         List<Calendar>? calendar,
         List<CalendarDate>? calendarDates)
     {
-        var warnings = new List<string>();
+        List<string> warnings = [];
 
         if (calendar is null || calendar.Count == 0)
         {

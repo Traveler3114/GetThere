@@ -10,17 +10,14 @@ public class ProfileManager
 {
     private readonly UserManager<AppUser> _userManager;
 
-    public ProfileManager(UserManager<AppUser> userManager)
-    {
-        _userManager = userManager;
-    }
+public ProfileManager(UserManager<AppUser> userManager) { _userManager = userManager; }
 
-    public async Task<AppUser?> GetUserByIdAsync(string userId)
+    public async Task<AppUser?> GetUserByIdAsync(string userId, CancellationToken ct = default)
     {
         return await _userManager.FindByIdAsync(userId);
     }
 
-    public async Task UpdateProfileAsync(AppUser user, UpdateProfileRequest request)
+    public async Task UpdateProfileAsync(AppUser user, UpdateProfileRequest request, CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(request.FullName))
             user.FullName = request.FullName;

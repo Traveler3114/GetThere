@@ -23,7 +23,7 @@ public class WalletTransactionResponse
     public string FormattedAmount => $"€{Amount:N2}";
 }
 
-public class TopUpRequest
+public record TopUpRequest
 {
     public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;

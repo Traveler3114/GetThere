@@ -1,5 +1,3 @@
-#nullable enable
-
 using GetThere.Helpers;
 using GetThere.Localization;
 using GetThere.Services;

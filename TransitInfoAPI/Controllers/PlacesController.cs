@@ -1,11 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
 using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Managers;
 using TransitInfoAPI.Common;
-using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -13,9 +11,9 @@ namespace TransitInfoAPI.Controllers;
 [Route("[controller]")]
 public class PlacesController : ControllerBase
 {
-    private readonly TransitDbContext _db;
+    private readonly PlaceManager _placeManager;
 
-    public PlacesController(TransitDbContext db) { _db = db; }
+public PlacesController(PlaceManager placeManager) { _placeManager = placeManager; }
 
     [HttpGet]
     public async Task<ActionResult<Paginated<PlaceResponse>>> GetAll(
@@ -24,62 +22,30 @@ public class PlacesController : ControllerBase
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
-        var query = _db.Places
-            .OrderBy(p => p.Id)
-            .AsQueryable();
-
-        if (!string.IsNullOrEmpty(countryCode))
-            query = query.Where(p => p.AdmCountryCode == countryCode);
-
-        var total = await query.CountAsync(ct);
-        var places = await query
-            .Skip((page - 1) * perPage)
-            .Take(perPage)
-            .Select(PlaceMapper.ToResponseExpression)
-            .ToListAsync(ct);
-
+        var places = await _placeManager.GetAllAsync(countryCode, page, perPage, ct);
+        var total = await _placeManager.GetTotalCountAsync(countryCode, ct);
         return Ok(new Paginated<PlaceResponse>(places, total, page, perPage));
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<PlaceResponse>> GetById(int id, CancellationToken ct = default)
     {
-        var place = await _db.Places
-            .Where(p => p.Id == id)
-            .Select(PlaceMapper.ToResponseExpression)
-            .FirstOrDefaultAsync(ct);
-
-        if (place is null)
-            return NotFound();
-
+        var place = await _placeManager.GetByIdAsync(id, ct);
+        if (place is null) return NotFound();
         return Ok(place);
     }
 
     [HttpGet("{id}/operators")]
     public async Task<ActionResult<List<OperatorResponse>>> GetOperators(int id, CancellationToken ct = default)
     {
-        var operatorIds = await _db.CanonicalStations
-            .Where(cs => cs.PlaceId == id)
-            .SelectMany(cs => cs.StationOperators)
-            .Select(cso => cso.OperatorId)
-            .Distinct()
-            .ToListAsync(ct);
-        var operators = await _db.Operators
-            .Where(o => operatorIds.Contains(o.Id))
-            .Select(OperatorMapper.ToResponseExpression)
-            .ToListAsync(ct);
-
-        return Ok(new Paginated<OperatorResponse>(operators, operators.Count, 1, operators.Count));
+        var operators = await _placeManager.GetOperatorsAsync(id, ct);
+        return Ok(operators);
     }
 
     [HttpGet("{id}/stations")]
     public async Task<ActionResult<List<StationResponse>>> GetStations(int id, CancellationToken ct = default)
     {
-        var stations = await _db.CanonicalStations
-            .Where(cs => cs.PlaceId == id)
-            .Select(StationMapper.ToResponseExpression)
-            .ToListAsync(ct);
-
-        return Ok(new Paginated<StationResponse>(stations, stations.Count, 1, stations.Count));
+        var stations = await _placeManager.GetStationsAsync(id, ct);
+        return Ok(stations);
     }
 }

@@ -21,17 +21,7 @@ public class MobilityPollingWorker : BackgroundService
     private readonly IOptionsMonitor<MobilityPollingOptions> _options;
     private readonly FeedSourceFactory _feedSourceFactory;
 
-    public MobilityPollingWorker(
-        ILogger<MobilityPollingWorker> logger,
-        IServiceScopeFactory scopeFactory,
-        IOptionsMonitor<MobilityPollingOptions> options,
-        FeedSourceFactory feedSourceFactory)
-    {
-        _logger = logger;
-        _scopeFactory = scopeFactory;
-        _options = options;
-        _feedSourceFactory = feedSourceFactory;
-    }
+    public MobilityPollingWorker(ILogger<MobilityPollingWorker> logger, IServiceScopeFactory scopeFactory, IOptionsMonitor<MobilityPollingOptions> options, FeedSourceFactory feedSourceFactory) { _logger = logger; _scopeFactory = scopeFactory; _options = options; _feedSourceFactory = feedSourceFactory; }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {

@@ -16,15 +16,7 @@ public class CustomFeedSource : IFeedSource
     private readonly CustomFeedEngine _engine;
     private readonly ILogger<CustomFeedSource> _logger;
 
-    public CustomFeedSource(
-        IServiceScopeFactory scopeFactory,
-        CustomFeedEngine engine,
-        ILogger<CustomFeedSource> logger)
-    {
-        _scopeFactory = scopeFactory;
-        _engine = engine;
-        _logger = logger;
-    }
+    public CustomFeedSource(IServiceScopeFactory scopeFactory, CustomFeedEngine engine, ILogger<CustomFeedSource> logger) { _scopeFactory = scopeFactory; _engine = engine; _logger = logger; }
 
     public async Task<FeedFetchResult> FetchDataAsync(Feed feed, CancellationToken ct)
     {

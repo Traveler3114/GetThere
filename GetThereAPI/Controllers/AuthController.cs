@@ -12,15 +12,12 @@ public class AuthController : ControllerBase
 {
     private readonly AuthManager _authManager;
 
-    public AuthController(AuthManager authManager)
-    {
-        _authManager = authManager;
-    }
+public AuthController(AuthManager authManager) { _authManager = authManager; }
 
     [HttpPost("register")]
     public async Task<ActionResult> Register(RegisterRequest request, CancellationToken ct = default)
     {
-        await _authManager.RegisterAsync(request);
+        await _authManager.RegisterAsync(request, ct);
         return Ok(new { message = "USER_REGISTERED" });
     }
 
@@ -29,7 +26,7 @@ public class AuthController : ControllerBase
         LoginRequest request, [FromQuery] bool rememberMe = false, CancellationToken ct = default)
     {
         var deviceInfo = Request.Headers["User-Agent"].ToString();
-        var result = await _authManager.LoginAsync(request, rememberMe, deviceInfo);
+        var result = await _authManager.LoginAsync(request, rememberMe, deviceInfo, ct);
         return Ok(result);
     }
 
@@ -38,7 +35,7 @@ public class AuthController : ControllerBase
         RefreshTokenRequest request, CancellationToken ct = default)
     {
         var deviceInfo = Request.Headers["User-Agent"].ToString();
-        var result = await _authManager.RefreshAsync(request.RefreshToken, deviceInfo);
+        var result = await _authManager.RefreshAsync(request.RefreshToken, deviceInfo, ct);
         return Ok(result);
     }
 
@@ -46,7 +43,7 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<ActionResult> Logout(RefreshTokenRequest request, CancellationToken ct = default)
     {
-        await _authManager.LogoutAsync(request.RefreshToken);
+        await _authManager.LogoutAsync(request.RefreshToken, ct);
         return Ok(new { message = "LOGGED_OUT" });
     }
 }

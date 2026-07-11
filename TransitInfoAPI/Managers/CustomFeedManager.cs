@@ -76,8 +76,8 @@ public class CustomFeedManager
             BaseUrl = request.BaseUrl,
             HttpMethod = string.IsNullOrWhiteSpace(request.HttpMethod) ? "GET" : request.HttpMethod.ToUpperInvariant(),
             AuthConfig = request.AuthConfig,
-            ResponseFormat = Enum.Parse<ResponseFormat>(request.ResponseFormat, true),
-            OutputFormat = Enum.Parse<OutputFormat>(request.OutputFormat, true),
+            ResponseFormat = Enum.TryParse<ResponseFormat>(request.ResponseFormat, true, out var rf) ? rf : ResponseFormat.JSON,
+            OutputFormat = Enum.TryParse<OutputFormat>(request.OutputFormat, true, out var of) ? of : OutputFormat.GtfsStatic,
             DataPath = request.DataPath,
             TargetTable = request.TargetTable,
             PaginationConfig = request.PaginationConfig,
@@ -89,14 +89,14 @@ public class CustomFeedManager
                 SortOrder = i + 1,
                 SourceExpression = m.SourceExpression,
                 TargetField = m.TargetField,
-                MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                MappingKind = Enum.TryParse<MappingKind>(m.MappingKind, true, out var mk) ? mk : MappingKind.Static
             }).ToList(),
             TableConfigs = request.TableConfigs.Select((t, i) => new CustomFeedTableConfig
             {
                 SortOrder = i + 1,
                 Url = t.Url,
                 HttpMethod = string.IsNullOrWhiteSpace(t.HttpMethod) ? "GET" : t.HttpMethod.ToUpperInvariant(),
-                ResponseFormat = Enum.Parse<ResponseFormat>(t.ResponseFormat, true),
+                ResponseFormat = Enum.TryParse<ResponseFormat>(t.ResponseFormat, true, out var rft) ? rft : ResponseFormat.JSON,
                 DataPath = t.DataPath,
                 TargetTable = t.TargetTable,
                 PaginationConfig = t.PaginationConfig,
@@ -107,7 +107,7 @@ public class CustomFeedManager
                     SortOrder = j + 1,
                     SourceExpression = m.SourceExpression,
                     TargetField = m.TargetField,
-                    MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                    MappingKind = Enum.TryParse<MappingKind>(m.MappingKind, true, out var mkt) ? mkt : MappingKind.Static
                 }).ToList()
             }).ToList()
         };
@@ -133,9 +133,9 @@ public class CustomFeedManager
         if (request.BaseUrl is not null) feed.BaseUrl = request.BaseUrl;
         if (request.HttpMethod is not null) feed.HttpMethod = request.HttpMethod.ToUpperInvariant();
         if (request.ResponseFormat is not null)
-            feed.ResponseFormat = Enum.Parse<ResponseFormat>(request.ResponseFormat, true);
+            feed.ResponseFormat = Enum.TryParse<ResponseFormat>(request.ResponseFormat, true, out var rf) ? rf : feed.ResponseFormat;
         if (request.OutputFormat is not null)
-            feed.OutputFormat = Enum.Parse<OutputFormat>(request.OutputFormat, true);
+            feed.OutputFormat = Enum.TryParse<OutputFormat>(request.OutputFormat, true, out var of) ? of : feed.OutputFormat;
         if (request.DataPath is not null) feed.DataPath = request.DataPath;
         if (request.TargetTable is not null) feed.TargetTable = request.TargetTable;
         if (request.PaginationConfig is not null) feed.PaginationConfig = request.PaginationConfig;
@@ -157,7 +157,7 @@ public class CustomFeedManager
                 SortOrder = i + 1,
                 SourceExpression = m.SourceExpression,
                 TargetField = m.TargetField,
-                MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                MappingKind = Enum.TryParse<MappingKind>(m.MappingKind, true, out var mk) ? mk : MappingKind.Static
             }).ToList();
         }
 
@@ -177,7 +177,7 @@ public class CustomFeedManager
                 SortOrder = i + 1,
                 Url = t.Url,
                 HttpMethod = string.IsNullOrWhiteSpace(t.HttpMethod) ? "GET" : t.HttpMethod.ToUpperInvariant(),
-                ResponseFormat = Enum.Parse<ResponseFormat>(t.ResponseFormat, true),
+                ResponseFormat = Enum.TryParse<ResponseFormat>(t.ResponseFormat, true, out var rft) ? rft : ResponseFormat.JSON,
                 DataPath = t.DataPath,
                 TargetTable = t.TargetTable,
                 PaginationConfig = t.PaginationConfig,
@@ -188,7 +188,7 @@ public class CustomFeedManager
                     SortOrder = j + 1,
                     SourceExpression = m.SourceExpression,
                     TargetField = m.TargetField,
-                    MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                    MappingKind = Enum.TryParse<MappingKind>(m.MappingKind, true, out var mkt) ? mkt : MappingKind.Static
                 }).ToList()
             }).ToList();
         }
@@ -292,7 +292,7 @@ public class CustomFeedManager
             BaseUrl = request.BaseUrl,
             HttpMethod = string.IsNullOrWhiteSpace(request.HttpMethod) ? "GET" : request.HttpMethod.ToUpperInvariant(),
             AuthConfig = request.AuthConfig,
-            ResponseFormat = Enum.Parse<ResponseFormat>(request.ResponseFormat, true),
+            ResponseFormat = Enum.TryParse<ResponseFormat>(request.ResponseFormat, true, out var rf) ? rf : throw new InvalidOperationException($"Invalid response format: {request.ResponseFormat}"),
             PaginationConfig = request.PaginationConfig,
         };
 
@@ -310,8 +310,8 @@ public class CustomFeedManager
             BaseUrl = request.BaseUrl,
             HttpMethod = string.IsNullOrWhiteSpace(request.HttpMethod) ? "GET" : request.HttpMethod.ToUpperInvariant(),
             AuthConfig = request.AuthConfig,
-            ResponseFormat = Enum.Parse<ResponseFormat>(request.ResponseFormat, true),
-            OutputFormat = Enum.Parse<OutputFormat>(request.OutputFormat, true),
+            ResponseFormat = Enum.TryParse<ResponseFormat>(request.ResponseFormat, true, out var rfPreview) ? rfPreview : throw new InvalidOperationException($"Invalid response format: {request.ResponseFormat}"),
+            OutputFormat = Enum.TryParse<OutputFormat>(request.OutputFormat, true, out var ofPreview) ? ofPreview : throw new InvalidOperationException($"Invalid output format: {request.OutputFormat}"),
             DataPath = request.DataPath,
             TargetTable = request.TargetTable,
             PaginationConfig = request.PaginationConfig,
@@ -321,14 +321,14 @@ public class CustomFeedManager
                 SortOrder = i + 1,
                 SourceExpression = m.SourceExpression,
                 TargetField = m.TargetField,
-                MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                MappingKind = Enum.TryParse<MappingKind>(m.MappingKind, true, out var mk) ? mk : throw new InvalidOperationException($"Invalid mapping kind: {m.MappingKind}")
             }).ToList(),
             TableConfigs = request.TableConfigs.Select((t, i) => new CustomFeedTableConfig
             {
                 SortOrder = i + 1,
                 Url = t.Url,
                 HttpMethod = string.IsNullOrWhiteSpace(t.HttpMethod) ? "GET" : t.HttpMethod.ToUpperInvariant(),
-                ResponseFormat = Enum.Parse<ResponseFormat>(t.ResponseFormat, true),
+                ResponseFormat = Enum.TryParse<ResponseFormat>(t.ResponseFormat, true, out var rfTable) ? rfTable : throw new InvalidOperationException($"Invalid response format: {t.ResponseFormat}"),
                 DataPath = t.DataPath,
                 TargetTable = t.TargetTable,
                 PaginationConfig = t.PaginationConfig,
@@ -339,7 +339,7 @@ public class CustomFeedManager
                     SortOrder = j + 1,
                     SourceExpression = m.SourceExpression,
                     TargetField = m.TargetField,
-                    MappingKind = Enum.Parse<MappingKind>(m.MappingKind, true)
+                    MappingKind = Enum.TryParse<MappingKind>(m.MappingKind, true, out var mkTable) ? mkTable : throw new InvalidOperationException($"Invalid mapping kind: {m.MappingKind}")
                 }).ToList()
             }).ToList()
         };
@@ -384,7 +384,7 @@ public class CustomFeedManager
 
                 if (hardRequirementMet == false)
                 {
-                    var missing = new List<string>();
+                    List<string> missing = [];
                     if (!hasStops) missing.Add("stops");
                     if (!hasRoutes) missing.Add("routes");
                     if (!hasTrips) missing.Add("trips");

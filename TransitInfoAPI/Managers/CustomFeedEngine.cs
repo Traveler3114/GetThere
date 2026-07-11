@@ -33,10 +33,7 @@ public class CustomFeedEngine
 
     private record LoginTokenEntry(string Token, DateTime FetchedAt);
 
-    public CustomFeedEngine(IHttpClientFactory httpClientFactory)
-    {
-        _httpClientFactory = httpClientFactory;
-    }
+public CustomFeedEngine(IHttpClientFactory httpClientFactory) { _httpClientFactory = httpClientFactory; }
 
     public async Task<CustomFeedRunResult> ExecuteAsync(CustomFeed config, CancellationToken ct)
     {
@@ -50,7 +47,7 @@ public class CustomFeedEngine
         if (config.TableConfigs is { Count: > 0 })
         {
             log.Add("Multi-table mode active — processing each table config...");
-            var tableRecords = new Dictionary<string, List<Dictionary<string, object?>>>();
+            Dictionary<string, List<Dictionary<string, object?>>> tableRecords = [];
 
             foreach (var table in config.TableConfigs.OrderBy(t => t.SortOrder))
             {
@@ -60,12 +57,12 @@ public class CustomFeedEngine
                 if (table.IsStatic) log.Add("Static table — generating single record from mappings");
                 if (table.DistinctBy is not null) log.Add($"DistinctBy: {table.DistinctBy}");
 
-                var tableRows = new List<Dictionary<string, object?>>();
+                List<Dictionary<string, object?>> tableRows = [];
 
                 if (table.IsStatic)
                 {
                     // Static table: generate a single empty record, mappings set the values
-                    tableRows.Add(new Dictionary<string, object?>());
+                    tableRows.Add([]);
                     log.Add("Generated 1 empty record for static table");
                 }
                 else
@@ -182,7 +179,7 @@ public class CustomFeedEngine
                 if (table.DistinctBy is { Length: > 0 } && tableRows.Count > 0)
                 {
                     var before = tableRows.Count;
-                    var seen = new HashSet<string>();
+                    HashSet<string> seen = [];
                     tableRows = tableRows.Where(r =>
                     {
                         var key = r.TryGetValue(table.DistinctBy, out var v) ? v?.ToString() ?? "" : "";
@@ -415,7 +412,7 @@ public class CustomFeedEngine
         var tokenName = config.TryGetProperty("tokenName", out var tn) ? tn.GetString() ?? "token" : "token";
 
         // Parse login headers
-        var loginHeaders = new Dictionary<string, string>();
+        Dictionary<string, string> loginHeaders = [];
         if (config.TryGetProperty("loginHeaders", out var lh))
         {
             foreach (var h in lh.EnumerateObject())
@@ -615,8 +612,8 @@ public class CustomFeedEngine
             return ExtractValuesFromElement(root);
         }
 
-        var result = new List<Dictionary<string, object?>>();
-        var context = new Dictionary<string, object?>();
+        List<Dictionary<string, object?>> result = [];
+        Dictionary<string, object?> context = [];
 
         TraverseAndAccumulate(root, segments, 0, context, result, log);
         return result;
@@ -625,7 +622,7 @@ public class CustomFeedEngine
     private static List<(string Name, bool IsIterable)> ParseDataPathSegments(string dataPath)
     {
         var path = dataPath.TrimStart('$').TrimStart('.');
-        var result = new List<(string, bool)>();
+        List<(string, bool)> result = [];
 
         int pos = 0;
         while (pos < path.Length)
@@ -766,7 +763,7 @@ public class CustomFeedEngine
     {
         var doc = XDocument.Parse(body);
         var nodes = doc.XPathEvaluate(dataPath) as IEnumerable<object>;
-        var result = new List<Dictionary<string, object?>>();
+        List<Dictionary<string, object?>> result = [];
 
         if (nodes is null)
         {
@@ -778,7 +775,7 @@ public class CustomFeedEngine
         {
             if (node is XElement el)
             {
-                var row = new Dictionary<string, object?>();
+                Dictionary<string, object?> row = [];
                 FlattenXElement(el, row, "");
                 result.Add(row);
             }
@@ -810,7 +807,7 @@ public class CustomFeedEngine
 
     private List<Dictionary<string, object?>> ParseCsvRows(string body, string dataPath, List<string> log)
     {
-        var result = new List<Dictionary<string, object?>>();
+        List<Dictionary<string, object?>> result = [];
         var selectedColumns = string.IsNullOrWhiteSpace(dataPath)
             ? null
             : dataPath.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToHashSet();
@@ -828,7 +825,7 @@ public class CustomFeedEngine
 
         while (csv.Read())
         {
-            var row = new Dictionary<string, object?>();
+            Dictionary<string, object?> row = [];
             foreach (var header in csv.HeaderRecord!)
             {
                 if (selectedColumns is null || selectedColumns.Contains(header))
@@ -852,11 +849,11 @@ public class CustomFeedEngine
             .Select(m => m.SourceExpression.TrimStart('$').TrimStart('.'))
             .ToHashSet();
 
-        var result = new List<Dictionary<string, object?>>();
+        List<Dictionary<string, object?>> result = [];
 
         foreach (var row in rows)
         {
-            var mapped = new Dictionary<string, object?>();
+            Dictionary<string, object?> mapped = [];
 
             // Pass through unmapped source fields (except those mapped as Direct)
             foreach (var kv in row)
@@ -939,13 +936,13 @@ public class CustomFeedEngine
 
     private List<Dictionary<string, object?>> ExtractValuesFromElement(JsonElement element)
     {
-        var result = new List<Dictionary<string, object?>>();
+        List<Dictionary<string, object?>> result = [];
 
         if (element.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in element.EnumerateArray())
             {
-                var row = new Dictionary<string, object?>();
+                Dictionary<string, object?> row = [];
                 if (item.ValueKind == JsonValueKind.Object)
                     foreach (var prop in item.EnumerateObject())
                         row[prop.Name] = ElementToObject(prop.Value);
@@ -956,7 +953,7 @@ public class CustomFeedEngine
         }
         else if (element.ValueKind == JsonValueKind.Object)
         {
-            var row = new Dictionary<string, object?>();
+            Dictionary<string, object?> row = [];
             foreach (var prop in element.EnumerateObject())
                 row[prop.Name] = ElementToObject(prop.Value);
             result.Add(row);
@@ -982,7 +979,7 @@ public class CustomFeedEngine
 
     public async Task<CustomFeedDiscoverResponse> DiscoverStructureAsync(CustomFeed config, CancellationToken ct)
     {
-        var log = new List<string>();
+        List<string> log = [];
         log.Add($"Discovering structure for: {config.BaseUrl}");
 
         var client = _httpClientFactory.CreateClient("CustomFeed");
@@ -1016,7 +1013,7 @@ public class CustomFeedEngine
         var root = doc.RootElement;
 
         var structure = BuildStructureNode("$", "$", root, 8);
-        var arrayPaths = new List<string>();
+        List<string> arrayPaths = [];
         CollectArrayPaths(structure, arrayPaths);
 
         log.Add($"Built structure tree — found {arrayPaths.Count} valid array paths");

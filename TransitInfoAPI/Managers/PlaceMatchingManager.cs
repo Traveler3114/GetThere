@@ -65,7 +65,7 @@ public class PlaceMatchingManager
 
     private void BuildPlaceGrid()
     {
-        _placeGrid = new Dictionary<string, List<Place>>();
+        _placeGrid = [];
         foreach (var place in _placeCache!)
         {
             var key = GetGridCellKey(place.Lat, place.Lon);
@@ -92,8 +92,8 @@ public class PlaceMatchingManager
 
         var centerKey = GetGridCellKey(lat, lon);
         var parts = centerKey.Split(':');
-        var centerLat = double.Parse(parts[0]);
-        var centerLon = double.Parse(parts[1]);
+        var centerLat = double.TryParse(parts[0], out var cl) ? cl : 0;
+        var centerLon = double.TryParse(parts[1], out var cn) ? cn : 0;
 
         for (var dLat = -1; dLat <= 1; dLat++)
         {
