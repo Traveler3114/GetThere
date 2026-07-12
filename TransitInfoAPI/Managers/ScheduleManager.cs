@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -9,20 +10,34 @@ namespace TransitInfoAPI.Managers;
 
 public class ScheduleManager
 {
+    private static readonly TimeZoneInfo ZagrebTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zagreb");
+
     private readonly TransitDbContext _db;
     private readonly RealtimeManager _realtime;
+    private readonly ILogger<ScheduleManager> _logger;
 
-    public ScheduleManager(TransitDbContext db, RealtimeManager realtime) { _db = db; _realtime = realtime; }
+    public ScheduleManager(TransitDbContext db, RealtimeManager realtime, ILogger<ScheduleManager> logger) { _db = db; _realtime = realtime; _logger = logger; }
 
     public async Task<List<DepartureResponse>> GetDeparturesAsync(
         int canonicalStationId, DateTime from, int count, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(from);
-        var fromTime = (int)Math.Round(from.TimeOfDay.TotalSeconds);
+        var utcFrom = from.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(from, DateTimeKind.Utc)
+            : from.ToUniversalTime();
+        var localFrom = TimeZoneInfo.ConvertTimeFromUtc(utcFrom, ZagrebTz);
+
+        var today = DateOnly.FromDateTime(localFrom);
+        var fromTime = (int)Math.Round(localFrom.TimeOfDay.TotalSeconds);
+
+        _logger.LogInformation("DEP QUERY: station={StationId} utcFrom={UtcFrom} localFrom={LocalFrom} today={Today} fromTime={FromTime} count={Count}",
+            canonicalStationId, utcFrom, localFrom, today, fromTime, count);
 
         var validServices = await GetValidServiceIdsAsync(today, today.DayOfWeek, ct);
         var tomorrow = today.AddDays(1);
         var validServicesTomorrow = await GetValidServiceIdsAsync(tomorrow, tomorrow.DayOfWeek, ct);
+
+        _logger.LogInformation("DEP SERVICE: today={Today} validCount={TodayCount} tomorrow={Tomorrow} validCount={TomorrowCount}",
+            today, validServices.Count, tomorrow, validServicesTomorrow.Count);
 
         var rawDepartures = await _db.StopTimes
             .Where(st => st.CanonicalStationId == canonicalStationId)
@@ -47,18 +62,39 @@ public class ScheduleManager
             })
             .ToListAsync(ct);
 
-        return rawDepartures
+        _logger.LogInformation("DEP RAW: station={StationId} rawCount={RawCount} sample={Sample}",
+            canonicalStationId, rawDepartures.Count,
+            string.Join(", ", rawDepartures.Take(5).Select(d => $"{d.TripId}@{d.DepartureTime}s seq={d.StopSequence} stop={d.RawStopId} fv={d.FeedVersionId} svc={d.ServiceId}")));
+
+        var filteredDepartures = rawDepartures
             .Where(d => d.DepartureTime >= 86400
                 ? validServicesTomorrow.Contains((d.FeedVersionId, d.ServiceId))
                 : validServices.Contains((d.FeedVersionId, d.ServiceId)))
             .OrderBy(d => d.DepartureTime)
             .Take(count)
+            .ToList();
+
+        _logger.LogInformation("DEP FILTERED: filteredCount={FilteredCount} sample={Sample}",
+            filteredDepartures.Count,
+            string.Join(", ", filteredDepartures.Take(5).Select(d => $"{d.TripId}@{d.DepartureTime}s seq={d.StopSequence} stop={d.RawStopId}")));
+
+        return filteredDepartures
             .Select(d =>
             {
+                var localDate = localFrom.Date;
                 var departureTime = d.DepartureTime >= 86400
-                    ? from.Date.AddDays(1).AddSeconds(d.DepartureTime - 86400)
-                    : from.Date.AddSeconds(d.DepartureTime);
+                    ? localDate.AddDays(1).AddSeconds(d.DepartureTime - 86400)
+                    : localDate.AddSeconds(d.DepartureTime);
+                _logger.LogInformation("DEP LOOKUP: tripId={TripId} rawStopId={RawStopId} stopSequence={StopSequence} departureTime={DepartureTime}",
+                    d.TripId, d.RawStopId, d.StopSequence, departureTime);
                 var (delay, estimated) = _realtime.GetStopDelay(d.TripId, d.RawStopId, d.StopSequence, departureTime);
+                if (delay is null)
+                {
+                    _logger.LogInformation("No RT match: trip_id={TripId} route={RouteName} stop={RawStopId} — checking cache...", d.TripId, d.RouteName, d.RawStopId);
+                    _logger.LogInformation("No RT match: trip_id={TripId} — in cache at all? {InCache}", d.TripId, _realtime.HasTripUpdate(d.TripId));
+                }
+                else
+                    _logger.LogInformation("RT MATCH: trip_id={TripId} delay={Delay} estimated={Estimated}", d.TripId, delay, estimated);
                 return new DepartureResponse
                 {
                     TripId = d.TripId,

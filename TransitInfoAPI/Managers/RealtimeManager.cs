@@ -31,7 +31,10 @@ public class RealtimeManager
 
     private record TripUpdateBundle(
         Dictionary<int, StopTimeUpdateData> BySequence,
-        Dictionary<string, StopTimeUpdateData> ByStopId);
+        Dictionary<string, StopTimeUpdateData> ByStopId,
+        string? RouteId,
+        int? DirectionId,
+        string? StartTime);
 
     private volatile ConcurrentDictionary<string, TripUpdateBundle> _tripUpdateCache = new();
 
@@ -121,82 +124,113 @@ public class RealtimeManager
         }
     }
 
-    private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync(Feed feed, CancellationToken ct)
-    {
-        var result = await _externalFeedSource.FetchDataAsync(feed, ct);
-
-        var feedMessage = FeedMessage.Parser.ParseFrom(new MemoryStream(result.Data));
-
-        ConcurrentDictionary<string, TripUpdateBundle> tripUpdates = [];
-        List<FeedEntity> alerts = [];
-
-        foreach (var entity in feedMessage.Entity)
+private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync(Feed feed, CancellationToken ct)
         {
-            if (entity.Vehicle is not null)
+            var result = await _externalFeedSource.FetchDataAsync(feed, ct);
+
+            var feedMessage = FeedMessage.Parser.ParseFrom(new MemoryStream(result.Data));
+
+            ConcurrentDictionary<string, TripUpdateBundle> tripUpdates = [];
+            List<FeedEntity> alerts = [];
+
+            int tripUpdateCount = 0;
+            int tripUpdateWithStopTimeUpdates = 0;
+            int tripUpdateWithDelays = 0;
+            var sampleTripIdsWithDelays = new List<string>();
+
+            foreach (var entity in feedMessage.Entity)
             {
-                var vp = entity.Vehicle;
-                if (vp.Position is null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
-                if (string.IsNullOrEmpty(vp.Trip?.TripId)) continue;
-
-                var vehicleId = vp.Vehicle?.Id ?? entity.Id;
-                var vehicleDto = new VehicleResponse
+                if (entity.Vehicle is not null)
                 {
-                    VehicleId = vehicleId,
-                    FeedId = feed.FeedId,
-                    RouteId = entity.Vehicle?.Trip?.RouteId,
-                    TripId = entity.Vehicle?.Trip?.TripId,
-                    RouteShortName = null,
-                    IsRealtime = true,
-                    BlockId = null,
-                    Latitude = vp.Position.Latitude,
-                    Longitude = vp.Position.Longitude,
-                    Bearing = vp.Position.HasBearing ? vp.Position.Bearing : null,
-                    LastUpdated = vp.Timestamp > 0
-                        ? DateTime.UnixEpoch.AddSeconds(vp.Timestamp)
-                        : DateTime.UtcNow
-                };
+                    var vp = entity.Vehicle;
+                    if (vp.Position is null || (vp.Position.Latitude == 0 && vp.Position.Longitude == 0)) continue;
+                    if (string.IsNullOrEmpty(vp.Trip?.TripId)) continue;
 
-                _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
-            }
+                    var vehicleId = vp.Vehicle?.Id ?? entity.Id;
+                    var vehicleDto = new VehicleResponse
+                    {
+                        VehicleId = vehicleId,
+                        FeedId = feed.FeedId,
+                        RouteId = entity.Vehicle?.Trip?.RouteId,
+                        TripId = entity.Vehicle?.Trip?.TripId,
+                        RouteShortName = null,
+                        IsRealtime = true,
+                        BlockId = null,
+                        Latitude = vp.Position.Latitude,
+                        Longitude = vp.Position.Longitude,
+                        Bearing = vp.Position.HasBearing ? vp.Position.Bearing : null,
+                        LastUpdated = vp.Timestamp > 0
+                            ? DateTime.UnixEpoch.AddSeconds(vp.Timestamp)
+                            : DateTime.UtcNow
+                    };
 
-            if (entity.TripUpdate is not null)
-            {
-                var tu = entity.TripUpdate;
-                var tripId = tu.Trip?.TripId;
-                if (string.IsNullOrEmpty(tripId)) continue;
-
-                var bySequence = new Dictionary<int, StopTimeUpdateData>();
-                var byStopId = new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal);
-
-                foreach (var stu in tu.StopTimeUpdate)
-                {
-                    var delay = stu.Departure?.Delay ?? stu.Arrival?.Delay;
-                    var time = stu.Departure?.Time ?? stu.Arrival?.Time ?? 0;
-                    if (!delay.HasValue && time <= 0) continue;
-
-                    var data = new StopTimeUpdateData(delay ?? 0, time > 0 ? time : null);
-
-                    // stop_sequence often defaults to 0 when producers only populate stop_id —
-                    // store both so lookup can prefer the more reliable field (stop_id).
-                    if (stu.StopSequence > 0)
-                        bySequence[(int)stu.StopSequence] = data;
-                    if (!string.IsNullOrEmpty(stu.StopId))
-                        byStopId[stu.StopId] = data;
+                    _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
                 }
 
-                if (bySequence.Count > 0 || byStopId.Count > 0)
-                    tripUpdates[tripId] = new TripUpdateBundle(bySequence, byStopId);
-                else
-                    _logger.LogDebug("TripUpdate for trip {TripId} on feed {FeedId} has neither stop_id nor stop_sequence — unmatchable", tripId, feed.FeedId);
+                if (entity.TripUpdate is not null)
+                {
+                    tripUpdateCount++;
+                    var tu = entity.TripUpdate;
+                    var tripId = tu.Trip?.TripId;
+                    if (string.IsNullOrEmpty(tripId)) continue;
+
+                    var bySequence = new Dictionary<int, StopTimeUpdateData>();
+                    var byStopId = new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal);
+
+                    foreach (var stu in tu.StopTimeUpdate)
+                    {
+                        var delay = stu.Departure?.Delay ?? stu.Arrival?.Delay;
+                        var time = stu.Departure?.Time ?? stu.Arrival?.Time ?? 0;
+                        if (!delay.HasValue && time <= 0) continue;
+
+                        var data = new StopTimeUpdateData(delay ?? 0, time > 0 ? time : null);
+
+                        // stop_sequence often defaults to 0 when producers only populate stop_id —
+                        // store both so lookup can prefer the more reliable field (stop_id).
+                        if (stu.StopSequence > 0)
+                            bySequence[(int)stu.StopSequence] = data;
+                        if (!string.IsNullOrEmpty(stu.StopId))
+                            byStopId[stu.StopId] = data;
+                    }
+
+                    if (bySequence.Count > 0 || byStopId.Count > 0)
+                    {
+                        tripUpdateWithStopTimeUpdates++;
+                        var hasNonZeroDelay = (bySequence.Values.Any(v => v.DelaySeconds != 0) || byStopId.Values.Any(v => v.DelaySeconds != 0));
+                        if (hasNonZeroDelay)
+                        {
+                            tripUpdateWithDelays++;
+                            if (sampleTripIdsWithDelays.Count < 10)
+                                sampleTripIdsWithDelays.Add(tripId);
+                        }
+                        // Extract trip descriptor for fallback matching
+                        var tripDesc = tu.Trip;
+                        var routeId = tripDesc?.RouteId;
+                        var directionId = tripDesc?.HasDirectionId == true ? (int?)tripDesc.DirectionId : null;
+                        var startTime = tripDesc?.StartTime;
+                        _logger.LogInformation("RT PARSE: feed={FeedId} trip_id={TripId} routeId={RouteId} directionId={DirectionId} startTime={StartTime} seqCount={SeqCount} stopIdCount={StopIdCount} hasNonZeroDelay={HasDelay} sampleDelays={Delays}",
+                            feed.FeedId, tripId, routeId, directionId, startTime, bySequence.Count, byStopId.Count, hasNonZeroDelay,
+                            string.Join(",", bySequence.Values.Concat(byStopId.Values).Where(v => v.DelaySeconds != 0).Take(5).Select(v => v.DelaySeconds)));
+                        tripUpdates[tripId] = new TripUpdateBundle(bySequence, byStopId, routeId, directionId, startTime);
+                    }
+                    else
+                        _logger.LogDebug("TripUpdate for trip {TripId} on feed {FeedId} has neither stop_id nor stop_sequence — unmatchable", tripId, feed.FeedId);
+                }
+
+                if (entity.Alert is not null)
+                    alerts.Add(entity);
             }
 
-            if (entity.Alert is not null)
-                alerts.Add(entity);
-        }
+            _logger.LogInformation("Feed {FeedId}: {TripUpdateCount} trip_update entities, {MatchedCount} with stop_time_update data, {DelayCount} with non-zero delays. Sample delay trips: {SampleDelayTrips}",
+                feed.FeedId, tripUpdateCount, tripUpdateWithStopTimeUpdates, tripUpdateWithDelays, string.Join(", ", sampleTripIdsWithDelays));
+            _logger.LogInformation("RT feed {FeedId}: {Count} trip updates parsed, sample trip_ids: {Sample}",
+                feed.FeedId, tripUpdates.Count, string.Join(", ", tripUpdates.Keys.Take(5)));
+            _logger.LogInformation("RT feed {FeedId}: {Count} trip_ids. Contains 0_2_201_2_21154? {Has}",
+                feed.FeedId, tripUpdates.Count, tripUpdates.ContainsKey("0_2_201_2_21154"));
 
-        // Alerts persisted because they carry reference value across restarts (active disruptions).
-        // Vehicle positions are ephemeral and remain in-memory only.
-        // Persist alerts
+            // Alerts persisted because they carry reference value across restarts (active disruptions).
+            // Vehicle positions are ephemeral and remain in-memory only.
+            // Persist alerts
         try
         {
             using var alertScope = _scopeFactory.CreateScope();
@@ -277,17 +311,40 @@ public class RealtimeManager
         if (!_tripUpdateCache.TryGetValue(tripId, out var bundle))
             return (null, null);
 
-        StopTimeUpdateData? data = null;
+        // Exact match — safe to trust the absolute EstimatedTimeUnix if present,
+        // since it genuinely refers to this stop.
+        StopTimeUpdateData? exact = null;
         if (!string.IsNullOrEmpty(rawStopId) && bundle.ByStopId.TryGetValue(rawStopId, out var byId))
-            data = byId;
+            exact = byId;
         else if (bundle.BySequence.TryGetValue(stopSequence, out var bySeq))
-            data = bySeq;
+            exact = bySeq;
 
-        if (data is null) return (null, null);
+        if (exact is not null)
+        {
+            return exact.EstimatedTimeUnix.HasValue
+                ? (exact.DelaySeconds, DateTime.UnixEpoch.AddSeconds(exact.EstimatedTimeUnix.Value))
+                : (exact.DelaySeconds, scheduledDeparture + TimeSpan.FromSeconds(exact.DelaySeconds));
+        }
 
-        return data.EstimatedTimeUnix.HasValue
-            ? (data.DelaySeconds, DateTime.UnixEpoch.AddSeconds(data.EstimatedTimeUnix.Value))
-            : (data.DelaySeconds, scheduledDeparture + TimeSpan.FromSeconds(data.DelaySeconds));
+        // No exact match — propagate delay from the nearest preceding stop_sequence
+        // per GTFS-RT sparse-update convention. Its absolute EstimatedTimeUnix belongs
+        // to a DIFFERENT stop and must never be reused here — only the delay offset
+        // is valid to carry forward.
+        if (bundle.BySequence.Count > 0)
+        {
+            var predecessor = bundle.BySequence.Keys
+                .Where(seq => seq <= stopSequence)
+                .OrderByDescending(seq => seq)
+                .FirstOrDefault(-1);
+
+            if (predecessor >= 0)
+            {
+                var propagated = bundle.BySequence[predecessor];
+                return (propagated.DelaySeconds, scheduledDeparture + TimeSpan.FromSeconds(propagated.DelaySeconds));
+            }
+        }
+
+        return (null, null);
     }
 
     public Task<List<VehicleResponse>> GetVehiclesAsync(
@@ -350,12 +407,14 @@ public class RealtimeManager
         _vehicleCache[key] = vehicle;
     }
 
+    public bool HasTripUpdate(string tripId) => _tripUpdateCache.ContainsKey(tripId);
+
     public void UpdateTripUpdate(string tripId, string? rawStopId, int stopSequence, int? delaySeconds)
     {
         var tripCache = _tripUpdateCache;
         if (!tripCache.TryGetValue(tripId, out var bundle))
         {
-            bundle = new TripUpdateBundle([], new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal));
+            bundle = new TripUpdateBundle([], new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal), null, null, null);
             tripCache[tripId] = bundle;
         }
         var data = new StopTimeUpdateData(delaySeconds ?? 0, null);

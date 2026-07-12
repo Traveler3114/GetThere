@@ -561,9 +561,20 @@ function showStationDetails(id, props) {
     }
     let depHtml = '<h3>Next departures</h3>';
     deps.forEach(d => {
-      const time = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
-      const delay = d.delaySeconds ? ` (${Math.round(d.delaySeconds / 60)} min delay)` : '';
-      depHtml += `<div class="departure-item"><strong>${time}</strong> ${d.headsign ? d.headsign + ' — ' : ''}${d.routeName || ''}${delay}</div>`;
+      const hasRt = d.delaySeconds !== null && d.delaySeconds !== undefined;
+      const schedTime = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+      const estTime = d.estimatedDeparture ? new Date(d.estimatedDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : schedTime;
+
+      let timeHtml;
+      if (hasRt && estTime !== schedTime) {
+        const mins = Math.round(d.delaySeconds / 60);
+        const label = mins > 0 ? `+${mins}` : `${mins}`;
+        timeHtml = `<span style="text-decoration:line-through;color:#999;margin-right:4px">${schedTime}</span><strong style="color:${mins>0?'#dc3545':'#198754'}">${estTime}</strong> <span style="font-size:0.8em">(${label} min)</span>`;
+      } else {
+        timeHtml = `<strong>${schedTime}</strong>`;
+      }
+
+      depHtml += `<div class="departure-item">${timeHtml} ${d.headsign ? d.headsign + ' — ' : ''}${d.routeName || ''}${hasRt ? ' 🔴' : ''}</div>`;
     });
     document.querySelector('.departures').innerHTML = depHtml;
   }).catch(() => {
