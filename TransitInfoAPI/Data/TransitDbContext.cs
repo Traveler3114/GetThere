@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
@@ -5,7 +7,7 @@ using TransitInfoAPI.Entities;
 
 namespace TransitInfoAPI.Data;
 
-public class TransitDbContext : DbContext
+public class TransitDbContext : IdentityDbContext<AppUser, IdentityRole<int>, int>
 {
     public TransitDbContext(DbContextOptions<TransitDbContext> options) : base(options) { }
 
@@ -30,10 +32,28 @@ public class TransitDbContext : DbContext
     public DbSet<Shape> Shapes { get; set; }
     public DbSet<StationSplitLog> StationSplitLogs { get; set; }
     public DbSet<StationMergeLog> StationMergeLogs { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Identity table names
+        modelBuilder.Entity<AppUser>(b => b.ToTable("AspNetUsers"));
+        modelBuilder.Entity<IdentityRole<int>>(b => b.ToTable("AspNetRoles"));
+        modelBuilder.Entity<IdentityUserRole<int>>(b => b.ToTable("AspNetUserRoles"));
+        modelBuilder.Entity<IdentityUserClaim<int>>(b => b.ToTable("AspNetUserClaims"));
+        modelBuilder.Entity<IdentityUserLogin<int>>(b => b.ToTable("AspNetUserLogins"));
+        modelBuilder.Entity<IdentityRoleClaim<int>>(b => b.ToTable("AspNetRoleClaims"));
+        modelBuilder.Entity<IdentityUserToken<int>>(b => b.ToTable("AspNetUserTokens"));
+
+        modelBuilder.Entity<RefreshToken>(b =>
+        {
+            b.ToTable("RefreshTokens");
+            b.HasKey(rt => rt.Id);
+            b.HasIndex(rt => rt.Token).IsUnique();
+            b.HasOne(rt => rt.User).WithMany().HasForeignKey(rt => rt.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

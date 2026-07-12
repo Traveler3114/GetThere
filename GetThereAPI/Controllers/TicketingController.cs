@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
 using GetThereShared.Contracts;
+using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -16,6 +17,7 @@ public class TicketingController : ControllerBase
 public TicketingController(TicketingManager ticketingManager) { _ticketingManager = ticketingManager; }
 
     [HttpGet("options")]
+    [Authorize(Policy = PermissionKeys.TicketsView)]
     public async Task<ActionResult<List<TicketOptionResponse>>> GetOptions(CancellationToken ct = default)
     {
         var result = await _ticketingManager.GetTicketOptionsAsync(ct);
@@ -23,6 +25,7 @@ public TicketingController(TicketingManager ticketingManager) { _ticketingManage
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.TicketsView)]
     public async Task<ActionResult<List<TicketResponse>>> GetMyTickets(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -33,6 +36,7 @@ public TicketingController(TicketingManager ticketingManager) { _ticketingManage
     }
 
     [HttpPost("purchase")]
+    [Authorize(Policy = PermissionKeys.TicketsCreate)]
     public async Task<ActionResult<TicketResponse>> Purchase(
         PurchaseTicketRequest request, CancellationToken ct = default)
     {

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using GetThereAPI.Managers;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
+using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -19,6 +20,7 @@ public class AdminController : ControllerBase
 public AdminController(AdminManager adminManager) { _adminManager = adminManager; }
 
     [HttpGet("users")]
+    [Authorize(Policy = PermissionKeys.UsersView)]
     public async Task<ActionResult<PagedResult<UserListItem>>> GetUsers(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
@@ -27,6 +29,7 @@ public AdminController(AdminManager adminManager) { _adminManager = adminManager
     }
 
     [HttpPost("users/{userId}/role")]
+    [Authorize(Policy = PermissionKeys.UsersManage)]
     public async Task<ActionResult> SetUserRole(string userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
     {
         var user = await _adminManager.SetUserRoleAsync(userId, request.RoleName, ct);
@@ -35,6 +38,7 @@ public AdminController(AdminManager adminManager) { _adminManager = adminManager
     }
 
     [HttpGet("audit")]
+    [Authorize(Policy = PermissionKeys.AuditView)]
     public async Task<ActionResult<PagedResult<AuditLogEntry>>> GetAuditLogs(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
     {

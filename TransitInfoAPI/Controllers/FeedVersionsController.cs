@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("feed-versions")]
+[Authorize(Policy = PermissionKeys.FeedVersionsView)]
 public class FeedVersionsController : ControllerBase
 {
     private readonly TransitDbContext _db;

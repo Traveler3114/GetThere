@@ -1,34 +1,39 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using GetThereAPI.Common;
-using GetThereAPI.Entities;
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Entities;
 
-namespace GetThereAPI.Managers;
+namespace TransitInfoAPI.Managers;
 
 public class TokenManager
 {
     private readonly IConfiguration _config;
     private readonly UserManager<AppUser> _userManager;
 
-    public TokenManager(IConfiguration config, UserManager<AppUser> userManager) { _config = config; _userManager = userManager; }
+    public TokenManager(IConfiguration config, UserManager<AppUser> userManager)
+    {
+        _config = config;
+        _userManager = userManager;
+    }
 
     public async Task<string> CreateTokenAsync(AppUser user)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var expiry = DateTime.UtcNow.AddMinutes(
-            double.TryParse(_config["Jwt:ExpiryMinutes"], out var expiryMin) ? expiryMin : 60);
+        var expiryMinutes = double.TryParse(_config["Jwt:ExpiryMinutes"], out var m) ? m : 60;
+        var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
         var claims = new List<Claim>
         {
-            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub, user.Id),
+            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email, user.Email!),
-            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.GivenName, user.FullName ?? ""),
+            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Name, user.FullName ?? ""),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -61,15 +66,9 @@ public class TokenManager
         {
             foreach (var p in PermissionKeys.All) perms.Add(p);
         }
-        else if (roles.Contains(RoleNames.User))
+        else if (roles.Contains(RoleNames.Client))
         {
-            // User gets standard user permissions
-            foreach (var p in PermissionKeys.All.Where(p =>
-                p is PermissionKeys.TicketsView or PermissionKeys.TicketsCreate
-                or PermissionKeys.WalletsView
-                or PermissionKeys.ProfileView or PermissionKeys.ProfileManage
-                or PermissionKeys.SettingsView
-                or PermissionKeys.MapView))
+            foreach (var p in PermissionKeys.All.Where(p => p.EndsWith(".view")))
                 perms.Add(p);
         }
 
@@ -94,7 +93,6 @@ public class TokenManager
         var days = rememberMe
             ? (int.TryParse(_config["Jwt:RefreshTokenDaysRememberMe"], out var remDays) ? remDays : 30)
             : (int.TryParse(_config["Jwt:RefreshTokenDays"], out var stdDays) ? stdDays : 1);
-
         return DateTime.UtcNow.AddDays(days);
     }
 

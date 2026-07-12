@@ -1,36 +1,29 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using TransitInfoAPI.Data;
+using TransitInfoAPI.Entities;
+using TransitInfoAPI.Exceptions;
+using TransitInfoAPI.Contracts;
 
-using GetThereAPI.Data;
-using GetThereAPI.Entities;
-using GetThereAPI.Exceptions;
-using GetThereAPI.Mapping;
-using GetThereShared.Contracts;
-
-namespace GetThereAPI.Managers;
+namespace TransitInfoAPI.Managers;
 
 public class AuthManager
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly SignInManager<AppUser> _signInManager;
     private readonly TokenManager _tokenManager;
-    private readonly AppDbContext _db;
+    private readonly TransitDbContext _db;
 
-    public AuthManager(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, TokenManager tokenManager, AppDbContext db) { _userManager = userManager; _signInManager = signInManager; _tokenManager = tokenManager; _db = db; }
-
-    public async Task RegisterAsync(RegisterRequest request, CancellationToken ct = default)
+    public AuthManager(
+        UserManager<AppUser> userManager,
+        SignInManager<AppUser> signInManager,
+        TokenManager tokenManager,
+        TransitDbContext db)
     {
-        var existingUser = await _userManager.FindByEmailAsync(request.Email);
-        if (existingUser is not null)
-            throw new AppException("Email already in use", 409, "EMAIL_ALREADY_IN_USE");
-
-        var user = new AppUser { Email = request.Email, UserName = request.Email, FullName = request.FullName };
-        var result = await _userManager.CreateAsync(user, request.Password);
-
-        if (!result.Succeeded)
-            throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
-
-        await _userManager.AddToRoleAsync(user, "User");
+        _userManager = userManager;
+        _signInManager = signInManager;
+        _tokenManager = tokenManager;
+        _db = db;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, bool rememberMe, string? deviceInfo, CancellationToken ct = default)
@@ -43,7 +36,10 @@ public class AuthManager
         if (!signInResult.Succeeded)
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
 
-        var accessToken = await _tokenManager.CreateTokenAsync(user);
+        user.LastLogin = DateTime.UtcNow;
+        await _userManager.UpdateAsync(user);
+
+var accessToken = await _tokenManager.CreateTokenAsync(user);
         var rawRefreshToken = _tokenManager.GenerateRefreshToken();
         var refreshTokenHash = _tokenManager.HashToken(rawRefreshToken);
         var refreshTokenExpiry = _tokenManager.GetRefreshTokenExpiry(rememberMe);
@@ -61,7 +57,7 @@ public class AuthManager
 
         return new LoginResponse
         {
-            User = AuthMapper.ToResponse(user),
+            User = new UserResponse { Id = user.Id.ToString(), Email = user.Email!, FullName = user.FullName },
             AccessToken = accessToken,
             RefreshToken = rawRefreshToken
         };
@@ -85,8 +81,7 @@ public class AuthManager
         var newRawRefreshToken = _tokenManager.GenerateRefreshToken();
         var newHashedRefreshToken = _tokenManager.HashToken(newRawRefreshToken);
         var wasRememberMeToken = _tokenManager.IsRememberMeRefreshToken(
-            existingRefreshToken.CreatedAt,
-            existingRefreshToken.ExpiresAt);
+            existingRefreshToken.CreatedAt, existingRefreshToken.ExpiresAt);
 
         var newRefreshTokenEntity = new RefreshToken
         {
@@ -97,7 +92,6 @@ public class AuthManager
         };
 
         existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
-
         _db.RefreshTokens.Add(newRefreshTokenEntity);
         await _db.SaveChangesAsync(ct);
 
@@ -135,5 +129,27 @@ public class AuthManager
         var result = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
         if (!result.Succeeded)
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+    }
+
+    public async Task<AppUser> RegisterAsync(CreateUserRequest request, CancellationToken ct = default)
+    {
+        var existingUser = await _userManager.FindByEmailAsync(request.Email);
+        if (existingUser is not null)
+            throw new AppException("Email already in use", 409, "EMAIL_ALREADY_IN_USE");
+
+        var user = new AppUser
+        {
+            Email = request.Email,
+            UserName = request.Email,
+            FullName = request.FullName
+        };
+
+        var result = await _userManager.CreateAsync(user, request.Password);
+        if (!result.Succeeded)
+            throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+
+        await _userManager.AddToRoleAsync(user, TransitInfoAPI.Common.RoleNames.Client);
+
+        return user;
     }
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using TransitInfoAPI.Contracts;
@@ -9,6 +10,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize(Policy = PermissionKeys.PlacesView)]
 public class PlacesController : ControllerBase
 {
     private readonly PlaceManager _placeManager;

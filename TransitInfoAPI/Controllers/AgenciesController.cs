@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize(Policy = PermissionKeys.AgenciesView)]
 public class AgenciesController : ControllerBase
 {
     private readonly TransitDbContext _db;
@@ -48,5 +50,3 @@ public class AgenciesController : ControllerBase
         return Ok(new Paginated<AgencyResponse>(agencies, total, page, perPage));
     }
 }
-
-

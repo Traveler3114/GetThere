@@ -1,9 +1,8 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
+using TransitInfoAPI.Managers;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Common;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -11,54 +10,63 @@ namespace TransitInfoAPI.Controllers;
 [Route("auth")]
 public class AuthController : ControllerBase
 {
-    private readonly IConfiguration _config;
+    private readonly AuthManager _authManager;
 
-public AuthController(IConfiguration config) { _config = config; }
-
-    public record LoginRequest(string Username, string Password);
+    public AuthController(AuthManager authManager) { _authManager = authManager; }
 
     [HttpPost("login")]
-    public ActionResult Login([FromBody] LoginRequest request)
+    [AllowAnonymous]
+    public async Task<ActionResult<LoginResponse>> Login(
+        [FromBody] LoginRequest request,
+        [FromQuery] bool rememberMe = false,
+        CancellationToken ct = default)
     {
-        if (request.Username != "admin" || request.Password != "admin")
-            return Unauthorized(new { message = "Invalid credentials" });
+        var deviceInfo = Request.Headers["User-Agent"].ToString();
+        var result = await _authManager.LoginAsync(request, rememberMe, deviceInfo, ct);
+        return Ok(result);
+    }
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(
-            [
-                new Claim(JwtRegisteredClaimNames.Sub, "transit-admin"),
-                new Claim(JwtRegisteredClaimNames.Name, "Admin"),
-                new Claim("role", "Admin")
-            ]),
-            Expires = DateTime.UtcNow.AddHours(8),
-            Issuer = _config["Jwt:Issuer"],
-            Audience = _config["Jwt:Audience"],
-            SigningCredentials = creds
-        };
-
-        var handler = new JwtSecurityTokenHandler();
-        var token = handler.CreateToken(tokenDescriptor);
-        var tokenString = handler.WriteToken(token);
-
-        Response.Cookies.Append("auth_token", tokenString, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            MaxAge = TimeSpan.FromHours(8),
-            Secure = false
-        });
-
-        return Ok(new { accessToken = tokenString });
+    [HttpPost("refresh")]
+    public async Task<ActionResult<RefreshTokenResponse>> Refresh(
+        [FromBody] RefreshTokenRequest request,
+        CancellationToken ct = default)
+    {
+        var deviceInfo = Request.Headers["User-Agent"].ToString();
+        var result = await _authManager.RefreshAsync(request.RefreshToken, deviceInfo, ct);
+        return Ok(result);
     }
 
     [HttpPost("logout")]
-    public ActionResult Logout()
+    [Authorize]
+    public async Task<ActionResult> Logout(
+        [FromBody] RefreshTokenRequest request,
+        CancellationToken ct = default)
     {
-        Response.Cookies.Delete("auth_token");
-        return Ok(new { message = "Logged out" });
+        await _authManager.LogoutAsync(request.RefreshToken, ct);
+        return Ok(new { message = "LOGGED_OUT" });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<ActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken ct = default)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        await _authManager.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword, ct);
+        return Ok(new { message = "PASSWORD_CHANGED" });
+    }
+
+    [HttpPost("register")]
+    [Authorize(Policy = PermissionKeys.UsersManage)]
+    public async Task<ActionResult> Register(
+        [FromBody] CreateUserRequest request,
+        CancellationToken ct = default)
+    {
+        await _authManager.RegisterAsync(request, ct);
+        return Ok(new { message = "USER_CREATED" });
     }
 }

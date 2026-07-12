@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using GetThereAPI.Managers;
 using GetThereAPI.Mapping;
 using GetThereShared.Contracts;
+using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -17,6 +18,7 @@ public class ProfileController : ControllerBase
 public ProfileController(ProfileManager profileManager) { _profileManager = profileManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.ProfileView)]
     public async Task<ActionResult<UserResponse>> Get(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -29,6 +31,7 @@ public ProfileController(ProfileManager profileManager) { _profileManager = prof
     }
 
     [HttpPut]
+    [Authorize(Policy = PermissionKeys.ProfileManage)]
     public async Task<ActionResult> Update(
         [FromBody] UpdateProfileRequest request, CancellationToken ct = default)
     {

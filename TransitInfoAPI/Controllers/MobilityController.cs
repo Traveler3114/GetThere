@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using TransitInfoAPI.Contracts;
@@ -16,6 +17,7 @@ public class MobilityController : ControllerBase
 public MobilityController(MobilityManager mobility) { _mobility = mobility; }
 
     [HttpGet("stations")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetStations(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
@@ -38,6 +40,7 @@ public MobilityController(MobilityManager mobility) { _mobility = mobility; }
     }
 
     [HttpGet("countries")]
+    [AllowAnonymous]
     public async Task<ActionResult<List<string>>> GetCountries(CancellationToken ct = default)
     {
         var countries = await _mobility.GetCountriesAsync(ct);

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
 using GetThereShared.Contracts;
+using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -16,6 +17,7 @@ public class SettingsController : ControllerBase
     public SettingsController(UserSettingsManager settingsManager) { _settingsManager = settingsManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.SettingsView)]
     public async Task<ActionResult<UserSettingsResponse>> Get(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -26,6 +28,7 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPut]
+    [Authorize(Policy = PermissionKeys.SettingsManage)]
     public async Task<IActionResult> Update(UpdateSettingsRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;

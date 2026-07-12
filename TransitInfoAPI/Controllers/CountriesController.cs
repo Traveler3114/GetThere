@@ -20,6 +20,7 @@ public class CountriesController : ControllerBase
 public CountriesController(CountryManager countryService) { _countryService = countryService; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.CountriesView)]
     public async Task<ActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
@@ -30,7 +31,7 @@ public CountriesController(CountryManager countryService) { _countryService = co
         return Ok(new Paginated<CountryResponse>(countries, total, page, perPage));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.CountriesManage)]
     [HttpPost]
     public async Task<ActionResult<CountryResponse>> Create([FromBody] CreateCountryRequest request, CancellationToken ct = default)
     {

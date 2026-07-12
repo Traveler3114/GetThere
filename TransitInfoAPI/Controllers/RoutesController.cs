@@ -19,6 +19,7 @@ public class RoutesController : ControllerBase
 public RoutesController(RouteManager routeManager, ScheduleManager scheduleManager) { _routeManager = routeManager; _scheduleManager = scheduleManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.RoutesView)]
     public async Task<ActionResult> GetAll(
         [FromQuery] int? operatorId,
         [FromQuery] RouteType? routeType,
@@ -44,6 +45,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = PermissionKeys.RoutesView)]
     public async Task<ActionResult<RouteResponse>> GetById(int id, CancellationToken ct = default)
     {
         var route = await _routeManager.GetByIdAsync(id, ct);
@@ -52,6 +54,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
     }
 
     [HttpGet("by-onestop/{onestopId}")]
+    [Authorize(Policy = PermissionKeys.RoutesView)]
     public async Task<ActionResult<RouteResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var route = await _routeManager.GetByOnestopIdAsync(onestopId, ct);
@@ -60,6 +63,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
     }
 
     [HttpGet("{id}/shape")]
+    [Authorize(Policy = PermissionKeys.RoutesView)]
     public async Task<ActionResult> GetShape(int id, CancellationToken ct = default)
     {
         var geometry = await _routeManager.GetShapeGeometryAsync(id, ct);
@@ -78,7 +82,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
         });
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.RoutesManage)]
     [HttpPut("{id}/shape")]
     public async Task<ActionResult> UpdateShape(int id, [FromBody] GeoJsonLineStringGeometry body, CancellationToken ct = default)
     {
@@ -88,6 +92,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
     }
 
     [HttpGet("{id}/stops")]
+    [Authorize(Policy = PermissionKeys.RoutesView)]
     public async Task<ActionResult<List<StationResponse>>> GetStops(int id, CancellationToken ct = default)
     {
         var stops = await _scheduleManager.GetRouteStopsAsync(id, ct);
@@ -95,6 +100,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
     }
 
     [HttpGet("{id}/trips")]
+    [Authorize(Policy = PermissionKeys.RoutesView)]
     public async Task<ActionResult<List<TripResponse>>> GetTrips(
         int id,
         [FromQuery] string? date = null,

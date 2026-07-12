@@ -18,6 +18,7 @@ public class StationsController : ControllerBase
 public StationsController(StationManager stationManager) { _stationService = stationManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     public async Task<ActionResult> GetAll(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
@@ -39,7 +40,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
         return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     [HttpGet("search")]
     public async Task<ActionResult<Paginated<StationResponse>>> Search(
         [FromQuery] string? q,
@@ -57,6 +58,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     public async Task<ActionResult<StationResponse>> GetById(int id, CancellationToken ct = default)
     {
         var station = await _stationService.GetByIdAsync(id, ct);
@@ -65,6 +67,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("by-onestop/{onestopId}")]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     public async Task<ActionResult<StationResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var station = await _stationService.GetByOnestopIdAsync(onestopId, ct);
@@ -73,6 +76,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("{id}/operators")]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     public async Task<ActionResult<List<StationOperatorResponse>>> GetOperators(int id, CancellationToken ct = default)
     {
         var station = await _stationService.GetByIdAsync(id, ct);
@@ -82,13 +86,14 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("{id}/routes")]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     public async Task<ActionResult<List<RouteResponse>>> GetRoutes(int id, CancellationToken ct = default)
     {
         var routes = await _stationService.GetRoutesAsync(id, ct);
         return Ok(routes);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.StationsManage)]
     [HttpPost("{id}/rematch-place")]
     public async Task<IActionResult> RematchPlace(int id, CancellationToken ct = default)
     {
@@ -100,6 +105,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("{id}/departures")]
+    [Authorize(Policy = PermissionKeys.StationsView)]
     public async Task<ActionResult<List<DepartureResponse>>> GetDepartures(
         int id,
         [FromQuery] DateTime? from = null,
@@ -110,7 +116,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
         return Ok(departures);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.StationsManage)]
     [HttpGet("{id}/reconciliation-detail")]
     public async Task<ActionResult<StationReconciliationDetailResponse>> GetReconciliationDetail(int id, CancellationToken ct = default)
     {

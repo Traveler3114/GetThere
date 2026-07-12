@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
 using GetThereShared.Contracts;
+using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -16,6 +17,7 @@ public class WalletController : ControllerBase
     public WalletController(WalletManager walletManager) { _walletManager = walletManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.WalletsView)]
     public async Task<ActionResult<WalletResponse>> GetWallet(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -28,6 +30,7 @@ public class WalletController : ControllerBase
     }
 
     [HttpPost("topup")]
+    [Authorize(Policy = PermissionKeys.WalletsManage)]
     public async Task<ActionResult<WalletResponse>> TopUp(TopUpRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -38,6 +41,7 @@ public class WalletController : ControllerBase
     }
 
     [HttpPost("ensure")]
+    [Authorize(Policy = PermissionKeys.WalletsView)]
     public async Task<ActionResult<WalletResponse>> EnsureWallet(CancellationToken ct = default)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;

@@ -8,11 +8,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
+using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Managers;
 using GetThereAPI.Sdk;
+using GetThereAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +23,12 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["TransitInfoApi:BaseUrl"] ?? "http://localhost:5000");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
@@ -33,11 +41,7 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-builder.Services.AddHttpClient("TransitInfoApi", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["TransitInfoApi:BaseUrl"] ?? "http://localhost:5000");
-    client.Timeout = TimeSpan.FromSeconds(30);
-});
+builder.Services.Configure<TransitInfoApiOptions>(builder.Configuration.GetSection("TransitInfoApi"));
 
 builder.Services.AddSingleton<AdapterRegistry>();
 
@@ -66,6 +70,18 @@ builder.Services.AddAuthentication(options =>
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
         RoleClaimType = "role"
     };
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", p => p.RequireRole(RoleNames.Admin));
+
+    foreach (var perm in PermissionKeys.All)
+    {
+        options.AddPolicy(perm, p => p.RequireAssertion(ctx =>
+            ctx.User.IsInRole(RoleNames.Admin) ||
+            ctx.User.HasClaim("permission", perm)));
+    }
 });
 
 builder.Services.AddCors(options =>
@@ -136,12 +152,55 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    string[] roles = ["User", "Admin"];
-    foreach (var role in roles)
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+    // Ensure roles exist
+    foreach (var roleName in new[] { RoleNames.Admin, RoleNames.User })
     {
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
+        if (!await roleManager.RoleExistsAsync(roleName))
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+    }
+
+    // Add permission claims to Admin role (all permissions)
+    var adminRole = await roleManager.FindByNameAsync(RoleNames.Admin);
+    var adminClaims = await roleManager.GetClaimsAsync(adminRole!);
+    foreach (var perm in PermissionKeys.All.Where(p => !adminClaims.Any(c => c.Value == p)))
+        await roleManager.AddClaimAsync(adminRole!, new System.Security.Claims.Claim("permission", perm));
+
+    // Add permission claims to User role (standard user permissions)
+    var userRole = await roleManager.FindByNameAsync(RoleNames.User);
+    var userClaims = await roleManager.GetClaimsAsync(userRole!);
+    var userPerms = PermissionKeys.All.Where(p =>
+        p is PermissionKeys.TicketsView or PermissionKeys.TicketsCreate
+        or PermissionKeys.WalletsView
+        or PermissionKeys.ProfileView or PermissionKeys.ProfileManage
+        or PermissionKeys.SettingsView
+        or PermissionKeys.MapView);
+    foreach (var perm in userPerms.Where(p => !userClaims.Any(c => c.Value == p)))
+        await roleManager.AddClaimAsync(userRole!, new System.Security.Claims.Claim("permission", perm));
+
+    // Seed admin user
+    var admin = await userManager.FindByNameAsync("admin@getthere.local");
+    if (admin is null)
+    {
+        var pwd = GenerateSecurePassword(24);
+        admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
+        await userManager.CreateAsync(admin, pwd);
+        await userManager.AddToRoleAsync(admin, RoleNames.Admin);
+        Console.WriteLine("=== ADMIN ACCOUNT CREATED ===");
+        Console.WriteLine($"Email: admin@getthere.local");
+        Console.WriteLine($"Password: {pwd}");
+        Console.WriteLine("=== SAVE THIS PASSWORD ===");
     }
 }
 
 app.Run();
+
+static string GenerateSecurePassword(int length)
+{
+    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(length);
+    var result = new char[length];
+    for (int i = 0; i < length; i++) result[i] = chars[bytes[i] % chars.Length];
+    return new string(result);
+}

@@ -11,7 +11,6 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-[Authorize(Roles = "Admin")]
 public class FeedsController : ControllerBase
 {
     private readonly FeedManager _feedService;
@@ -19,6 +18,7 @@ public class FeedsController : ControllerBase
 public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.FeedsView)]
     public async Task<ActionResult<Paginated<FeedResponse>>> GetAll(
         [FromQuery] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
@@ -30,6 +30,7 @@ public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionKeys.FeedsManage)]
     public async Task<ActionResult<FeedResponse>> Create(
         [FromBody] CreateFeedRequest request,
         CancellationToken ct = default)
@@ -40,6 +41,7 @@ public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = PermissionKeys.FeedsManage)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateFeedRequest request, CancellationToken ct = default)
     {
         var (success, message) = await _feedService.UpdateAsync(id, request, ct);
@@ -48,6 +50,7 @@ public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Policy = PermissionKeys.FeedsManage)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct = default)
     {
         var success = await _feedService.DeleteAsync(id, ct);
@@ -56,6 +59,7 @@ public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
     }
 
     [HttpGet("versions/{versionId}/logs")]
+    [Authorize(Policy = PermissionKeys.FeedVersionsView)]
     public ActionResult<List<string>> GetVersionLogs(int versionId, CancellationToken ct = default)
     {
         var logs = _feedService.GetImportLogs(versionId);
@@ -63,6 +67,7 @@ public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
     }
 
     [HttpPost("{id}/fetch")]
+    [Authorize(Policy = PermissionKeys.FeedsManage)]
     public async Task<ActionResult> Fetch(int id, CancellationToken ct = default)
     {
         var version = await _feedService.TriggerImportAsync(id, ct);
@@ -70,6 +75,7 @@ public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
     }
 
     [HttpGet("{id}/versions")]
+    [Authorize(Policy = PermissionKeys.FeedVersionsView)]
     public async Task<ActionResult<List<FeedVersionResponse>>> GetVersions(int id, CancellationToken ct = default)
     {
         var versions = await _feedService.GetFeedVersionsAsync(id, ct);

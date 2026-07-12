@@ -1,10 +1,14 @@
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -52,11 +56,31 @@ builder.Services.AddSingleton<RealtimeManager>();
 
 builder.Services.AddSingleton<TransitInfoAPI.Services.ExternalFeedSource>();
 
+// Auth Managers
+builder.Services.AddScoped<TokenManager>();
+builder.Services.AddScoped<AuthManager>();
+builder.Services.AddScoped<RolePermissionManager>();
+
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();
 builder.Services.AddHostedService<MobilityPollingWorker>();
 builder.Services.Configure<MobilityPollingOptions>(builder.Configuration.GetSection("MobilityPolling"));
 
+// Identity
+builder.Services.AddIdentityCore<AppUser>(opt =>
+{
+    opt.Password.RequiredLength = 12;
+    opt.Password.RequireDigit = true;
+    opt.Password.RequireUppercase = true;
+    opt.Password.RequireNonAlphanumeric = true;
+    opt.User.RequireUniqueEmail = true;
+})
+.AddRoles<IdentityRole<int>>()
+.AddEntityFrameworkStores<TransitDbContext>()
+.AddSignInManager()
+.AddDefaultTokenProviders();
+
+// Authentication
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -79,7 +103,18 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+// Authorization Policies
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", p => p.RequireRole(RoleNames.Admin));
+
+    foreach (var perm in PermissionKeys.All)
+    {
+        options.AddPolicy(perm, p => p.RequireAssertion(ctx =>
+            ctx.User.IsInRole(RoleNames.Admin) ||
+            ctx.User.HasClaim("permission", perm)));
+    }
+});
 
 builder.Services.AddCors(options =>
 {
@@ -133,6 +168,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 
 app.MapControllers();
 
+// Seed data
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
@@ -158,8 +194,65 @@ using (var scope = app.Services.CreateScope())
         await db.CalendarDates.Where(cd => stuckIds.Contains(cd.FeedVersionId)).ExecuteDeleteAsync();
         await db.Shapes.Where(s => stuckIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync();
     }
+
+    // Seed roles and users
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>();
+
+    // Ensure roles exist
+    if (!await roleManager.RoleExistsAsync(RoleNames.Admin))
+        await roleManager.CreateAsync(new IdentityRole<int>(RoleNames.Admin));
+    if (!await roleManager.RoleExistsAsync(RoleNames.Client))
+        await roleManager.CreateAsync(new IdentityRole<int>(RoleNames.Client));
+
+    // Add permission claims to Admin role (all permissions)
+    var adminRole = await roleManager.FindByNameAsync(RoleNames.Admin);
+    var adminClaims = await roleManager.GetClaimsAsync(adminRole!);
+    foreach (var perm in PermissionKeys.All.Where(p => !adminClaims.Any(c => c.Value == p)))
+        await roleManager.AddClaimAsync(adminRole!, new Claim("permission", perm));
+
+    // Add permission claims to Client role (all .view permissions)
+    var clientRole = await roleManager.FindByNameAsync(RoleNames.Client);
+    var clientClaims = await roleManager.GetClaimsAsync(clientRole!);
+    foreach (var perm in PermissionKeys.All.Where(p => p.EndsWith(".view") && !clientClaims.Any(c => c.Value == p)))
+        await roleManager.AddClaimAsync(clientRole!, new Claim("permission", perm));
+
+    // Admin user
+    var admin = await userManager.FindByNameAsync("admin@transit.local");
+    if (admin is null)
+    {
+        var pwd = GenerateSecurePassword(24);
+        admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
+        await userManager.CreateAsync(admin, pwd);
+        await userManager.AddToRoleAsync(admin, RoleNames.Admin);
+        Console.WriteLine("=== ADMIN ACCOUNT CREATED ===");
+        Console.WriteLine($"Email: admin@transit.local");
+        Console.WriteLine($"Password: {pwd}");
+        Console.WriteLine("=== SAVE THIS PASSWORD ===");
+    }
+
+    // Service account for GetThereAPI
+    var client = await userManager.FindByNameAsync("getthere-api");
+    if (client is null)
+    {
+        var pwd = GenerateSecurePassword(32);
+        client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
+        await userManager.CreateAsync(client, pwd);
+        await userManager.AddToRoleAsync(client, RoleNames.Client);
+        Console.WriteLine("=== SERVICE ACCOUNT CREATED ===");
+        Console.WriteLine($"Username: getthere-api");
+        Console.WriteLine($"Password: {pwd}");
+        Console.WriteLine("=== ADD TO GETTHEREAPI CONFIG ===");
+    }
+}
+
+static string GenerateSecurePassword(int length)
+{
+    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    var bytes = RandomNumberGenerator.GetBytes(length);
+    var result = new char[length];
+    for (int i = 0; i < length; i++) result[i] = chars[bytes[i] % chars.Length];
+    return new string(result);
 }
 
 await app.RunAsync();
-
-

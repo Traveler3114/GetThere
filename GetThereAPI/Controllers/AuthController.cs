@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using GetThereAPI.Managers;
 using GetThereShared.Contracts;
+using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -15,6 +16,7 @@ public class AuthController : ControllerBase
 public AuthController(AuthManager authManager) { _authManager = authManager; }
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<ActionResult> Register(RegisterRequest request, CancellationToken ct = default)
     {
         await _authManager.RegisterAsync(request, ct);
@@ -22,6 +24,7 @@ public AuthController(AuthManager authManager) { _authManager = authManager; }
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login(
         LoginRequest request, [FromQuery] bool rememberMe = false, CancellationToken ct = default)
     {
@@ -46,4 +49,19 @@ public AuthController(AuthManager authManager) { _authManager = authManager; }
         await _authManager.LogoutAsync(request.RefreshToken, ct);
         return Ok(new { message = "LOGGED_OUT" });
     }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<ActionResult> ChangePassword(
+        ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        await _authManager.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword, ct);
+        return Ok(new { message = "PASSWORD_CHANGED" });
+    }
 }
+
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);

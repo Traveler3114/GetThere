@@ -17,6 +17,7 @@ public class OperatorsController : ControllerBase
 public OperatorsController(OperatorManager operatorManager) { _operatorService = operatorManager; }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult> GetAll(
         [FromQuery] string? q = null,
         [FromQuery] string? format = null,
@@ -36,6 +37,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("{id:int}")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<OperatorResponse>> GetById(int id, CancellationToken ct = default)
     {
         var op = await _operatorService.GetByIdAsync(id, ct);
@@ -44,6 +46,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("by-onestop/{onestopId}")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<OperatorResponse>> GetByOnestopId(string onestopId, CancellationToken ct = default)
     {
         var op = await _operatorService.GetByOnestopIdAsync(onestopId, ct);
@@ -52,6 +55,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("{globalId}")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<OperatorResponse>> GetByGlobalId(string globalId, CancellationToken ct = default)
     {
         var op = await _operatorService.GetByGlobalIdAsync(globalId, ct);
@@ -60,6 +64,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("types")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<List<object>>> GetTypes()
     {
         var types = await _operatorService.GetTypesAsync();
@@ -67,6 +72,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("{id:int}/service-area")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult> GetServiceArea(int id, CancellationToken ct = default)
     {
         var result = await _operatorService.GetServiceAreaAsync(id, ct);
@@ -75,6 +81,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("{globalId}/stations")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<List<StationResponse>>> GetStations(string globalId, CancellationToken ct = default)
     {
         var stations = await _operatorService.GetStationsAsync(globalId, ct);
@@ -82,6 +89,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("{globalId}/routes")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<List<RouteResponse>>> GetRoutes(string globalId, CancellationToken ct = default)
     {
         var routes = await _operatorService.GetRoutesAsync(globalId, ct);
@@ -89,13 +97,14 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
     }
 
     [HttpGet("{globalId}/feeds")]
+    [Authorize(Policy = PermissionKeys.OperatorsView)]
     public async Task<ActionResult<List<FeedResponse>>> GetFeeds(string globalId, CancellationToken ct = default)
     {
         var feeds = await _operatorService.GetFeedsAsync(globalId, ct);
         return Ok(feeds);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.OperatorsManage)]
     [HttpPost]
     public async Task<ActionResult<OperatorResponse>> Create([FromBody] CreateOperatorRequest request, CancellationToken ct = default)
     {
@@ -103,7 +112,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
         return CreatedAtAction(nameof(GetByGlobalId), new { globalId = dto.GlobalId }, dto);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.OperatorsManage)]
     [HttpPut("{globalId}")]
     public async Task<ActionResult> Update(string globalId, [FromBody] UpdateOperatorRequest request, CancellationToken ct = default)
     {
@@ -112,7 +121,7 @@ public OperatorsController(OperatorManager operatorManager) { _operatorService =
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.OperatorsManage)]
     [HttpDelete("{globalId}")]
     public async Task<ActionResult> Delete(string globalId, CancellationToken ct = default)
     {

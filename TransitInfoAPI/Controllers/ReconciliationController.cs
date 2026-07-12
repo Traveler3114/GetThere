@@ -10,7 +10,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("reconciliation")]
-[Authorize(Roles = "Admin")]
+[Authorize]
 public class ReconciliationController : ControllerBase
 {
     private readonly ReconciliationManager _reconciliationService;
@@ -18,6 +18,7 @@ public class ReconciliationController : ControllerBase
 public ReconciliationController(ReconciliationManager reconciliationManager) { _reconciliationService = reconciliationManager; }
 
     [HttpGet("pending")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<Paginated<ReconciliationResponse>>> GetPending(
         [FromQuery] int? feedVersionId = null,
         [FromQuery] string? routeType = null,
@@ -32,6 +33,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("auto-merged")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<Paginated<ReconciliationResponse>>> GetAutoMerged(
         [FromQuery] string? routeType = null,
         [FromQuery] string? q = null,
@@ -44,6 +46,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("by-station/{stationId:int}")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<List<ReconciliationDetailResponse>>> GetByStation(int stationId, CancellationToken ct = default)
     {
         var results = await _reconciliationService.GetByStationAsync(stationId, ct);
@@ -52,6 +55,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<ReconciliationDetailResponse>> GetById(int id, CancellationToken ct = default)
     {
         var result = await _reconciliationService.GetByIdAsync(id, ct);
@@ -60,6 +64,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("split-log")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<List<StationSplitLogResponse>>> GetSplitLog([FromQuery] int candidateStationId, CancellationToken ct = default)
     {
         var logs = await _reconciliationService.GetSplitLogAsync(candidateStationId, ct);
@@ -67,6 +72,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("merge-log")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<List<StationMergeLogResponse>>> GetMergeLog(CancellationToken ct = default)
     {
         var logs = await _reconciliationService.GetMergeLogAsync(ct);
@@ -74,6 +80,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpPost("{id}/approve")]
+    [Authorize(Policy = PermissionKeys.ReconciliationManage)]
     public async Task<IActionResult> Approve(int id, CancellationToken ct = default)
     {
         await _reconciliationService.ApproveCandidateAsync(id, ct);
@@ -81,6 +88,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpPost("{id}/reject")]
+    [Authorize(Policy = PermissionKeys.ReconciliationManage)]
     public async Task<IActionResult> Reject(int id, [FromQuery] bool createNewStation = false, CancellationToken ct = default)
     {
         await _reconciliationService.RejectCandidateAsync(id, createNewStation, ct);
@@ -88,6 +96,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("merge-preview")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<MergePreviewResponse>> MergePreview([FromQuery] int stationAId, [FromQuery] int stationBId, CancellationToken ct = default)
     {
         var preview = await _reconciliationService.GetMergePreviewAsync(stationAId, stationBId, ct);
@@ -95,6 +104,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpPost("unmerge/{mergeLogId}")]
+    [Authorize(Policy = PermissionKeys.ReconciliationManage)]
     public async Task<IActionResult> Unmerge(int mergeLogId, CancellationToken ct = default)
     {
         await _reconciliationService.UnmergeStationsAsync(mergeLogId, ct);
@@ -102,6 +112,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpGet("check-action-warning")]
+    [Authorize(Policy = PermissionKeys.ReconciliationView)]
     public async Task<ActionResult<object>> CheckActionWarning([FromQuery] int stationAId, [FromQuery] int stationBId, CancellationToken ct = default)
     {
         var warning = await _reconciliationService.CheckManualActionWarningAsync(stationAId, stationBId, ct);
@@ -109,6 +120,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpPost("{id}/reassign")]
+    [Authorize(Policy = PermissionKeys.ReconciliationManage)]
     public async Task<IActionResult> Reassign(int id, [FromQuery] int canonicalStationId, [FromQuery] bool force = false, CancellationToken ct = default)
     {
         var warning = await _reconciliationService.ReassignCandidateAsync(id, canonicalStationId, force, ct);
@@ -118,6 +130,7 @@ public ReconciliationController(ReconciliationManager reconciliationManager) { _
     }
 
     [HttpPost("merge-stations")]
+    [Authorize(Policy = PermissionKeys.ReconciliationManage)]
     public async Task<IActionResult> MergeStations([FromQuery] int sourceStationId, [FromQuery] int targetStationId, CancellationToken ct = default)
     {
         await _reconciliationService.MergeStationsAsync(sourceStationId, targetStationId, ct);

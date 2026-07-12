@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using TransitInfoAPI.Contracts;
@@ -15,6 +16,7 @@ public class RealtimeController : ControllerBase
     public RealtimeController(RealtimeManager realtime) { _realtime = realtime; }
 
     [HttpGet("vehicles")]
+    [AllowAnonymous]
     public async Task<ActionResult<List<VehicleResponse>>> GetVehicles(
         [FromQuery] string? feedId = null,
         [FromQuery] double? minLat = null,
@@ -28,6 +30,7 @@ public class RealtimeController : ControllerBase
     }
 
     [HttpGet("alerts")]
+    [AllowAnonymous]
     public async Task<ActionResult<List<AlertResponse>>> GetAlerts(
         [FromQuery] string? stopOnestopId = null,
         [FromQuery] string? routeOnestopId = null,
