@@ -26,15 +26,33 @@ public class AuthManager
         _db = db;
     }
 
-    public async Task<LoginResponse> LoginAsync(LoginRequest request, bool rememberMe, string? deviceInfo, CancellationToken ct = default)
+    private void LogAudit(int userId, string action, string entityType = "User", string entityId = "", string? oldValues = null, string? newValues = null)
+    {
+        _db.Set<AuditLog>().Add(new AuditLog
+        {
+            UserId = userId,
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            OldValues = oldValues,
+            NewValues = newValues,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    public async Task<LoginResponse> LoginAsync(LoginRequest request, bool rememberMe, string? deviceInfo, string? ipAddress, CancellationToken ct = default)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user is null)
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
 
-        var signInResult = await _signInManager.CheckPasswordSignInAsync(user, request.Password, false);
+        var signInResult = await _signInManager.CheckPasswordSignInAsync(user, request.Password, true);
         if (!signInResult.Succeeded)
+        {
+            LogAudit(user.Id, "LoginFailed");
+            await _db.SaveChangesAsync(ct);
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
+        }
 
         user.LastLogin = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
@@ -49,10 +67,13 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
             Token = refreshTokenHash,
             UserId = user.Id,
             ExpiresAt = refreshTokenExpiry,
-            DeviceInfo = deviceInfo
+            DeviceInfo = deviceInfo,
+            IpAddress = ipAddress
         };
 
         _db.RefreshTokens.Add(refreshToken);
+
+        LogAudit(user.Id, "Login", newValues: $"RememberMe:{rememberMe}");
         await _db.SaveChangesAsync(ct);
 
         return new LoginResponse
@@ -63,7 +84,7 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
         };
     }
 
-    public async Task<RefreshTokenResponse> RefreshAsync(string rawRefreshToken, string? deviceInfo, CancellationToken ct = default)
+    public async Task<RefreshTokenResponse> RefreshAsync(string rawRefreshToken, string? deviceInfo, string? ipAddress, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(rawRefreshToken))
             throw new AppException("Invalid refresh token.", 401, "INVALID_REFRESH_TOKEN");
@@ -75,6 +96,24 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
 
         if (existingRefreshToken is null || !existingRefreshToken.IsActive)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+
+        if (existingRefreshToken.IpAddress is not null && ipAddress is not null &&
+            existingRefreshToken.IpAddress != ipAddress)
+        {
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
+
+        // Token reuse detection — if this token was already replaced, revoke all tokens for this user
+        if (existingRefreshToken.ReplacedByToken is not null)
+        {
+            var userTokens = await _db.RefreshTokens
+                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.IsActive)
+                .ToListAsync(ct);
+            foreach (var t in userTokens)
+                t.RevokedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
 
         existingRefreshToken.RevokedAt = DateTime.UtcNow;
 
@@ -88,11 +127,14 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
             Token = newHashedRefreshToken,
             UserId = existingRefreshToken.UserId,
             ExpiresAt = _tokenManager.GetRefreshTokenExpiry(wasRememberMeToken),
-            DeviceInfo = deviceInfo
+            DeviceInfo = deviceInfo,
+            IpAddress = ipAddress
         };
 
         existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
         _db.RefreshTokens.Add(newRefreshTokenEntity);
+
+        LogAudit(existingRefreshToken.UserId, "TokenRefresh", "RefreshToken", existingRefreshToken.Id.ToString());
         await _db.SaveChangesAsync(ct);
 
         var newAccessToken = await _tokenManager.CreateTokenAsync(existingRefreshToken.User);
@@ -115,6 +157,7 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
             if (existingRefreshToken is not null && !existingRefreshToken.RevokedAt.HasValue)
             {
                 existingRefreshToken.RevokedAt = DateTime.UtcNow;
+                LogAudit(existingRefreshToken.UserId, "Logout", "RefreshToken", existingRefreshToken.Id.ToString());
                 await _db.SaveChangesAsync(ct);
             }
         }
@@ -129,6 +172,20 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
         var result = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
         if (!result.Succeeded)
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+
+        LogAudit(user.Id, "PasswordChanged", "User", user.Id.ToString());
+        await _db.SaveChangesAsync(ct);
+
+        // Revoke all active refresh tokens
+        if (int.TryParse(userId, out var uid))
+        {
+            var activeTokens = await _db.RefreshTokens
+                .Where(rt => rt.UserId == uid && rt.IsActive)
+                .ToListAsync(ct);
+            foreach (var t in activeTokens)
+                t.RevokedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+        }
     }
 
     public async Task<AppUser> RegisterAsync(CreateUserRequest request, CancellationToken ct = default)
@@ -149,6 +206,9 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
 
         await _userManager.AddToRoleAsync(user, TransitInfoAPI.Common.RoleNames.Client);
+
+        LogAudit(user.Id, "Register", "User", user.Id.ToString());
+        await _db.SaveChangesAsync(ct);
 
         return user;
     }

@@ -54,24 +54,6 @@ public class RoleController : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("users")]
-    [Authorize(Policy = PermissionKeys.UsersView)]
-    public async Task<ActionResult<List<UserDto>>> GetUsers(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
-        CancellationToken ct = default)
-    {
-        return Ok(await _roleManager.GetUsersAsync(page, pageSize, ct));
-    }
-
-    [HttpPut("users/{userId}/role")]
-    [Authorize(Policy = PermissionKeys.UsersManage)]
-    public async Task<ActionResult> SetUserRole(string userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
-    {
-        var user = await _roleManager.SetUserRoleAsync(userId, request.RoleName, ct);
-        if (user is null) return NotFound();
-        return Ok(new { message = $"User role set to '{request.RoleName}'." });
-    }
 }
 
 public record CreateRoleRequest(string Name, List<string> Permissions);
@@ -83,13 +65,3 @@ public class RoleDto
     public List<string> Permissions { get; set; } = [];
 }
 
-public class UserDto
-{
-    public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string FullName { get; set; } = string.Empty;
-    public List<string> Roles { get; set; } = [];
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastLogin { get; set; }
-    public bool IsActive { get; set; }
-}

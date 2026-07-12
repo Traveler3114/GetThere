@@ -11,6 +11,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class FeedsController : ControllerBase
 {
     private readonly FeedManager _feedService;

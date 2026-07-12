@@ -1,8 +1,11 @@
 using System.Reflection;
 using System.Text;
+using System.Threading.RateLimiting;
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -19,6 +22,7 @@ using GetThereAPI.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -32,11 +36,14 @@ builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
 
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
-    options.Password.RequiredLength = 8;
+    options.Password.RequiredLength = 12;
     options.Password.RequireDigit = true;
     options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireNonAlphanumeric = true;
     options.User.RequireUniqueEmail = true;
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.AllowedForNewUsers = true;
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
@@ -82,6 +89,30 @@ builder.Services.AddAuthorization(options =>
             ctx.User.IsInRole(RoleNames.Admin) ||
             ctx.User.HasClaim("permission", perm)));
     }
+});
+
+builder.Services.AddTransient<IClaimsTransformation, DynamicClaimsTransformation>();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddRateLimiter(limiter =>
+{
+    limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    limiter.AddFixedWindowLimiter("Auth", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+    limiter.RejectionStatusCode = 429;
 });
 
 builder.Services.AddCors(options =>
@@ -140,13 +171,28 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
+app.UseRateLimiter();
 app.UseCors("MapAssets");
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Protect /admin static files — reject unauthenticated requests
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/admin") &&
+        context.User.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = 401;
+        return;
+    }
+    await next();
+});
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
@@ -187,10 +233,10 @@ using (var scope = app.Services.CreateScope())
         admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
         await userManager.CreateAsync(admin, pwd);
         await userManager.AddToRoleAsync(admin, RoleNames.Admin);
-        Console.WriteLine("=== ADMIN ACCOUNT CREATED ===");
-        Console.WriteLine($"Email: admin@getthere.local");
-        Console.WriteLine($"Password: {pwd}");
-        Console.WriteLine("=== SAVE THIS PASSWORD ===");
+        var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
+        await File.WriteAllTextAsync(credFile,
+            $"Email: admin@getthere.local\nPassword: {pwd}\n");
+        Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
     }
 }
 
@@ -199,8 +245,7 @@ app.Run();
 static string GenerateSecurePassword(int length)
 {
     const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(length);
     var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[bytes[i] % chars.Length];
+    for (int i = 0; i < length; i++) result[i] = chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)];
     return new string(result);
 }

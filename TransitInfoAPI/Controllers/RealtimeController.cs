@@ -9,6 +9,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("realtime")]
+[Authorize]
 public class RealtimeController : ControllerBase
 {
     private readonly RealtimeManager _realtime;
@@ -16,7 +17,7 @@ public class RealtimeController : ControllerBase
     public RealtimeController(RealtimeManager realtime) { _realtime = realtime; }
 
     [HttpGet("vehicles")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionKeys.RealtimeView)]
     public async Task<ActionResult<List<VehicleResponse>>> GetVehicles(
         [FromQuery] string? feedId = null,
         [FromQuery] double? minLat = null,
@@ -30,7 +31,7 @@ public class RealtimeController : ControllerBase
     }
 
     [HttpGet("alerts")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionKeys.RealtimeView)]
     public async Task<ActionResult<List<AlertResponse>>> GetAlerts(
         [FromQuery] string? stopOnestopId = null,
         [FromQuery] string? routeOnestopId = null,

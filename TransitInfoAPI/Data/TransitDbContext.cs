@@ -33,6 +33,7 @@ public class TransitDbContext : IdentityDbContext<AppUser, IdentityRole<int>, in
     public DbSet<StationSplitLog> StationSplitLogs { get; set; }
     public DbSet<StationMergeLog> StationMergeLogs { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,6 +54,15 @@ public class TransitDbContext : IdentityDbContext<AppUser, IdentityRole<int>, in
             b.HasKey(rt => rt.Id);
             b.HasIndex(rt => rt.Token).IsUnique();
             b.HasOne(rt => rt.User).WithMany().HasForeignKey(rt => rt.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasIndex(al => al.CreatedAt);
+            entity.HasOne(al => al.User)
+                  .WithMany()
+                  .HasForeignKey(al => al.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())

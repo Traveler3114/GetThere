@@ -13,6 +13,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class CountriesController : ControllerBase
 {
     private readonly CountryManager _countryService;

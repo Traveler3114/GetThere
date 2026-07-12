@@ -16,8 +16,9 @@ public record SetRoleRequest(string RoleName);
 public class AdminController : ControllerBase
 {
     private readonly AdminManager _adminManager;
+    private readonly RolePermissionManager _rolePermissionManager;
 
-public AdminController(AdminManager adminManager) { _adminManager = adminManager; }
+    public AdminController(AdminManager adminManager, RolePermissionManager rolePermissionManager) { _adminManager = adminManager; _rolePermissionManager = rolePermissionManager; }
 
     [HttpGet("users")]
     [Authorize(Policy = PermissionKeys.UsersView)]
@@ -32,7 +33,7 @@ public AdminController(AdminManager adminManager) { _adminManager = adminManager
     [Authorize(Policy = PermissionKeys.UsersManage)]
     public async Task<ActionResult> SetUserRole(string userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
     {
-        var user = await _adminManager.SetUserRoleAsync(userId, request.RoleName, ct);
+        var user = await _rolePermissionManager.SetUserRoleAsync(userId, request.RoleName, ct);
         if (user is null) return NotFound();
         return Ok(new { message = $"User role set to '{request.RoleName}'." });
     }

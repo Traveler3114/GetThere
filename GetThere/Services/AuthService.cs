@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -83,7 +84,7 @@ public class AuthService
             {
                 await _http.PostAsJsonAsync("auth/logout", new RefreshTokenRequest(refreshToken), JsonOptions);
             }
-            catch { }
+            catch (Exception ex) { Trace.WriteLine($"[AuthService] Logout server call failed: {ex.Message}"); }
         }
 
         SecureStorage.Default.Remove(TokenKey);

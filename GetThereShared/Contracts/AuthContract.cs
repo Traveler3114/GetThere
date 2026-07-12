@@ -1,33 +1,41 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace GetThereShared.Contracts;
 
-public record RegisterRequest(string Email, string Password, string FullName);
+public record RegisterRequest(
+    [Required, EmailAddress] string Email,
+    [Required, MinLength(12)] string Password,
+    [Required] string FullName);
 
-public record LoginRequest(string Email, string Password);
+public record LoginRequest(
+    [Required, EmailAddress] string Email,
+    [Required] string Password);
 
-public record RefreshTokenRequest(string RefreshToken);
+public record RefreshTokenRequest(
+    [Required] string RefreshToken);
 
 public class LoginResponse
 {
-    public UserResponse User { get; set; } = null!;
-    public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
+    [Required] public UserResponse User { get; set; } = null!;
+    [Required] public string AccessToken { get; set; } = string.Empty;
+    [Required] public string RefreshToken { get; set; } = string.Empty;
 }
 
 public class RefreshTokenResponse
 {
-    public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
+    [Required] public string AccessToken { get; set; } = string.Empty;
+    [Required] public string RefreshToken { get; set; } = string.Empty;
 }
 
 public class UserResponse
 {
-    public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    [Required] public string Id { get; set; } = string.Empty;
+    [Required, EmailAddress] public string Email { get; set; } = string.Empty;
     public string? FullName { get; set; }
 }
 
 public record UpdateProfileRequest
 {
     public string? FullName { get; set; }
-    public string? Email { get; set; }
+    [EmailAddress] public string? Email { get; set; }
 }

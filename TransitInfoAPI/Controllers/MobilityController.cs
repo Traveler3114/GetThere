@@ -10,6 +10,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("mobility")]
+[Authorize]
 public class MobilityController : ControllerBase
 {
     private readonly MobilityManager _mobility;
@@ -40,7 +41,7 @@ public MobilityController(MobilityManager mobility) { _mobility = mobility; }
     }
 
     [HttpGet("countries")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionKeys.MobilityView)]
     public async Task<ActionResult<List<string>>> GetCountries(CancellationToken ct = default)
     {
         var countries = await _mobility.GetCountriesAsync(ct);

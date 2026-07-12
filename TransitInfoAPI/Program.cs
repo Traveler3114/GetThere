@@ -2,9 +2,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -21,6 +24,7 @@ builder.Logging.ClearProviders().AddConsole().AddDebug();
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
+builder.Services.AddMemoryCache();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
@@ -74,6 +78,9 @@ builder.Services.AddIdentityCore<AppUser>(opt =>
     opt.Password.RequireUppercase = true;
     opt.Password.RequireNonAlphanumeric = true;
     opt.User.RequireUniqueEmail = true;
+    opt.Lockout.MaxFailedAccessAttempts = 5;
+    opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    opt.Lockout.AllowedForNewUsers = true;
 })
 .AddRoles<IdentityRole<int>>()
 .AddEntityFrameworkStores<TransitDbContext>()
@@ -99,6 +106,7 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+        NameClaimType = "given_name",
         RoleClaimType = "role"
     };
 });
@@ -106,8 +114,6 @@ builder.Services.AddAuthentication(options =>
 // Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("AdminOnly", p => p.RequireRole(RoleNames.Admin));
-
     foreach (var perm in PermissionKeys.All)
     {
         options.AddPolicy(perm, p => p.RequireAssertion(ctx =>
@@ -116,19 +122,35 @@ builder.Services.AddAuthorization(options =>
     }
 });
 
-builder.Services.AddCors(options =>
+builder.Services.AddTransient<IClaimsTransformation, TransitInfoAPI.Services.DynamicClaimsTransformation>();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddRateLimiter(limiter =>
 {
-    options.AddDefaultPolicy(policy =>
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader());
+    limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    limiter.AddFixedWindowLimiter("Auth", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+    limiter.RejectionStatusCode = 429;
 });
+
+// CORS is intentionally not configured — all browser consumers (admin UI, map)
+// are served from the same origin. Server-to-server callers don't need CORS.
 
 var app = builder.Build();
 
-app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
@@ -153,6 +175,24 @@ app.UseExceptionHandler(errorApp =>
         await context.Response.WriteAsJsonAsync(pd);
     });
 });
+
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Protect /admin static files — reject unauthenticated requests
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/admin") &&
+        context.User.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = 401;
+        return;
+    }
+    await next();
+});
+app.UseHsts();
+app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -164,7 +204,7 @@ app.UseStaticFiles(new StaticFileOptions
         }
     }
 });
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
 
 app.MapControllers();
 
@@ -225,10 +265,10 @@ using (var scope = app.Services.CreateScope())
         admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
         await userManager.CreateAsync(admin, pwd);
         await userManager.AddToRoleAsync(admin, RoleNames.Admin);
-        Console.WriteLine("=== ADMIN ACCOUNT CREATED ===");
-        Console.WriteLine($"Email: admin@transit.local");
-        Console.WriteLine($"Password: {pwd}");
-        Console.WriteLine("=== SAVE THIS PASSWORD ===");
+        var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
+        await File.WriteAllTextAsync(credFile,
+            $"Email: admin@transit.local\nPassword: {pwd}\n");
+        Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
     }
 
     // Service account for GetThereAPI
@@ -239,10 +279,10 @@ using (var scope = app.Services.CreateScope())
         client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
         await userManager.CreateAsync(client, pwd);
         await userManager.AddToRoleAsync(client, RoleNames.Client);
-        Console.WriteLine("=== SERVICE ACCOUNT CREATED ===");
-        Console.WriteLine($"Username: getthere-api");
-        Console.WriteLine($"Password: {pwd}");
-        Console.WriteLine("=== ADD TO GETTHEREAPI CONFIG ===");
+        var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
+        await File.WriteAllTextAsync(svcCredFile,
+            $"Username: getthere-api\nPassword: {pwd}\n");
+        Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
     }
 }
 
@@ -251,7 +291,7 @@ static string GenerateSecurePassword(int length)
     const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
     var bytes = RandomNumberGenerator.GetBytes(length);
     var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[bytes[i] % chars.Length];
+    for (int i = 0; i < length; i++) result[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
     return new string(result);
 }
 

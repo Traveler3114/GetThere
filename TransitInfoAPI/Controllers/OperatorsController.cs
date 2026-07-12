@@ -10,6 +10,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class OperatorsController : ControllerBase
 {
     private readonly OperatorManager _operatorService;

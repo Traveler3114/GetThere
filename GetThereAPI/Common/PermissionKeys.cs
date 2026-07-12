@@ -55,7 +55,7 @@ public static class PermissionKeys
         [RolesManage] = ("Manage Roles", "Create roles, assign permissions", "Users"),
         [TicketsView] = ("View Tickets", "List and view tickets", "Tickets"),
         [TicketsCreate] = ("Create Tickets", "Purchase new tickets", "Tickets"),
-        [TicketsManage] = ("Manage Tickets", "Refund, cancel, modify tickets", "Tickets"),
+        [TicketsManage] = ("Manage Tickets", "Refund, void, cancel tickets", "Tickets"),
         [WalletsView] = ("View Wallet", "View wallet balance and transactions", "Wallet"),
         [WalletsManage] = ("Manage Wallet", "Top up, withdraw, transfer", "Wallet"),
         [ProfileView] = ("View Profile", "View own profile", "Profile"),
@@ -63,7 +63,7 @@ public static class PermissionKeys
         [SettingsView] = ("View Settings", "View app settings", "Settings"),
         [SettingsManage] = ("Manage Settings", "Update app settings", "Settings"),
         [AdaptersView] = ("View Adapters", "List ticketing adapters", "Adapters"),
-        [AdaptersManage] = ("Manage Adapters", "Configure ticketing adapters", "Adapters"),
+        [AdaptersManage] = ("Manage Adapters", "Create, update, delete ticketing adapters", "Adapters"),
         [AuditView] = ("View Audit Log", "View audit log entries", "Audit"),
         [MapView] = ("View Map", "Access map data (stations, routes, vehicles)", "Map"),
     };

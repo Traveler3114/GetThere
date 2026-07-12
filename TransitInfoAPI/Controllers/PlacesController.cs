@@ -10,6 +10,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 [Authorize(Policy = PermissionKeys.PlacesView)]
 public class PlacesController : ControllerBase
 {

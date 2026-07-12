@@ -12,12 +12,43 @@ public class RolePermissionManager
     private readonly TransitDbContext _db;
     private readonly RoleManager<IdentityRole<int>> _roleManager;
     private readonly UserManager<AppUser> _userManager;
+    private readonly ILogger<RolePermissionManager> _logger;
+    private readonly IHttpContextAccessor _httpContext;
 
-    public RolePermissionManager(TransitDbContext db, RoleManager<IdentityRole<int>> roleManager, UserManager<AppUser> userManager)
+    public RolePermissionManager(
+        TransitDbContext db,
+        RoleManager<IdentityRole<int>> roleManager,
+        UserManager<AppUser> userManager,
+        ILogger<RolePermissionManager> logger,
+        IHttpContextAccessor httpContext)
     {
         _db = db;
         _roleManager = roleManager;
         _userManager = userManager;
+        _logger = logger;
+        _httpContext = httpContext;
+    }
+
+    private int GetCurrentUserId()
+    {
+        var sub = _httpContext.HttpContext?.User.FindFirst("sub")?.Value;
+        return int.TryParse(sub, out var id) ? id : 0;
+    }
+
+    private void LogAudit(string action, string entityType = "Role", string entityId = "", string? oldValues = null, string? newValues = null)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == 0) return;
+        _db.Set<AuditLog>().Add(new AuditLog
+        {
+            UserId = userId,
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            OldValues = oldValues,
+            NewValues = newValues,
+            CreatedAt = DateTime.UtcNow
+        });
     }
 
     public async Task<List<RoleDto>> GetAllRolesAsync(CancellationToken ct = default)
@@ -52,6 +83,8 @@ public class RolePermissionManager
         foreach (var perm in permissions)
             await _roleManager.AddClaimAsync(role, new Claim("permission", perm));
 
+        LogAudit("RoleCreated", "Role", name, newValues: string.Join(", ", permissions));
+        await _db.SaveChangesAsync(ct);
         return role;
     }
 
@@ -61,11 +94,18 @@ public class RolePermissionManager
         if (role is null) throw new Exception("Role not found");
 
         var existingClaims = await _roleManager.GetClaimsAsync(role);
+
+        var oldPerms = string.Join(", ", existingClaims.Where(c => c.Type == "permission").Select(c => c.Value));
+        var newPerms = string.Join(", ", permissions);
+
         foreach (var claim in existingClaims.Where(c => c.Type == "permission"))
             await _roleManager.RemoveClaimAsync(role, claim);
 
         foreach (var perm in permissions)
             await _roleManager.AddClaimAsync(role, new Claim("permission", perm));
+
+        LogAudit("RolePermissionsUpdated", "Role", name, oldPerms, newPerms);
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task DeleteRoleAsync(string name, CancellationToken ct = default)
@@ -75,6 +115,9 @@ public class RolePermissionManager
 
         if (name == RoleNames.Admin || name == RoleNames.Client)
             throw new Exception("Cannot delete built-in role");
+
+        LogAudit("RoleDeleted", "Role", name);
+        await _db.SaveChangesAsync(ct);
 
         await _roleManager.DeleteAsync(role);
     }
@@ -92,7 +135,7 @@ public class RolePermissionManager
             {
                 Id = user.Id,
                 Email = user.Email!,
-                FullName = user.FullName,
+                FullName = user.FullName ?? string.Empty,
                 Roles = roles.ToList(),
                 CreatedAt = user.CreatedAt,
                 LastLogin = user.LastLogin,
@@ -112,6 +155,10 @@ public class RolePermissionManager
             await _userManager.RemoveFromRolesAsync(user, currentRoles);
 
         await _userManager.AddToRoleAsync(user, roleName);
+
+        LogAudit("UserRoleSet", "User", userId.ToString(), string.Join(", ", currentRoles), roleName);
+        await _db.SaveChangesAsync(ct);
+
         return user;
     }
 }

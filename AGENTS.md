@@ -10,6 +10,8 @@
 
 One-way rule: TransitInfoAPI knows nothing about GetThereAPI. GetThereAPI references operators by TransitInfoAPI GlobalId.
 
+**UserId types differ between APIs:** TransitInfoAPI uses `IdentityUser<int>` (int PK), GetThereAPI uses `IdentityUser` (string GUID). They are separate auth domains with separate DBs — no cross-system user references exist. The service account bridge (`getthere-api@transit.local`) handles cross-API auth independently.
+
 ## Running
 
 **Order matters — API must be running before MAUI starts.**

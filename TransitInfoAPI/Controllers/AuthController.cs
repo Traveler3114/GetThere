@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TransitInfoAPI.Managers;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Common;
@@ -8,6 +9,8 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("auth")]
+[EnableRateLimiting("Auth")]
+[Authorize]
 public class AuthController : ControllerBase
 {
     private readonly AuthManager _authManager;
@@ -22,17 +25,20 @@ public class AuthController : ControllerBase
         CancellationToken ct = default)
     {
         var deviceInfo = Request.Headers["User-Agent"].ToString();
-        var result = await _authManager.LoginAsync(request, rememberMe, deviceInfo, ct);
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await _authManager.LoginAsync(request, rememberMe, deviceInfo, ipAddress, ct);
         return Ok(result);
     }
 
     [HttpPost("refresh")]
+    [AllowAnonymous]
     public async Task<ActionResult<RefreshTokenResponse>> Refresh(
         [FromBody] RefreshTokenRequest request,
         CancellationToken ct = default)
     {
         var deviceInfo = Request.Headers["User-Agent"].ToString();
-        var result = await _authManager.RefreshAsync(request.RefreshToken, deviceInfo, ct);
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await _authManager.RefreshAsync(request.RefreshToken, deviceInfo, ipAddress, ct);
         return Ok(result);
     }
 
@@ -52,7 +58,7 @@ public class AuthController : ControllerBase
         [FromBody] ChangePasswordRequest request,
         CancellationToken ct = default)
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = User.FindFirst("sub")?.Value;
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 

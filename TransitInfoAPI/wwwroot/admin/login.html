@@ -42,7 +42,8 @@ document.getElementById('loginForm').addEventListener('submit', async function (
     if (!resp.ok) { errEl.style.display = 'block'; return; }
     var data = await resp.json();
     sessionStorage.setItem('auth_token', data.accessToken);
-    var redirect = sessionStorage.getItem('redirect_after_login') || '/admin/';
+    var redirect = sessionStorage.getItem('redirect_after_login');
+    if (!redirect || !redirect.startsWith('/admin/')) redirect = '/admin/';
     sessionStorage.removeItem('redirect_after_login');
     window.location.href = redirect;
   } catch (ex) {

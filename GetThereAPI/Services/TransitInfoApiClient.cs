@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
@@ -46,7 +47,7 @@ public class TransitInfoApiClient
         });
 
         _cachedAccessToken = loginResult?.AccessToken ?? throw new Exception("Failed to get access token from TransitInfoAPI");
-        _tokenExpiry = DateTime.UtcNow.AddHours(1);
+        _tokenExpiry = GetTokenExpiry(_cachedAccessToken);
 
         return _cachedAccessToken;
     }
@@ -130,6 +131,38 @@ public class TransitInfoApiClient
         var request = new HttpRequestMessage(HttpMethod.Get, $"/mobility/stations?{string.Join("&", query)}");
         var result = await SendWithAuthAsync<PaginatedResponse<TransitMobilityStationResponse>>(request, ct);
         return result.Items;
+    }
+
+    private static DateTime GetTokenExpiry(string token)
+    {
+        try
+        {
+            var parts = token.Split('.');
+            if (parts.Length < 2) return DateTime.UtcNow.AddHours(1);
+
+            var payload = Encoding.UTF8.GetString(
+                Convert.FromBase64String(PadBase64(parts[1])));
+            using var doc = JsonDocument.Parse(payload);
+            if (doc.RootElement.TryGetProperty("exp", out var expProp) &&
+                expProp.TryGetInt64(out var expSeconds))
+            {
+                return DateTimeOffset.FromUnixTimeSeconds(expSeconds).UtcDateTime.AddMinutes(-5);
+            }
+        }
+        catch { }
+
+        return DateTime.UtcNow.AddHours(1);
+    }
+
+    private static string PadBase64(string base64)
+    {
+        base64 = base64.Replace('-', '+').Replace('_', '/');
+        switch (base64.Length % 4)
+        {
+            case 2: base64 += "=="; break;
+            case 3: base64 += "="; break;
+        }
+        return base64;
     }
 
     private class LoginResult

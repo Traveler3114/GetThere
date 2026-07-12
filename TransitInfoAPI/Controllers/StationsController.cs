@@ -11,6 +11,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class StationsController : ControllerBase
 {
     private readonly StationManager _stationService;
@@ -18,7 +19,7 @@ public class StationsController : ControllerBase
 public StationsController(StationManager stationManager) { _stationService = stationManager; }
 
     [HttpGet]
-    [Authorize(Policy = PermissionKeys.StationsView)]
+    [AllowAnonymous]
     public async Task<ActionResult> GetAll(
         [FromQuery] double? lat,
         [FromQuery] double? lon,
@@ -58,7 +59,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("{id}")]
-    [Authorize(Policy = PermissionKeys.StationsView)]
+    [AllowAnonymous]
     public async Task<ActionResult<StationResponse>> GetById(int id, CancellationToken ct = default)
     {
         var station = await _stationService.GetByIdAsync(id, ct);
@@ -105,7 +106,7 @@ public StationsController(StationManager stationManager) { _stationService = sta
     }
 
     [HttpGet("{id}/departures")]
-    [Authorize(Policy = PermissionKeys.StationsView)]
+    [AllowAnonymous]
     public async Task<ActionResult<List<DepartureResponse>>> GetDepartures(
         int id,
         [FromQuery] DateTime? from = null,

@@ -21,7 +21,7 @@ public ProfileController(ProfileManager profileManager) { _profileManager = prof
     [Authorize(Policy = PermissionKeys.ProfileView)]
     public async Task<ActionResult<UserResponse>> Get(CancellationToken ct = default)
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = User.FindFirst("sub")?.Value;
         if (userId is null) return Unauthorized();
 
         var user = await _profileManager.GetUserByIdAsync(userId, ct);
@@ -35,7 +35,7 @@ public ProfileController(ProfileManager profileManager) { _profileManager = prof
     public async Task<ActionResult> Update(
         [FromBody] UpdateProfileRequest request, CancellationToken ct = default)
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = User.FindFirst("sub")?.Value;
         if (userId is null) return Unauthorized();
 
         var user = await _profileManager.GetUserByIdAsync(userId, ct);

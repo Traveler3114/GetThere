@@ -11,6 +11,7 @@ namespace TransitInfoAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class RoutesController : ControllerBase
 {
     private readonly RouteManager _routeManager;
@@ -19,7 +20,7 @@ public class RoutesController : ControllerBase
 public RoutesController(RouteManager routeManager, ScheduleManager scheduleManager) { _routeManager = routeManager; _scheduleManager = scheduleManager; }
 
     [HttpGet]
-    [Authorize(Policy = PermissionKeys.RoutesView)]
+    [AllowAnonymous]
     public async Task<ActionResult> GetAll(
         [FromQuery] int? operatorId,
         [FromQuery] RouteType? routeType,
@@ -45,7 +46,7 @@ public RoutesController(RouteManager routeManager, ScheduleManager scheduleManag
     }
 
     [HttpGet("{id}")]
-    [Authorize(Policy = PermissionKeys.RoutesView)]
+    [AllowAnonymous]
     public async Task<ActionResult<RouteResponse>> GetById(int id, CancellationToken ct = default)
     {
         var route = await _routeManager.GetByIdAsync(id, ct);

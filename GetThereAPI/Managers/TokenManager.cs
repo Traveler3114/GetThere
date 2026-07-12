@@ -4,7 +4,6 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using GetThereAPI.Common;
 using GetThereAPI.Entities;
 
 namespace GetThereAPI.Managers;
@@ -29,16 +28,13 @@ public class TokenManager
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub, user.Id),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email, user.Email!),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.GivenName, user.FullName ?? ""),
-            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("nbf", EpochTime.GetIntDate(DateTime.UtcNow).ToString(), ClaimValueTypes.Integer64)
         };
 
         var roles = await _userManager.GetRolesAsync(user);
         foreach (var role in roles)
             claims.Add(new Claim("role", role));
-
-        var permissions = GetPermissionsForRoles(roles);
-        foreach (var perm in permissions)
-            claims.Add(new Claim("permission", perm));
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
@@ -51,29 +47,6 @@ public class TokenManager
 
         var handler = new JsonWebTokenHandler();
         return handler.CreateToken(tokenDescriptor);
-    }
-
-    private static HashSet<string> GetPermissionsForRoles(IList<string> roles)
-    {
-        var perms = new HashSet<string>();
-
-        if (roles.Contains(RoleNames.Admin))
-        {
-            foreach (var p in PermissionKeys.All) perms.Add(p);
-        }
-        else if (roles.Contains(RoleNames.User))
-        {
-            // User gets standard user permissions
-            foreach (var p in PermissionKeys.All.Where(p =>
-                p is PermissionKeys.TicketsView or PermissionKeys.TicketsCreate
-                or PermissionKeys.WalletsView
-                or PermissionKeys.ProfileView or PermissionKeys.ProfileManage
-                or PermissionKeys.SettingsView
-                or PermissionKeys.MapView))
-                perms.Add(p);
-        }
-
-        return perms;
     }
 
     public string GenerateRefreshToken()

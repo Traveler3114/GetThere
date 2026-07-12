@@ -15,19 +15,6 @@ public class AdminManager
 
 public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = db; _userManager = userManager; }
 
-    public async Task<AppUser?> SetUserRoleAsync(string userId, string roleName, CancellationToken ct = default)
-    {
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user is null) return null;
-
-        var currentRoles = await _userManager.GetRolesAsync(user);
-        if (currentRoles.Count > 0)
-            await _userManager.RemoveFromRolesAsync(user, currentRoles);
-
-        await _userManager.AddToRoleAsync(user, roleName);
-        return user;
-    }
-
     public async Task<PagedResult<UserListItem>> GetUsersAsync(int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         var query = _userManager.Users.OrderBy(u => u.Email);
