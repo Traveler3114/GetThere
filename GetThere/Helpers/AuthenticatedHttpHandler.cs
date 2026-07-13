@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 
 using GetThere.Services;
+using GetThereShared.Common;
 
 namespace GetThere.Helpers;
 
@@ -86,7 +87,7 @@ public class AuthenticatedHttpHandler : DelegatingHandler
             if (parts.Length < 2) return false;
 
             var payload = Encoding.UTF8.GetString(
-                Convert.FromBase64String(PadBase64(parts[1])));
+                Convert.FromBase64String(Base64Helper.PadBase64(parts[1])));
             using var doc = JsonDocument.Parse(payload);
             if (doc.RootElement.TryGetProperty("exp", out var expProp) &&
                 expProp.TryGetInt64(out var expSeconds))
@@ -100,14 +101,4 @@ public class AuthenticatedHttpHandler : DelegatingHandler
         return false;
     }
 
-    private static string PadBase64(string base64)
-    {
-        base64 = base64.Replace('-', '+').Replace('_', '/');
-        switch (base64.Length % 4)
-        {
-            case 2: base64 += "=="; break;
-            case 3: base64 += "="; break;
-        }
-        return base64;
-    }
 }

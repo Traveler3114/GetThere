@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 
 using GetThereShared.Common;
 using GetThereShared.Contracts;
+using static GetThereShared.Common.HttpHelper;
 
 namespace GetThere.Services;
 
@@ -39,15 +40,4 @@ public class CountryService
         }
     }
 
-    private static async Task<string?> TryReadProblemAsync(HttpResponseMessage response)
-    {
-        try
-        {
-            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-            if (doc.RootElement.TryGetProperty("title", out var title))
-                return title.GetString();
-        }
-        catch { }
-        return null;
-    }
 }

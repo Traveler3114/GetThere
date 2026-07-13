@@ -47,7 +47,10 @@ public static class MauiProgram
         builder.Services.AddTransient<AuthenticatedHttpHandler>();
 
         builder.Services.AddHttpClient("GetThereAPI", client =>
-            client.BaseAddress = new Uri(apiBase))
+        {
+            client.BaseAddress = new Uri(apiBase);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        })
             .AddHttpMessageHandler<AuthenticatedHttpHandler>();
 
         builder.Services.AddTransient(sp =>

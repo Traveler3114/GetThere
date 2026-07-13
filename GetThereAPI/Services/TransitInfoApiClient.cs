@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using GetThereShared.Common;
 
 namespace GetThereAPI.Services;
 
@@ -16,13 +17,16 @@ public class TransitInfoApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly TransitInfoApiOptions _options;
-    private string? _cachedAccessToken;
-    private DateTime _tokenExpiry;
+    private readonly ILogger<TransitInfoApiClient> _logger;
+    private static string? _cachedAccessToken;
+    private static DateTime _tokenExpiry;
+    private static readonly SemaphoreSlim _tokenSemaphore = new(1, 1);
 
-    public TransitInfoApiClient(HttpClient httpClient, IOptions<TransitInfoApiOptions> options)
+    public TransitInfoApiClient(HttpClient httpClient, IOptions<TransitInfoApiOptions> options, ILogger<TransitInfoApiClient> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _logger = logger;
         _httpClient.BaseAddress = new Uri(_options.BaseUrl);
     }
 
@@ -31,25 +35,37 @@ public class TransitInfoApiClient
         if (_cachedAccessToken != null && _tokenExpiry > DateTime.UtcNow.AddMinutes(5))
             return _cachedAccessToken;
 
-        var loginRequest = new
+        await _tokenSemaphore.WaitAsync(ct);
+        try
         {
-            Email = _options.ClientId,
-            Password = _options.ClientSecret
-        };
+            if (_cachedAccessToken != null && _tokenExpiry > DateTime.UtcNow.AddMinutes(5))
+                return _cachedAccessToken;
 
-        var response = await _httpClient.PostAsJsonAsync("/auth/login", loginRequest, ct);
-        response.EnsureSuccessStatusCode();
+            var loginRequest = new
+            {
+                Email = _options.ClientId,
+                Password = _options.ClientSecret
+            };
 
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var loginResult = JsonSerializer.Deserialize<LoginResult>(json, new JsonSerializerOptions
+            var response = await _httpClient.PostAsJsonAsync("/auth/login", loginRequest, ct);
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var loginResult = JsonSerializer.Deserialize<LoginResult>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            _cachedAccessToken = loginResult?.AccessToken ?? throw new Exception("Failed to get access token from TransitInfoAPI");
+            _tokenExpiry = GetTokenExpiry(_cachedAccessToken);
+            _logger.LogInformation("Obtained new access token from TransitInfoAPI, expires at {Expiry}", _tokenExpiry);
+
+            return _cachedAccessToken;
+        }
+        finally
         {
-            PropertyNameCaseInsensitive = true
-        });
-
-        _cachedAccessToken = loginResult?.AccessToken ?? throw new Exception("Failed to get access token from TransitInfoAPI");
-        _tokenExpiry = GetTokenExpiry(_cachedAccessToken);
-
-        return _cachedAccessToken;
+            _tokenSemaphore.Release();
+        }
     }
 
     private async Task<T> SendWithAuthAsync<T>(HttpRequestMessage request, CancellationToken ct)
@@ -61,6 +77,7 @@ public class TransitInfoApiClient
 
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
+            _logger.LogWarning("TransitInfoAPI returned 401, refreshing token and retrying {Method} {Path}", request.Method, request.RequestUri?.PathAndQuery);
             _cachedAccessToken = null;
             token = await GetAccessTokenAsync(ct);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -141,7 +158,7 @@ public class TransitInfoApiClient
             if (parts.Length < 2) return DateTime.UtcNow.AddHours(1);
 
             var payload = Encoding.UTF8.GetString(
-                Convert.FromBase64String(PadBase64(parts[1])));
+                Convert.FromBase64String(Base64Helper.PadBase64(parts[1])));
             using var doc = JsonDocument.Parse(payload);
             if (doc.RootElement.TryGetProperty("exp", out var expProp) &&
                 expProp.TryGetInt64(out var expSeconds))
@@ -152,17 +169,6 @@ public class TransitInfoApiClient
         catch { }
 
         return DateTime.UtcNow.AddHours(1);
-    }
-
-    private static string PadBase64(string base64)
-    {
-        base64 = base64.Replace('-', '+').Replace('_', '/');
-        switch (base64.Length % 4)
-        {
-            case 2: base64 += "=="; break;
-            case 3: base64 += "="; break;
-        }
-        return base64;
     }
 
     private class LoginResult

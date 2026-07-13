@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
@@ -14,7 +15,7 @@ public ProfileManager(UserManager<AppUser> userManager) { _userManager = userMan
 
     public async Task<AppUser?> GetUserByIdAsync(string userId, CancellationToken ct = default)
     {
-        return await _userManager.FindByIdAsync(userId);
+        return await _userManager.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
     }
 
     public async Task UpdateProfileAsync(AppUser user, UpdateProfileRequest request, CancellationToken ct = default)
@@ -28,9 +29,11 @@ public ProfileManager(UserManager<AppUser> userManager) { _userManager = userMan
             if (!setEmailResult.Succeeded)
                 throw new AppException(string.Join(", ", setEmailResult.Errors.Select(e => e.Description)));
         }
-
-        var result = await _userManager.UpdateAsync(user);
-        if (!result.Succeeded)
-            throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+        else
+        {
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
     }
 }

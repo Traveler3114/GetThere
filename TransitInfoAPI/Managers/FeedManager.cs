@@ -30,6 +30,7 @@ public class FeedManager
     private readonly PlaceMatchingManager _placeMatching;
     private readonly Services.ImportLogStore _logStore;
     private readonly ExternalFeedSource _externalFeedSource;
+    private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
 
     public FeedManager(
@@ -197,7 +198,7 @@ public class FeedManager
 
         // Deactivate CanonicalStations that now have no operator links and no active raw stops
         await _db.Database.ExecuteSqlRawAsync(
-            "UPDATE CanonicalStations SET IsActive = 0 WHERE IsActive = 1 AND StationType = 'Stop' "
+            $"UPDATE CanonicalStations SET IsActive = 0 WHERE IsActive = 1 AND StationType = '{nameof(StationType.Stop)}' "
             + "AND NOT EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = Id) "
             + "AND NOT EXISTS (SELECT 1 FROM RawStops WHERE CanonicalStationId = Id AND IsActive = 1)");
 
@@ -604,7 +605,6 @@ public class FeedManager
         foreach (var t in parsed.Trips)
             tripMap[t.TripId] = t;
 
-        var shapesFactory = new GeometryFactory(new PrecisionModel(), 4326);
         var generatedCount = 0;
 
         foreach (var trip in parsed.Trips)
@@ -627,7 +627,7 @@ public class FeedManager
 
             var shapeId = $"gen-{trip.TripId}";
             if (!parsed.Shapes.ContainsKey(shapeId))
-                parsed.Shapes[shapeId] = shapesFactory.CreateLineString(coords.ToArray());
+                parsed.Shapes[shapeId] = GeometryFactory.CreateLineString(coords.ToArray());
             trip.ShapeId = shapeId;
             generatedCount++;
         }
@@ -771,7 +771,7 @@ public class FeedManager
             _logStore.AddEntry(feedVersionId, $"Import failed: {version.ImportError}");
             await _db.SaveChangesAsync(ct);
             await sqlTx.CommitAsync(ct);
-            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
+            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp file {Path}", tempZipPath); }
             return null;
         }
 
@@ -984,16 +984,7 @@ public class FeedManager
 
         await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000))
         {
-            var dt = new DataTable();
-            dt.Columns.Add("TripId", typeof(int));
-            dt.Columns.Add("RawStopId", typeof(string));
-            dt.Columns.Add("ArrivalTime", typeof(int));
-            dt.Columns.Add("DepartureTime", typeof(int));
-            dt.Columns.Add("StopSequence", typeof(int));
-            dt.Columns.Add("StopHeadsign", typeof(string));
-            dt.Columns.Add("PickupType", typeof(int));
-            dt.Columns.Add("DropOffType", typeof(int));
-            dt.Columns.Add("Timepoint", typeof(bool));
+            var rows = new List<object?[]>(50000);
             foreach (var st in batch)
             {
                 if (routeByTrip.TryGetValue(st.TripId, out var rId) &&
@@ -1021,15 +1012,19 @@ public class FeedManager
                 var dropOffType = st.DropOffType is >= 0 and <= 3 ? (object?)st.DropOffType : DBNull.Value;
                 if (st.DropOffType is not (null or >= 0 and <= 3))
                     _logger.LogWarning("Invalid DropOffType {Value} for stop {StopId}", st.DropOffType, st.StopId);
-                dt.Rows.Add(
+
+                object?[] row =
+                [
                     resolvedTripId, st.StopId,
                     (object?)arrival ?? DBNull.Value,
                     departure.Value,
                     st.StopSequence, (object?)st.StopHeadsign ?? DBNull.Value,
                     pickupType, dropOffType,
-                    st.Timepoint.HasValue ? (object)(st.Timepoint == 1) : DBNull.Value);
+                    st.Timepoint.HasValue ? (object)(st.Timepoint == 1) : DBNull.Value,
+                ];
+                rows.Add(row);
             }
-            await bulkCopy.WriteToServerAsync(dt, ct);
+            await bulkCopy.WriteToServerAsync(new ObjectArrayReader(rows, 9), ct);
         }
 
         _logStore.AddEntry(feedVersionId, "Phase 3: stop_times import complete");
@@ -1175,13 +1170,13 @@ public class FeedManager
             feedVersionId, routes.Count, rawStops.Count, trips.Count);
 
         var deactivated = await _db.Database.ExecuteSqlRawAsync(
-            "UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = 'Stop' AND (EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = cs.Id AND OperatorId = @p0) OR NOT EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = cs.Id)) AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
+            $"UPDATE cs SET IsActive = 0 FROM CanonicalStations cs WHERE cs.IsActive = 1 AND cs.StationType = '{nameof(StationType.Stop)}' AND (EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = cs.Id AND OperatorId = @p0) OR NOT EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = cs.Id)) AND NOT EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
             new object[] { operatorId }, ct);
         _logStore.AddEntry(feedVersionId, $"Deactivated {deactivated} orphan CanonicalStations with no stops");
         _logger.LogInformation("Deactivated {Count} orphan CanonicalStations for FeedVersion {VersionId}", deactivated, feedVersionId);
 
         var reactivated = await _db.Database.ExecuteSqlRawAsync(
-            "UPDATE cs SET IsActive = 1 FROM CanonicalStations cs WHERE cs.IsActive = 0 AND cs.StationType = 'Stop' AND EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
+            $"UPDATE cs SET IsActive = 1 FROM CanonicalStations cs WHERE cs.IsActive = 0 AND cs.StationType = '{nameof(StationType.Stop)}' AND EXISTS (SELECT 1 FROM RawStops rs INNER JOIN FeedVersions fv ON fv.Id = rs.FeedVersionId WHERE rs.CanonicalStationId = cs.Id AND rs.IsActive = 1 AND fv.IsActive = 1)",
             ct);
         if (reactivated > 0)
             _logger.LogInformation("Reactivated {Count} CanonicalStations for all operators (FeedVersion {VersionId})", reactivated, feedVersionId);
@@ -1203,7 +1198,7 @@ public class FeedManager
 
     private async Task HandleImportErrorAsync(int feedVersionId, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, Exception ex, string tempZipPath, CancellationToken ct)
     {
-        try { using var rollbackCts = CancellationTokenSource.CreateLinkedTokenSource(ct, new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token); await sqlTx.RollbackAsync(rollbackCts.Token); } catch { }
+        try { using var rollbackCts = CancellationTokenSource.CreateLinkedTokenSource(ct, new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token); await sqlTx.RollbackAsync(rollbackCts.Token); } catch (Exception rollbackEx) { _logger.LogWarning(rollbackEx, "Rollback failed for FeedVersion {VersionId}", feedVersionId); }
         _logStore.AddEntry(feedVersionId, $"Import failed: {ex.Message}");
         try
         {
@@ -1220,7 +1215,47 @@ public class FeedManager
         {
             _logger.LogError(innerEx, "Failed to write ImportStatus=Failed for FeedVersion {VersionId}", feedVersionId);
         }
-        try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch { }
+        try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception deleteEx) { _logger.LogWarning(deleteEx, "Failed to delete temp file {Path}", tempZipPath); }
         _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
+    }
+
+    private sealed class ObjectArrayReader(IEnumerable<object?[]> rows, int fieldCount) : IDataReader
+    {
+        private readonly IEnumerator<object?[]> _enumerator = rows.GetEnumerator();
+
+        public int FieldCount => fieldCount;
+        public int RecordsAffected => -1;
+        public bool IsClosed => false;
+        public int Depth => 0;
+
+        public bool Read() => _enumerator.MoveNext();
+        public object GetValue(int i) => _enumerator.Current![i] ?? DBNull.Value;
+        public bool IsDBNull(int i) => _enumerator.Current![i] is null;
+        public object this[int i] => GetValue(i);
+        public object this[string name] => throw new NotSupportedException();
+        public int GetOrdinal(string name) => throw new NotSupportedException();
+        public string GetName(int i) => throw new NotSupportedException();
+        public string GetDataTypeName(int i) => throw new NotSupportedException();
+        public Type GetFieldType(int i) => throw new NotSupportedException();
+        public long GetBytes(int i, long fieldOffset, byte[]? buffer, int bufferoffset, int length) => throw new NotSupportedException();
+        public long GetChars(int i, long fieldoffset, char[]? buffer, int bufferoffset, int length) => throw new NotSupportedException();
+        public IDataReader GetData(int i) => throw new NotSupportedException();
+        public int GetValues(object[] values) => throw new NotSupportedException();
+        public bool GetBoolean(int i) => throw new NotSupportedException();
+        public byte GetByte(int i) => throw new NotSupportedException();
+        public char GetChar(int i) => throw new NotSupportedException();
+        public DateTime GetDateTime(int i) => throw new NotSupportedException();
+        public decimal GetDecimal(int i) => throw new NotSupportedException();
+        public double GetDouble(int i) => throw new NotSupportedException();
+        public float GetFloat(int i) => throw new NotSupportedException();
+        public Guid GetGuid(int i) => throw new NotSupportedException();
+        public short GetInt16(int i) => throw new NotSupportedException();
+        public int GetInt32(int i) => throw new NotSupportedException();
+        public long GetInt64(int i) => throw new NotSupportedException();
+        public string GetString(int i) => throw new NotSupportedException();
+        public DataTable GetSchemaTable() => throw new NotSupportedException();
+        public void Close() { }
+        public void Dispose() => _enumerator.Dispose();
+        public bool NextResult() => false;
     }
 }

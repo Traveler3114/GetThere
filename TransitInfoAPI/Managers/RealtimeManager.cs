@@ -66,20 +66,20 @@ public class RealtimeManager
 
         _logger.LogInformation("Polling {Count} active GTFS-RT feeds", activeRtFeeds.Count);
 
-        ConcurrentDictionary<string, TripUpdateBundle> allTripUpdates = [];
+        var allTripUpdates = new ConcurrentDictionary<string, TripUpdateBundle>();
 
-        foreach (var feed in activeRtFeeds)
+        await Parallel.ForEachAsync(activeRtFeeds, new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = ct }, async (feed, innerCt) =>
         {
             try
             {
-                var feedUpdates = await PollFeedAsync(feed, ct);
+                var feedUpdates = await PollFeedAsync(feed, innerCt);
                 lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
 
                 foreach (var kvp in feedUpdates)
                     allTripUpdates[kvp.Key] = kvp.Value;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!innerCt.IsCancellationRequested)
             {
                 int count;
                 lock (_failureLock)
@@ -97,21 +97,21 @@ public class RealtimeManager
                     {
                         using var scope = _scopeFactory.CreateScope();
                         var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
-                        var dbFeed = await db.Feeds.FindAsync([feed.Id], ct);
+                        var dbFeed = await db.Feeds.FindAsync([feed.Id], innerCt);
                         if (dbFeed is not null)
                         {
                             dbFeed.IsActive = false;
-                            await db.SaveChangesAsync(ct);
+                            await db.SaveChangesAsync(innerCt);
                         }
                     }
-                    catch (Exception inner)
+                    catch (Exception inner) when (!innerCt.IsCancellationRequested)
                     {
                         _logger.LogError(inner, "Failed to deactivate GTFS-RT feed {FeedId}", feed.FeedId);
                     }
                     lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 }
             }
-        }
+        });
 
         Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, TripUpdateBundle>(allTripUpdates));
 

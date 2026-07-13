@@ -12,13 +12,15 @@ namespace GetThereAPI.Managers;
 public class WalletManager
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<WalletManager> _logger;
 
-    public WalletManager(AppDbContext db) { _db = db; }
+    public WalletManager(AppDbContext db, ILogger<WalletManager> logger) { _db = db; _logger = logger; }
 
     public async Task<WalletResponse?> GetWalletAsync(string userId, CancellationToken ct = default)
     {
         var wallet = await _db.Wallets
             .Include(w => w.Transactions.OrderByDescending(t => t.CreatedAt).Take(20))
+            .AsNoTracking()
             .FirstOrDefaultAsync(w => w.UserId == userId, ct);
 
         return wallet is null ? null : WalletMapper.ToResponse(wallet);
@@ -36,15 +38,19 @@ public class WalletManager
             throw new AppException("Wallet not found", 404);
 
         var balanceBefore = wallet.Balance;
-        wallet.Balance += amount;
-        wallet.UpdatedAt = DateTime.UtcNow;
+
+        // Atomic UPDATE prevents race conditions on concurrent top-ups
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Wallets SET Balance = Balance + {amount}, UpdatedAt = {DateTime.UtcNow} WHERE Id = {wallet.Id}", ct);
+
+        var updatedBalance = balanceBefore + amount;
 
         _db.WalletTransactions.Add(new WalletTransaction
         {
             WalletId = wallet.Id,
             Amount = amount,
             BalanceBefore = balanceBefore,
-            BalanceAfter = wallet.Balance,
+            BalanceAfter = updatedBalance,
             Type = WalletTransactionType.Deposit,
             Description = $"Top-up via {paymentMethod}",
             ReferenceId = null
@@ -52,6 +58,7 @@ public class WalletManager
 
         await _db.SaveChangesAsync(ct);
 
+        _logger.LogInformation("Wallet {WalletId} topped up {Amount} via {Method}, new balance {Balance}", wallet.Id, amount, paymentMethod, updatedBalance);
         return WalletMapper.ToResponse(wallet);
     }
 
@@ -65,6 +72,7 @@ public class WalletManager
             wallet = new Wallet { UserId = userId };
             _db.Wallets.Add(wallet);
             await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Created wallet for user {UserId}", userId);
         }
 
         return wallet;

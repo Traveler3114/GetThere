@@ -20,7 +20,7 @@ public class SettingsController : ControllerBase
     [Authorize(Policy = PermissionKeys.SettingsView)]
     public async Task<ActionResult<UserSettingsResponse>> Get(CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _settingsManager.GetSettingsAsync(userId, ct);
@@ -31,7 +31,7 @@ public class SettingsController : ControllerBase
     [Authorize(Policy = PermissionKeys.SettingsManage)]
     public async Task<IActionResult> Update(UpdateSettingsRequest request, CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         await _settingsManager.UpdateSettingsAsync(userId, request, ct);

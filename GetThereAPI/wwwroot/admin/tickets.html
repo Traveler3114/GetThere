@@ -69,9 +69,9 @@ async function loadData() {
 
 async function loadOptions() {
   const r = await fetch('/tickets/options', { headers: getHeaders() });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Request failed');
-  const options = j.data || [];
+  if (!r.ok) throw new Error('Request failed (' + r.status + ')');
+  const options = await r.json();
+  if (!Array.isArray(options)) throw new Error('Invalid response');
   if (!options.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No ticket options available.</div>';
     return;
@@ -90,9 +90,9 @@ async function loadOptions() {
 
 async function loadMyTickets() {
   const r = await fetch('/tickets', { headers: getHeaders() });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Request failed');
-  const tickets = j.data || [];
+  if (!r.ok) throw new Error('Request failed (' + r.status + ')');
+  const tickets = await r.json();
+  if (!Array.isArray(tickets)) throw new Error('Invalid response');
   if (!tickets.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No tickets purchased yet.</div>';
     return;
@@ -112,23 +112,8 @@ async function loadMyTickets() {
   document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>ID</th><th>Option</th><th>Status</th><th>Valid From</th><th>Valid To</th><th>Format</th><th>Data</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${tickets.length} ticket(s)</small>`;
 }
 
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('#tabBar .nav-link').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
-  loadData();
-}
-
-function getHeaders() {
-  const token = sessionStorage.getItem('auth_token');
-  const h = {'Content-Type': 'application/json'};
-  if (token) h['Authorization'] = 'Bearer ' + token;
-  return h;
-}
-
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-
-let currentTab = 'options';
 
 document.addEventListener('DOMContentLoaded', () => {
   const token = sessionStorage.getItem('auth_token');

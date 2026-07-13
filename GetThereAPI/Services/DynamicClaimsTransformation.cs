@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
+using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 
@@ -27,7 +28,7 @@ public class DynamicClaimsTransformation : IClaimsTransformation
         if (principal.Identity?.IsAuthenticated != true)
             return principal;
 
-        var userId = principal.FindFirst("sub")?.Value;
+        var userId = principal.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null)
             return principal;
 

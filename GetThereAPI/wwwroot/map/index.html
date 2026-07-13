@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Transit Map</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="/route-colors.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+#map { height: 100%; width: 100%; }
+#sidebar {
+  position: fixed; top: 0; right: -400px; width: 400px; height: 100%;
+  background: #fff; box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+  transition: right 0.3s ease; z-index: 1000; overflow-y: auto; padding: 20px;
+}
+#sidebar.open { right: 0; }
+#sidebar h2 { margin-bottom: 8px; font-size: 1.25rem; }
+#sidebar .close-btn {
+  float: right; cursor: pointer; font-size: 1.5rem; border: none;
+  background: none; color: #666; line-height: 1;
+}
+#sidebar .close-btn:hover { color: #000; }
+#sidebar .info-row { margin: 6px 0; font-size: 0.9rem; }
+#sidebar .info-row strong { display: inline-block; width: 100px; color: #555; }
+#sidebar .departures { margin-top: 12px; }
+#sidebar .departures h3 { font-size: 1rem; margin-bottom: 6px; }
+#sidebar .departure-item {
+  padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 0.85rem;
+}
+.route-type-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  color: #fff; font-size: 0.75rem; font-weight: 600;
+}
+.loading { color: #999; font-style: italic; }
+#mapError { position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#dc3545; color:#fff; padding:8px 16px; border-radius:6px; font-size:0.85rem; z-index:2000; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+#mapError.d-none { display:none; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="mapError" class="d-none"></div>
+<div id="sidebar">
+  <button class="close-btn" onclick="closeSidebar()">&times;</button>
+  <div id="sidebar-content"><p class="loading">Click a stop to view details</p></div>
+</div>
+
+<script>
+let mapErrorTimer = null;
+function showMapError(msg) {
+  const el = document.getElementById('mapError');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('d-none');
+  if (mapErrorTimer) clearTimeout(mapErrorTimer);
+  mapErrorTimer = setTimeout(() => el.classList.add('d-none'), 8000);
+}
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: '/map/style.json',
+  center: [16.0, 45.8],
+  zoom: 7
+});
+
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+let debounceTimer = null;
+let vehiclesInterval = null;
+let sidebarOpen = false;
+const stationsSource = 'gt-stops';
+const routesSource = 'routes';
+const vehiclesSource = 'vehicles';
+const mobilitySource = 'mobility-stations';
+
+function loadMapData() {
+  const bounds = map.getBounds();
+  const center = map.getCenter();
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  const dlat = (ne.lat - sw.lat) / 2;
+  const dlon = (ne.lng - sw.lng) / 2;
+  const radiusKm = Math.max(
+    dlat * 111, dlon * 111 * Math.cos(center.lat * Math.PI / 180)
+  ) * 1.5;
+
+  const stationUrl = `/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
+  const routeUrl = `/routes?format=geojson&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
+  const mobilityUrl = `/mobility/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
+
+  fetch(stationUrl).then(r => r.json()).then(data => {
+    const src = map.getSource(stationsSource);
+    if (src && data?.type === 'FeatureCollection') {
+      src.setData(data);
+    }
+  }).catch(() => showMapError('Failed to load stations'));
+
+  fetch(routeUrl).then(r => r.json()).then(data => {
+    const src = map.getSource(routesSource);
+    if (src && data?.type === 'FeatureCollection') {
+      src.setData(data);
+    }
+  }).catch(() => showMapError('Failed to load routes'));
+
+  fetch(mobilityUrl).then(r => r.json()).then(data => {
+    const src = map.getSource(mobilitySource);
+    if (src && data?.type === 'FeatureCollection') {
+      src.setData(data);
+    }
+  }).catch(() => showMapError('Failed to load mobility stations'));
+}
+
+function loadVehicles() {
+  fetch('/realtime/vehicles').then(r => r.json()).then(resp => {
+    const vehicles = resp || [];
+    const fc = {
+      type: 'FeatureCollection',
+      features: vehicles.map(v => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
+        properties: {
+          vehicleId: v.vehicleId, routeId: v.routeId, tripId: v.tripId,
+          bearing: v.bearing, lastUpdated: v.lastUpdated
+        }
+      }))
+    };
+    const src = map.getSource(vehiclesSource);
+    if (src) { src.setData(fc); }
+  }).catch(() => showMapError('Failed to load vehicles'));
+}
+
+map.on('load', () => {
+  map.addSource(stationsSource, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 50
+  });
+  map.addSource(routesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource(vehiclesSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource(mobilitySource, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 40
+  });
+
+  // Route lines colored by type (solid for normal, dashed if manually edited)
+  map.addLayer({
+    id: 'routes-line',
+    type: 'line',
+    source: routesSource,
+    filter: ['!=', ['get', 'shapeEdited'], true],
+    paint: {
+      'line-color': [
+        'match', ['get', 'routeType'],
+        'Tram', '#1f78b4',
+        'Subway', '#e31a1c',
+        'Train', '#b15928',
+        'Bus', '#126400',
+        'Ferry', '#6a3d9a',
+        'CableTram', '#fb9a99',
+        'CableCar', '#fb9a99',
+        'Funicular', '#fdbf6f',
+        'Trolleybus', '#33a02c',
+        'Monorail', '#cab2d6',
+        'Bicycle', '#a6cee3',
+        'Scooter', '#ff7f00',
+        'Airplane', '#b2df8a',
+        '#888'
+      ],
+      'line-width': 2,
+      'line-opacity': 0.7
+    }
+  });
+  map.addLayer({
+    id: 'routes-line-edited',
+    type: 'line',
+    source: routesSource,
+    filter: ['==', ['get', 'shapeEdited'], true],
+    paint: {
+      'line-color': [
+        'match', ['get', 'routeType'],
+        'Tram', '#1f78b4',
+        'Subway', '#e31a1c',
+        'Train', '#b15928',
+        'Bus', '#126400',
+        'Ferry', '#6a3d9a',
+        'CableTram', '#fb9a99',
+        'CableCar', '#fb9a99',
+        'Funicular', '#fdbf6f',
+        'Trolleybus', '#33a02c',
+        'Monorail', '#cab2d6',
+        'Bicycle', '#a6cee3',
+        'Scooter', '#ff7f00',
+        'Airplane', '#b2df8a',
+        '#888'
+      ],
+      'line-width': 2,
+      'line-opacity': 0.7,
+      'line-dasharray': [3, 2]
+    }
+  });
+
+  // Cluster circles
+  map.addLayer({
+    id: 'stations-cluster',
+    type: 'circle',
+    source: stationsSource,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#1f78b4',
+      'circle-radius': [
+        'step', ['get', 'point_count'],
+        15, 10,
+        20, 50,
+        25
+      ],
+      'circle-opacity': 0.85,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff'
+    }
+  });
+
+  // Cluster count labels
+  map.addLayer({
+    id: 'stations-cluster-count',
+    type: 'symbol',
+    source: stationsSource,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['Open Sans Regular'],
+      'text-size': 12
+    },
+    paint: { 'text-color': '#fff' }
+  });
+
+  // Load stop icons
+  const STOP_ICONS = [
+    { id: 'stop-bus', file: '/images/bus.png', types: ['Bus', 'Trolleybus'] },
+    { id: 'stop-tram', file: '/images/tram.png', types: ['Tram'] },
+    { id: 'stop-train', file: '/images/train.png', types: ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail'] },
+    { id: 'stop-default', file: '/images/bus.png', types: [] }
+  ];
+
+  // Preload stop icons to avoid flash on first render
+  const PRELOADED = {};
+  for (const icon of STOP_ICONS) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.src = window.location.origin + icon.file;
+    PRELOADED[icon.id] = new Promise((resolve) => { img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); resolve(c.getContext('2d').getImageData(0, 0, img.width, img.height)); }; });
+  }
+
+  map.on('styleimagemissing', async (e) => {
+    if (!PRELOADED[e.id]) return;
+    const data = await PRELOADED[e.id];
+    if (!map.hasImage(e.id)) map.addImage(e.id, data);
+  });
+
+  const _stationIconExpr = ['case',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Bus', 'Trolleybus']]], 'stop-bus',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Tram']]], 'stop-tram',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail']]], 'stop-train',
+    'stop-bus'
+  ];
+
+  // Individual stop icons (unclustered)
+  map.addLayer({
+    id: 'stations-circle',
+    type: 'symbol',
+    source: stationsSource,
+    filter: ['!', ['has', 'point_count']],
+    layout: {
+      'icon-image': _stationIconExpr,
+      'icon-size': 0.35,
+      'icon-anchor': 'bottom',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
+    }
+  });
+
+  // Vehicle dots
+  map.addLayer({
+    id: 'vehicles-circle',
+    type: 'circle',
+    source: vehiclesSource,
+    paint: {
+      'circle-radius': 6,
+      'circle-color': '#7b2d8e',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.9
+    }
+  });
+
+  // Vehicle bearing arrows (SVG triangle preloaded as image)
+  const arrowSvg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><polygon points="8,2 14,13 2,13" fill="%23fff" stroke="%237b2d8e" stroke-width="1.5"/></svg>';
+  const arrowImg = new Image(); arrowImg.src = arrowSvg;
+  arrowImg.onload = () => { if (!map.hasImage('vehicle-arrow')) map.addImage('vehicle-arrow', arrowImg); };
+
+  map.addLayer({
+    id: 'vehicles-arrow',
+    type: 'symbol',
+    source: vehiclesSource,
+    filter: ['!=', ['get', 'bearing'], null],
+    layout: {
+      'icon-image': 'vehicle-arrow',
+      'icon-rotate': ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
+      'icon-size': 0.8,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
+    }
+  });
+
+  // Mobility cluster circles
+  map.addLayer({
+    id: 'mobility-cluster',
+    type: 'circle',
+    source: mobilitySource,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#ff7f00',
+      'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20],
+      'circle-opacity': 0.85,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff'
+    }
+  });
+
+  // Mobility cluster count
+  map.addLayer({
+    id: 'mobility-cluster-count',
+    type: 'symbol',
+    source: mobilitySource,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['Open Sans Regular'],
+      'text-size': 11
+    },
+    paint: { 'text-color': '#fff' }
+  });
+
+  // Individual mobility station dots
+  map.addLayer({
+    id: 'mobility-dot',
+    type: 'circle',
+    source: mobilitySource,
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': 5,
+      'circle-color': '#ff7f00',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff',
+      'circle-opacity': 0.8
+    }
+  });
+
+  loadMapData();
+  loadVehicles();
+  vehiclesInterval = setInterval(loadVehicles, 30000);
+});
+
+map.on('moveend', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(loadMapData, 500);
+});
+
+// Mobility cluster click -> zoom in
+map.on('click', 'mobility-cluster', (e) => {
+  const features = map.queryRenderedFeatures(e.point, { layers: ['mobility-cluster'] });
+  const clusterId = features[0].properties.cluster_id;
+  map.getSource(mobilitySource).getClusterExpansionZoom(clusterId, (err, zoom) => {
+    if (err) return;
+    map.easeTo({ center: features[0].geometry.coordinates, zoom });
+  });
+});
+
+// Mobility dot click -> show details
+map.on('click', 'mobility-dot', (e) => {
+  const props = e.features[0].properties;
+  showMobilityStationSidebar(props);
+});
+
+map.on('mouseenter', 'mobility-cluster', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'mobility-cluster', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'mobility-dot', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'mobility-dot', () => { map.getCanvas().style.cursor = ''; });
+
+// Click cluster -> zoom in
+map.on('click', 'stations-cluster', (e) => {
+  const features = map.queryRenderedFeatures(e.point, { layers: ['stations-cluster'] });
+  const clusterId = features[0].properties.cluster_id;
+  map.getSource(stationsSource).getClusterExpansionZoom(clusterId, (err, zoom) => {
+    if (err) return;
+    map.easeTo({ center: features[0].geometry.coordinates, zoom });
+  });
+});
+
+// Click individual stop -> show details
+map.on('click', 'stations-circle', (e) => {
+  const props = e.features[0].properties;
+  showStationDetails(props.id, props);
+});
+
+// Cursor for clusters
+map.on('mouseenter', 'stations-cluster', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'stations-cluster', () => { map.getCanvas().style.cursor = ''; });
+
+// Cursor for individual stops
+map.on('mouseenter', 'stations-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'stations-circle', () => { map.getCanvas().style.cursor = ''; });
+
+// Route line interaction
+map.on('mouseenter', 'routes-line', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'routes-line', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'routes-line-edited', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'routes-line-edited', () => { map.getCanvas().style.cursor = ''; });
+
+map.on('click', 'routes-line', (e) => {
+  const props = e.features[0].properties;
+  showRouteDetails(props);
+});
+map.on('click', 'routes-line-edited', (e) => {
+  const props = e.features[0].properties;
+  showRouteDetails(props);
+});
+
+function showStationDetails(id, props) {
+  const content = document.getElementById('sidebar-content');
+  const type = props.stationType || 'unknown';
+  const rt = props.primaryRouteType || props.routeType || '';
+  const color = getRouteColor(rt);
+
+  let html = `
+    <h2>${props.name || 'Unknown'}</h2>
+    <div class="info-row"><strong>Type</strong> ${formatEnumName(type)}</div>
+    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${rt || '-'}</span></div>
+    <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>
+    <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
+  `;
+
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+  content.innerHTML = html;
+
+  fetch(`/stations/${id}/departures?count=5`).then(r => r.json()).then(resp => {
+    const deps = resp || [];
+    if (deps.length === 0) {
+      document.querySelector('.departures .loading').textContent = 'No upcoming departures';
+      return;
+    }
+    let depHtml = '<h3>Next departures</h3>';
+    deps.forEach(d => {
+      const hasRt = d.delaySeconds !== null && d.delaySeconds !== undefined;
+      const schedTime = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+      const estTime = d.estimatedDeparture ? new Date(d.estimatedDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : schedTime;
+
+      let timeHtml;
+      if (hasRt && estTime !== schedTime) {
+        const mins = Math.round(d.delaySeconds / 60);
+        const label = mins > 0 ? `+${mins}` : `${mins}`;
+        timeHtml = `<span style="text-decoration:line-through;color:#999;margin-right:4px">${schedTime}</span><strong style="color:${mins>0?'#dc3545':'#198754'}">${estTime}</strong> <span style="font-size:0.8em">(${label} min)</span>`;
+      } else {
+        timeHtml = `<strong>${schedTime}</strong>`;
+      }
+
+      depHtml += `<div class="departure-item">${timeHtml} ${d.headsign ? d.headsign + ' — ' : ''}${d.routeName || ''}${hasRt ? ' 🔴' : ''}</div>`;
+    });
+    document.querySelector('.departures').innerHTML = depHtml;
+  }).catch(() => {
+    document.querySelector('.departures .loading').textContent = 'Failed to load departures';
+  });
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function showRouteDetails(props) {
+  const content = document.getElementById('sidebar-content');
+  const color = getRouteColor(props.routeType || 'default');
+  const name = props.name || props.shortName || 'Unknown';
+  const edited = props.shapeEdited ? ' (edited)' : '';
+
+  let html = `
+    <h2>${esc(name)}${edited}</h2>
+    <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${props.routeType || '-'}</span></div>
+    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <a href="/admin/shape-editor.html?routeId=${props.id}" style="display:inline-block;padding:8px 16px;background:#1f78b4;color:#fff;border-radius:6px;text-decoration:none;font-size:0.85rem;font-weight:600">Edit Shape</a>
+    </div>
+  `;
+
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+  content.innerHTML = html;
+}
+
+function showMobilityStationSidebar(props) {
+  const content = document.getElementById('sidebar-content');
+  const cap = props.capacity > 0 ? props.capacity : null;
+  const pct = cap ? Math.round(props.availableVehicles / cap * 100) : null;
+  const loc = props.countryName || '';
+  let html = `
+    <h2>${esc(props.name || 'Unknown')}</h2>
+    <div class="info-row"><strong>Provider</strong> ${esc(props.providerName || '-')}</div>
+    <div class="info-row"><strong>Available</strong> ${cap ? props.availableVehicles + ' / ' + cap : props.availableVehicles + ' available'}</div>
+    <div class="info-row"><strong>Utilization</strong> ${pct !== null ? pct + '%' : 'N/A'}</div>
+    ${loc ? `<div class="info-row"><strong>Location</strong> ${esc(loc)}</div>` : ''}
+    <div class="info-row"><strong>Station ID</strong> <code>${esc(props.stationId || '-')}</code></div>
+    <div class="info-row"><strong>Last updated</strong> ${props.lastUpdated ? new Date(props.lastUpdated).toLocaleString() : '-'}</div>
+  `;
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+  content.innerHTML = html;
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  sidebarOpen = false;
+}
+
+window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(vehiclesInterval); });
+
+</script>
+</body>
+</html>

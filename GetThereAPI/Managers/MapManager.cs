@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
@@ -12,11 +13,13 @@ public class MapManager
 {
     private readonly TransitInfoApiClient _transitClient;
     private readonly AppDbContext _db;
+    private readonly ILogger<MapManager> _logger;
 
-    public MapManager(TransitInfoApiClient transitClient, AppDbContext db)
+    public MapManager(TransitInfoApiClient transitClient, AppDbContext db, ILogger<MapManager> logger)
     {
         _transitClient = transitClient;
         _db = db;
+        _logger = logger;
     }
 
     public async Task<List<MapStationResponse>> GetStationsAsync(
@@ -85,19 +88,20 @@ public class MapManager
 
     public async Task<List<MapDepartureResponse>> GetDeparturesAsync(string onestopId, CancellationToken ct = default)
     {
-        // Departures endpoint not yet implemented in TransitInfoApiClient
+        _logger.LogWarning("GetDeparturesAsync called but TransitInfoApiClient does not implement departures yet (OnestopId: {OnestopId})", onestopId);
         return [];
     }
 
     public async Task<List<MapOperatorResponse>> GetStationOperatorsAsync(string onestopId, CancellationToken ct = default)
     {
-        // Station operators endpoint not yet implemented in TransitInfoApiClient
+        _logger.LogWarning("GetStationOperatorsAsync called but TransitInfoApiClient does not implement station operators yet (OnestopId: {OnestopId})", onestopId);
         return [];
     }
 
     public async Task<JsonElement> GetTransportTypesAsync(CancellationToken ct = default)
     {
+        _logger.LogWarning("GetTransportTypesAsync called but TransitInfoApiClient does not implement transport types yet");
         using var doc = JsonDocument.Parse("[]");
-        return doc.RootElement;
+        return doc.RootElement.Clone();
     }
 }

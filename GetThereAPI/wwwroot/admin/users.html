@@ -68,10 +68,9 @@ function getHeaders() {
 
 async function loadUsers() {
   const r = await fetch(BASE + '/admin/users?page=' + currentPage + '&pageSize=20', { headers: getHeaders() });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Request failed');
-  const result = j.data || {};
-  const users = result.items || [];
+  if (!r.ok) throw new Error('Request failed (' + r.status + ')');
+  const result = await r.json();
+  const users = result.data || [];
   if (!users.length) {
     document.getElementById('content').innerHTML = '<div class="alert alert-info">No users found.</div>';
     document.getElementById('pagination').classList.add('d-none');
@@ -93,7 +92,7 @@ function renderPagination(r) {
   el.classList.remove('d-none');
   const prevDisabled = !r.hasPreviousPage || currentPage <= 1;
   const nextDisabled = !r.hasNextPage;
-  el.innerHTML = `<small class="text-muted">${r.totalCount} user(s) &middot; Page ${r.page} of ${r.totalPages}</small>
+  el.innerHTML = `<small class="text-muted">${r.total} user(s) &middot; Page ${r.page} of ${r.totalPages}</small>
     <div class="btn-group btn-group-sm">
       <button class="btn btn-outline-secondary" onclick="goPage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>
       <button class="btn btn-outline-secondary" onclick="goPage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>
@@ -109,9 +108,9 @@ function showError(msg) { const e = document.getElementById('error'); e.textCont
 function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
 let currentPage = 1;
-let token = sessionStorage.getItem('auth_token') || '';
 
 document.addEventListener('DOMContentLoaded', () => {
+  token = sessionStorage.getItem('auth_token') || '';
   if (!token) {
     window.location.href = '/admin/login.html';
   } else {

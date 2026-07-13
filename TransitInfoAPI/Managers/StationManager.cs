@@ -33,8 +33,8 @@ public class StationManager
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(cs =>
                 cs.Latitude >= lat.Value - latRange &&
                 cs.Latitude <= lat.Value + latRange &&
@@ -56,15 +56,16 @@ public class StationManager
         var query = _db.CanonicalStations
             .Include(cs => cs.Country)
             .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
-            .AsQueryable();
+            .AsQueryable()
+            .AsNoTracking();
 
         if (countryId.HasValue)
             query = query.Where(cs => cs.CountryId == countryId.Value);
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(cs =>
                 cs.Latitude >= lat.Value - latRange &&
                 cs.Latitude <= lat.Value + latRange &&
@@ -201,8 +202,8 @@ public class StationManager
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(cs =>
                 cs.Latitude >= lat.Value - latRange &&
                 cs.Latitude <= lat.Value + latRange &&
@@ -213,10 +214,10 @@ public class StationManager
         return await query.CountAsync(ct);
     }
 
-    public async Task<StationReconciliationDetailResponse> GetReconciliationDetailAsync(int id, CancellationToken ct)
+    public async Task<StationReconciliationDetailResponse?> GetReconciliationDetailAsync(int id, CancellationToken ct)
     {
         var station = await _db.CanonicalStations.FindAsync([id], ct);
-        if (station is null) return null!;
+        if (station is null) return null;
 
         var autoNameThreshold = _config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90);
         var autoDistThreshold = _config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100);

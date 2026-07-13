@@ -61,7 +61,7 @@ public AuthController(AuthManager authManager) { _authManager = authManager; }
     public async Task<ActionResult> ChangePassword(
         ChangePasswordRequest request, CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 

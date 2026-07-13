@@ -16,8 +16,9 @@ public class TicketingManager
     private readonly AppDbContext _db;
     private readonly AdapterRegistry _registry;
     private readonly WalletManager _walletManager;
+    private readonly ILogger<TicketingManager> _logger;
 
-public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager walletManager) { _db = db; _registry = registry; _walletManager = walletManager; }
+public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager walletManager, ILogger<TicketingManager> logger) { _db = db; _registry = registry; _walletManager = walletManager; _logger = logger; }
 
     public async Task<List<TicketOptionResponse>> GetTicketOptionsAsync(CancellationToken ct = default)
     {
@@ -25,6 +26,7 @@ public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager
             .Include(to => to.Adapter)
             .Where(to => to.IsActive)
             .OrderBy(to => to.Price)
+            .AsNoTracking()
             .ToListAsync(ct);
 
         return options.Select(TicketMapper.ToOptionResponse).ToList();
@@ -39,6 +41,7 @@ public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager
                 .ThenInclude(p => p.Adapter)
             .Where(t => t.Purchase.UserId == userId)
             .OrderByDescending(t => t.CreatedAt)
+            .AsNoTracking()
             .ToListAsync(ct);
 
         return tickets.Select(TicketMapper.ToTicketResponse).ToList();
@@ -47,28 +50,33 @@ public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager
     public async Task<TicketResponse> PurchaseTicketAsync(
         string userId, int adapterId, int optionId, CancellationToken ct = default)
     {
+        _logger.LogInformation("User {UserId} attempting purchase of option {OptionId} via adapter {AdapterId}", userId, optionId, adapterId);
+
         var adapter = await _db.TicketingAdapters.FindAsync([adapterId], ct);
         if (adapter is null || !adapter.IsActive)
             throw new AppException("Ticketing adapter not found or inactive.", 404);
 
         var option = await _db.TicketOptions
+            .AsNoTracking()
             .FirstOrDefaultAsync(to => to.Id == optionId && to.TicketingAdapterId == adapterId && to.IsActive, ct);
         if (option is null)
             throw new AppException("Ticket option not found.", 404);
 
-        var wallet = await _walletManager.EnsureWalletAsync(userId, ct);
-        if (wallet is null || wallet.Balance < option.Price)
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // Atomic balance deduction — prevents race conditions (double-spend)
+        var rowsAffected = await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Wallets SET Balance = Balance - {option.Price}, UpdatedAt = {DateTime.UtcNow} WHERE UserId = {userId} AND Balance >= {option.Price}", ct);
+        if (rowsAffected == 0)
             throw new AppException("Insufficient balance.", 400);
 
-        var balanceBefore = wallet.Balance;
-        wallet.Balance -= option.Price;
-        wallet.UpdatedAt = DateTime.UtcNow;
+        var wallet = await _db.Wallets.FirstAsync(w => w.UserId == userId, ct);
 
         var transaction = new WalletTransaction
         {
             WalletId = wallet.Id,
             Amount = -option.Price,
-            BalanceBefore = balanceBefore,
+            BalanceBefore = wallet.Balance + option.Price,
             BalanceAfter = wallet.Balance,
             Type = WalletTransactionType.TicketPurchase,
             Description = $"Purchase: {option.Name}"
@@ -119,6 +127,9 @@ public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager
                 _db.Tickets.Add(ticket);
                 await _db.SaveChangesAsync(ct);
 
+                await tx.CommitAsync(ct);
+
+                _logger.LogInformation("User {UserId} successfully purchased ticket {TicketId} for option {OptionId}", userId, ticket.Id, optionId);
                 return TicketMapper.ToTicketResponse(ticket);
             }
 
@@ -126,6 +137,9 @@ public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager
             purchase.Status = PaymentStatus.Failed;
             await _db.SaveChangesAsync(ct);
 
+            await tx.CommitAsync(ct);
+
+            _logger.LogWarning("Purchase failed for user {UserId} option {OptionId}: {Reason}", userId, optionId, purchase.FailureReason);
             throw new AppException(purchase.FailureReason, 400);
         }
 
@@ -133,6 +147,9 @@ public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager
         purchase.Status = PaymentStatus.Failed;
         await _db.SaveChangesAsync(ct);
 
+        await tx.CommitAsync(ct);
+
+        _logger.LogWarning("Purchase failed for user {UserId} option {OptionId}: no adapter registered", userId, optionId);
         throw new AppException(purchase.FailureReason, 400);
     }
 }

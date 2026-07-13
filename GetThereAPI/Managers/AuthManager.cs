@@ -5,6 +5,7 @@ using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Mapping;
+using GetThereAPI.Common;
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Managers;
@@ -44,7 +45,7 @@ public class AuthManager
         if (!result.Succeeded)
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
 
-        await _userManager.AddToRoleAsync(user, "User");
+        await _userManager.AddToRoleAsync(user, RoleNames.User);
 
         LogAudit(user.Id, "Register", "User", user.Id);
         await _db.SaveChangesAsync(ct);

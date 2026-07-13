@@ -13,6 +13,7 @@ namespace TransitInfoAPI.Managers;
 
 public class RouteManager
 {
+    private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private readonly TransitDbContext _db;
     private readonly IConfiguration _config;
 
@@ -20,7 +21,7 @@ public class RouteManager
 
     public async Task<List<RouteResponse>> GetAllAsync(int? operatorId, RouteType? routeType, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
-        var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
+        var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable().AsNoTracking();
 
         if (operatorId.HasValue)
             query = query.Where(r => r.OperatorId == operatorId.Value);
@@ -34,7 +35,7 @@ public class RouteManager
 
     public async Task<int> GetTotalCountAsync(int? operatorId, RouteType? routeType, string? q, CancellationToken ct = default)
     {
-        var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
+        var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable().AsNoTracking();
 
         if (operatorId.HasValue)
             query = query.Where(r => r.OperatorId == operatorId.Value);
@@ -61,8 +62,7 @@ public class RouteManager
         if (minLat.HasValue && minLon.HasValue && maxLat.HasValue && maxLon.HasValue)
         {
             var envelope = new Envelope(minLon.Value, maxLon.Value, minLat.Value, maxLat.Value);
-            var gf = new GeometryFactory(new PrecisionModel(), 4326);
-            var bbox = gf.ToGeometry(envelope);
+            var bbox = GeometryFactory.ToGeometry(envelope);
             if (bbox is Polygon poly && !Orientation.IsCCW(poly.Shell.Coordinates))
                 bbox = poly.Reverse();
             query = query.Where(r => r.Geometry != null && r.Geometry.Intersects(bbox));
@@ -134,8 +134,7 @@ public class RouteManager
         if (coords.Length < 2)
             return null;
 
-        var gf = new GeometryFactory(new PrecisionModel(), 4326);
-        shape.Geometry = gf.CreateLineString(coords);
+        shape.Geometry = GeometryFactory.CreateLineString(coords);
         shape.IsManuallyEdited = true;
 
         route.Geometry = shape.Geometry;

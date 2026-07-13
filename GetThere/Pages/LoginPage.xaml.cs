@@ -21,6 +21,13 @@ public partial class LoginPage : ContentPage
         SizeChanged += OnPageSizeChanged;
     }
 
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        Application.Current!.RequestedThemeChanged -= OnRequestedThemeChanged;
+        SizeChanged -= OnPageSizeChanged;
+    }
+
     private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs e)
         => ApplyThemeImages();
 

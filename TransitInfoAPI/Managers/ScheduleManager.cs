@@ -10,13 +10,19 @@ namespace TransitInfoAPI.Managers;
 
 public class ScheduleManager
 {
-    private static readonly TimeZoneInfo ZagrebTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zagreb");
-
+    private readonly TimeZoneInfo _tz;
     private readonly TransitDbContext _db;
     private readonly RealtimeManager _realtime;
     private readonly ILogger<ScheduleManager> _logger;
 
-    public ScheduleManager(TransitDbContext db, RealtimeManager realtime, ILogger<ScheduleManager> logger) { _db = db; _realtime = realtime; _logger = logger; }
+    public ScheduleManager(TransitDbContext db, RealtimeManager realtime, ILogger<ScheduleManager> logger, IConfiguration config)
+    {
+        _db = db;
+        _realtime = realtime;
+        _logger = logger;
+        var tzId = config.GetValue<string>("Schedule:Timezone", "Europe/Zagreb");
+        _tz = TimeZoneInfo.FindSystemTimeZoneById(tzId);
+    }
 
     public async Task<List<DepartureResponse>> GetDeparturesAsync(
         int canonicalStationId, DateTime from, int count, CancellationToken ct)
@@ -24,7 +30,7 @@ public class ScheduleManager
         var utcFrom = from.Kind == DateTimeKind.Unspecified
             ? DateTime.SpecifyKind(from, DateTimeKind.Utc)
             : from.ToUniversalTime();
-        var localFrom = TimeZoneInfo.ConvertTimeFromUtc(utcFrom, ZagrebTz);
+        var localFrom = TimeZoneInfo.ConvertTimeFromUtc(utcFrom, _tz);
 
         var today = DateOnly.FromDateTime(localFrom);
         var fromTime = (int)Math.Round(localFrom.TimeOfDay.TotalSeconds);

@@ -20,7 +20,7 @@ public class WalletController : ControllerBase
     [Authorize(Policy = PermissionKeys.WalletsView)]
     public async Task<ActionResult<WalletResponse>> GetWallet(CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _walletManager.GetWalletAsync(userId, ct);
@@ -33,7 +33,7 @@ public class WalletController : ControllerBase
     [Authorize(Policy = PermissionKeys.WalletsManage)]
     public async Task<ActionResult<WalletResponse>> TopUp(TopUpRequest request, CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _walletManager.TopUpAsync(userId, request.Amount, request.PaymentMethod, ct);
@@ -44,7 +44,7 @@ public class WalletController : ControllerBase
     [Authorize(Policy = PermissionKeys.WalletsView)]
     public async Task<ActionResult<WalletResponse>> EnsureWallet(CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         var wallet = await _walletManager.EnsureWalletAsync(userId, ct);

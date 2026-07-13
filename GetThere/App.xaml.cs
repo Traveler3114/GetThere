@@ -18,20 +18,34 @@ namespace GetThere;
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            var authService = _serviceProvider.GetService<AuthService>();
-            if (authService?.GetRememberMe() == true)
+            var window = new Window(new ContentPage());
+            _ = InitializeWindowAsync(window);
+            return window;
+        }
+
+        private async Task InitializeWindowAsync(Window window)
+        {
+            try
             {
-                var accessToken = Task.Run(() => SecureStorage.GetAsync(AuthService.TokenKey)).GetAwaiter().GetResult();
-                var refreshToken = Task.Run(() => SecureStorage.GetAsync(AuthService.RefreshTokenKey)).GetAwaiter().GetResult();
+                var authService = _serviceProvider.GetService<AuthService>();
+                if (authService?.GetRememberMe() == true)
+                {
+                    var accessToken = await SecureStorage.GetAsync(AuthService.TokenKey);
+                    var refreshToken = await SecureStorage.GetAsync(AuthService.RefreshTokenKey);
 
-                if (!string.IsNullOrWhiteSpace(accessToken) || !string.IsNullOrWhiteSpace(refreshToken))
-                    return new Window(new AppShell());
+                    if (!string.IsNullOrWhiteSpace(accessToken) || !string.IsNullOrWhiteSpace(refreshToken))
+                    {
+                        window.Page = new AppShell();
+                        return;
+                    }
+                }
+
+                window.Page = AuthService.IsGuest() ? new AppShell() : new LoginShell();
             }
-
-            if (AuthService.IsGuest())
-                return new Window(new AppShell());
-
-            return new Window(new LoginShell());
+            catch
+            {
+                window.Page = new LoginShell();
+            }
         }
 
         public static void GoToApp()
@@ -52,17 +66,4 @@ namespace GetThere;
             });
         }
 
-        public static async void GoToRegistration()
-        {
-            if (Shell.Current is not null)
-            {
-                await Shell.Current.GoToAsync("registration");
-            }
-            else if (Current?.Windows.Count > 0)
-            {
-                var shell = new LoginShell();
-                Current.Windows[0].Page = shell;
-                await shell.GoToAsync("registration");
-            }
-        }
     }

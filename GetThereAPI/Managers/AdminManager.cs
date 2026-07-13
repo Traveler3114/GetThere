@@ -17,7 +17,7 @@ public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = d
 
     public async Task<PagedResult<UserListItem>> GetUsersAsync(int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
-        var query = _userManager.Users.OrderBy(u => u.Email);
+        var query = _userManager.Users.OrderBy(u => u.Email).AsNoTracking();
 
         var totalCount = await query.CountAsync(ct);
         var items = await query
@@ -44,7 +44,8 @@ public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = d
     {
         var query = _db.AuditLogs
             .Include(al => al.User)
-            .OrderByDescending(al => al.CreatedAt);
+            .OrderByDescending(al => al.CreatedAt)
+            .AsNoTracking();
 
         var totalCount = await query.CountAsync(ct);
         var items = await query

@@ -20,7 +20,7 @@ public class OperatorManager
 
     public async Task<List<OperatorResponse>> GetAllAsync(string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
-        var query = _db.Operators.AsQueryable();
+        var query = _db.Operators.AsQueryable().AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(o => o.Name.Contains(q) || o.ShortName.Contains(q));
@@ -30,7 +30,7 @@ public class OperatorManager
 
     public async Task<int> GetTotalCountAsync(string? q, CancellationToken ct = default)
     {
-        var query = _db.Operators.AsQueryable();
+        var query = _db.Operators.AsQueryable().AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(o => o.Name.Contains(q) || o.ShortName.Contains(q));
@@ -43,6 +43,7 @@ public class OperatorManager
         return await _db.Operators
             .Where(o => o.GlobalId == globalId)
             .Select(OperatorMapper.ToResponseExpression)
+            .AsNoTracking()
             .FirstOrDefaultAsync(ct);
     }
 
@@ -257,6 +258,7 @@ public class OperatorManager
             .Include(o => o.Feeds)
             .Include(o => o.Routes)
             .Include(o => o.StationOperators)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
 
         if (op is null) return false;

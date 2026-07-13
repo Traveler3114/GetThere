@@ -29,8 +29,8 @@ public class MobilityManager
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(ms =>
                 ms.Latitude >= lat.Value - latRange &&
                 ms.Latitude <= lat.Value + latRange &&
@@ -55,8 +55,8 @@ public class MobilityManager
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(ms =>
                 ms.Latitude >= lat.Value - latRange &&
                 ms.Latitude <= lat.Value + latRange &&
@@ -82,8 +82,8 @@ public class MobilityManager
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(ms =>
                 ms.Latitude >= lat.Value - latRange &&
                 ms.Latitude <= lat.Value + latRange &&
@@ -106,8 +106,8 @@ public class MobilityManager
 
         if (lat is not null && lon is not null && radiusKm is not null)
         {
-            var latRange = radiusKm.Value / 111.0;
-            var lonRange = radiusKm.Value / (111.0 * Math.Cos(lat.Value * Math.PI / 180));
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
             query = query.Where(ms =>
                 ms.Latitude >= lat.Value - latRange &&
                 ms.Latitude <= lat.Value + latRange &&

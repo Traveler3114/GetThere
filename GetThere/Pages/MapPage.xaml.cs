@@ -9,21 +9,20 @@ public partial class MapPage : ContentPage
         InitializeComponent();
     }
 
-    private static string GetTransitMapUrl()
-    {
-#if ANDROID
-        return "https://10.0.2.2:5001/map/public.html";
-#else
-        return "https://localhost:5001/map/public.html";
-#endif
-    }
-
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        var url = GetTransitMapUrl();
-        Trace.WriteLine($"[MapPage] Loading map: {url}");
+
+#if ANDROID
+        var transitApi = "https://10.0.2.2:5001";
+        var mapUrl = "https://10.0.2.2:7230/map/public.html?api=" + transitApi;
+#else
+        var transitApi = "https://localhost:5001";
+        var mapUrl = "https://localhost:7230/map/public.html?api=" + transitApi;
+#endif
+
+        Trace.WriteLine($"[MapPage] Loading map: {mapUrl}");
         await MainThread.InvokeOnMainThreadAsync(() =>
-            MapWebView.Source = new UrlWebViewSource { Url = url });
+            MapWebView.Source = new UrlWebViewSource { Url = mapUrl });
     }
 }

@@ -36,6 +36,12 @@ public partial class ProfilePage : ContentPage
         Application.Current!.RequestedThemeChanged += OnRequestedThemeChanged;
     }
 
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        Application.Current!.RequestedThemeChanged -= OnRequestedThemeChanged;
+    }
+
     private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs e)
         => ApplyThemeIcons();
 

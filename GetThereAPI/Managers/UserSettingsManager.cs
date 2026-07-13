@@ -15,6 +15,7 @@ public class UserSettingsManager
     public async Task<UserSettingsResponse> GetSettingsAsync(string userId, CancellationToken ct = default)
     {
         var settings = await _db.UserSettings
+            .AsNoTracking()
             .FirstOrDefaultAsync(us => us.UserId == userId, ct);
 
         if (settings is null)

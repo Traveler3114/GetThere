@@ -6,12 +6,14 @@ public partial class BreathingBackground : ContentView
 {
     private readonly List<Microsoft.Maui.Controls.Shapes.Path> _circles;
     private readonly Random _random = new();
+    private CancellationTokenSource? _cts;
 
     public BreathingBackground()
     {
         InitializeComponent();
         _circles = [Circle1, Circle2, Circle3, Circle4, Circle5];
         SizeChanged += OnBreathingBackgroundSizeChanged;
+        Unloaded += (s, e) => _cts?.Cancel();
     }
 
     private void OnBreathingBackgroundSizeChanged(object? sender, EventArgs e)
@@ -31,11 +33,16 @@ public partial class BreathingBackground : ContentView
 
     private async void StartAnimation()
     {
-        while (true)
+        _cts = new CancellationTokenSource();
+        try
         {
-            await AnimateCircle(_circles[_random.Next(_circles.Count)]);
-            await Task.Delay(_random.Next(200, 500));
+            while (!_cts.IsCancellationRequested)
+            {
+                await AnimateCircle(_circles[_random.Next(_circles.Count)]);
+                await Task.Delay(_random.Next(200, 500), _cts.Token);
+            }
         }
+        catch (OperationCanceledException) { }
     }
 
     private async Task AnimateCircle(Microsoft.Maui.Controls.Shapes.Path circle)

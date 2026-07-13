@@ -11,7 +11,6 @@ public static class WalletMapper
         Currency = wallet.Currency,
         RecentTransactions = wallet.Transactions
             .OrderByDescending(t => t.CreatedAt)
-            .Take(20)
             .Select(t => new WalletTransactionResponse
             {
                 Id = t.Id,

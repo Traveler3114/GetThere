@@ -1283,6 +1283,7 @@ public class ReconciliationManager
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
+            .AsSplitQuery()
             .Where(rc => rc.Status == ReconciliationStatus.Pending)
             .AsQueryable();
 
@@ -1365,6 +1366,7 @@ public class ReconciliationManager
             .Include(rc => rc.Feed)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
+            .AsSplitQuery()
             .Where(rc => rc.Status == ReconciliationStatus.AutoMerged)
             .AsQueryable();
 
@@ -1428,16 +1430,17 @@ public class ReconciliationManager
         return (candidates, total);
     }
 
-    public async Task<List<ReconciliationDetailResponse>> GetByStationAsync(int stationId, CancellationToken ct)
+    public async Task<List<ReconciliationDetailResponse>?> GetByStationAsync(int stationId, CancellationToken ct)
     {
         var stationExists = await _db.CanonicalStations.AnyAsync(cs => cs.Id == stationId, ct);
-        if (!stationExists) return null!;
+        if (!stationExists) return null;
 
         var candidates = await _db.ReconciliationCandidates
             .Include(rc => rc.Feed)
             .ThenInclude(f => f.Operator)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
+            .AsSplitQuery()
             .Where(rc => rc.SuggestedCanonicalStationId == stationId)
             .OrderBy(rc => rc.CreatedAt)
             .ToListAsync(ct);
@@ -1456,6 +1459,7 @@ public class ReconciliationManager
             .ThenInclude(f => f.Operator)
             .Include(rc => rc.SuggestedCanonicalStation)
             .Include(rc => rc.RawStop)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(rc => rc.Id == id, ct);
 
         if (candidate is null)

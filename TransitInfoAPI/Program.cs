@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -149,6 +150,12 @@ builder.Services.AddRateLimiter(limiter =>
 // CORS is intentionally not configured — all browser consumers (admin UI, map)
 // are served from the same origin. Server-to-server callers don't need CORS.
 
+builder.Services.AddResponseCompression(options =>
+{
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+
 var app = builder.Build();
 
 app.UseExceptionHandler(errorApp =>
@@ -193,6 +200,7 @@ app.Use(async (context, next) =>
 });
 app.UseHsts();
 app.UseHttpsRedirection();
+app.UseResponseCompression();
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {

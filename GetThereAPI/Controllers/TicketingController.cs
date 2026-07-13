@@ -28,7 +28,7 @@ public TicketingController(TicketingManager ticketingManager) { _ticketingManage
     [Authorize(Policy = PermissionKeys.TicketsView)]
     public async Task<ActionResult<List<TicketResponse>>> GetMyTickets(CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _ticketingManager.GetUserTicketsAsync(userId, ct);
@@ -40,7 +40,7 @@ public TicketingController(TicketingManager ticketingManager) { _ticketingManage
     public async Task<ActionResult<TicketResponse>> Purchase(
         PurchaseTicketRequest request, CancellationToken ct = default)
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
         var result = await _ticketingManager.PurchaseTicketAsync(userId, request.AdapterId, request.OptionId, ct);
