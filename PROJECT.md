@@ -48,10 +48,10 @@ GetThereShared/
 
 TransitInfoAPI/
 ├── Program.cs          # Startup, DI, middleware
-├── Common/             # OperationResult, GeoJsonGeometry, Paginated
+├── Common/             # Paginated, GeoJsonGeometry, PermissionKeys, RoleNames
 ├── Contracts/          # Request/response DTOs by domain (StationContract, etc.)
 ├── Controllers/        # REST API endpoints (reconciliation, feeds, stations)
-├── Services/           # Business logic (ReconciliationService)
+├── Managers/           # Business logic (ReconciliationManager)
 ├── Core/               # Domain logic interfaces/abstractions
 ├── Data/               # TransitDbContext
 ├── Entities/           # EF Core entity classes (CanonicalStation, Feed, etc.)

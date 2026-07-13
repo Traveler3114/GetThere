@@ -34,7 +34,7 @@ Responsibilities:
 - References TransitInfoAPI operators by GlobalId
 - Cannot add ticketing for an operator that doesn't exist in TransitInfoAPI
 
-One-way dependency only: TransitInfoAPI → GetThereAPI.
+One-way dependency only: GetThereAPI → TransitInfoAPI.
 
 ### The SDK
 
@@ -85,13 +85,13 @@ The two-platform architecture (section 1) is fully realized: `TransitInfoAPI` ow
 - Authentication, wallet, payments, tickets, country selection, shop catalog.
 
 ### B) Transit map and schedule features
-`GetThere` -> `GetThereAPI` -> OTP GraphQL via transit abstraction.
+`GetThere` -> `GetThereAPI` -> `TransitInfoAPI` (stations, routes, schedules, realtime).
 
 ### C) Realtime GTFS feed pipeline
-`OpenTripPlannerAPI` scrapes realtime -> serves GTFS-RT feed endpoint(s).
+`TransitInfoAPI` scrapes and imports GTFS static + GTFS-RT feeds.
 
-### D) OTP feed config source
-`OpenTripPlannerAPI` -> reads SQL Server transit operator metadata directly (read-only) -> generates OTP config files.
+### D) Transit data source
+`TransitInfoAPI` manages all transit data — feeds, stations, routes, schedules, realtime.
 
 ### E) Shared contract alignment
 `GetThere` and `GetThereAPI` both reference `GetThereShared` so payload models remain synchronized.
@@ -143,9 +143,9 @@ The two-platform architecture (section 1) is fully realized: `TransitInfoAPI` ow
 - Contract source: `GetThereShared` DTOs.
 - Response wrapper convention: `OperationResult` / `OperationResult<T>`.
 
-### Boundary 2: API <-> OTP
-- Protocol: GraphQL over HTTP
-- Encapsulation point: `OtpClient` + `ITransitProvider`.
+### Boundary 2: GetThereAPI <-> TransitInfoAPI
+- Protocol: JSON over HTTP (REST)
+- Service account: `getthere-api@transit.local` with read-only `Client` role.
 
 ### Boundary 3: TransitInfoAPI <-> SQL Server (TransitDB)
 - Protocol: EF Core SQL Server queries

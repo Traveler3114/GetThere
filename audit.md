@@ -147,16 +147,6 @@
 - Culture codes `"hr-HR"` and `"en-US"` duplicated
 - `"sub"`, `"role"`, `"permission"` claim types hardcoded across 6+ files
 
-### Documentation Rot
-| # | File | Issue |
-|---|------|-------|
-| 1 | `AGENTS.md:119-140` | Describes removed `CustomFeedDirectImporter` pipeline — files don't exist |
-| 2 | `docs/architecture/integration-guide.md:37` | Dependency arrow backwards (TransitInfoAPI → GetThereAPI should be opposite) |
-| 3 | `docs/architecture/otp-phase1.md` | Describes OTP-centric architecture completely different from actual codebase |
-| 4 | `PROJECT.md` | Says TransitInfoAPI has `Services/` for business logic, actual code has `Managers/` |
-| 5 | `PROJECT.md` | Says `OperationResult` is GetThereAPI-only, but TransitInfoAPI also uses it |
-| 6 | `docs/guides/ef-database-commands.md` | Only covers GetThereAPI, omits TransitInfoAPI entirely |
-
 ### Dead Code
 - MAUI: `BreathingBackground` (entire component), `AnimatedGradientBehavior` (104 lines), `InstallBtnTextConverter`, `InstallBtnColorConverter`, `StatusToColorConverter`
 - GetThereAPI: `SqlHelper.cs`, `MapManager` 3 stub methods
@@ -171,8 +161,7 @@
 3. **Zero-accounting architecture** — wallet deducted before adapter call with no rollback (real money loss bug)
 4. **Dead code everywhere** — 2 entire components, 3 stub methods, 6 `NotImplementedException` stubs, entire files
 5. **Code duplication** — `TryReadProblemAsync` x4, `PadBase64` x3, `RoleDto`/`UserDto` x3, bounding box math x7, name normalization x2
-6. **Documentation rot** — AGENTS.md, integration-guide.md, otp-phase1.md, PROJECT.md all outdated
-7. **Convention violations** — `!= null` instead of `is not null`, sync-over-async, missing file-scoped namespaces
+6. **Convention violations** — `!= null` instead of `is not null`, sync-over-async, missing file-scoped namespaces
 8. **Hardcoded everything** — timezone, API URLs, page sizes, magic numbers, 250+ hex colors, credentials
 9. **No test projects** — zero tests anywhere in the solution
 10. **No CI/CD** — `.github/workflows/` is completely empty

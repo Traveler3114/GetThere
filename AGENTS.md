@@ -116,28 +116,6 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 | — | — | `shape-editor.html` | Removed map.once('idle') wrapper, direct_select default mode fix |
 | — | — | `FeedManager.cs` | Reactivation query (line 1194) broadened to cover all operators |
 
-## Session — July 6, 2026 — Custom feed direct import pipeline
-
-**Architecture change:** Custom feeds with `OutputFormat=GtfsStatic` no longer go through the GTFS zip/CSV round-trip (`GtfsStaticWriter` → zip → disk → `GtfsParser` → `FeedManager` phases). Instead, the engine's mapped `Dictionary<string, List<Dictionary<string, object?>>>` output is fed directly into `CustomFeedDirectImporter`, which maps records to entities, validates, persists, and manages FeedVersion lifecycle — all inside `ImportAndActivateAsync`. Real GTFS feeds (ZET, HZPP, etc.) are unaffected: they still use `ExternalFeedSource` → zip → `FeedManager.ImportFeedVersionAsync`.
-
-`FeedFetchResult.AlreadyHandled` signals `CheckAndFetchAsync` to skip disk write/FeedVersion creation when the direct importer already handled the cutover internally.
-
-| # | File(s) | What |
-|---|---------|------|
-| 1 | `Managers/CustomFeedHash.cs` | Static `ComputeHash(Dictionary<string, List<Dictionary<string, object?>>>)` — deterministic SHA1 across table/key/record insertion orders |
-| 2 | `Managers/CustomFeedDirectImporter.cs` | New manager: `MapStops`, `MapRoutes`, `MapTrips`, `MapStopTimes`, `MapCalendar`, `MapCalendarDates`, `MapAgency` — each reads GTFS-style keys from record dicts, type-coerces via `GetString`/`GetDouble`/`GetInt` (matching `GtfsRealtimeWriter` pattern). `DeriveStopRouteTypes` joins stop_times→trips→routes raw dicts for RouteType per stop. `ValidateImport` checks viability (≥1 stop with derivable RouteType). `ImportAndActivateAsync` orchestrates the full pipeline: hash check → FeedVersion creation → mapping → cutover guard → transactioned save + active/inactive flip → pruning → reconciliation |
-| 3 | `Managers/CustomFeedDirectImporter.cs` | `CustomFeedImportOptions` (thresholds via `IConfiguration`), `ShouldAbortCutover` — aborts if new stops/routes drop >90% vs active version |
-| 4 | `Managers/CustomFeedDirectImporter.cs` | `PruneOldVersionsAsync` — keeps active + 1 previous, deletes older versions + child data |
-| 5 | `Core/IFeedSource.cs` | `FeedFetchResult.AlreadyHandled` property added |
-| 6 | `Services/CustomFeedSource.cs` | `GtfsStatic` case now calls `CustomFeedDirectImporter.ImportAndActivateAsync` directly instead of `GtfsStaticWriter.ConvertAsync`. `GtfsRealtime`/`Gbfs` cases untouched |
-| 7 | `Managers/FeedManager.cs` | `CheckAndFetchAsync` skips disk write + version creation when `result.AlreadyHandled` |
-| 8 | `Program.cs`, `appsettings.json` | `CustomFeedImportOptions` DI registration + defaults section |
-
-### New/removed dependencies
-- `CustomFeedDirectImporter` → depends on `TransitDbContext`, `OnestopIdManager`, `ReconciliationManager`, `IOptions<CustomFeedImportOptions>`. Registered as scoped in `Program.cs`.
-- `CustomFeedHash` — static utility, no registration needed.
-- `CustomFeedImportOptions` — bound from `appsettings.json:CustomFeedImport`.
-
 ## Reference
 
 `PROJECT.md` is the canonical conventions doc (architecture, code style, response formats, pagination, endpoint patterns). `GetThereAPI/Program.cs` shows the DI wiring and middleware order.
