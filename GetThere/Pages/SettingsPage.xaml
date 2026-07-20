@@ -27,13 +27,14 @@
                 <!--  Country card  -->
                 <Border
                     Padding="20"
-                    BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
-                    StrokeThickness="0">
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeThickness="1">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="20" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
+                        <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                     </Border.Shadow>
                     <VerticalStackLayout Spacing="12">
 
@@ -53,7 +54,7 @@
                             HeightRequest="30"
                             IsRunning="False"
                             IsVisible="False"
-                            Color="{AppThemeBinding Light=#1264AB, Dark=#60A5FA}" />
+                            Color="{DynamicResource Primary}" />
 
                         <Picker
                             x:Name="CountryPicker"
@@ -68,7 +69,7 @@
                             x:Name="CurrentCountryLabel"
                             FontSize="13"
                             IsVisible="False"
-                            TextColor="{AppThemeBinding Light=#1264AB, Dark=#60A5FA}" />
+                            TextColor="{DynamicResource Primary}" />
 
                     </VerticalStackLayout>
                 </Border>
@@ -76,13 +77,14 @@
                 <!--  About card  -->
                 <Border
                     Padding="20"
-                    BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
-                    StrokeThickness="0">
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeThickness="1">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="20" />
                     </Border.StrokeShape>
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
+                        <Shadow Brush="Black" Opacity="0.08" Radius="10" Offset="0,4" />
                     </Border.Shadow>
                     <VerticalStackLayout Spacing="8">
                         <Label
@@ -101,8 +103,8 @@
                     </VerticalStackLayout>
                 </Border>
 
-                    <Button
-                     x:Name="LogoutButton"
+                <Button
+                    x:Name="LogoutButton"
                     Text="Log out"
                     Clicked="OnLogoutClicked"
                     HorizontalOptions="Center"
@@ -110,12 +112,12 @@
                     Padding="20,10"
                     FontAttributes="Bold"
                     FontSize="14"
-                     TextColor="White"
-                     BackgroundColor="{AppThemeBinding Light=#0EA5A4, Dark=#0F766E}"
+                    TextColor="White"
+                    BackgroundColor="{AppThemeBinding Light=#EF4444, Dark=#DC2626}"
                     CornerRadius="18"
                     WidthRequest="110">
                     <Button.Shadow>
-                        <Shadow Brush="Black" Opacity="0.16" Radius="8" Offset="4,4" />
+                        <Shadow Brush="Black" Opacity="0.08" Radius="8" Offset="0,4" />
                     </Button.Shadow>
                 </Button>
 

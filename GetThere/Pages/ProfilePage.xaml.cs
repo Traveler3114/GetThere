@@ -246,7 +246,7 @@ public partial class ProfilePage : ContentPage
         // Animate indicator back to start
         TabIndicator.TranslateToAsync(0, 0, 250, Easing.CubicInOut);
         
-        WalletTabBtn.TextColor = Color.FromArgb("#512BD4");
+        WalletTabBtn.TextColor = Color.FromArgb("#0D9488");
         AccountTabBtn.TextColor = Color.FromArgb("#64748B");
     }
 
@@ -264,7 +264,7 @@ public partial class ProfilePage : ContentPage
         TabIndicator.TranslateToAsync(targetX, 0, 250, Easing.CubicInOut);
 
         WalletTabBtn.TextColor = Color.FromArgb("#64748B");
-        AccountTabBtn.TextColor = Color.FromArgb("#512BD4");
+        AccountTabBtn.TextColor = Color.FromArgb("#0D9488");
     }
 
     private void OnMainScrollViewScrolled(object? sender, ScrolledEventArgs e)

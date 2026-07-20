@@ -15,9 +15,9 @@
         <!--  ── HERO AREA ──  -->
         <Border VerticalOptions="Start" HeightRequest="240" StrokeThickness="0">
             <Border.Background>
-                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                    <GradientStop Offset="0" Color="#4E85F2" />
-                    <GradientStop Offset="1" Color="#512BD4" />
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Offset="0" Color="{DynamicResource Primary}" />
+                    <GradientStop Offset="1" Color="{DynamicResource Secondary}" />
                 </LinearGradientBrush>
             </Border.Background>
 
@@ -89,15 +89,15 @@
 
                     <Label x:Name="ErrorLabel" TextColor="{AppThemeBinding Light=Red, Dark=#FCA5A5}" FontSize="12" HorizontalOptions="Center" IsVisible="False" />
 
-                    <Button x:Name="RegisterButton" Text="{localization:Translate Register_Button}" Clicked="RegisterButton_Clicked" BackgroundColor="#009688" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold" Margin="0,15,0,0" />
+                    <Button x:Name="RegisterButton" Text="{localization:Translate Register_Button}" Clicked="RegisterButton_Clicked" BackgroundColor="{DynamicResource Primary}" TextColor="White" CornerRadius="26" HeightRequest="52" FontAttributes="Bold" Margin="0,15,0,0" />
 
                     <HorizontalStackLayout HorizontalOptions="Center" Spacing="5" Margin="0,10">
                         <Label Text="{localization:Translate Register_AlreadyHaveAccount}" TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}" />
-                        <Label Text="{localization:Translate Register_SignIn}" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}" FontAttributes="Bold">
+                        <Label Text="{localization:Translate Register_SignIn}" TextColor="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource Accent}}" FontAttributes="Bold">
                             <Label.GestureRecognizers><TapGestureRecognizer Tapped="LoginButton_Tapped" /></Label.GestureRecognizers>
                         </Label>
                     </HorizontalStackLayout>
-                    <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="{AppThemeBinding Light=#512BD4, Dark=#A78BFA}" />
+                    <ActivityIndicator x:Name="BusyIndicator" IsRunning="False" IsVisible="False" Color="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource Accent}}" />
                 </VerticalStackLayout>
             </Border>
         </ScrollView>

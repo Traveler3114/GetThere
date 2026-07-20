@@ -52,7 +52,7 @@
             
             <!-- 1. USER IDENTITY HEADER (ALIGNED WITH CONTENT) -->
             <Grid x:Name="UserHeader" Grid.Row="0" MaximumWidthRequest="600" HorizontalOptions="Center" Padding="24,15,24,0" ColumnDefinitions="Auto, *">
-                <Border x:Name="UserAvatarBorder" WidthRequest="60" HeightRequest="60" StrokeThickness="3" Stroke="#512BD4">
+                <Border x:Name="UserAvatarBorder" WidthRequest="60" HeightRequest="60" StrokeThickness="3" Stroke="{DynamicResource Primary}">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="30" /></Border.StrokeShape>
                     <Image Source="{AppThemeBinding Light=profile.png, Dark=profile_white.png}" Margin="10" />
                     <Border.GestureRecognizers>
@@ -81,7 +81,7 @@
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.12" Radius="6" Offset="0,2" /></Border.Shadow>
                         </Border>
 
-                        <Button Grid.Column="0" Text="{localization:Translate Profile_WalletTab}" BackgroundColor="Transparent" Clicked="OnWalletTabClicked" x:Name="WalletTabBtn" TextColor="#512BD4" FontAttributes="Bold" ZIndex="2" />
+                        <Button Grid.Column="0" Text="{localization:Translate Profile_WalletTab}" BackgroundColor="Transparent" Clicked="OnWalletTabClicked" x:Name="WalletTabBtn" TextColor="{DynamicResource Primary}" FontAttributes="Bold" ZIndex="2" />
                         <Button Grid.Column="1" Text="{localization:Translate Profile_AccountTab}" BackgroundColor="Transparent" Clicked="OnAccountTabClicked" x:Name="AccountTabBtn" TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" FontAttributes="Bold" ZIndex="2" />
                     </Grid>
                 </Border>
@@ -98,9 +98,8 @@
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="24" /></Border.StrokeShape>
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Offset="0" Color="#5F8FF5" />
-                                    <GradientStop Offset="0.55" Color="#5565EA" />
-                                    <GradientStop Offset="1" Color="#5A24D9" />
+                                    <GradientStop Offset="0" Color="{DynamicResource Primary}" />
+                                    <GradientStop Offset="1" Color="{DynamicResource Secondary}" />
                                 </LinearGradientBrush>
                             </Border.Background>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="16" Offset="0,10" /></Border.Shadow>
