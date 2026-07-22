@@ -9,6 +9,7 @@ namespace GetThere;
     public partial class App : Application
     {
         private readonly IServiceProvider _serviceProvider;
+        public static IServiceProvider Services => Current is App app ? app._serviceProvider : null!;
 
         public App(IServiceProvider serviceProvider)
         {
@@ -35,16 +36,16 @@ namespace GetThere;
 
                     if (!string.IsNullOrWhiteSpace(accessToken) || !string.IsNullOrWhiteSpace(refreshToken))
                     {
-                        window.Page = new AppShell();
+                        window.Page = _serviceProvider.GetRequiredService<AppShell>();
                         return;
                     }
                 }
 
-                window.Page = AuthService.IsGuest() ? new AppShell() : new LoginShell();
+                window.Page = AuthService.IsGuest() ? _serviceProvider.GetRequiredService<AppShell>() : new LoginShell();
             }
             catch
             {
-                window.Page = new LoginShell();
+                window.Page = new LoginShell(); // LoginShell has no DI deps
             }
         }
 
@@ -53,7 +54,7 @@ namespace GetThere;
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (Current?.Windows.Count > 0)
-                    Current.Windows[0].Page = new AppShell();
+                    Current.Windows[0].Page = Services.GetRequiredService<AppShell>();
             });
         }
 

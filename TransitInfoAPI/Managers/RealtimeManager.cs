@@ -153,15 +153,19 @@ private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync
                         FeedId = feed.FeedId,
                         RouteId = entity.Vehicle?.Trip?.RouteId,
                         TripId = entity.Vehicle?.Trip?.TripId,
-                        RouteShortName = null,
                         IsRealtime = true,
-                        BlockId = null,
                         Latitude = vp.Position.Latitude,
                         Longitude = vp.Position.Longitude,
                         Bearing = vp.Position.HasBearing ? vp.Position.Bearing : null,
+                        Speed = vp.Position.HasSpeed ? vp.Position.Speed : null,
                         LastUpdated = vp.Timestamp > 0
                             ? DateTime.UnixEpoch.AddSeconds(vp.Timestamp)
-                            : DateTime.UtcNow
+                            : DateTime.UtcNow,
+                        OccupancyStatus = vp.HasOccupancyStatus ? vp.OccupancyStatus.ToString() : null,
+                        OccupancyPercentage = vp.HasOccupancyPercentage ? (int?)vp.OccupancyPercentage : null,
+                        CongestionLevel = vp.HasCongestionLevel ? vp.CongestionLevel.ToString() : null,
+                        WheelchairAccessible = vp.Vehicle?.HasWheelchairAccessible == true
+                            ? vp.Vehicle.WheelchairAccessible.ToString() : null
                     };
 
                     _vehicleCache[$"{feed.Id}:{vehicleId}"] = vehicleDto;
@@ -409,4 +413,34 @@ private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync
 
     public bool HasTripUpdate(string tripId) => _tripUpdateCache.ContainsKey(tripId);
 
+    public List<TripUpdateResponse> GetTripUpdates(string? routeId = null)
+    {
+        var results = new List<TripUpdateResponse>();
+        foreach (var (tripId, bundle) in _tripUpdateCache)
+        {
+            if (routeId is not null && bundle.RouteId != routeId) continue;
+
+            var stopTimeUpdates = new List<StopTimeUpdateResponse>();
+            foreach (var (seq, data) in bundle.BySequence)
+                stopTimeUpdates.Add(new StopTimeUpdateResponse { StopSequence = seq, DelaySeconds = data.DelaySeconds, EstimatedTime = data.EstimatedTimeUnix });
+            foreach (var (stopId, data) in bundle.ByStopId)
+            {
+                var existing = stopTimeUpdates.FirstOrDefault(s => s.StopId == stopId);
+                if (existing is not null)
+                    existing.DelaySeconds = data.DelaySeconds;
+                else
+                    stopTimeUpdates.Add(new StopTimeUpdateResponse { StopId = stopId, DelaySeconds = data.DelaySeconds, EstimatedTime = data.EstimatedTimeUnix });
+            }
+
+            results.Add(new TripUpdateResponse
+            {
+                TripId = tripId,
+                RouteId = bundle.RouteId,
+                DirectionId = bundle.DirectionId,
+                StartTime = bundle.StartTime,
+                StopTimeUpdates = stopTimeUpdates
+            });
+        }
+        return results;
+    }
 }

@@ -11,6 +11,7 @@ namespace GetThere.ViewModels;
 public partial class RegistrationViewModel : BaseViewModel
 {
     private readonly AuthService _authService;
+    private readonly IAnalyticsService _analytics;
 
     [ObservableProperty]
     private string _fullName = string.Empty;
@@ -42,9 +43,10 @@ public partial class RegistrationViewModel : BaseViewModel
     [ObservableProperty]
     private string _confirmToggleText = LocalizationService.Instance["Login_ShowPassword"];
 
-    public RegistrationViewModel(AuthService authService)
+    public RegistrationViewModel(AuthService authService, IAnalyticsService analytics)
     {
         _authService = authService;
+        _analytics = analytics;
     }
 
     partial void OnIsPasswordVisibleChanged(bool value)
@@ -108,6 +110,7 @@ public partial class RegistrationViewModel : BaseViewModel
 
             if (result.Success)
             {
+                _analytics.TrackEvent("register_success");
                 await Shell.Current.DisplayAlert(
                     LocalizationService.Instance["Register_Success"],
                     LocalizationService.Instance["Register_SuccessMessage"],

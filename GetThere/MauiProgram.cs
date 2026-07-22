@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
@@ -25,11 +26,33 @@ public static class MauiProgram
 #endif
     }
 
+    private static string? LoadSentryDsn()
+    {
+        try
+        {
+            using var stream = FileSystem.OpenAppPackageFileAsync("appsettings.json").Result;
+            using var reader = new StreamReader(stream);
+            var json = reader.ReadToEnd();
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.GetProperty("Sentry").GetProperty("Dsn").GetString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            .UseSentry(options =>
+            {
+                options.Dsn = LoadSentryDsn() ?? "";
+                options.Debug = false;
+                options.TracesSampleRate = 0.0;
+            })
             .UseSkiaSharp()
             .UseMauiCommunityToolkit()
             .ConfigureFonts(fonts =>
@@ -40,6 +63,7 @@ public static class MauiProgram
 
         var apiBase = GetApiBaseUrl();
 
+        builder.Services.AddSingleton<IAnalyticsService, AnalyticsService>();
         builder.Services.AddSingleton<CountryPreferenceService>();
 
         builder.Services.AddTransient<AuthService>(_ =>

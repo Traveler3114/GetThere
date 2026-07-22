@@ -25,6 +25,7 @@ public partial class ProfileViewModel : BaseViewModel
     private readonly AuthService _authService;
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
+    private readonly IAnalyticsService _analytics;
 
     private static readonly CultureInfo BalanceCulture = CultureInfo.GetCultureInfo("hr-HR");
     private string _currentBalanceText = "€0,00";
@@ -73,12 +74,13 @@ public partial class ProfileViewModel : BaseViewModel
 
     public ObservableCollection<WalletTransactionResponse> Transactions { get; } = [];
 
-    public ProfileViewModel(WalletService walletService, AuthService authService, CountryService countryService, CountryPreferenceService prefs)
+    public ProfileViewModel(WalletService walletService, AuthService authService, CountryService countryService, CountryPreferenceService prefs, IAnalyticsService analytics)
     {
         _walletService = walletService;
         _authService = authService;
         _countryService = countryService;
         _prefs = prefs;
+        _analytics = analytics;
     }
 
     [RelayCommand]
@@ -105,6 +107,7 @@ public partial class ProfileViewModel : BaseViewModel
             FullName = fullName ?? string.Empty;
             Email = email ?? string.Empty;
 
+            _analytics.TrackEvent("profile_loaded");
             await LoadWallet();
             await LoadHistory();
         }
@@ -215,6 +218,7 @@ public partial class ProfileViewModel : BaseViewModel
                 var result = await _walletService.TopUpAsync(amount);
                 if (result.Success)
                 {
+                    _analytics.TrackEvent("top_up", new() { ["amount"] = amount.ToString(CultureInfo.InvariantCulture) });
                     await LoadWallet();
                     await Shell.Current.DisplayAlert(
                         LocalizationService.Instance["Profile_SubSettings_Success"],

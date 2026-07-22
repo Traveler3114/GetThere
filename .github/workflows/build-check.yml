@@ -1,0 +1,31 @@
+name: Build Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build TransitInfoAPI
+        run: dotnet build TransitInfoAPI/TransitInfoAPI.csproj --no-restore --warning-as-error
+
+      - name: Build GetThereAPI
+        run: dotnet build GetThereAPI/GetThereAPI.csproj --no-restore --warning-as-error
+
+      - name: Lint
+        run: dotnet format --verify-no-changes --no-restore

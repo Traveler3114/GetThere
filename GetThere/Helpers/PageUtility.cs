@@ -1,6 +1,5 @@
 using System.Globalization;
 
-using GetThere.Components;
 using GetThereShared.Enums;
 
 namespace GetThere.Helpers;
@@ -82,30 +81,6 @@ public static class PageUtility
 //  XAML value converters — used in data bindings
 // ═══════════════════════════════════════════════════════════
 
-/// <summary>
-/// Converts a TicketStatus enum to a background Color for the status badge.
-/// Active=green, Expired=grey, Used=blue, Cancelled=red.
-/// </summary>
-public class StatusToColorConverter : IValueConverter
-{
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is TicketStatus status ? status switch
-        {
-            TicketStatus.Active => Color.FromArgb("#059669"), // Teal Green
-            TicketStatus.Expired => Color.FromArgb("#DC2626"), // Red
-            TicketStatus.Used => Color.FromArgb("#D97706"), // Dark Yellow/Amber
-            TicketStatus.Cancelled => Color.FromArgb("#6B7280"), // Grey
-            _ => Color.FromArgb("#9E9E9E")
-        } : Color.FromArgb("#9E9E9E");
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        throw new NotImplementedException();
-}
-
-/// <summary>
-/// Converts a WalletTransactionType enum to an emoji icon string for the history list.
-/// TopUp=💳, TicketPurchase=🎫, Refund=↩️
-/// </summary>
 public class TxTypeToIconConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
@@ -121,33 +96,6 @@ public class TxTypeToIconConverter : IValueConverter
         throw new NotImplementedException();
 }
 
-
-/// <summary>
-/// Converts a provider Name string to an emoji icon.
-/// Emoji never stored in DB — mapped client-side from name.
-/// </summary>
-public class ProviderIconConverter : IValueConverter
-{
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is string name ? name.ToLower() switch
-        {
-            var n when n.Contains("visa") || n.Contains("mastercard") || n.Contains("card") => "💳",
-            var n when n.Contains("paypal") => "🅿️",
-            var n when n.Contains("apple") => "🍎",
-            var n when n.Contains("google") => "🔵",
-            var n when n.Contains("stripe") => "⚡",
-            _ => "💰"
-        } : "💰";
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        throw new NotImplementedException();
-}
-
-
-/// <summary>
-/// Converts a WalletTransactionType to an amount text color:
-/// TopUp/Refund = green, TicketPurchase = red.
-/// </summary>
 public class TxTypeToAmountColorConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
@@ -157,26 +105,6 @@ public class TxTypeToAmountColorConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotImplementedException();
-}
-
-
-public class InstallBtnTextConverter : IValueConverter
-{
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true ? "Remove" : "Install";
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
-}
-
-
-public class InstallBtnColorConverter : IValueConverter
-{
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true ? Color.FromArgb("#F44336") : Color.FromArgb("#4CAF50");
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
 }
 
 public class BoolToStrokeConverter : IValueConverter

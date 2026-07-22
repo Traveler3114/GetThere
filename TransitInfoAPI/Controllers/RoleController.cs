@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TransitInfoAPI.Managers;
+using GetThereShared.Contracts;
 using TransitInfoAPI.Common;
 
 namespace TransitInfoAPI.Controllers;
@@ -77,20 +78,3 @@ public class RoleController : ControllerBase
 public record CreateRoleRequest(string Name, List<string> Permissions);
 public record UpdateRolePermissionsRequest(List<string> Permissions);
 public record SetRoleRequest(string RoleName);
-
-public class RoleDto
-{
-    public string Name { get; set; } = string.Empty;
-    public List<string> Permissions { get; set; } = [];
-}
-
-public class UserDto
-{
-    public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string FullName { get; set; } = string.Empty;
-    public List<string> Roles { get; set; } = [];
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastLogin { get; set; }
-    public bool IsActive { get; set; }
-}

@@ -13,7 +13,30 @@ public class VehicleResponse
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public double? Bearing { get; set; }
+    public double? Speed { get; set; }
     public DateTime? LastUpdated { get; set; }
+    public string? OccupancyStatus { get; set; }
+    public int? OccupancyPercentage { get; set; }
+    public string? CongestionLevel { get; set; }
+    public string? WheelchairAccessible { get; set; }
+}
+
+/// <summary>A trip update with per-stop real-time data.</summary>
+public class TripUpdateResponse
+{
+    public string TripId { get; set; } = string.Empty;
+    public string? RouteId { get; set; }
+    public int? DirectionId { get; set; }
+    public string? StartTime { get; set; }
+    public List<StopTimeUpdateResponse> StopTimeUpdates { get; set; } = [];
+}
+
+public class StopTimeUpdateResponse
+{
+    public string? StopId { get; set; }
+    public int? StopSequence { get; set; }
+    public int DelaySeconds { get; set; }
+    public long? EstimatedTime { get; set; }
 }
 
 /// <summary>Service alert from GTFS-RT, with optional affected entity references.</summary>

@@ -20,6 +20,7 @@
         <helpers:TxTypeToIconConverter x:Key="TxTypeToIconConverter" />
         <helpers:CountryBgConverter x:Key="CountryBgConverter" />
         <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <helpers:BoolToStrokeConverter x:Key="BoolToStrokeConverter" />
     </ContentPage.Resources>
 
     <Grid x:Name="RootLayout">

@@ -11,6 +11,7 @@ namespace GetThere.ViewModels;
 public partial class LoginViewModel : BaseViewModel
 {
     private readonly AuthService _authService;
+    private readonly IAnalyticsService _analytics;
 
     [ObservableProperty]
     private string _email = string.Empty;
@@ -36,9 +37,10 @@ public partial class LoginViewModel : BaseViewModel
     [ObservableProperty]
     private string _passwordToggleText = LocalizationService.Instance["Login_ShowPassword"];
 
-    public LoginViewModel(AuthService authService)
+    public LoginViewModel(AuthService authService, IAnalyticsService analytics)
     {
         _authService = authService;
+        _analytics = analytics;
     }
 
     partial void OnIsPasswordVisibleChanged(bool value)
@@ -74,7 +76,10 @@ public partial class LoginViewModel : BaseViewModel
             var result = await _authService.LoginAsync(loginData, RememberMe);
 
             if (result.Success)
+            {
+                _analytics.TrackEvent("login_success", new() { ["method"] = RememberMe ? "remember" : "standard" });
                 App.GoToApp();
+            }
             else
             {
                 ErrorText = ApiMessageMapper.Localize(result.Code, result.Message)
@@ -108,6 +113,7 @@ public partial class LoginViewModel : BaseViewModel
     [RelayCommand]
     private void ContinueAsGuest()
     {
+        _analytics.TrackEvent("continue_as_guest");
         AuthService.SetGuest();
         App.GoToApp();
     }

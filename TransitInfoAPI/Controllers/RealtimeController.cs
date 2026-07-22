@@ -30,6 +30,16 @@ public class RealtimeController : ControllerBase
         return Ok(vehicles);
     }
 
+    [HttpGet("tripupdates")]
+    [Authorize(Policy = PermissionKeys.RealtimeView)]
+    public ActionResult<List<TripUpdateResponse>> GetTripUpdates(
+        [FromQuery] string? routeId = null,
+        CancellationToken ct = default)
+    {
+        var updates = _realtime.GetTripUpdates(routeId);
+        return Ok(updates);
+    }
+
     [HttpGet("alerts")]
     [Authorize(Policy = PermissionKeys.RealtimeView)]
     public async Task<ActionResult<List<AlertResponse>>> GetAlerts(

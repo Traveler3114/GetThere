@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using GetThereAPI.Managers;
+using GetThereShared.Contracts;
 using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
@@ -58,10 +59,4 @@ public class RoleController : ControllerBase
 
 public record CreateRoleRequest(string Name, List<string> Permissions);
 public record UpdateRolePermissionsRequest(List<string> Permissions);
-
-public class RoleDto
-{
-    public string Name { get; set; } = string.Empty;
-    public List<string> Permissions { get; set; } = [];
-}
 

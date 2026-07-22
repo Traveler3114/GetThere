@@ -4,6 +4,7 @@ using System.Security.Claims;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Common;
+using GetThereShared.Contracts;
 using GetThereAPI.Exceptions;
 
 namespace GetThereAPI.Managers;
@@ -174,21 +175,4 @@ public class RolePermissionManager
         await _userManager.AddToRoleAsync(user, roleName);
         return user;
     }
-}
-
-public class RoleDto
-{
-    public string Name { get; set; } = string.Empty;
-    public List<string> Permissions { get; set; } = [];
-}
-
-public class UserDto
-{
-    public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string FullName { get; set; } = string.Empty;
-    public List<string> Roles { get; set; } = [];
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastLogin { get; set; }
-    public bool IsActive { get; set; }
 }
