@@ -12,14 +12,7 @@
     <Grid>
         <components:AnimatedBackground />
 
-        <!--  ── HERO AREA ──  -->
-        <Border VerticalOptions="Start" HeightRequest="240" StrokeThickness="0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Offset="0" Color="{DynamicResource Primary}" />
-                    <GradientStop Offset="1" Color="{DynamicResource Secondary}" />
-                </LinearGradientBrush>
-            </Border.Background>
+        <Border VerticalOptions="Start" HeightRequest="240" StrokeThickness="0" BackgroundColor="{DynamicResource Primary}">
 
             <Grid RowDefinitions="Auto, *">
                 <ImageButton Source="arrow_left_white.png" HeightRequest="24" WidthRequest="24" HorizontalOptions="Start" Margin="25,35,0,0" BackgroundColor="Transparent" Clicked="LoginButton_Clicked" />

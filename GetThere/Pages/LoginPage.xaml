@@ -12,14 +12,7 @@
 
     <Grid>
         <components:AnimatedBackground />
-        <!--  ── HERO AREA (Fixed 320px height) ──  -->
-        <Border VerticalOptions="Start" HeightRequest="320" StrokeThickness="0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Offset="0" Color="{DynamicResource Primary}" />
-                    <GradientStop Offset="1" Color="{DynamicResource Secondary}" />
-                </LinearGradientBrush>
-            </Border.Background>
+        <Border VerticalOptions="Start" HeightRequest="320" StrokeThickness="0" BackgroundColor="{DynamicResource Primary}">
             <Border.Shadow>
                 <Shadow Brush="Black" Opacity="0.3" Offset="0,5" Radius="10" />
             </Border.Shadow>

@@ -94,14 +94,8 @@
                 <Grid x:Name="WalletTabView" RowDefinitions="Auto, *" IsVisible="True">
                     <!-- Balance Card -->
                     <Grid x:Name="BalanceCardGrid" Grid.Row="0" RowDefinitions="Auto,52" Margin="16,5,16,10" HorizontalOptions="Center">
-                        <Border x:Name="BalanceCard" Grid.Row="0" WidthRequest="360" HeightRequest="188" HorizontalOptions="Center" StrokeThickness="0">
+                        <Border x:Name="BalanceCard" Grid.Row="0" WidthRequest="360" HeightRequest="188" HorizontalOptions="Center" StrokeThickness="0" BackgroundColor="{DynamicResource Primary}">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="24" /></Border.StrokeShape>
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Offset="0" Color="{DynamicResource Primary}" />
-                                    <GradientStop Offset="1" Color="{DynamicResource Secondary}" />
-                                </LinearGradientBrush>
-                            </Border.Background>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="16" Offset="0,10" /></Border.Shadow>
 
                             <Grid Padding="28,24">
