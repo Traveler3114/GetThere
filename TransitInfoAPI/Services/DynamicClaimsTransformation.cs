@@ -10,12 +10,12 @@ namespace TransitInfoAPI.Services;
 public class DynamicClaimsTransformation : IClaimsTransformation
 {
     private readonly UserManager<AppUser> _userManager;
-    private readonly RoleManager<IdentityRole<int>> _roleManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IMemoryCache _cache;
 
     private record CachedClaims(List<string> Roles, List<string> Permissions);
 
-    public DynamicClaimsTransformation(UserManager<AppUser> userManager, RoleManager<IdentityRole<int>> roleManager, IMemoryCache cache)
+    public DynamicClaimsTransformation(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager, IMemoryCache cache)
     {
         _userManager = userManager;
         _roleManager = roleManager;

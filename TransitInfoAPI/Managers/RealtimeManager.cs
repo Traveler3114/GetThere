@@ -409,16 +409,4 @@ private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync
 
     public bool HasTripUpdate(string tripId) => _tripUpdateCache.ContainsKey(tripId);
 
-    public void UpdateTripUpdate(string tripId, string? rawStopId, int stopSequence, int? delaySeconds)
-    {
-        var tripCache = _tripUpdateCache;
-        if (!tripCache.TryGetValue(tripId, out var bundle))
-        {
-            bundle = new TripUpdateBundle([], new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal), null, null, null);
-            tripCache[tripId] = bundle;
-        }
-        var data = new StopTimeUpdateData(delaySeconds ?? 0, null);
-        bundle.BySequence[stopSequence] = data;
-        if (!string.IsNullOrEmpty(rawStopId)) bundle.ByStopId[rawStopId] = data;
-    }
 }

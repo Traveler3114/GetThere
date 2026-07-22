@@ -66,7 +66,7 @@ public class RoleController : ControllerBase
 
     [HttpPut("users/{userId}/role")]
     [Authorize(Policy = PermissionKeys.UsersManage)]
-    public async Task<ActionResult> SetUserRole(int userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
+    public async Task<ActionResult> SetUserRole(string userId, [FromBody] SetRoleRequest request, CancellationToken ct = default)
     {
         var user = await _roleManager.SetUserRoleAsync(userId, request.RoleName, ct);
         if (user is null) return NotFound();
@@ -86,7 +86,7 @@ public class RoleDto
 
 public class UserDto
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = [];

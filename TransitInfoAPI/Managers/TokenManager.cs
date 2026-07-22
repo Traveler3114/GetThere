@@ -30,7 +30,7 @@ public class TokenManager
 
         var claims = new List<Claim>
         {
-            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub, user.Id),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email, user.Email!),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.GivenName, user.FullName ?? ""),
             new(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),

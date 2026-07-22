@@ -83,7 +83,7 @@ builder.Services.AddIdentityCore<AppUser>(opt =>
     opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     opt.Lockout.AllowedForNewUsers = true;
 })
-.AddRoles<IdentityRole<int>>()
+.AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<TransitDbContext>()
 .AddSignInManager()
 .AddDefaultTokenProviders();
@@ -245,13 +245,13 @@ using (var scope = app.Services.CreateScope())
 
     // Seed roles and users
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     // Ensure roles exist
     if (!await roleManager.RoleExistsAsync(RoleNames.Admin))
-        await roleManager.CreateAsync(new IdentityRole<int>(RoleNames.Admin));
+        await roleManager.CreateAsync(new IdentityRole(RoleNames.Admin));
     if (!await roleManager.RoleExistsAsync(RoleNames.Client))
-        await roleManager.CreateAsync(new IdentityRole<int>(RoleNames.Client));
+        await roleManager.CreateAsync(new IdentityRole(RoleNames.Client));
 
     // Add permission claims to Admin role (all permissions)
     var adminRole = await roleManager.FindByNameAsync(RoleNames.Admin);

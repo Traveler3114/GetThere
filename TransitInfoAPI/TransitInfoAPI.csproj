@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>TransitInfoAPI</RootNamespace>
     <AssemblyName>TransitInfoAPI</AssemblyName>
+    <UserSecretsId>762accee-ebec-4a0f-aba3-0f450c450d40</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

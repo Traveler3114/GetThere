@@ -3,8 +3,10 @@
     x:Class="GetThere.Pages.TicketsPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
     xmlns:components="clr-namespace:GetThere.Components"
     xmlns:localization="clr-namespace:GetThere.Localization"
+    x:DataType="vm:TicketsViewModel"
     Title="Tickets"
     BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
@@ -16,17 +18,15 @@
             <Label Text="My Tickets" FontSize="32" FontAttributes="Bold"
                    HorizontalTextAlignment="Center"
                    TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-            <Label x:Name="StatusLabel" Text="Coming Soon"
+            <Label Text="{Binding TitleText}"
                    FontSize="20"
                    HorizontalTextAlignment="Center"
                    TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-            <Label x:Name="DescriptionLabel"
-                   Text="Your purchased tickets will appear here once the ticketing SDK is integrated."
+            <Label Text="{Binding DescriptionText}"
                    FontSize="14"
                    HorizontalTextAlignment="Center"
                    TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
                    MaximumWidthRequest="400" />
-            <!-- TODO: Rebuild with real ticketing display when ticketing SDK is implemented -->
         </VerticalStackLayout>
     </Grid>
 

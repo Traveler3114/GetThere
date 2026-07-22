@@ -10,14 +10,14 @@ namespace TransitInfoAPI.Managers;
 public class RolePermissionManager
 {
     private readonly TransitDbContext _db;
-    private readonly RoleManager<IdentityRole<int>> _roleManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
     private readonly UserManager<AppUser> _userManager;
     private readonly ILogger<RolePermissionManager> _logger;
     private readonly IHttpContextAccessor _httpContext;
 
     public RolePermissionManager(
         TransitDbContext db,
-        RoleManager<IdentityRole<int>> roleManager,
+        RoleManager<IdentityRole> roleManager,
         UserManager<AppUser> userManager,
         ILogger<RolePermissionManager> logger,
         IHttpContextAccessor httpContext)
@@ -29,16 +29,15 @@ public class RolePermissionManager
         _httpContext = httpContext;
     }
 
-    private int GetCurrentUserId()
+    private string? GetCurrentUserId()
     {
-        var sub = _httpContext.HttpContext?.User.FindFirst("sub")?.Value;
-        return int.TryParse(sub, out var id) ? id : 0;
+        return _httpContext.HttpContext?.User.FindFirst("sub")?.Value;
     }
 
     private void LogAudit(string action, string entityType = "Role", string entityId = "", string? oldValues = null, string? newValues = null)
     {
         var userId = GetCurrentUserId();
-        if (userId == 0) return;
+        if (string.IsNullOrEmpty(userId)) return;
         _db.Set<AuditLog>().Add(new AuditLog
         {
             UserId = userId,
@@ -74,9 +73,9 @@ public class RolePermissionManager
         return new RoleDto { Name = role.Name!, Permissions = claims.Where(c => c.Type == "permission").Select(c => c.Value).ToList() };
     }
 
-    public async Task<IdentityRole<int>> CreateRoleAsync(string name, IEnumerable<string> permissions, CancellationToken ct = default)
+    public async Task<IdentityRole> CreateRoleAsync(string name, IEnumerable<string> permissions, CancellationToken ct = default)
     {
-        var role = new IdentityRole<int> { Name = name };
+        var role = new IdentityRole { Name = name };
         var result = await _roleManager.CreateAsync(role);
         if (!result.Succeeded) throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
 
@@ -145,9 +144,9 @@ public class RolePermissionManager
         return result;
     }
 
-    public async Task<AppUser?> SetUserRoleAsync(int userId, string roleName, CancellationToken ct = default)
+    public async Task<AppUser?> SetUserRoleAsync(string userId, string roleName, CancellationToken ct = default)
     {
-        var user = await _userManager.FindByIdAsync(userId.ToString());
+        var user = await _userManager.FindByIdAsync(userId);
         if (user is null) return null;
 
         var currentRoles = await _userManager.GetRolesAsync(user);
@@ -156,7 +155,7 @@ public class RolePermissionManager
 
         await _userManager.AddToRoleAsync(user, roleName);
 
-        LogAudit("UserRoleSet", "User", userId.ToString(), string.Join(", ", currentRoles), roleName);
+        LogAudit("UserRoleSet", "User", userId, string.Join(", ", currentRoles), roleName);
         await _db.SaveChangesAsync(ct);
 
         return user;
@@ -171,7 +170,7 @@ public class RoleDto
 
 public class UserDto
 {
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = [];

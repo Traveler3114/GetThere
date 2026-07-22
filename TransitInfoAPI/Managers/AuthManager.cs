@@ -26,7 +26,7 @@ public class AuthManager
         _db = db;
     }
 
-    private void LogAudit(int userId, string action, string entityType = "User", string entityId = "", string? oldValues = null, string? newValues = null)
+    private void LogAudit(string userId, string action, string entityType = "User", string entityId = "", string? oldValues = null, string? newValues = null)
     {
         _db.Set<AuditLog>().Add(new AuditLog
         {
@@ -78,7 +78,7 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
 
         return new LoginResponse
         {
-            User = new UserResponse { Id = user.Id.ToString(), Email = user.Email!, FullName = user.FullName },
+            User = new UserResponse { Id = user.Id, Email = user.Email!, FullName = user.FullName },
             AccessToken = accessToken,
             RefreshToken = rawRefreshToken
         };
@@ -177,15 +177,12 @@ var accessToken = await _tokenManager.CreateTokenAsync(user);
         await _db.SaveChangesAsync(ct);
 
         // Revoke all active refresh tokens
-        if (int.TryParse(userId, out var uid))
-        {
-            var activeTokens = await _db.RefreshTokens
-                .Where(rt => rt.UserId == uid && rt.IsActive)
-                .ToListAsync(ct);
-            foreach (var t in activeTokens)
-                t.RevokedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
-        }
+        var activeTokens = await _db.RefreshTokens
+            .Where(rt => rt.UserId == userId && rt.IsActive)
+            .ToListAsync(ct);
+        foreach (var t in activeTokens)
+            t.RevokedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<AppUser> RegisterAsync(CreateUserRequest request, CancellationToken ct = default)

@@ -2,20 +2,18 @@ using System;
 
 using GetThere.Helpers;
 using GetThere.Localization;
-using GetThere.Services;
-using GetThereShared.Contracts;
+using GetThere.ViewModels;
 
 namespace GetThere.Pages;
 
 public partial class LoginPage : ContentPage
 {
-    private readonly AuthService _authService;
-    private CancellationTokenSource? _loadingCts;
+    private readonly LoginViewModel _viewModel;
 
-    public LoginPage(AuthService authService)
+    public LoginPage(LoginViewModel viewModel)
     {
         InitializeComponent();
-        _authService = authService;
+        BindingContext = _viewModel = viewModel;
         ApplyThemeImages();
         Application.Current!.RequestedThemeChanged += OnRequestedThemeChanged;
         SizeChanged += OnPageSizeChanged;
@@ -41,110 +39,4 @@ public partial class LoginPage : ContentPage
     {
         PageUtility.ApplyTicketsStyleResponsive(Width, LoginCard);
     }
-
-    private void TogglePassword_Clicked(object? sender, TappedEventArgs e)
-    {
-        PasswordEntry.IsPassword = !PasswordEntry.IsPassword;
-        TogglePasswordBtn.Text = PasswordEntry.IsPassword ? LocalizationService.Instance["Login_ShowPassword"] : LocalizationService.Instance["Login_HidePassword"];
-    }
-
-    private async void LoginButton_Clicked(object? sender, EventArgs e)
-    {
-        PageUtility.HideError(ErrorLabel);
-
-        var loginData = new LoginRequest(
-            EmailEntry.Text?.Trim() ?? string.Empty,
-            PasswordEntry.Text ?? string.Empty);
-
-        if (string.IsNullOrWhiteSpace(loginData.Email) || !PageUtility.IsValidEmail(loginData.Email))
-        {
-            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Login_InvalidEmail"]);
-            return;
-        }
-
-        if (loginData.Password.Length < 8)
-        {
-            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Login_PasswordTooShort"]);
-            return;
-        }
-
-        StartLoadingAnimations();
-
-        try
-        {
-            var result = await _authService.LoginAsync(loginData, RememberMeCheckbox.IsChecked);
-
-            if (result.Success)
-                App.GoToApp();
-            else
-                PageUtility.ShowError(ErrorLabel, ApiMessageMapper.Localize(result.Code, result.Message) ?? LocalizationService.Instance["Login_Failed"]);
-        }
-        catch (Exception ex)
-        {
-            PageUtility.ShowError(ErrorLabel, LocalizationService.Instance["Login_Failed"] + " " + ex.Message);
-        }
-        finally
-        {
-            StopLoadingAnimations();
-        }
-    }
-
-    private void StartLoadingAnimations()
-    {
-        LoginButton.IsVisible = false;
-        LoadingState.IsVisible = true;
-        _loadingCts = new CancellationTokenSource();
-        var token = _loadingCts.Token;
-
-        _ = Task.Run(async () =>
-        {
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
-                    {
-                        var shimmerWidth = ShimmerBox.WidthRequest;
-                        var travelWidth = LoadingState.Width > 0 ? LoadingState.Width : LoginButton.Width;
-                        if (travelWidth <= 0)
-                            travelWidth = 350;
-
-                        ShimmerBox.TranslationX = -shimmerWidth;
-                        await ShimmerBox.TranslateToAsync(travelWidth + shimmerWidth, 0, 1200, Easing.Linear);
-                    });
-
-                    await Task.Delay(120, token);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-            }
-        }, token);
-    }
-
-    private void StopLoadingAnimations()
-    {
-        _loadingCts?.Cancel();
-        ShimmerBox.TranslationX = -ShimmerBox.WidthRequest;
-        LoadingState.IsVisible = false;
-        LoginButton.IsVisible = true;
-    }
-
-    private async void RegisterButton_Clicked(object? sender, TappedEventArgs e)
-    {
-        await Shell.Current.GoToAsync("registration");
-    }
-
-    private void RememberMeLabel_Tapped(object? sender, TappedEventArgs e)
-    {
-        RememberMeCheckbox.IsChecked = !RememberMeCheckbox.IsChecked;
-    }
-
-    private void OnContinueAsGuestClicked(object? sender, TappedEventArgs e)
-    {
-        AuthService.SetGuest();
-        App.GoToApp();
-    }
-
 }

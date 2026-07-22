@@ -3,10 +3,14 @@
     x:Class="GetThere.Pages.ProfilePage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
     xmlns:components="clr-namespace:GetThere.Components"
     xmlns:helpers="clr-namespace:GetThere.Helpers"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:localization="clr-namespace:GetThere.Localization"
+    xmlns:behaviors="clr-namespace:GetThere.Behaviors"
+    x:DataType="vm:ProfileViewModel"
+    x:Name="ProfileRoot"
     Title="{localization:Translate Profile_Title}"
     BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
@@ -14,45 +18,20 @@
     <ContentPage.Resources>
         <helpers:TxTypeToAmountColorConverter x:Key="AmountColorConverter" />
         <helpers:TxTypeToIconConverter x:Key="TxTypeToIconConverter" />
-
-        <DataTemplate x:Key="HistoryTemplate">
-            <Border Margin="0,0,0,8" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" Padding="10,8">
-                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="12" /></Border.StrokeShape>
-                <Border.Shadow><Shadow Brush="Black" Opacity="0.08" Radius="4" Offset="0,2" /></Border.Shadow>
-                
-                <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="10">
-                    <!-- Icon -->
-                    <Border Grid.Column="0" WidthRequest="36" HeightRequest="36" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#1F2937}" StrokeThickness="0">
-                        <Border.StrokeShape><shapes:RoundRectangle CornerRadius="18" /></Border.StrokeShape>
-                        <Label Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
-                    </Border>
-
-                    <!-- Info -->
-                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="0">
-                        <Label Text="{Binding Description}" FontSize="14" FontAttributes="Bold" TextColor="{AppThemeBinding Light=#2E2055, Dark=White}" LineBreakMode="TailTruncation" />
-                        <Label Text="{Binding Timestamp, StringFormat='{0:dd MMM HH:mm}'}" FontSize="11" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-                    </VerticalStackLayout>
-
-                    <!-- Amount -->
-                    <Label Grid.Column="2" 
-                           Text="{Binding FormattedAmount}" 
-                           TextColor="{Binding Type, Converter={StaticResource AmountColorConverter}}" 
-                           FontAttributes="Bold" 
-                           FontSize="14" 
-                           VerticalOptions="Center" />
-                </Grid>
-            </Border>
-        </DataTemplate>
+        <helpers:CountryBgConverter x:Key="CountryBgConverter" />
+        <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
     </ContentPage.Resources>
 
     <Grid x:Name="RootLayout">
         <components:AnimatedBackground />
-        
+
         <Grid RowDefinitions="Auto, Auto, *">
-            
-            <!-- 1. USER IDENTITY HEADER (ALIGNED WITH CONTENT) -->
-            <Grid x:Name="UserHeader" Grid.Row="0" MaximumWidthRequest="600" HorizontalOptions="Center" Padding="24,15,24,0" ColumnDefinitions="Auto, *">
-                <Border x:Name="UserAvatarBorder" WidthRequest="60" HeightRequest="60" StrokeThickness="3" Stroke="#512BD4">
+            <!-- USER HEADER -->
+            <Grid x:Name="UserHeader" Grid.Row="0" MaximumWidthRequest="600"
+                  HorizontalOptions="Center" Padding="24,15,24,0"
+                  ColumnDefinitions="Auto, *" IsVisible="{Binding IsGuest, Converter={StaticResource InverseBoolConverter}}">
+                <Border x:Name="UserAvatarBorder" WidthRequest="60" HeightRequest="60"
+                        StrokeThickness="3" Stroke="#512BD4">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="30" /></Border.StrokeShape>
                     <Image Source="{AppThemeBinding Light=profile.png, Dark=profile_white.png}" Margin="10" />
                     <Border.GestureRecognizers>
@@ -60,41 +39,55 @@
                     </Border.GestureRecognizers>
                 </Border>
                 <VerticalStackLayout x:Name="UserInfoStack" Grid.Column="1" Margin="16,0,0,0" VerticalOptions="Center">
-                    <Label x:Name="UserDisplayNameLabel" Text="Luka S." FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                    <Label Text="{localization:Translate Profile_Verified}" FontSize="11" FontAttributes="Bold" TextColor="#10B981" />
+                    <Label Text="{Binding DisplayName}" FontSize="20" FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                    <Label Text="{localization:Translate Profile_Verified}" FontSize="11"
+                           FontAttributes="Bold" TextColor="#10B981" />
                 </VerticalStackLayout>
             </Grid>
 
-            <!-- 2. SEGMENTED CONTROL -->
-            <Grid x:Name="TabSwitcherContainer" Grid.Row="1" Margin="24,5,24,10" HeightRequest="50" MaximumWidthRequest="400">
+            <!-- TAB SWITCHER -->
+            <Grid x:Name="TabSwitcherContainer" Grid.Row="1" Margin="24,5,24,10"
+                  HeightRequest="50" MaximumWidthRequest="400"
+                  IsVisible="{Binding IsGuest, Converter={StaticResource InverseBoolConverter}}">
                 <Border BackgroundColor="{AppThemeBinding Light=#E2E8F0, Dark=#1F2937}" StrokeThickness="0">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="27" /></Border.StrokeShape>
-                    <Grid x:Name="TabGrid" ColumnDefinitions="*, *">
-                        <!-- Active Background Shadow (Ready for Translation animation) -->
-                        <Border x:Name="TabIndicator" 
-                                Grid.Column="0" 
-                                Margin="4" 
-                                BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" 
-                                StrokeThickness="0"
-                                ZIndex="1">
+                    <Grid ColumnDefinitions="*, *">
+                        <Border Grid.Column="0" Margin="4"
+                                BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                IsVisible="{Binding IsWalletTab}"
+                                StrokeThickness="0" ZIndex="1">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="23" /></Border.StrokeShape>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.12" Radius="6" Offset="0,2" /></Border.Shadow>
                         </Border>
-
-                        <Button Grid.Column="0" Text="{localization:Translate Profile_WalletTab}" BackgroundColor="Transparent" Clicked="OnWalletTabClicked" x:Name="WalletTabBtn" TextColor="#512BD4" FontAttributes="Bold" ZIndex="2" />
-                        <Button Grid.Column="1" Text="{localization:Translate Profile_AccountTab}" BackgroundColor="Transparent" Clicked="OnAccountTabClicked" x:Name="AccountTabBtn" TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" FontAttributes="Bold" ZIndex="2" />
+                        <Border Grid.Column="1" Margin="4"
+                                BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                IsVisible="{Binding IsAccountTab}"
+                                StrokeThickness="0" ZIndex="1">
+                            <Border.StrokeShape><shapes:RoundRectangle CornerRadius="23" /></Border.StrokeShape>
+                            <Border.Shadow><Shadow Brush="Black" Opacity="0.12" Radius="6" Offset="0,2" /></Border.Shadow>
+                        </Border>
+                        <Button Grid.Column="0" Text="{localization:Translate Profile_WalletTab}"
+                                BackgroundColor="Transparent"
+                                Command="{Binding SelectWalletTabCommand}"
+                                TextColor="{AppThemeBinding Light=#512BD4, Dark=White}"
+                                FontAttributes="Bold" ZIndex="2" />
+                        <Button Grid.Column="1" Text="{localization:Translate Profile_AccountTab}"
+                                BackgroundColor="Transparent"
+                                Command="{Binding SelectAccountTabCommand}"
+                                TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                                FontAttributes="Bold" ZIndex="2" />
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- 3. MAIN CONTENT AREA -->
+            <!-- MAIN CONTENT -->
             <Grid Grid.Row="2">
-                
-                <!-- ── WALLET TAB VIEW ── -->
-                <Grid x:Name="WalletTabView" RowDefinitions="Auto, *" IsVisible="True">
-                    <!-- Balance Card -->
-                    <Grid x:Name="BalanceCardGrid" Grid.Row="0" RowDefinitions="Auto,52" Margin="16,5,16,10" HorizontalOptions="Center">
-                        <Border x:Name="BalanceCard" Grid.Row="0" WidthRequest="360" HeightRequest="188" HorizontalOptions="Center" StrokeThickness="0">
+                <!-- WALLET TAB -->
+                <Grid IsVisible="{Binding IsWalletTab}" RowDefinitions="Auto, *">
+                    <Grid x:Name="BalanceCardGrid" Grid.Row="0" RowDefinitions="Auto,52"
+                          Margin="16,5,16,10" HorizontalOptions="Center">
+                        <Border WidthRequest="360" HeightRequest="188" HorizontalOptions="Center" StrokeThickness="0">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="24" /></Border.StrokeShape>
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -104,177 +97,228 @@
                                 </LinearGradientBrush>
                             </Border.Background>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.18" Radius="16" Offset="0,10" /></Border.Shadow>
-
-                            <Grid Padding="28,24">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="60" />
-                                </Grid.ColumnDefinitions>
-
-                                <VerticalStackLayout Grid.Column="0" Grid.ColumnSpan="2" Spacing="12" HorizontalOptions="Center" VerticalOptions="Center" Padding="0,0,56,0">
-                                    <Label Text="{localization:Translate Profile_Balance}" FontSize="11" FontAttributes="Bold" TextColor="White" Opacity="0.72" HorizontalOptions="Center" />
-
-                                    <Label x:Name="BalanceLabelOnCard" FontAttributes="Bold" MinimumWidthRequest="148" HorizontalTextAlignment="Center" LineBreakMode="NoWrap" FontSize="34" Text="€0,00" TextColor="White" VerticalOptions="Center" />
-
-                                    <Label Text="{localization:Translate App_Ok}" FontSize="12" TextColor="White" Opacity="0.68" HorizontalOptions="Center" IsVisible="False" />
-                                    <Label Text="{localization:Translate Profile_HideBalanceHint}" FontSize="12" TextColor="White" Opacity="0.68" HorizontalOptions="Center" />
+                            <Grid Padding="28,24" ColumnDefinitions="*, 60">
+                                <VerticalStackLayout Grid.Column="0" Grid.ColumnSpan="2" Spacing="12"
+                                                     HorizontalOptions="Center" VerticalOptions="Center" Padding="0,0,56,0">
+                                    <Label Text="{localization:Translate Profile_Balance}" FontSize="11"
+                                           FontAttributes="Bold" TextColor="White" Opacity="0.72"
+                                           HorizontalOptions="Center" />
+                                    <Label Text="{Binding BalanceText}" FontAttributes="Bold"
+                                           MinimumWidthRequest="148" HorizontalTextAlignment="Center"
+                                           LineBreakMode="NoWrap" FontSize="34" TextColor="White"
+                                           VerticalOptions="Center" />
+                                    <Label Text="{localization:Translate Profile_HideBalanceHint}" FontSize="12"
+                                           TextColor="White" Opacity="0.68" HorizontalOptions="Center" />
                                 </VerticalStackLayout>
-
-                                <Border Grid.Column="1"
-                                        x:Name="BalanceVisibilityButton"
-                                        BackgroundColor="#33FFFFFF"
-                                        StrokeThickness="0"
-                                        Padding="10"
-                                        WidthRequest="42"
-                                        HeightRequest="42"
-                                        HorizontalOptions="End"
-                                        VerticalOptions="Center">
-                                    <Border.StrokeShape>
-                                        <shapes:RoundRectangle CornerRadius="21" />
-                                    </Border.StrokeShape>
+                                <Border Grid.Column="1" BackgroundColor="#33FFFFFF" StrokeThickness="0"
+                                        Padding="10" WidthRequest="42" HeightRequest="42"
+                                        HorizontalOptions="End" VerticalOptions="Center">
+                                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="21" /></Border.StrokeShape>
                                     <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="OnHideBalanceTapped" />
+                                        <TapGestureRecognizer Command="{Binding ToggleBalanceVisibilityCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Image x:Name="BalanceVisibilityIcon"
-                                           Source="eye.png"
-                                           WidthRequest="20"
-                                           HeightRequest="20"
-                                           Aspect="AspectFit"
-                                           HorizontalOptions="Center"
+                                    <Image Source="{Binding BalanceVisibilityIcon}" WidthRequest="20"
+                                           HeightRequest="20" Aspect="AspectFit" HorizontalOptions="Center"
                                            VerticalOptions="Center" />
                                 </Border>
                             </Grid>
                         </Border>
-
-                        <Button x:Name="TopUpButton" Grid.Row="1" VerticalOptions="Start" Margin="0,-18,0,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" Clicked="OnTopUpClicked" CornerRadius="24" FontAttributes="Bold" FontSize="16" HeightRequest="48" HorizontalOptions="Center" Text="{localization:Translate Profile_TopUp}" TextColor="{AppThemeBinding Light=#111827, Dark=White}" WidthRequest="92" ZIndex="10">
+                        <Button Grid.Row="1" VerticalOptions="Start" Margin="0,-18,0,0"
+                                BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                Command="{Binding TopUpCommand}" CornerRadius="24" FontAttributes="Bold"
+                                FontSize="16" HeightRequest="48" HorizontalOptions="Center"
+                                Text="{localization:Translate Profile_TopUp}"
+                                TextColor="{AppThemeBinding Light=#111827, Dark=White}"
+                                WidthRequest="92" ZIndex="10">
                             <Button.Shadow><Shadow Brush="Black" Opacity="0.14" Radius="12" Offset="0,6" /></Button.Shadow>
                         </Button>
                     </Grid>
 
-                    <!-- History Surface -->
-                    <Grid x:Name="HistoryContainer" Grid.Row="1" RowDefinitions="Auto, *" Margin="0,25,0,0">
-                        <Label x:Name="RecentActivityLabel" Grid.Row="0" Text="{localization:Translate Profile_RecentActivity}" FontSize="16" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" HorizontalOptions="Center" Margin="0,5,0,10" />
-                        <Border Grid.Row="1" BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" HorizontalOptions="Center" MaximumWidthRequest="1200" VerticalOptions="Fill">
+                    <!-- HISTORY -->
+                    <Grid Grid.Row="1" RowDefinitions="Auto, *" Margin="0,25,0,0">
+                        <Label Grid.Row="0" Text="{localization:Translate Profile_RecentActivity}"
+                               FontSize="16" FontAttributes="Bold"
+                               TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                               HorizontalOptions="Center" Margin="0,5,0,10" />
+                        <Border Grid.Row="1"
+                                BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                StrokeThickness="0" HorizontalOptions="Center"
+                                MaximumWidthRequest="1200" VerticalOptions="Fill">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="36,36,0,0" /></Border.StrokeShape>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.05" Radius="20" Offset="0,-10" /></Border.Shadow>
-                            
-                            <!-- WRAPPER GRID TO HOLD SCROLLVIEW + THUMB -->
                             <Grid>
-                                <ScrollView x:Name="WalletScrollView" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
+                                <ScrollView x:Name="WalletScrollView" VerticalScrollBarVisibility="Never">
                                     <VerticalStackLayout Padding="24,20,24,120">
-                                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#E5E7EB, Dark=#334155}" HorizontalOptions="Center" Margin="0,12,0,12" />
-                                        <StackLayout x:Name="HistoryRows" BindableLayout.ItemTemplate="{StaticResource HistoryTemplate}" Spacing="0" />
-                                        <Label x:Name="NoItemsLabel" Margin="0,40" HorizontalOptions="Center" IsVisible="False" Text="{localization:Translate Profile_NoTransactions}" FontSize="16" TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
+                                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2"
+                                                 BackgroundColor="{AppThemeBinding Light=#E5E7EB, Dark=#334155}"
+                                                 HorizontalOptions="Center" Margin="0,12,0,12" />
+                                        <CollectionView ItemsSource="{Binding Transactions}">
+                                            <CollectionView.ItemTemplate>
+                                                <DataTemplate x:DataType="x:Object">
+                                                    <Border Margin="0,0,0,8"
+                                                            BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                                            StrokeThickness="0" Padding="10,8">
+                                                        <Border.StrokeShape><shapes:RoundRectangle CornerRadius="12" /></Border.StrokeShape>
+                                                        <Border.Shadow><Shadow Brush="Black" Opacity="0.08" Radius="4" Offset="0,2" /></Border.Shadow>
+                                                        <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="10">
+                                                            <Border Grid.Column="0" WidthRequest="36" HeightRequest="36"
+                                                                    BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#1F2937}"
+                                                                    StrokeThickness="0">
+                                                                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="18" /></Border.StrokeShape>
+                                                                <Label Text="{Binding Type, Converter={StaticResource TxTypeToIconConverter}}"
+                                                                       FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
+                                                            </Border>
+                                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="0">
+                                                                <Label Text="{Binding Description}" FontSize="14" FontAttributes="Bold"
+                                                                       TextColor="{AppThemeBinding Light=#2E2055, Dark=White}"
+                                                                       LineBreakMode="TailTruncation" />
+                                                                <Label Text="{Binding CreatedAt, StringFormat='{0:dd MMM HH:mm}'}"
+                                                                       FontSize="11"
+                                                                       TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
+                                                            </VerticalStackLayout>
+                                                            <Label Grid.Column="2" Text="{Binding FormattedAmount}"
+                                                                   TextColor="{Binding Type, Converter={StaticResource AmountColorConverter}}"
+                                                                   FontAttributes="Bold" FontSize="14" VerticalOptions="Center" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </CollectionView.ItemTemplate>
+                                            <CollectionView.EmptyView>
+                                                <Label Text="{localization:Translate Profile_NoTransactions}"
+                                                       Margin="0,40" HorizontalOptions="Center" FontSize="16"
+                                                       TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
+                                            </CollectionView.EmptyView>
+                                        </CollectionView>
                                     </VerticalStackLayout>
                                 </ScrollView>
-
-                                <!-- INDICATOR INSIDE THE BORDER -->
-                                <Border x:Name="CustomScrollThumb" 
-                                        WidthRequest="4" 
-                                        HeightRequest="40" 
-                                        BackgroundColor="{AppThemeBinding Light=#CBD5E1, Dark=#475569}" 
-                                        HorizontalOptions="End" 
-                                        VerticalOptions="Start"
-                                        Margin="0,20,6,0" 
-                                        IsVisible="False"
-                                        ZIndex="1000">
-                                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="2" /></Border.StrokeShape>
-                                </Border>
                             </Grid>
                         </Border>
                     </Grid>
                 </Grid>
 
-                <!-- ── ACCOUNT TAB VIEW ── -->
-                <ScrollView x:Name="AccountTabView" IsVisible="False" Padding="20,10,20,120" VerticalScrollBarVisibility="Never" Scrolled="OnMainScrollViewScrolled">
+                <!-- ACCOUNT TAB -->
+                <ScrollView IsVisible="{Binding IsAccountTab}" Padding="20,10,20,120"
+                            VerticalScrollBarVisibility="Never">
                     <VerticalStackLayout Spacing="16" MaximumWidthRequest="600">
-                        <!-- Personal Info Card -->
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="{localization:Translate Profile_PersonalInfo}" FontSize="16" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                            <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" Padding="16">
+                            <Label Text="{localization:Translate Profile_PersonalInfo}" FontSize="16"
+                                   FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                    StrokeThickness="0" Padding="16">
                                 <Border.StrokeShape><shapes:RoundRectangle CornerRadius="14" /></Border.StrokeShape>
                                 <Border.Shadow><Shadow Brush="Black" Opacity="0.08" Radius="8" Offset="0,4" /></Border.Shadow>
                                 <VerticalStackLayout Spacing="15">
                                     <VerticalStackLayout>
-                                        <Label Text="{localization:Translate Profile_FullName}" FontSize="10" TextColor="{AppThemeBinding Light=#94A3B8, Dark=#9CA3AF}" FontAttributes="Bold" />
-                                        <Label x:Name="AccountFullNameLabel" Text="-" FontSize="15" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Label Text="{localization:Translate Profile_FullName}" FontSize="10"
+                                               TextColor="{AppThemeBinding Light=#94A3B8, Dark=#9CA3AF}"
+                                               FontAttributes="Bold" />
+                                        <Label Text="{Binding FullName}" FontSize="15" FontAttributes="Bold"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                                     </VerticalStackLayout>
                                     <VerticalStackLayout>
-                                        <Label Text="{localization:Translate Profile_Email}" FontSize="10" TextColor="{AppThemeBinding Light=#94A3B8, Dark=#9CA3AF}" FontAttributes="Bold" />
-                                        <Label x:Name="AccountEmailLabel" Text="-" FontSize="15" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Label Text="{localization:Translate Profile_Email}" FontSize="10"
+                                               TextColor="{AppThemeBinding Light=#94A3B8, Dark=#9CA3AF}"
+                                               FontAttributes="Bold" />
+                                        <Label Text="{Binding Email}" FontSize="15" FontAttributes="Bold"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                                     </VerticalStackLayout>
                                 </VerticalStackLayout>
                             </Border>
                         </VerticalStackLayout>
 
-                        <!-- Settings Card -->
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="{localization:Translate Profile_SettingsSecurity}" FontSize="16" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                            <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" Padding="0">
+                            <Label Text="{localization:Translate Profile_SettingsSecurity}" FontSize="16"
+                                   FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                    StrokeThickness="0" Padding="0">
                                 <Border.StrokeShape><shapes:RoundRectangle CornerRadius="14" /></Border.StrokeShape>
                                 <Border.Shadow><Shadow Brush="Black" Opacity="0.08" Radius="8" Offset="0,4" /></Border.Shadow>
                                 <VerticalStackLayout>
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image x:Name="PrivacyIcon" Source="profile.svg" WidthRequest="20" HeightRequest="20" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_AccountPrivacy}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Image x:Name="PrivacyArrowIcon" Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnPrivacyClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="{AppThemeBinding Light=profile.svg, Dark=profile_white.svg}" WidthRequest="20" HeightRequest="20" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_AccountPrivacy}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Image Grid.Column="2" Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}" WidthRequest="12" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding OnPrivacyCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" Margin="20,0" />
-
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image x:Name="PaymentMethodsIcon" Source="ticket.svg" WidthRequest="20" HeightRequest="20" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_PaymentMethods}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Image x:Name="PaymentMethodsArrowIcon" Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnPaymentMethodsClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="{AppThemeBinding Light=ticket.svg, Dark=ticket_white.svg}" WidthRequest="20" HeightRequest="20" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_PaymentMethods}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Image Grid.Column="2" Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}" WidthRequest="12" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding OnPaymentMethodsCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" Margin="20,0" />
-
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image x:Name="LanguageRegionIcon" Source="map.svg" WidthRequest="20" HeightRequest="20" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_LanguageRegion}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Image x:Name="LanguageRegionArrowIcon" Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnLanguageRegionClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="{AppThemeBinding Light=map.svg, Dark=map_white.svg}" WidthRequest="20" HeightRequest="20" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_LanguageRegion}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Image Grid.Column="2" Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}" WidthRequest="12" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ShowLanguageRegionCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" Margin="20,0" />
-
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="16,12">
-                                        <Image x:Name="ChangePasswordIcon" Source="settings.svg" WidthRequest="20" HeightRequest="20" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_ChangePassword}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Image x:Name="ChangePasswordArrowIcon" Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnChangePasswordClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="{AppThemeBinding Light=settings.svg, Dark=settings_white.svg}" WidthRequest="20" HeightRequest="20" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_ChangePassword}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Image Grid.Column="2" Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}" WidthRequest="12" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ShowChangePasswordCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                 </VerticalStackLayout>
                             </Border>
                         </VerticalStackLayout>
 
-                        <!-- Support & About -->
                         <VerticalStackLayout Spacing="10">
-                            <Label Text="{localization:Translate Profile_SupportMore}" FontSize="17" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                            <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" Padding="0">
+                            <Label Text="{localization:Translate Profile_SupportMore}" FontSize="17"
+                                   FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                            <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                    StrokeThickness="0" Padding="0">
                                 <Border.StrokeShape><shapes:RoundRectangle CornerRadius="20" /></Border.StrokeShape>
                                 <Border.Shadow><Shadow Brush="Black" Opacity="0.12" Radius="10" Offset="0,4" /></Border.Shadow>
                                 <VerticalStackLayout>
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="20">
-                                        <Image x:Name="HelpCenterIcon" Source="settings.svg" WidthRequest="20" HeightRequest="20" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_HelpCenter}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Image x:Name="HelpCenterArrowIcon" Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnHelpCenterClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="{AppThemeBinding Light=settings.svg, Dark=settings_white.svg}" WidthRequest="20" HeightRequest="20" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_HelpCenter}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Image Grid.Column="2" Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}" WidthRequest="12" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding OnHelpCenterCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" Margin="20,0" />
-
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="20">
-                                        <Image x:Name="AboutIcon" Source="profile.svg" WidthRequest="20" HeightRequest="20" Opacity="0.85" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_About}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                        <Image x:Name="AboutArrowIcon" Grid.Column="2" Source="arrow_right.svg" WidthRequest="12" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnAboutClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="{AppThemeBinding Light=profile.svg, Dark=profile_white.svg}" WidthRequest="20" HeightRequest="20" Opacity="0.85" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_About}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                        <Image Grid.Column="2" Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}" WidthRequest="12" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding OnAboutCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                     <BoxView HeightRequest="1" BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}" Margin="20,0" />
-                                    
                                     <Grid ColumnDefinitions="Auto, *, Auto" Padding="20">
-                                        <Image x:Name="LogoutIcon" Source="log_off.png" WidthRequest="20" HeightRequest="20" />
-                                        <Label Grid.Column="1" Text="{localization:Translate Profile_SignOut}" Margin="15,0" VerticalOptions="Center" FontSize="15" TextColor="#991B1B" FontAttributes="Bold" />
-                                        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="OnLogoutClicked" /></Grid.GestureRecognizers>
+                                        <Image Source="log_off.png" WidthRequest="20" HeightRequest="20" />
+                                        <Label Grid.Column="1" Text="{localization:Translate Profile_SignOut}"
+                                               Margin="15,0" VerticalOptions="Center" FontSize="15"
+                                               TextColor="#991B1B" FontAttributes="Bold" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding LogoutCommand}" />
+                                        </Grid.GestureRecognizers>
                                     </Grid>
                                 </VerticalStackLayout>
                             </Border>
@@ -282,55 +326,110 @@
                     </VerticalStackLayout>
                 </ScrollView>
 
-                <!-- Loading overlays -->
-                <Grid x:Name="WalletLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" InputTransparent="False" ZIndex="1000" Padding="0,10,0,0">
-                    <Image Source="{AppThemeBinding Light=loading_profile.svg, Dark=loading_profile_dark.svg}" Aspect="AspectFill" InputTransparent="True" Opacity="1" />
-                </Grid>
-
-                <Grid x:Name="AccountLoadingState" IsVisible="False" VerticalOptions="FillAndExpand" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" InputTransparent="False" ZIndex="1000" Padding="0,10,0,0">
-                    <Image Source="{AppThemeBinding Light=loading_profile_account.svg, Dark=loading_profile_account_dark.svg}" Aspect="AspectFill" InputTransparent="True" Opacity="1" />
-
+                <!-- LOADING OVERLAY -->
+                <Grid IsVisible="{Binding IsBusy}" VerticalOptions="FillAndExpand"
+                      BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}"
+                      InputTransparent="False" ZIndex="1000" Padding="0,10,0,0">
+                    <Image Source="{AppThemeBinding Light=loading_profile.svg, Dark=loading_profile_dark.svg}"
+                           Aspect="AspectFill" InputTransparent="True" Opacity="1" />
                 </Grid>
             </Grid>
         </Grid>
 
-
-        <!--  ── SUB-SETTINGS OVERLAY (SHOP STYLE) ──  -->
-        <Grid x:Name="SubSettingsView" BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}" IsVisible="False" ZIndex="1500">
+        <!-- SUB-SETTINGS OVERLAY -->
+        <Grid IsVisible="{Binding IsSubSettingsVisible}"
+              BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}"
+              ZIndex="1500">
             <Grid RowDefinitions="Auto, *">
-                <!-- Header (Shop Style) -->
-                <Grid Grid.Row="0" x:Name="SubSettingsHeader" Padding="24,48,24,10" ColumnDefinitions="48, *, 48" MaximumWidthRequest="600" HorizontalOptions="Fill" ZIndex="2">
-                    <!-- Back Arrow (Corrected Coordinates) -->
-                    <Grid Grid.Column="0" WidthRequest="44" HeightRequest="44" HorizontalOptions="Start" VerticalOptions="Center">
-                        <shapes:Path Data="M19,5L9,12l10,7 M9,12h14" 
-                                     Stroke="{AppThemeBinding Light=Black, Dark=White}" 
-                                     StrokeThickness="2.5" 
-                                     StrokeLineCap="Round" 
-                                     StrokeLineJoin="Round"
-                                     HorizontalOptions="Center" 
-                                     VerticalOptions="Center"
-                                     WidthRequest="24" 
-                                     HeightRequest="24" />
+                <Grid Grid.Row="0" Padding="24,48,24,10" ColumnDefinitions="48, *, 48"
+                      MaximumWidthRequest="600" HorizontalOptions="Fill" ZIndex="2">
+                    <Grid Grid.Column="0" WidthRequest="44" HeightRequest="44"
+                          HorizontalOptions="Start" VerticalOptions="Center">
+                        <shapes:Path Data="M19,5L9,12l10,7 M9,12h14"
+                                     Stroke="{AppThemeBinding Light=Black, Dark=White}"
+                                     StrokeThickness="2.5" StrokeLineCap="Round"
+                                     StrokeLineJoin="Round" HorizontalOptions="Center"
+                                     VerticalOptions="Center" WidthRequest="24" HeightRequest="24" />
                         <Grid.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnBackFromSubSettings" />
+                            <TapGestureRecognizer Command="{Binding BackFromSubSettingsCommand}" />
                         </Grid.GestureRecognizers>
                     </Grid>
-                    <Label x:Name="SubSettingsTitle" Grid.Column="1" HorizontalOptions="Center" Text="{localization:Translate Settings_Title}" FontSize="20" FontAttributes="Bold" TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
+                    <Label Grid.Column="1" HorizontalOptions="Center" Text="{Binding SubSettingsTitle}"
+                           FontSize="20" FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center" />
                 </Grid>
 
-                <!-- Content Card (Shop Style) -->
                 <ScrollView Grid.Row="1" Padding="0,20,0,0">
                     <VerticalStackLayout Spacing="0">
-                        <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}" StrokeThickness="0" Margin="0" MaximumWidthRequest="1200" HorizontalOptions="Fill">
+                        <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                                StrokeThickness="0" Margin="0" MaximumWidthRequest="1200" HorizontalOptions="Fill">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="40,40,0,0" /></Border.StrokeShape>
                             <Border.Shadow><Shadow Brush="Black" Opacity="0.05" Radius="20" Offset="0,-10" /></Border.Shadow>
-                            
                             <VerticalStackLayout Padding="24,20,24,100" Spacing="20">
-                                <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2" BackgroundColor="{AppThemeBinding Light=#E5E7EB, Dark=#334155}" HorizontalOptions="Center" />
-                                
-                                <ActivityIndicator x:Name="SubSettingsLoader" IsRunning="False" IsVisible="False" Color="#512BD4" />
-                                
-                                <VerticalStackLayout x:Name="SubSettingsContent" Spacing="0" />
+                                <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2"
+                                         BackgroundColor="{AppThemeBinding Light=#E5E7EB, Dark=#334155}"
+                                         HorizontalOptions="Center" />
+
+                                <ActivityIndicator IsRunning="{Binding IsSubSettingsLoading}"
+                                                   IsVisible="{Binding IsSubSettingsLoading}"
+                                                   Color="#512BD4" />
+
+                                <!-- Language Selection -->
+                                <CollectionView ItemsSource="{Binding SubSettingsLanguages}"
+                                                IsVisible="{Binding IsSubSettingsLoading, Converter={StaticResource InverseBoolConverter}}"
+                                                SelectionMode="None">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:LanguageItem">
+                                            <Border Margin="0,0,0,12" Padding="20"
+                                                    BackgroundColor="{Binding IsSelected, Converter={StaticResource CountryBgConverter}, ConverterParameter=#134E4A}"
+                                                    StrokeThickness="{Binding IsSelected, Converter={StaticResource BoolToStrokeConverter}}"
+                                                    Stroke="#10B981">
+                                                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ProfileViewModel}}, Path=SelectLanguageCommand}"
+                                                                           CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Grid ColumnDefinitions="*,Auto" Padding="0">
+                                                    <Label Text="{Binding DisplayName}" FontSize="16"
+                                                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                                           VerticalOptions="Center" />
+                                                    <Label Grid.Column="1" Text="✓"
+                                                           IsVisible="{Binding IsSelected}"
+                                                           TextColor="#10B981" FontSize="18"
+                                                           FontAttributes="Bold" VerticalOptions="Center" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+
+                                <!-- Region Selection -->
+                                <CollectionView ItemsSource="{Binding SubSettingsCountries}"
+                                                IsVisible="{Binding IsSubSettingsLoading, Converter={StaticResource InverseBoolConverter}}">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:CountryItem">
+                                            <Border Margin="0,0,0,12" Padding="20"
+                                                    BackgroundColor="{Binding IsSelected, Converter={StaticResource CountryBgConverter}, ConverterParameter=#134E4A}"
+                                                    StrokeThickness="{Binding IsSelected, Converter={StaticResource BoolToStrokeConverter}}"
+                                                    Stroke="#10B981">
+                                                <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ProfileViewModel}}, Path=SelectCountryCommand}"
+                                                                           CommandParameter="{Binding .}" />
+                                                </Border.GestureRecognizers>
+                                                <Grid ColumnDefinitions="*,Auto" Padding="0">
+                                                    <Label Text="{Binding Name}" FontSize="16"
+                                                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                                           VerticalOptions="Center" />
+                                                    <Label Grid.Column="1" Text="✓"
+                                                           IsVisible="{Binding IsSelected}"
+                                                           TextColor="#10B981" FontSize="18"
+                                                           FontAttributes="Bold" VerticalOptions="Center" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
                             </VerticalStackLayout>
                         </Border>
                     </VerticalStackLayout>
@@ -338,12 +437,21 @@
             </Grid>
         </Grid>
 
-        <!--  ── GUEST OVERLAY ──  -->
-        <Grid x:Name="GuestOverlay" BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}" InputTransparent="False" IsVisible="False" ZIndex="2000">
+        <!-- GUEST OVERLAY -->
+        <Grid IsVisible="{Binding IsGuest}"
+              BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}"
+              InputTransparent="False" ZIndex="2000">
             <VerticalStackLayout HorizontalOptions="Center" Spacing="20" VerticalOptions="Center">
-                <Label FontAttributes="Bold" FontSize="26" HorizontalOptions="Center" Text="{localization:Translate Profile_GuestMode}" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center" Text="{localization:Translate Profile_GuestPrompt}" TextColor="{AppThemeBinding Light=#666, Dark=#AAA}" />
-                <Button Margin="0,10,0,0" Padding="30,0" Clicked="OnLoginRegisterClicked" CornerRadius="12" FontAttributes="Bold" HeightRequest="50" Text="{localization:Translate Profile_LoginRegister}" />
+                <Label FontAttributes="Bold" FontSize="26" HorizontalOptions="Center"
+                       Text="{localization:Translate Profile_GuestMode}"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center"
+                       Text="{localization:Translate Profile_GuestPrompt}"
+                       TextColor="{AppThemeBinding Light=#666, Dark=#AAA}" />
+                <Button Margin="0,10,0,0" Padding="30,0"
+                        Command="{Binding GoToLoginRegisterCommand}"
+                        CornerRadius="12" FontAttributes="Bold" HeightRequest="50"
+                        Text="{localization:Translate Profile_LoginRegister}" />
             </VerticalStackLayout>
         </Grid>
     </Grid>

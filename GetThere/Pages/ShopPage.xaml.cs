@@ -1,38 +1,20 @@
-using GetThere.Helpers;
-using GetThere.Localization;
-using GetThere.Services;
+using GetThere.ViewModels;
 
 namespace GetThere.Pages;
 
 public partial class ShopPage : ContentPage
 {
-    private readonly AuthService _authService;
+    private readonly ShopViewModel _viewModel;
 
-    public ShopPage(AuthService authService)
+    public ShopPage(ShopViewModel viewModel)
     {
         InitializeComponent();
-        _authService = authService;
+        BindingContext = _viewModel = viewModel;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await UpdateAuthStateAsync();
-    }
-
-    private async Task UpdateAuthStateAsync()
-    {
-        var token = await _authService.GetTokenAsync();
-
-        if (string.IsNullOrWhiteSpace(token) || AuthService.IsGuest())
-        {
-            StatusLabel.Text = LocalizationService.Instance["Shop_AccountRequired"];
-            DescriptionLabel.Text = LocalizationService.Instance["Shop_AccountRequiredDesc"];
-        }
-        else
-        {
-            StatusLabel.Text = LocalizationService.Instance["Shop_ComingSoon"];
-            DescriptionLabel.Text = LocalizationService.Instance["Shop_ComingSoonDesc"];
-        }
+        await _viewModel.UpdateAuthStateCommand.ExecuteAsync(null);
     }
 }

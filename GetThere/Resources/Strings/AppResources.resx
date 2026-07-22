@@ -92,7 +92,7 @@
   <data name="Login_RememberMe" xml:space="preserve"><value>Remember Me</value></data>
   <data name="Login_SigningIn" xml:space="preserve"><value>Signing In</value></data>
   <data name="Login_InvalidEmail" xml:space="preserve"><value>Please enter a valid email address.</value></data>
-  <data name="Login_PasswordTooShort" xml:space="preserve"><value>Password must be at least 8 characters.</value></data>
+  <data name="Login_PasswordTooShort" xml:space="preserve"><value>Password must be at least 12 characters.</value></data>
   <data name="Login_Failed" xml:space="preserve"><value>Login failed.</value></data>
   <data name="Login_ContinueAsGuest" xml:space="preserve"><value>Continue as Guest</value></data>
 
@@ -112,7 +112,7 @@
   <data name="Register_SignIn" xml:space="preserve"><value>Sign In</value></data>
   <data name="Register_NameRequired" xml:space="preserve"><value>Please enter your full name.</value></data>
   <data name="Register_InvalidEmail" xml:space="preserve"><value>Please enter a valid email address.</value></data>
-  <data name="Register_PasswordTooShort" xml:space="preserve"><value>Password must be at least 8 characters.</value></data>
+  <data name="Register_PasswordTooShort" xml:space="preserve"><value>Password must be at least 12 characters.</value></data>
   <data name="Register_PasswordMismatch" xml:space="preserve"><value>Passwords do not match.</value></data>
   <data name="Register_Failed" xml:space="preserve"><value>Registration failed.</value></data>
   <data name="Register_Success" xml:space="preserve"><value>Account created</value></data>

@@ -1,28 +1,20 @@
-using System.Diagnostics;
+using GetThere.ViewModels;
 
 namespace GetThere.Pages;
 
 public partial class MapPage : ContentPage
 {
-    public MapPage()
+    private readonly MapViewModel _viewModel;
+
+    public MapPage(MapViewModel viewModel)
     {
         InitializeComponent();
+        BindingContext = _viewModel = viewModel;
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-
-#if ANDROID
-        var transitApi = "https://10.0.2.2:5001";
-        var mapUrl = "https://10.0.2.2:7230/map/public.html?api=" + transitApi;
-#else
-        var transitApi = "https://localhost:5001";
-        var mapUrl = "https://localhost:7230/map/public.html?api=" + transitApi;
-#endif
-
-        Trace.WriteLine($"[MapPage] Loading map: {mapUrl}");
-        await MainThread.InvokeOnMainThreadAsync(() =>
-            MapWebView.Source = new UrlWebViewSource { Url = mapUrl });
+        _viewModel.LoadMapCommand.Execute(null);
     }
 }

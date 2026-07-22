@@ -7,7 +7,7 @@ using TransitInfoAPI.Entities;
 
 namespace TransitInfoAPI.Data;
 
-public class TransitDbContext : IdentityDbContext<AppUser, IdentityRole<int>, int>
+public class TransitDbContext : IdentityDbContext<AppUser>
 {
     public TransitDbContext(DbContextOptions<TransitDbContext> options) : base(options) { }
 
@@ -41,12 +41,12 @@ public class TransitDbContext : IdentityDbContext<AppUser, IdentityRole<int>, in
 
         // Identity table names
         modelBuilder.Entity<AppUser>(b => b.ToTable("AspNetUsers"));
-        modelBuilder.Entity<IdentityRole<int>>(b => b.ToTable("AspNetRoles"));
-        modelBuilder.Entity<IdentityUserRole<int>>(b => b.ToTable("AspNetUserRoles"));
-        modelBuilder.Entity<IdentityUserClaim<int>>(b => b.ToTable("AspNetUserClaims"));
-        modelBuilder.Entity<IdentityUserLogin<int>>(b => b.ToTable("AspNetUserLogins"));
-        modelBuilder.Entity<IdentityRoleClaim<int>>(b => b.ToTable("AspNetRoleClaims"));
-        modelBuilder.Entity<IdentityUserToken<int>>(b => b.ToTable("AspNetUserTokens"));
+        modelBuilder.Entity<IdentityRole>(b => b.ToTable("AspNetRoles"));
+        modelBuilder.Entity<IdentityUserRole<string>>(b => b.ToTable("AspNetUserRoles"));
+        modelBuilder.Entity<IdentityUserClaim<string>>(b => b.ToTable("AspNetUserClaims"));
+        modelBuilder.Entity<IdentityUserLogin<string>>(b => b.ToTable("AspNetUserLogins"));
+        modelBuilder.Entity<IdentityRoleClaim<string>>(b => b.ToTable("AspNetRoleClaims"));
+        modelBuilder.Entity<IdentityUserToken<string>>(b => b.ToTable("AspNetUserTokens"));
 
         modelBuilder.Entity<RefreshToken>(b =>
         {

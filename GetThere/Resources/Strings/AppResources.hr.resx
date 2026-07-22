@@ -92,7 +92,7 @@
   <data name="Login_RememberMe" xml:space="preserve"><value>Zapamti me</value></data>
   <data name="Login_SigningIn" xml:space="preserve"><value>Prijavljivanje</value></data>
   <data name="Login_InvalidEmail" xml:space="preserve"><value>Unesite valjanu adresu e-pošte.</value></data>
-  <data name="Login_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 8 znakova.</value></data>
+  <data name="Login_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 12 znakova.</value></data>
   <data name="Login_Failed" xml:space="preserve"><value>Prijava nije uspjela.</value></data>
   <data name="Login_ContinueAsGuest" xml:space="preserve"><value>Nastavi kao gost</value></data>
 
@@ -112,7 +112,7 @@
   <data name="Register_SignIn" xml:space="preserve"><value>Prijavi se</value></data>
   <data name="Register_NameRequired" xml:space="preserve"><value>Unesite puno ime.</value></data>
   <data name="Register_InvalidEmail" xml:space="preserve"><value>Unesite valjanu adresu e-pošte.</value></data>
-  <data name="Register_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 8 znakova.</value></data>
+  <data name="Register_PasswordTooShort" xml:space="preserve"><value>Lozinka mora imati najmanje 12 znakova.</value></data>
   <data name="Register_PasswordMismatch" xml:space="preserve"><value>Lozinke se ne podudaraju.</value></data>
   <data name="Register_Failed" xml:space="preserve"><value>Registracija nije uspjela.</value></data>
   <data name="Register_Success" xml:space="preserve"><value>Račun stvoren</value></data>

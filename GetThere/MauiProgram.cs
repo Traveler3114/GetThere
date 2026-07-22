@@ -8,6 +8,7 @@ using SkiaSharp.Views.Maui.Controls.Hosting;
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
+using GetThere.ViewModels;
 
 namespace GetThere;
 
@@ -81,9 +82,17 @@ public static class MauiProgram
                      && t.IsSubclassOf(typeof(ContentPage)));
 
         foreach (var pageType in pageTypes)
-        {
             builder.Services.AddTransient(pageType);
-        }
+
+        var viewModelTypes = assembly
+            .GetTypes()
+            .Where(t => t.Namespace == "GetThere.ViewModels"
+                     && t.IsClass
+                     && !t.IsAbstract
+                     && t.IsSubclassOf(typeof(BaseViewModel)));
+
+        foreach (var vmType in viewModelTypes)
+            builder.Services.AddTransient(vmType);
 
 #if DEBUG
         builder.Logging.AddDebug();
