@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 
+using GetThere.Pages;
 using GetThere.Services;
 using GetThere.State;
 
@@ -15,6 +16,7 @@ public partial class AppShell : Shell
             if (e.Current?.Location is not null)
                 analytics.TrackScreen(e.Current.Location.OriginalString);
         };
+        Routing.RegisterRoute("importticket", typeof(ImportTicketPage));
     }
 
     public void UpdateProfileIcon(ImageSource? source)

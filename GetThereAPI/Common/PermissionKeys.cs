@@ -13,6 +13,11 @@ public static class PermissionKeys
     public const string TicketsCreate = "tickets.create";
     public const string TicketsManage = "tickets.manage";
 
+    // Imported Tickets
+    public const string ImportedTicketsView = "importedtickets.view";
+    public const string ImportedTicketsCreate = "importedtickets.create";
+    public const string ImportedTicketsManage = "importedtickets.manage";
+
     // Wallets
     public const string WalletsView = "wallets.view";
     public const string WalletsManage = "wallets.manage";
@@ -39,6 +44,7 @@ public static class PermissionKeys
     [
         UsersView, UsersManage, RolesView, RolesManage,
         TicketsView, TicketsCreate, TicketsManage,
+        ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage,
         WalletsView, WalletsManage,
         ProfileView, ProfileManage,
         SettingsView, SettingsManage,
@@ -56,6 +62,9 @@ public static class PermissionKeys
         [TicketsView] = ("View Tickets", "List and view tickets", "Tickets"),
         [TicketsCreate] = ("Create Tickets", "Purchase new tickets", "Tickets"),
         [TicketsManage] = ("Manage Tickets", "Refund, void, cancel tickets", "Tickets"),
+        [ImportedTicketsView] = ("View Imported Tickets", "List and view imported tickets", "Tickets"),
+        [ImportedTicketsCreate] = ("Import Tickets", "Import tickets via manual entry, photo, PDF, or scan", "Tickets"),
+        [ImportedTicketsManage] = ("Manage Imported Tickets", "Update status, cancel imported tickets", "Tickets"),
         [WalletsView] = ("View Wallet", "View wallet balance and transactions", "Wallet"),
         [WalletsManage] = ("Manage Wallet", "Top up, withdraw, transfer", "Wallet"),
         [ProfileView] = ("View Profile", "View own profile", "Profile"),

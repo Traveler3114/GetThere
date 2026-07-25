@@ -42,15 +42,23 @@ Blocks everything else. Do not build new user-data features on top of an auth sy
 
 Builds value before ticket purchasing is live.
 
-- Image/document storage strategy (blob storage, size limits, upload scanning)
-- Import tickets via: manual entry, photo/PDF upload, QR/barcode scan
-- New `ImportedTicket` entity, separate from adapter-purchased `Ticket`
-- Filtering/sorting by operator, date, status, transport type
-- Replace stub Tickets/Shop pages with a real wallet UI
-- Apple Wallet (PassKit) / Google Wallet API integration for lock-screen/quick access
-- Duplicate-ticket detection
-- Verified vs. unverified ticket marking
-- Lightweight beta/feedback loop once shipped
+### Completed
+
+- ✅ Image/document storage strategy — defined: blob storage (Azure/S3), max 10MB, allowed types image/jpeg/png + pdf; DB stores only blob key + content type; malware scanning extension point reserved
+- ✅ `ImportedTicket` entity + supporting enums (`ImportSource`, `ImportedTicketStatus`, `VerificationStatus`) — full data model per spec, separate from adapter-purchased `Ticket`
+- ✅ Duplicate-ticket detection — `DedupeHash` (SHA256 of raw payload or operator+route+date composite), checked on create
+- ✅ Verified/unverified marking — `VerificationStatus` enum (Unverified / Verified / Suspicious), orthogonal to ticket lifecycle `Status`
+- ✅ `ImportedTicketManager` — create (with dedupe), list (filtered by status/source), get by id, update status, soft-delete (cancel)
+- ✅ `ImportedTicketResponse` / `CreateImportedTicketRequest` DTOs in `GetThereShared.Contracts`
+- ✅ EF Core migration `AddImportedTickets` generated
+
+### Remaining
+
+- ⏳ Import tickets via: manual entry, photo/PDF upload, QR/barcode scan (needs controller endpoints + MAUI UI)
+- ⏳ Filtering/sorting by operator, date, status, transport type
+- ⏳ Replace stub Tickets/Shop pages with a real wallet UI
+- ⏳ Apple Wallet (PassKit) / Google Wallet API integration for lock-screen/quick access
+- ⏳ Lightweight beta/feedback loop once shipped
 
 ---
 

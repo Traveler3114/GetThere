@@ -19,6 +19,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<TicketOption> TicketOptions { get; set; }
     public DbSet<Purchase> Purchases { get; set; }
     public DbSet<Ticket> Tickets { get; set; }
+    public DbSet<ImportedTicket> ImportedTickets { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -128,6 +129,16 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasOne(t => t.Purchase)
                   .WithMany()
                   .HasForeignKey(t => t.PurchaseId);
+        });
+
+        modelBuilder.Entity<ImportedTicket>(entity =>
+        {
+            entity.HasIndex(t => new { t.UserId, t.Status });
+            entity.HasIndex(t => t.DedupeHash);
+            entity.Property(t => t.Price).HasPrecision(18, 2);
+            entity.HasOne(t => t.User)
+                  .WithMany()
+                  .HasForeignKey(t => t.UserId);
         });
     }
 }

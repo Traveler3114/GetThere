@@ -12,9 +12,9 @@ public partial class TicketsPage : ContentPage
         BindingContext = _viewModel = viewModel;
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-        await _viewModel.UpdateAuthStateCommand.ExecuteAsync(null);
+        _viewModel.LoadTicketsCommand.Execute(null);
     }
 }
