@@ -168,6 +168,39 @@ HRK for historical rows) and `Selectable` (picker, EUR/USD/GBP/CHF).
 and bug fixes go here in `AGENTS.md`; `ROADMAP.md` tracks phase deliverables and
 its status marks mean "exercised end-to-end" — see its Notes section.
 
+## Session — July 26, 2026 (later)
+
+### Applied — Claude Design import ("GetThere UI", project `b1dc673d-8bf5-45c9-9e07-84e8f0645e41`)
+
+The design project holds three canvases: `GetThereAPI Admin.dc.html` (1a overview,
+1b adapters), `TransitInfoAPI Admin.dc.html` (2a data health, 2b reconciliation
+review) and `GetThere App.dc.html` (3a–3h MAUI screens). `support.js` is the
+design-canvas runtime and is not part of the app.
+
+| Area | File(s) | What |
+|------|---------|------|
+| Icons | `GetThereAPI/wwwroot/admin/icons/`, `TransitInfoAPI/wwwroot/admin/icons/` | The 10 design icons, copied from `GetThere/Resources/Images` — the repo copies keep their `<style>` blocks, so they mask correctly; the design-project copies had them stripped |
+| Design system | `GetThereAPI/wwwroot/admin/style.css` | Full token set + shell/rail/topbar/KPI/card/table/badge/pill/button/field/code primitives. Violet accent |
+| Design system | `TransitInfoAPI/wwwroot/admin/style.css` | Same file, teal accent block, plus a `body.bs` Bootstrap 5 dark skin |
+| Routing fix | `GetThereAPI/Controllers/AdminController.cs` | `SetRoleRequest` sat between `[ApiController]/[Route]/[Authorize]` and the class, so the attributes bound to the **record** — `/admin/users` and `/admin/audit` were actually served at `/users` and `/audit` and the admin pages 404'd |
+| Audit page fix | `GetThereAPI/wwwroot/admin/audit.html` | Was parsing `j.success` / `j.data.items`; `PagedResult<T>` has no envelope, so the page never rendered |
+| New endpoints | `AdminContract.cs`, `AdminManager.cs`, `AdminController.cs` | `GET /admin/stats` (KPIs over a rolling window vs the previous one), `GET /admin/purchases` (feed, filter by status/adapter), `GET /admin/adapters` (health incl. `AdapterRegistry` registration), `PATCH /admin/adapters/{id}` (enable/disable, audit-logged) |
+| Admin shell | `GetThereAPI/wwwroot/admin/admin.js` | Rail/topbar renderer + auth, fetch, formatting helpers. Avatar initials come from the JWT; the rail's TransitInfoAPI dot probes `/api/map/transport-types` |
+| Screens 1a/1b | `index.html`, `adapters.html` | Overview (KPIs, purchase feed, adapter health, needs-attention) and adapter detail (metrics, `ITicketingAdapter` contract cards, purchase tail, binding/credentials/config) |
+| Restyle | `users.html`, `tickets.html`, `audit.html`, `login.html` | Moved onto the shell; Bootstrap CDN dropped from GetThereAPI admin |
+| Screen 2a | `TransitInfoAPI/wwwroot/admin/index.html`, `admin-shell.js` | Data-health overview: station/route counts, feed health bars, live vehicles, review queue, feed table with filters, reconciliation queue, service alerts |
+| Login | `TransitInfoAPI/wwwroot/admin/login.html` | Restyled; `redirect_after_login` compared a full URL against `'/admin/'` so it always fell back — now parses the URL and keeps the same-origin guard |
+| Legacy pages | 14 × `TransitInfoAPI/wwwroot/admin/*.html` | `<body class="bs">` so they inherit the dark palette without touching their logic |
+| MAUI tokens | `Resources/Styles/Colors.xaml` | Design tokens named after the CSS custom properties (text ramp, teal/violet accents, status surfaces, card gradient brush) |
+| MAUI 3e/3h | `Helpers/PageUtility.cs`, `TicketsViewModel.cs`, `TicketsPage.xaml` | `TicketStatusColorConverter` (Used/Expired no longer render with the Active green badge) and `FilterChipConverter` + `ActiveFilterKey` (the selected filter chip now highlights) |
+
+**Not done:** screen 2b (reconciliation review master-detail). `reconciliation.html`
+carries search, route-type/status filters, tabs, batch approve and per-item
+approve/reject-with-warning; re-laying it out is a rewrite of that logic, so it was
+left working and dark-skinned instead. The remaining MAUI screens (3a–3d, 3f–3g)
+already matched the mockups — the canvases were drawn from the existing app — so
+only the token extraction above was needed.
+
 ## Reference
 
 `PROJECT.md` is the canonical conventions doc (architecture, code style, response formats, pagination, endpoint patterns). `GetThereAPI/Program.cs` shows the DI wiring and middleware order.

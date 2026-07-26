@@ -7,13 +7,17 @@ using GetThereShared.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using System.ComponentModel.DataAnnotations;
+
 namespace GetThereAPI.Controllers;
+
+public record SetRoleRequest(string RoleName);
+
+public record SetAdapterActiveRequest(bool IsActive);
 
 [ApiController]
 [Route("[controller]")]
 [Authorize]
-public record SetRoleRequest(string RoleName);
-
 public class AdminController : ControllerBase
 {
     private readonly AdminManager _adminManager;
@@ -37,6 +41,47 @@ public class AdminController : ControllerBase
         var user = await _rolePermissionManager.SetUserRoleAsync(userId, request.RoleName, ct);
         if (user is null) return NotFound();
         return Ok(new { message = $"User role set to '{request.RoleName}'." });
+    }
+
+    [HttpGet("stats")]
+    [Authorize(Policy = PermissionKeys.TicketsView)]
+    public async Task<ActionResult<AdminStats>> GetStats(
+        [FromQuery, Range(1, 720)] int windowHours = 24, CancellationToken ct = default)
+    {
+        var result = await _adminManager.GetStatsAsync(windowHours, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("purchases")]
+    [Authorize(Policy = PermissionKeys.TicketsView)]
+    public async Task<ActionResult<PagedResult<PurchaseListItem>>> GetPurchases(
+        [FromQuery] string? status = null,
+        [FromQuery] int? adapterId = null,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, Range(1, 500)] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await _adminManager.GetPurchasesAsync(status, adapterId, page, pageSize, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("adapters")]
+    [Authorize(Policy = PermissionKeys.AdaptersView)]
+    public async Task<ActionResult<List<AdapterHealthItem>>> GetAdapters(
+        [FromQuery, Range(1, 720)] int windowHours = 24, CancellationToken ct = default)
+    {
+        var result = await _adminManager.GetAdapterHealthAsync(windowHours, ct);
+        return Ok(result);
+    }
+
+    [HttpPatch("adapters/{adapterId:int}")]
+    [Authorize(Policy = PermissionKeys.AdaptersManage)]
+    public async Task<ActionResult<AdapterHealthItem>> SetAdapterActive(
+        int adapterId, [FromBody] SetAdapterActiveRequest request, CancellationToken ct = default)
+    {
+        var result = await _adminManager.SetAdapterActiveAsync(adapterId, request.IsActive, ct);
+        if (result is null) return NotFound();
+        return Ok(result);
     }
 
     [HttpGet("audit")]

@@ -20,6 +20,10 @@ public partial class TicketsViewModel : BaseViewModel
     [ObservableProperty]
     private bool _hasImportedTickets;
 
+    /// <summary>Empty means "All"; otherwise an <see cref="ImportedTicketStatus"/> name. Drives chip selection.</summary>
+    [ObservableProperty]
+    private string _activeFilterKey = string.Empty;
+
     [ObservableProperty]
     private string _errorText = string.Empty;
 
@@ -119,6 +123,7 @@ public partial class TicketsViewModel : BaseViewModel
     private async Task Filter(string? status)
     {
         _activeFilter = status is not null && Enum.TryParse<ImportedTicketStatus>(status, out var parsed) ? parsed : null;
+        ActiveFilterKey = _activeFilter?.ToString() ?? string.Empty;
         await LoadTickets();
     }
 

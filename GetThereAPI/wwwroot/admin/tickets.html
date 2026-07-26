@@ -3,127 +3,127 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tickets - Admin</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<title>Tickets · GetThereAPI admin</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> > <a href="/admin/" class="text-decoration-none">Admin</a></nav>
+<div id="shell"></div>
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0">Tickets</h1>
-    <div>
-      <button class="btn btn-outline-primary btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-    </div>
-  </div>
-
-  <ul class="nav nav-tabs mb-3" id="tabBar">
-    <li class="nav-item"><button class="nav-link active" data-tab="options" onclick="switchTab('options')">Ticket Options</button></li>
-    <li class="nav-item"><button class="nav-link" data-tab="mytickets" onclick="switchTab('mytickets')">My Tickets</button></li>
-  </ul>
-
-  <div id="loading" class="text-center py-4 text-muted d-none"><i class="bi bi-hourglass-split"></i> Loading...</div>
-  <div id="error" class="alert alert-danger d-none"></div>
-  <div id="content" class="d-none"><div class="alert alert-info">Loading...</div></div>
-
+<script src="admin.js"></script>
 <script>
-const BASE = '';
-let currentTab = 'options';
+'use strict';
 
-function getHeaders() {
-  const token = sessionStorage.getItem('auth_token');
-  const h = {'Content-Type': 'application/json'};
-  if (token) h['Authorization'] = 'Bearer ' + token;
-  return h;
+var TABS = [
+  { key: 'options', text: 'Ticket options' },
+  { key: 'tickets', text: 'Issued tickets' }
+];
+
+var state = { tab: 'options' };
+
+if (Admin.mount({
+  active: 'tickets',
+  title: 'Tickets',
+  meta: 'options come from the bound adapter',
+  actions: '<button type="button" class="btn" id="refresh">Refresh</button>'
+})) {
+  document.getElementById('refresh').addEventListener('click', function () { load(); });
+  document.getElementById('content').innerHTML =
+    '<div class="card is-grow">' +
+      '<div class="card-head">' +
+        '<div class="pills" id="tabs"></div>' +
+        '<div class="spacer"></div>' +
+        '<div class="card-meta" id="meta">—</div>' +
+      '</div>' +
+      '<div id="list"><div class="loading">Loading</div></div>' +
+    '</div>';
+
+  renderTabs();
+  load();
 }
 
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('#tabBar .nav-link').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
-  loadData();
-}
-
-async function loadData() {
-  const token = sessionStorage.getItem('auth_token');
-  if (!token) { window.location.href = '/admin/login.html'; return; }
-
-  document.getElementById('loading').classList.remove('d-none');
-  document.getElementById('error').classList.add('d-none');
-  document.getElementById('content').classList.add('d-none');
-
-  try {
-    if (currentTab === 'options') {
-      await loadOptions();
-    } else {
-      await loadMyTickets();
-    }
-    document.getElementById('loading').classList.add('d-none');
-    document.getElementById('content').classList.remove('d-none');
-  } catch(e) {
-    document.getElementById('loading').classList.add('d-none');
-    showError('Failed to load data: ' + e.message);
-  }
-}
-
-async function loadOptions() {
-  const r = await fetch('/tickets/options', { headers: getHeaders() });
-  if (!r.ok) throw new Error('Request failed (' + r.status + ')');
-  const options = await r.json();
-  if (!Array.isArray(options)) throw new Error('Invalid response');
-  if (!options.length) {
-    document.getElementById('content').innerHTML = '<div class="alert alert-info">No ticket options available.</div>';
-    return;
-  }
-  const rows = options.map(o => `<tr>
-    <td>${o.id}</td>
-    <td>${esc(o.adapterName)}</td>
-    <td>${esc(o.name)}</td>
-    <td>${esc(o.description||'-')}</td>
-    <td class="fw-bold">${o.price.toFixed(2)} ${esc(o.currency)}</td>
-    <td><span class="badge bg-secondary">${esc(o.ticketFormat)}</span></td>
-    <td>${o.durationMinutes ? o.durationMinutes + ' min' : '-'}</td>
-  </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>ID</th><th>Adapter</th><th>Name</th><th>Description</th><th>Price</th><th>Format</th><th>Duration</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-
-async function loadMyTickets() {
-  const r = await fetch('/tickets', { headers: getHeaders() });
-  if (!r.ok) throw new Error('Request failed (' + r.status + ')');
-  const tickets = await r.json();
-  if (!Array.isArray(tickets)) throw new Error('Invalid response');
-  if (!tickets.length) {
-    document.getElementById('content').innerHTML = '<div class="alert alert-info">No tickets purchased yet.</div>';
-    return;
-  }
-  const rows = tickets.map(t => {
-    const statusClass = t.status === 'Active' ? 'badge-active' : t.status === 'Used' ? 'badge-used' : t.status === 'Expired' ? 'badge-expired' : t.status === 'Cancelled' ? 'badge-cancelled' : 'badge-refunded';
-    return `<tr>
-      <td>${t.id}</td>
-      <td>${esc(t.option ? t.option.name : '-')}</td>
-      <td><span class="badge ${statusClass}">${esc(t.status)}</span></td>
-      <td>${t.validFrom ? new Date(t.validFrom).toLocaleString() : '-'}</td>
-      <td>${t.validTo ? new Date(t.validTo).toLocaleString() : '-'}</td>
-      <td><span class="badge bg-secondary">${esc(t.format)}</span></td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code class="small">${esc(t.data ? t.data.substring(0,40) + '...' : '-')}</code></td>
-    </tr>`;
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = TABS.map(function (t) {
+    return '<button type="button" class="pill' + (t.key === state.tab ? ' is-active' : '') +
+      '" data-tab="' + t.key + '">' + t.text + '</button>';
   }).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>ID</th><th>Option</th><th>Status</th><th>Valid From</th><th>Valid To</th><th>Format</th><th>Data</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${tickets.length} ticket(s)</small>`;
+
+  document.querySelectorAll('#tabs .pill').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.tab = btn.dataset.tab;
+      renderTabs();
+      load();
+    });
+  });
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
-function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-
-document.addEventListener('DOMContentLoaded', () => {
-  const token = sessionStorage.getItem('auth_token');
-  if (!token) {
-    window.location.href = '/admin/login.html';
-  } else {
-    loadData();
+async function load() {
+  var host = document.getElementById('list');
+  host.innerHTML = '<div class="loading">Loading</div>';
+  try {
+    if (state.tab === 'options') await loadOptions(host);
+    else await loadTickets(host);
+  } catch (e) {
+    host.innerHTML = '<div class="alert" style="margin:18px">' + Admin.esc(e.message) + '</div>';
   }
-});
+}
+
+var OPTION_COLS = 'minmax(0,1fr) 140px 110px 96px 96px 92px';
+
+async function loadOptions(host) {
+  var options = await Admin.api('/tickets/options');
+  document.getElementById('meta').textContent = options.length + ' option(s)';
+
+  if (!options.length) {
+    host.innerHTML = '<div class="empty">No ticket options are configured. ' +
+      'Options belong to an adapter — check the Adapters screen.</div>';
+    return;
+  }
+
+  host.innerHTML = '<div class="table-scroll"><div class="table" style="--cols:' + OPTION_COLS + '">' +
+    '<div class="thead"><div>Name</div><div>Adapter</div><div>Price</div>' +
+      '<div>Format</div><div>Duration</div><div>State</div></div>' +
+    options.map(function (o) {
+      return '<div class="trow" title="' + Admin.esc(o.description || '') + '">' +
+        '<div><b>' + Admin.esc(o.name) + '</b>' +
+          (o.description ? ' <span class="dim">· ' + Admin.esc(o.description) + '</span>' : '') + '</div>' +
+        '<div class="sub">' + Admin.esc(o.adapterName) + '</div>' +
+        '<div class="num">' + Admin.money(o.price, o.currency) + '</div>' +
+        '<div><span class="badge is-neutral">' + Admin.esc(o.ticketFormat) + '</span></div>' +
+        '<div class="sub">' + (o.durationMinutes ? o.durationMinutes + ' min' : '—') + '</div>' +
+        '<div><span class="badge ' + (o.isActive === false ? 'is-neutral' : 'is-ok') + '">' +
+          (o.isActive === false ? 'INACTIVE' : 'ACTIVE') + '</span></div>' +
+      '</div>';
+    }).join('') +
+  '</div></div>';
+}
+
+var TICKET_COLS = '80px minmax(0,1fr) 96px 150px 150px 96px';
+
+async function loadTickets(host) {
+  var tickets = await Admin.api('/tickets');
+  document.getElementById('meta').textContent = tickets.length + ' ticket(s) for the signed-in account';
+
+  if (!tickets.length) {
+    host.innerHTML = '<div class="empty">No tickets have been issued to this account.</div>';
+    return;
+  }
+
+  host.innerHTML = '<div class="table-scroll"><div class="table" style="--cols:' + TICKET_COLS + '">' +
+    '<div class="thead"><div>Id</div><div>Option</div><div>Format</div>' +
+      '<div>Valid from</div><div>Valid to</div><div>Status</div></div>' +
+    tickets.map(function (t) {
+      return '<div class="trow">' +
+        '<div class="id">' + Admin.esc(t.id) + '</div>' +
+        '<div>' + Admin.esc(t.option ? t.option.name : '—') + '</div>' +
+        '<div><span class="badge is-neutral">' + Admin.esc(t.format) + '</span></div>' +
+        '<div class="sub">' + Admin.dateTime(t.validFrom) + '</div>' +
+        '<div class="sub">' + Admin.dateTime(t.validTo) + '</div>' +
+        '<div><span class="badge ' + Admin.statusClass(t.status) + '">' +
+          Admin.esc(String(t.status).toUpperCase()) + '</span></div>' +
+      '</div>';
+    }).join('') +
+  '</div></div>';
+}
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

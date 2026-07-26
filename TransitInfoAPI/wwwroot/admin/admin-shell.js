@@ -1,0 +1,230 @@
+/* TransitInfoAPI admin shell — rail, topbar and shared helpers for the pages
+   built on the imported design system. Legacy Bootstrap pages keep using
+   admin-auth.js instead. */
+(function () {
+  'use strict';
+
+  var NAV = [
+    {
+      label: 'MONITOR',
+      items: [
+        { key: 'overview', text: 'Overview', href: '/admin/index.html' },
+        { key: 'realtime', text: 'Realtime', href: '/admin/realtime.html', live: true },
+        { key: 'alerts', text: 'Alerts', href: '/admin/alerts.html', badge: 'alerts' }
+      ]
+    },
+    {
+      label: 'IDENTITY',
+      items: [
+        { key: 'operators', text: 'Operators', href: '/admin/operators.html' },
+        { key: 'agencies', text: 'Agencies', href: '/admin/agencies.html' },
+        { key: 'countries', text: 'Countries', href: '/admin/countries.html' }
+      ]
+    },
+    {
+      label: 'NETWORK',
+      items: [
+        { key: 'feeds', text: 'Feeds', href: '/admin/feeds.html', count: 'feeds' },
+        { key: 'feed-versions', text: 'Feed versions', href: '/admin/feed-versions.html' },
+        { key: 'stations', text: 'Stations', href: '/admin/stations.html', count: 'stations' },
+        { key: 'routes', text: 'Routes', href: '/admin/routes.html' },
+        { key: 'places', text: 'Places', href: '/admin/places.html' },
+        { key: 'mobility', text: 'Mobility', href: '/admin/mobility.html' },
+        { key: 'reconciliation', text: 'Reconciliation', href: '/admin/reconciliation.html', pill: 'pending' },
+        { key: 'map', text: 'Transit map', href: '/map/' }
+      ]
+    }
+  ];
+
+  var Shell = {
+
+    token: function () { return sessionStorage.getItem('auth_token') || ''; },
+
+    headers: function () {
+      var h = { 'Content-Type': 'application/json' };
+      var t = Shell.token();
+      if (t) h.Authorization = 'Bearer ' + t;
+      return h;
+    },
+
+    requireAuth: function () {
+      if (Shell.token()) return true;
+      sessionStorage.setItem('redirect_after_login', window.location.href);
+      window.location.href = '/admin/login.html';
+      return false;
+    },
+
+    logout: function () {
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('refresh_token');
+      window.location.href = '/admin/login.html';
+    },
+
+    claims: function () {
+      var t = Shell.token();
+      if (!t) return null;
+      try {
+        var part = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(decodeURIComponent(escape(atob(part))));
+      } catch (e) {
+        return null;
+      }
+    },
+
+    api: async function (path, options) {
+      var res = await fetch(path, Object.assign({ headers: Shell.headers() }, options || {}));
+      if (res.status === 401) {
+        Shell.logout();
+        throw new Error('Session expired.');
+      }
+      if (!res.ok) {
+        var detail = '';
+        try {
+          var problem = await res.json();
+          detail = problem.detail || problem.title || problem.message || '';
+        } catch (e) { /* not a problem+json body */ }
+        throw new Error(detail || 'Request failed (' + res.status + ')');
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    },
+
+    /** Same as api(), but resolves to null instead of throwing. */
+    tryApi: async function (path) {
+      try { return await Shell.api(path); } catch (e) { return null; }
+    },
+
+    esc: function (value) {
+      if (value === null || value === undefined) return '';
+      return String(value).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    },
+
+    num: function (value) {
+      if (value === null || value === undefined) return '—';
+      return Number(value).toLocaleString('en-GB').replace(/,/g, ' ');
+    },
+
+    date: function (value) {
+      if (!value) return '—';
+      var d = new Date(value);
+      return isNaN(d) ? '—' : d.toLocaleDateString('en-GB');
+    },
+
+    dateTime: function (value) {
+      if (!value) return '—';
+      var d = new Date(value);
+      return isNaN(d) ? '—' : d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+    },
+
+    ago: function (value) {
+      if (!value) return '—';
+      var then = new Date(value).getTime();
+      if (isNaN(then)) return '—';
+      var minutes = Math.round((Date.now() - then) / 60000);
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return minutes + ' min ago';
+      if (minutes < 60 * 36) return Math.round(minutes / 60) + ' h ago';
+      return Shell.date(value);
+    },
+
+    initials: function (text) {
+      if (!text) return '··';
+      var clean = String(text).split('@')[0].replace(/[._-]+/g, ' ').trim();
+      var parts = clean.split(/\s+/).filter(Boolean);
+      if (!parts.length) return '··';
+      var out = parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[1][0];
+      return out.toUpperCase();
+    },
+
+    /** Confidence score → badge/bar tone. */
+    scoreTone: function (score) {
+      if (score >= 0.85) return 'ok';
+      if (score >= 0.6) return 'warn';
+      return 'danger';
+    },
+
+    mount: function (page) {
+      if (!Shell.requireAuth()) return false;
+
+      var host = document.getElementById('shell');
+      if (!host) return false;
+
+      var claims = Shell.claims() || {};
+      var who = claims.email || claims.name || claims.sub || '';
+
+      host.className = 'shell';
+      host.innerHTML =
+        '<aside class="rail">' +
+          '<div class="rail-head">' +
+            '<div class="rail-mark">T</div>' +
+            '<div class="rail-name"><b>TransitInfoAPI</b><span>TransitDB · standalone</span></div>' +
+          '</div>' +
+          '<nav class="rail-nav">' + NAV.map(renderGroup(page.active)).join('') + '</nav>' +
+          '<div class="rail-foot">' +
+            '<div style="display:flex;align-items:center;gap:8px">' +
+              '<span class="dot is-live"></span><span id="railFeedNote">GTFS-RT polling</span>' +
+            '</div>' +
+            '<div class="mono">knows nothing of GetThereAPI</div>' +
+          '</div>' +
+        '</aside>' +
+        '<div class="main">' +
+          '<header class="topbar">' +
+            (page.crumb ? '<span class="crumb">' + Shell.esc(page.crumb) + '</span><span class="sep">/</span>' : '') +
+            '<h1>' + Shell.esc(page.title) + '</h1>' +
+            (page.meta ? '<div class="topbar-meta">' + Shell.esc(page.meta) + '</div>' : '') +
+            '<div class="spacer"></div>' +
+            (page.actions || '') +
+            '<div class="avatar" id="railAvatar" title="' + Shell.esc(who) + ' — sign out">' +
+              Shell.esc(Shell.initials(who)) + '</div>' +
+          '</header>' +
+          '<div class="content" id="content"></div>' +
+        '</div>';
+
+      document.getElementById('railAvatar').addEventListener('click', function () {
+        if (window.confirm('Sign out of the admin console?')) Shell.logout();
+      });
+
+      return true;
+    },
+
+    /** @param {{feeds?:number, stations?:number, pending?:number, alerts?:number}} counts */
+    applyCounts: function (counts) {
+      Object.keys(counts || {}).forEach(function (key) {
+        document.querySelectorAll('[data-count="' + key + '"]').forEach(function (el) {
+          var value = counts[key];
+          if (el.dataset.countStyle && !value) { el.classList.add('hidden'); return; }
+          el.classList.remove('hidden');
+          el.textContent = el.dataset.countStyle ? value : Shell.num(value);
+        });
+      });
+    },
+
+    fail: function (message) {
+      var el = document.getElementById('content');
+      if (el) el.innerHTML = '<div class="alert">' + Shell.esc(message) + '</div>';
+    }
+  };
+
+  function renderGroup(active) {
+    return function (group) {
+      return '<div class="rail-group">' +
+        '<div class="rail-label">' + group.label + '</div>' +
+        group.items.map(function (item) {
+          var right = '';
+          if (item.count) right = '<span class="nav-count" data-count="' + item.count + '">—</span>';
+          else if (item.badge) right = '<span class="badge is-warn hidden" data-count="' + item.badge + '" data-count-style="badge"></span>';
+          else if (item.pill) right = '<span class="badge is-accent hidden" data-count="' + item.pill + '" data-count-style="badge"></span>';
+          else if (item.live) right = '<span class="dot is-live"></span>';
+
+          return '<a class="nav-item' + (item.key === active ? ' is-active' : '') + '" href="' + item.href + '">' +
+            '<span><span class="nav-dot"></span>' + item.text + '</span>' + right +
+          '</a>';
+        }).join('') +
+      '</div>';
+    };
+  }
+
+  window.Shell = Shell;
+})();

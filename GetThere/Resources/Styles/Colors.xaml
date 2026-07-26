@@ -50,4 +50,65 @@
     <SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource DarkBackground}" />
     <SolidColorBrush x:Key="DarkSurfaceBrush" Color="{StaticResource DarkSurface}" />
     <SolidColorBrush x:Key="DarkSurfaceAltBrush" Color="{StaticResource DarkSurfaceAlt}" />
+
+    <!--
+        Design-system tokens shared with both admin consoles (wwwroot/admin/style.css).
+        Imported from the Claude Design project "GetThere UI"; the names mirror the CSS
+        custom properties so a colour means the same thing on every surface.
+    -->
+
+    <!--  text ramp  -->
+    <Color x:Key="TextPrimary">#E5E7EB</Color>
+    <Color x:Key="TextSecondary">#CBD5E1</Color>
+    <Color x:Key="TextMuted">#94A3B8</Color>
+    <Color x:Key="TextDim">#64748B</Color>
+    <Color x:Key="TextFaint">#475569</Color>
+
+    <!--  teal accent: primary action + selected state  -->
+    <Color x:Key="TealAccent">#2DD4BF</Color>
+    <Color x:Key="TealText">#5EEAD4</Color>
+    <Color x:Key="TealSurface">#134E4A</Color>
+    <Color x:Key="TealContrast">#04231F</Color>
+
+    <!--  violet accent: operator/brand chips  -->
+    <Color x:Key="VioletText">#C4B5FD</Color>
+    <Color x:Key="VioletSurface">#1C1740</Color>
+    <Color x:Key="VioletBorder">#2E2464</Color>
+
+    <!--  status  -->
+    <Color x:Key="StatusOk">#10B981</Color>
+    <Color x:Key="StatusOkStrong">#059669</Color>
+    <Color x:Key="StatusOkSurface">#064E3B</Color>
+    <Color x:Key="StatusWarn">#F59E0B</Color>
+    <Color x:Key="StatusWarnText">#FBBF24</Color>
+    <Color x:Key="StatusWarnSurface">#3B2A08</Color>
+    <Color x:Key="StatusDanger">#EF4444</Color>
+    <Color x:Key="StatusDangerText">#F87171</Color>
+    <Color x:Key="StatusDangerSurface">#3B1214</Color>
+    <Color x:Key="StatusNeutralSurface">#374151</Color>
+
+    <!--  light-mode partners for the status surfaces above  -->
+    <Color x:Key="StatusOkSurfaceLight">#E8F5E9</Color>
+    <Color x:Key="StatusWarnSurfaceLight">#FEF3C7</Color>
+    <Color x:Key="StatusDangerSurfaceLight">#FEE2E2</Color>
+    <Color x:Key="StatusNeutralSurfaceLight">#E5E7EB</Color>
+    <Color x:Key="TealSurfaceLight">#E0F2F1</Color>
+
+    <!--  card gradient used by the wallet card and ticket header  -->
+    <Color x:Key="CardGradientStart">#5F8FF5</Color>
+    <Color x:Key="CardGradientMid">#5565EA</Color>
+    <Color x:Key="CardGradientEnd">#5A24D9</Color>
+
+    <SolidColorBrush x:Key="TealAccentBrush" Color="{StaticResource TealAccent}" />
+    <SolidColorBrush x:Key="TealSurfaceBrush" Color="{StaticResource TealSurface}" />
+    <SolidColorBrush x:Key="StatusOkBrush" Color="{StaticResource StatusOk}" />
+    <SolidColorBrush x:Key="StatusWarnBrush" Color="{StaticResource StatusWarn}" />
+    <SolidColorBrush x:Key="StatusDangerBrush" Color="{StaticResource StatusDanger}" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}" />
+
+    <LinearGradientBrush x:Key="CardGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="{StaticResource CardGradientStart}" />
+        <GradientStop Offset="0.55" Color="{StaticResource CardGradientMid}" />
+        <GradientStop Offset="1" Color="{StaticResource CardGradientEnd}" />
+    </LinearGradientBrush>
 </ResourceDictionary>

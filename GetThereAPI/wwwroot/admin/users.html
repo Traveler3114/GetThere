@@ -3,121 +3,98 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Users - Admin</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<title>Users · GetThereAPI admin</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> > <a href="/admin/" class="text-decoration-none">Admin</a></nav>
+<div id="shell"></div>
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0">Users</h1>
-    <div>
-      <button class="btn btn-outline-primary btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-      <button class="btn btn-outline-danger btn-sm ms-2" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</button>
-    </div>
-  </div>
-
-  <div id="loading" class="text-center py-4 text-muted d-none"><i class="bi bi-hourglass-split"></i> Loading...</div>
-  <div id="error" class="alert alert-danger d-none"></div>
-  <div id="content" class="d-none"></div>
-  <div id="pagination" class="d-none d-flex justify-content-between align-items-center mt-2"></div>
-</div>
-
+<script src="admin.js"></script>
 <script>
-const BASE = '';
-let token = sessionStorage.getItem('auth_token') || '';
+'use strict';
 
-async function checkAuth() {
-  if (!token) {
-    window.location.href = '/admin/login.html';
-    return false;
-  }
-  return true;
+var PAGE_SIZE = 20;
+var COLS = 'minmax(0,1fr) minmax(0,220px) 120px 150px 132px';
+var state = { page: 1, query: '' };
+
+if (Admin.mount({
+  active: 'users',
+  title: 'Users',
+  meta: 'identity · GetThereDB',
+  actions: '<button type="button" class="btn" id="refresh">Refresh</button>'
+})) {
+  document.getElementById('refresh').addEventListener('click', function () { load(); });
+  document.getElementById('content').innerHTML =
+    '<div class="card is-grow">' +
+      '<div class="card-head">' +
+        '<div class="card-title">Registered users</div>' +
+        '<div class="spacer"></div>' +
+        '<div class="searchbox"><input id="filter" type="search" placeholder="Filter this page by email or name"></div>' +
+      '</div>' +
+      '<div id="list"><div class="loading">Loading users</div></div>' +
+    '</div>';
+
+  document.getElementById('filter').addEventListener('input', function (e) {
+    state.query = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  load();
 }
 
-async function loadData() {
-  if (!(await checkAuth())) return;
-  document.getElementById('loading').classList.remove('d-none');
-  document.getElementById('error').classList.add('d-none');
-  document.getElementById('content').classList.add('d-none');
-  document.getElementById('pagination').classList.add('d-none');
+var page = null;
+
+async function load() {
+  var host = document.getElementById('list');
+  host.innerHTML = '<div class="loading">Loading users</div>';
   try {
-    await loadUsers();
-    document.getElementById('loading').classList.add('d-none');
-    document.getElementById('content').classList.remove('d-none');
-  } catch(e) {
-    document.getElementById('loading').classList.add('d-none');
-    showError('Failed to load data: ' + e.message);
+    page = await Admin.api('/admin/users?page=' + state.page + '&pageSize=' + PAGE_SIZE);
+    render();
+  } catch (e) {
+    host.innerHTML = '<div class="alert" style="margin:18px">' + Admin.esc(e.message) + '</div>';
   }
 }
 
-function logout() {
-  sessionStorage.removeItem('auth_token');
-  sessionStorage.removeItem('refresh_token');
-  window.location.href = '/admin/login.html';
-}
+function render() {
+  if (!page) return;
+  var host = document.getElementById('list');
+  var rows = (page.data || []).filter(function (u) {
+    if (!state.query) return true;
+    return (u.email || '').toLowerCase().indexOf(state.query) >= 0 ||
+      (u.fullName || '').toLowerCase().indexOf(state.query) >= 0;
+  });
 
-function getHeaders() {
-  const h = {'Content-Type': 'application/json'};
-  if (token) h['Authorization'] = 'Bearer ' + token;
-  return h;
-}
-
-async function loadUsers() {
-  const r = await fetch(BASE + '/admin/users?page=' + currentPage + '&pageSize=20', { headers: getHeaders() });
-  if (!r.ok) throw new Error('Request failed (' + r.status + ')');
-  const result = await r.json();
-  const users = result.data || [];
-  if (!users.length) {
-    document.getElementById('content').innerHTML = '<div class="alert alert-info">No users found.</div>';
-    document.getElementById('pagination').classList.add('d-none');
+  if (!rows.length) {
+    host.innerHTML = '<div class="empty">' +
+      (state.query ? 'No user on this page matches “' + Admin.esc(state.query) + '”.' : 'No users yet.') +
+      '</div>';
     return;
   }
-  const rows = users.map(u => `<tr>
-    <td class="text-muted small">${esc(u.id)}</td>
-    <td>${esc(u.email)}</td>
-    <td>${esc(u.fullName) || '<span class="text-muted">-</span>'}</td>
-    <td class="small">${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}</td>
-    <td class="small">${u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '<span class="text-muted">never</span>'}</td>
-  </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>ID</th><th>Email</th><th>Name</th><th>Created</th><th>Last Login</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  renderPagination(result);
+
+  host.innerHTML =
+    '<div class="table-scroll"><div class="table" style="--cols:' + COLS + '">' +
+      '<div class="thead"><div>Email</div><div>Name</div><div>Created</div><div>Last login</div><div>User id</div></div>' +
+      rows.map(function (u) {
+        return '<div class="trow">' +
+          '<div>' + Admin.esc(u.email) + '</div>' +
+          '<div>' + (u.fullName ? Admin.esc(u.fullName) : '<span class="dim">—</span>') + '</div>' +
+          '<div class="sub">' + Admin.date(u.createdAt) + '</div>' +
+          '<div class="sub">' + (u.lastLogin ? Admin.dateTime(u.lastLogin) : '<span class="dim">never</span>') + '</div>' +
+          '<div class="sub" title="' + Admin.esc(u.id) + '">' + Admin.esc(u.id) + '</div>' +
+        '</div>';
+      }).join('') +
+    '</div></div>' +
+    '<div class="card-foot">' +
+      '<span class="mono">' + Admin.num(page.total) + ' users · page ' + page.page + ' of ' + page.totalPages + '</span>' +
+      '<span class="pager">' +
+        '<button type="button" class="btn" id="prev"' + (page.hasPreviousPage ? '' : ' disabled') + '>Prev</button>' +
+        '<button type="button" class="btn is-accent" id="next"' + (page.hasNextPage ? '' : ' disabled') + '>Next</button>' +
+      '</span>' +
+    '</div>';
+
+  document.getElementById('prev').addEventListener('click', function () { state.page = page.page - 1; load(); });
+  document.getElementById('next').addEventListener('click', function () { state.page = page.page + 1; load(); });
 }
-
-function renderPagination(r) {
-  const el = document.getElementById('pagination');
-  el.classList.remove('d-none');
-  const prevDisabled = !r.hasPreviousPage || currentPage <= 1;
-  const nextDisabled = !r.hasNextPage;
-  el.innerHTML = `<small class="text-muted">${r.total} user(s) &middot; Page ${r.page} of ${r.totalPages}</small>
-    <div class="btn-group btn-group-sm">
-      <button class="btn btn-outline-secondary" onclick="goPage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>
-      <button class="btn btn-outline-secondary" onclick="goPage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>
-    </div>`;
-}
-
-function goPage(p) {
-  currentPage = p;
-  loadData();
-}
-
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
-function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-
-let currentPage = 1;
-
-document.addEventListener('DOMContentLoaded', () => {
-  token = sessionStorage.getItem('auth_token') || '';
-  if (!token) {
-    window.location.href = '/admin/login.html';
-  } else {
-    loadData();
-  }
-});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

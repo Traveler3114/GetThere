@@ -3,114 +3,110 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audit Log - Admin</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<title>Audit log · GetThereAPI admin</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> > <a href="/admin/" class="text-decoration-none">Admin</a></nav>
+<div id="shell"></div>
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0">Audit Log</h1>
-    <div>
-      <button class="btn btn-outline-primary btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-      <button class="btn btn-outline-danger btn-sm ms-2" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</button>
-    </div>
-  </div>
-
-  <div id="loading" class="text-center py-4 text-muted d-none"><i class="bi bi-hourglass-split"></i> Loading...</div>
-  <div id="error" class="alert alert-danger d-none"></div>
-  <div id="content" class="d-none"></div>
-  <div id="pagination" class="d-none d-flex justify-content-between align-items-center mt-2"></div>
-</div>
-
+<script src="admin.js"></script>
 <script>
-const BASE = '';
-let token = sessionStorage.getItem('auth_token') || '';
+'use strict';
 
-async function checkAuth() {
-  if (!token) {
-    window.location.href = '/admin/login.html';
-    return false;
-  }
-  return true;
+var PAGE_SIZE = 50;
+var COLS = '150px minmax(0,200px) 160px minmax(0,1fr) 96px';
+var state = { page: 1, expanded: {} };
+var page = null;
+
+if (Admin.mount({
+  active: 'audit',
+  title: 'Audit log',
+  meta: 'append-only · AuditLogs',
+  actions: '<button type="button" class="btn" id="refresh">Refresh</button>'
+})) {
+  document.getElementById('refresh').addEventListener('click', function () { load(); });
+  document.getElementById('content').innerHTML =
+    '<div class="card is-grow"><div id="list"><div class="loading">Loading audit entries</div></div></div>';
+  load();
 }
 
-async function loadData() {
-  if (!(await checkAuth())) return;
-  document.getElementById('loading').classList.remove('d-none');
-  document.getElementById('error').classList.add('d-none');
-  document.getElementById('content').classList.add('d-none');
-  document.getElementById('pagination').classList.add('d-none');
+async function load() {
+  var host = document.getElementById('list');
+  host.innerHTML = '<div class="loading">Loading audit entries</div>';
   try {
-    await loadAudit();
-    document.getElementById('loading').classList.add('d-none');
-    document.getElementById('content').classList.remove('d-none');
-  } catch(e) {
-    document.getElementById('loading').classList.add('d-none');
-    showError('Failed to load data: ' + e.message);
+    page = await Admin.api('/admin/audit?page=' + state.page + '&pageSize=' + PAGE_SIZE);
+    render();
+  } catch (e) {
+    host.innerHTML = '<div class="alert" style="margin:18px">' + Admin.esc(e.message) + '</div>';
   }
 }
 
-function logout() {
-  sessionStorage.removeItem('auth_token');
-  sessionStorage.removeItem('refresh_token');
-  window.location.href = '/admin/login.html';
-}
+function render() {
+  var host = document.getElementById('list');
+  var rows = page.data || [];
 
-function getHeaders() {
-  const h = {'Content-Type': 'application/json'};
-  if (token) h['Authorization'] = 'Bearer ' + token;
-  return h;
-}
-
-async function loadAudit() {
-  const r = await fetch(BASE + '/admin/audit?page=' + currentPage + '&pageSize=50', { headers: getHeaders() });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Request failed');
-  const result = j.data || {};
-  const entries = result.items || [];
-  if (!entries.length) {
-    document.getElementById('content').innerHTML = '<div class="alert alert-info">No audit entries found.</div>';
-    document.getElementById('pagination').classList.add('d-none');
+  if (!rows.length) {
+    host.innerHTML = '<div class="empty">No audit entries recorded.</div>';
     return;
   }
-  const rows = entries.map(e => `<tr>
-    <td class="small text-muted">${e.id}</td>
-    <td class="small">${new Date(e.createdAt).toLocaleString()}</td>
-    <td>${esc(e.userEmail) || '<span class="text-muted">system</span>'}</td>
-    <td><span class="badge bg-secondary">${esc(e.action)}</span></td>
-    <td class="small">${esc(e.entityType)}</td>
-    <td class="small text-muted">${esc(e.entityId)}</td>
-    <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code class="small">${esc(e.oldValues ? e.oldValues.substring(0,30) + '...' : '-')}</code></td>
-    <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code class="small">${esc(e.newValues ? e.newValues.substring(0,30) + '...' : '-')}</code></td>
-  </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover small"><thead class="table-dark"><tr><th>ID</th><th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>Entity ID</th><th>Old</th><th>New</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  renderPagination(result);
+
+  host.innerHTML =
+    '<div class="table-scroll"><div class="table" style="--cols:' + COLS + '">' +
+      '<div class="thead"><div>When</div><div>Actor</div><div>Action</div><div>Entity</div><div>Changes</div></div>' +
+      rows.map(entryRow).join('') +
+    '</div></div>' +
+    '<div class="card-foot">' +
+      '<span class="mono">' + Admin.num(page.total) + ' entries · page ' + page.page + ' of ' + page.totalPages + '</span>' +
+      '<span class="pager">' +
+        '<button type="button" class="btn" id="prev"' + (page.hasPreviousPage ? '' : ' disabled') + '>Prev</button>' +
+        '<button type="button" class="btn is-accent" id="next"' + (page.hasNextPage ? '' : ' disabled') + '>Next</button>' +
+      '</span>' +
+    '</div>';
+
+  document.getElementById('prev').addEventListener('click', function () { state.page = page.page - 1; load(); });
+  document.getElementById('next').addEventListener('click', function () { state.page = page.page + 1; load(); });
+
+  document.querySelectorAll('[data-entry]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.dataset.entry;
+      state.expanded[id] = !state.expanded[id];
+      render();
+    });
+  });
 }
 
-function renderPagination(r) {
-  const el = document.getElementById('pagination');
-  el.classList.remove('d-none');
-  const prevDisabled = !r.hasPreviousPage || currentPage <= 1;
-  const nextDisabled = !r.hasNextPage;
-  el.innerHTML = `<small class="text-muted">${r.total} entry(ies) &middot; Page ${r.page} of ${r.totalPages}</small>
-    <div class="btn-group btn-group-sm">
-      <button class="btn btn-outline-secondary" onclick="goPage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>
-      <button class="btn btn-outline-secondary" onclick="goPage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>
-    </div>`;
+function entryRow(e) {
+  var hasDiff = e.oldValues || e.newValues;
+  var open = state.expanded[e.id];
+
+  return '<div class="trow">' +
+      '<div class="sub">' + Admin.dateTime(e.createdAt) + '</div>' +
+      '<div>' + (e.userEmail ? Admin.esc(e.userEmail) : '<span class="dim">system</span>') + '</div>' +
+      '<div><span class="badge is-accent">' + Admin.esc(e.action) + '</span></div>' +
+      '<div class="sub">' + Admin.esc(e.entityType) +
+        (e.entityId ? ' <span class="faint">#' + Admin.esc(e.entityId) + '</span>' : '') + '</div>' +
+      '<div>' + (hasDiff
+        ? '<button type="button" class="btn is-sm" data-entry="' + e.id + '">' + (open ? 'Hide' : 'View') + '</button>'
+        : '<span class="dim">—</span>') + '</div>' +
+    '</div>' +
+    (open && hasDiff
+      ? '<div class="trow" style="--cols:1fr;background:var(--surface)">' +
+          '<div><div class="grid-2">' +
+            '<pre class="code"><span class="del">− old</span>\n' + Admin.esc(pretty(e.oldValues)) + '</pre>' +
+            '<pre class="code"><span class="add">+ new</span>\n' + Admin.esc(pretty(e.newValues)) + '</pre>' +
+          '</div></div>' +
+        '</div>'
+      : '');
 }
 
-function goPage(p) {
-  currentPage = p;
-  loadData();
+function pretty(json) {
+  if (!json) return '—';
+  try {
+    return JSON.stringify(JSON.parse(json), null, 2);
+  } catch (e) {
+    return json;
+  }
 }
-
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
-function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

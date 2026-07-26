@@ -14,6 +14,8 @@
 
     <ContentPage.Resources>
         <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <helpers:FilterChipConverter x:Key="Chip" />
+        <helpers:TicketStatusColorConverter x:Key="StatusColor" />
     </ContentPage.Resources>
 
     <Grid>
@@ -29,34 +31,42 @@
 
             <!-- Filter Chips -->
             <HorizontalStackLayout Grid.Row="1" Spacing="8" Margin="0,16,0,0">
-                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
-                        BackgroundColor="Transparent">
+                <Border StrokeThickness="1"
+                        Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':stroke'}"
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':bg'}">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="All" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Label Text="All" FontSize="13" Padding="14,6"
+                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':text'}" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="" />
                     </Border.GestureRecognizers>
                 </Border>
-                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
-                        BackgroundColor="Transparent">
+                <Border StrokeThickness="1"
+                        Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:stroke'}"
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:bg'}">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="Active" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Label Text="Active" FontSize="13" Padding="14,6"
+                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:text'}" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Active" />
                     </Border.GestureRecognizers>
                 </Border>
-                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
-                        BackgroundColor="Transparent">
+                <Border StrokeThickness="1"
+                        Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:stroke'}"
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:bg'}">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="Used" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Label Text="Used" FontSize="13" Padding="14,6"
+                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:text'}" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Used" />
                     </Border.GestureRecognizers>
                 </Border>
-                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
-                        BackgroundColor="Transparent">
+                <Border StrokeThickness="1"
+                        Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:stroke'}"
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:bg'}">
                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="Expired" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Label Text="Expired" FontSize="13" Padding="14,6"
+                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:text'}" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Expired" />
                     </Border.GestureRecognizers>
@@ -83,9 +93,10 @@
                                 <Label Grid.Row="0" Grid.Column="0" Text="{Binding TicketName}" FontSize="16" FontAttributes="Bold"
                                        TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                                 <Border Grid.Row="0" Grid.Column="1" StrokeThickness="0" Padding="8,2"
-                                        BackgroundColor="{AppThemeBinding Light=#E8F5E9, Dark=#064E3B}">
+                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}">
                                     <Border.StrokeShape><shapes:RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                                    <Label Text="{Binding Status}" FontSize="11" TextColor="#10B981" />
+                                    <Label Text="{Binding Status}" FontSize="11"
+                                           TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
                                 </Border>
                                 <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding RouteDescription}"
                                        FontSize="13" TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"

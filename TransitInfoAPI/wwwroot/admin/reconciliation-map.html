@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -87,7 +87,7 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
-<body>
+<body class="bs">
 <div id="map"></div>
 <div id="sidebar">
   <button class="close-btn" onclick="closeSidebar()">&times;</button>
@@ -195,7 +195,7 @@ function renderSidebar(data) {
           <span style="font-size:0.8rem;color:#888">${data.suggestedStationLat.toFixed(5)}, ${data.suggestedStationLon.toFixed(5)}</span>
           ${data.suggestedStationId ? `<br><span style="font-size:0.8rem;color:#888">ID: <code>${data.suggestedStationId}</code></span>` : ''}
         </div>
-      </div>` : '<p class="small text-muted mt-2">No matched station — this was created as a new station.</p>'}
+      </div>` : '<p class="small text-muted mt-2">No matched station â€” this was created as a new station.</p>'}
     </div>
 
     <div class="sidebar-section">
@@ -222,9 +222,9 @@ function renderSidebar(data) {
     const namePct = (data.nameSimilarityScore * 100).toFixed(0);
     html += `<div class="part"><strong>Name:</strong> ${namePct}% match`;
     if (data.autoMergeNameThreshold && data.nameSimilarityScore >= data.autoMergeNameThreshold * 0.99) {
-      html += ` (≥${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge threshold)`;
+      html += ` (â‰¥${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge threshold)`;
     } else if (data.manualReviewNameThreshold && data.nameSimilarityScore >= data.manualReviewNameThreshold * 0.99) {
-      html += ` (≥${(data.manualReviewNameThreshold * 100).toFixed(0)}% manual-review threshold, <${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge)`;
+      html += ` (â‰¥${(data.manualReviewNameThreshold * 100).toFixed(0)}% manual-review threshold, <${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge)`;
     } else {
       html += ` (<${(data.manualReviewNameThreshold * 100).toFixed(0)}% review threshold)`;
     }
@@ -234,9 +234,9 @@ function renderSidebar(data) {
   if (data.distanceMeters != null) {
     html += `<div class="part"><strong>Distance:</strong> ${fmtDist(data.distanceMeters)}`;
     if (data.autoMergeDistanceMeters && data.distanceMeters <= data.autoMergeDistanceMeters) {
-      html += ` (≤${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge threshold)`;
+      html += ` (â‰¤${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge threshold)`;
     } else if (data.manualReviewDistanceMeters && data.distanceMeters <= data.manualReviewDistanceMeters * 0.99) {
-      html += ` (≤${data.manualReviewDistanceMeters.toFixed(0)}m manual-review threshold, >${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge)`;
+      html += ` (â‰¤${data.manualReviewDistanceMeters.toFixed(0)}m manual-review threshold, >${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge)`;
     } else {
       html += ` (>${data.manualReviewDistanceMeters.toFixed(0)}m review threshold)`;
     }
@@ -259,7 +259,7 @@ function renderSidebar(data) {
       <div class="d-flex flex-wrap gap-1">`;
     data.rawStopDetail.routes.forEach(r => {
       const color = getRouteColor(r.routeType);
-      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
     });
     html += `</div></div>`;
   }
@@ -280,7 +280,7 @@ function renderSidebar(data) {
       <div class="d-flex flex-wrap gap-1">`;
     data.suggestedStationDetail.routes.forEach(r => {
       const color = getRouteColor(r.routeType);
-      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
     });
     html += `</div></div>`;
   }
@@ -424,7 +424,7 @@ function showStationRoutes(stationId, stationName, lat, lon) {
           <div style="display:flex;flex-wrap:wrap;gap:4px">`;
       routes.forEach(r => {
         const color = getRouteColor(r.routeType || 'default');
-        html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+        html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
       });
       html += `</div></div>`;
       document.getElementById('sidebar-content').innerHTML = html;
@@ -705,7 +705,7 @@ map.on('load', () => {
         bounds.extend([data.suggestedStationLon, data.suggestedStationLat]);
         map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
       } else {
-        // Only raw stop — center on it
+        // Only raw stop â€” center on it
         map.flyTo({ center: [data.rawStopLon, data.rawStopLat], zoom: 14 });
       }
 
