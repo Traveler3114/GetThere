@@ -6,10 +6,9 @@
     xmlns:vm="clr-namespace:GetThere.ViewModels"
     xmlns:helpers="clr-namespace:GetThere.Helpers"
     xmlns:components="clr-namespace:GetThere.Components"
-    xmlns:localization="clr-namespace:GetThere.Localization"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     x:DataType="vm:TicketsViewModel"
-    Title="My Tickets"
+    Title="Tickets"
     BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}"
     Shell.NavBarIsVisible="False">
 
@@ -20,139 +19,109 @@
     <Grid>
         <components:AnimatedBackground />
 
-        <Grid RowDefinitions="Auto, *, Auto" Padding="20,50,20,0">
-            <!-- HEADER -->
-            <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
-                <VerticalStackLayout>
-                    <Label Text="My Tickets" FontSize="26" FontAttributes="Bold"
-                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                    <Label Text="{Binding FilterLabel, StringFormat='Showing: {0}'}"
-                           FontSize="13"
-                           TextColor="{AppThemeBinding Light=#64748B, Dark=#9CA3AF}" />
-                </VerticalStackLayout>
-                <Border Grid.Column="1" WidthRequest="44" HeightRequest="44"
-                        BackgroundColor="#512BD4" StrokeThickness="0"
-                        VerticalOptions="Center">
-                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="22" /></Border.StrokeShape>
-                    <Label Text="+" FontSize="28" TextColor="White"
-                           HorizontalOptions="Center" VerticalOptions="Center" />
+        <Grid RowDefinitions="Auto,Auto,*" Padding="20,32,20,96">
+            <VerticalStackLayout Grid.Row="0" Spacing="4">
+                <Label Text="My Tickets" FontSize="32" FontAttributes="Bold"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                <Label Text="Your imported transit tickets" FontSize="15"
+                       TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}" />
+            </VerticalStackLayout>
+
+            <!-- Filter Chips -->
+            <HorizontalStackLayout Grid.Row="1" Spacing="8" Margin="0,16,0,0">
+                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
+                        BackgroundColor="Transparent">
+                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                    <Label Text="All" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding ImportTicketCommand}" />
+                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="" />
                     </Border.GestureRecognizers>
                 </Border>
-            </Grid>
+                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
+                        BackgroundColor="Transparent">
+                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                    <Label Text="Active" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Active" />
+                    </Border.GestureRecognizers>
+                </Border>
+                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
+                        BackgroundColor="Transparent">
+                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                    <Label Text="Used" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Used" />
+                    </Border.GestureRecognizers>
+                </Border>
+                <Border StrokeThickness="1" Stroke="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}"
+                        BackgroundColor="Transparent">
+                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                    <Label Text="Expired" TextColor="{AppThemeBinding Light=#374151, Dark=#D1D5DB}" FontSize="13" Padding="14,6" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Expired" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </HorizontalStackLayout>
 
-            <!-- FILTER CHIPS -->
-            <ScrollView Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10"
-                        IsVisible="{Binding IsGuest, Converter={StaticResource InverseBoolConverter}}">
-                <HorizontalStackLayout Spacing="10">
-                    <Border Padding="12,6" StrokeThickness="1" Stroke="#512BD4"
-                            BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}">
-                        <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                        <Label Text="All" FontSize="13" TextColor="#512BD4" VerticalOptions="Center">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding SetFilterCommand}" CommandParameter="" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Border>
-                    <Border Padding="12,6" StrokeThickness="0"
-                            BackgroundColor="#05966920">
-                        <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                        <Label Text="Active" FontSize="13" TextColor="#059669" VerticalOptions="Center">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding SetFilterCommand}" CommandParameter="Active" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Border>
-                    <Border Padding="12,6" StrokeThickness="0"
-                            BackgroundColor="#6B728020">
-                        <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                        <Label Text="Used" FontSize="13" TextColor="#6B7280" VerticalOptions="Center">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding SetFilterCommand}" CommandParameter="Used" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Border>
-                    <Border Padding="12,6" StrokeThickness="0"
-                            BackgroundColor="#DC262620">
-                        <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                        <Label Text="Expired" FontSize="13" TextColor="#DC2626" VerticalOptions="Center">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding SetFilterCommand}" CommandParameter="Expired" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Border>
-                </HorizontalStackLayout>
-            </ScrollView>
-
-            <!-- TICKET LIST -->
-            <CollectionView Grid.Row="2" ItemsSource="{Binding ImportedTickets}"
-                            IsVisible="{Binding HasImportedTickets}"
-                            SelectionMode="None">
+            <CollectionView Grid.Row="2" ItemsSource="{Binding ImportedTickets}" Margin="0,12,0,0">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="8">
+                        <Label Text="No tickets yet" FontSize="20" FontAttributes="Bold"
+                               TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" HorizontalOptions="Center" />
+                        <Label Text="Import your first ticket using the + button below" FontSize="14"
+                               TextColor="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}" HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="x:Object">
-                        <Border Margin="0,0,0,10" Padding="16"
-                                BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
+                    <DataTemplate>
+                        <Border Margin="0,6" Padding="16" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}"
                                 StrokeThickness="0">
                             <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                            <Border.Shadow><Shadow Brush="Black" Opacity="0.06" Radius="8" Offset="0,4" /></Border.Shadow>
-                            <Grid ColumnDefinitions="*, Auto" RowDefinitions="Auto, Auto, Auto" ColumnSpacing="12" RowSpacing="4">
-                                <Label Grid.Row="0" Grid.Column="0"
-                                       Text="{Binding TicketName}" FontSize="16" FontAttributes="Bold"
-                                       LineBreakMode="TailTruncation"
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="4">
+                                <Label Grid.Row="0" Grid.Column="0" Text="{Binding TicketName}" FontSize="16" FontAttributes="Bold"
                                        TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                <Border Grid.Row="0" Grid.Column="1" Padding="8,2"
-                                        BackgroundColor="#512BD420" StrokeThickness="0"
-                                        VerticalOptions="Start">
-                                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="10" /></Border.StrokeShape>
-                                    <Label Text="{Binding Source}" FontSize="11" TextColor="#512BD4"
-                                           FontAttributes="Bold" />
+                                <Border Grid.Row="0" Grid.Column="1" StrokeThickness="0" Padding="8,2"
+                                        BackgroundColor="{AppThemeBinding Light=#E8F5E9, Dark=#064E3B}">
+                                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                                    <Label Text="{Binding Status}" FontSize="11" TextColor="#10B981" />
                                 </Border>
-                                <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                                       Text="{Binding RouteDescription}" FontSize="13"
-                                       TextColor="{AppThemeBinding Light=#64748B, Dark=#9CA3AF}"
+                                <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding RouteDescription}"
+                                       FontSize="13" TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
                                        LineBreakMode="TailTruncation" />
-                                <HorizontalStackLayout Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="16">
-                                    <Label Text="{Binding ValidFrom, StringFormat='{0:dd MMM yyyy}'}" FontSize="12"
-                                           TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-                                    <Label Text="{Binding Price, StringFormat='€{0:N2}'}" FontSize="12" FontAttributes="Bold"
-                                           TextColor="{AppThemeBinding Light=#059669, Dark=#34D399}" />
+                                <HorizontalStackLayout Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="12">
+                                    <Label Text="{Binding ValidFrom, StringFormat='{0:dd.MM.yyyy}'}" FontSize="12"
+                                           TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" />
+                                    <Label Text="→" FontSize="12" TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" />
+                                    <Label Text="{Binding ValidTo, StringFormat='{0:dd.MM.yyyy}'}" FontSize="12"
+                                           TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" />
+                                    <Label Text="{Binding Price, StringFormat='{0:N2} EUR'}" FontSize="13" FontAttributes="Bold"
+                                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
                                 </HorizontalStackLayout>
                             </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=CancelTicketCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
-                <CollectionView.EmptyView>
-                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12" Padding="40">
-                        <Label Text="No tickets yet" FontSize="20" FontAttributes="Bold"
-                               HorizontalTextAlignment="Center"
-                               TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        <Label Text="Import your first ticket to get started."
-                               FontSize="14" HorizontalTextAlignment="Center"
-                               TextColor="{AppThemeBinding Light=#64748B, Dark=#9CA3AF}" />
-                    </VerticalStackLayout>
-                </CollectionView.EmptyView>
             </CollectionView>
-
-            <!-- LOADING -->
-            <ActivityIndicator Grid.Row="2" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
-                               Color="#512BD4" VerticalOptions="Center" />
         </Grid>
 
-        <!-- GUEST OVERLAY -->
-        <Grid IsVisible="{Binding IsGuest}"
-              BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}"
-              InputTransparent="False" ZIndex="100">
-            <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="20" Padding="40">
-                <Label Text="Sign in to view your tickets" FontSize="22" FontAttributes="Bold"
-                       HorizontalTextAlignment="Center"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                <Label Text="Log in or create an account to import and manage your tickets."
-                       FontSize="14" HorizontalTextAlignment="Center"
-                       TextColor="{AppThemeBinding Light=#666, Dark=#AAA}" />
-                <Button Text="Log In / Register" BackgroundColor="#512BD4" TextColor="White"
-                        CornerRadius="24" HeightRequest="50" FontAttributes="Bold"
-                        Command="{Binding GoToLoginCommand}" />
+        <Button Text="+" Command="{Binding ImportTicketCommand}"
+                BackgroundColor="#512BD4" TextColor="White"
+                FontSize="28" FontAttributes="Bold"
+                CornerRadius="32" WidthRequest="64" HeightRequest="64"
+                HorizontalOptions="End" VerticalOptions="End" Margin="0,0,24,120" />
+
+        <Grid IsVisible="{Binding IsAuthenticated, Converter={StaticResource InverseBoolConverter}}"
+              BackgroundColor="{AppThemeBinding Light=#80FFFFFF, Dark=#80000000}">
+            <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12" Padding="32">
+                <Label Text="Sign in to manage your tickets" FontSize="18" FontAttributes="Bold"
+                       TextColor="{AppThemeBinding Light=Black, Dark=White}" HorizontalOptions="Center" />
+                <Button Text="Sign In" Command="{Binding GoToLoginCommand}"
+                        BackgroundColor="#512BD4" TextColor="White"
+                        CornerRadius="24" HeightRequest="48" WidthRequest="200" />
             </VerticalStackLayout>
         </Grid>
     </Grid>

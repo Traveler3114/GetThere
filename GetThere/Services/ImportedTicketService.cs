@@ -30,14 +30,10 @@ public class ImportedTicketService
                 var data = await response.Content.ReadFromJsonAsync<List<ImportedTicketResponse>>(JsonOptions);
                 return OperationResult<List<ImportedTicketResponse>>.Ok(data ?? []);
             }
-
             var problem = await TryReadProblemAsync(response);
             return OperationResult<List<ImportedTicketResponse>>.Fail(problem ?? "Could not load imported tickets");
         }
-        catch (Exception ex)
-        {
-            return OperationResult<List<ImportedTicketResponse>>.Fail(ex.Message);
-        }
+        catch (Exception ex) { return OperationResult<List<ImportedTicketResponse>>.Fail(ex.Message); }
     }
 
     public async Task<OperationResult<ImportedTicketResponse>> CreateAsync(CreateImportedTicketRequest request)
@@ -50,14 +46,10 @@ public class ImportedTicketService
                 var data = await response.Content.ReadFromJsonAsync<ImportedTicketResponse>(JsonOptions);
                 return OperationResult<ImportedTicketResponse>.Ok(data!);
             }
-
             var problem = await TryReadProblemAsync(response);
             return OperationResult<ImportedTicketResponse>.Fail(problem ?? "Could not create imported ticket");
         }
-        catch (Exception ex)
-        {
-            return OperationResult<ImportedTicketResponse>.Fail(ex.Message);
-        }
+        catch (Exception ex) { return OperationResult<ImportedTicketResponse>.Fail(ex.Message); }
     }
 
     public async Task<OperationResult> CancelAsync(int id)
@@ -69,9 +61,6 @@ public class ImportedTicketService
                 ? OperationResult.Ok()
                 : OperationResult.Fail("Could not cancel ticket");
         }
-        catch (Exception ex)
-        {
-            return OperationResult.Fail(ex.Message);
-        }
+        catch (Exception ex) { return OperationResult.Fail(ex.Message); }
     }
 }

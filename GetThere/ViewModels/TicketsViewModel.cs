@@ -14,17 +14,10 @@ public partial class TicketsViewModel : BaseViewModel
     private readonly AuthService _authService;
     private readonly ImportedTicketService _importedService;
     private readonly IAnalyticsService _analytics;
-
-    [ObservableProperty]
-    private bool _isGuest;
+    private ImportedTicketStatus? _activeFilter;
 
     [ObservableProperty]
     private bool _hasImportedTickets;
-
-    [ObservableProperty]
-    private string _filterLabel = string.Empty;
-
-    private ImportedTicketStatus? _activeFilter;
 
     public ObservableCollection<ImportedTicketResponse> ImportedTickets { get; } = [];
 
@@ -38,40 +31,35 @@ public partial class TicketsViewModel : BaseViewModel
     [RelayCommand]
     private async Task LoadTickets()
     {
-        IsGuest = string.IsNullOrWhiteSpace(await _authService.GetTokenAsync()) || AuthService.IsGuest();
-        if (IsGuest) return;
+        var loggedIn = await _authService.IsLoggedInAsync();
+        IsAuthenticated = loggedIn;
+        if (!loggedIn) return;
 
         IsBusy = true;
-
         try
         {
             var result = await _importedService.ListAsync();
-            ImportedTickets.Clear();
-            if (result.Success && result.Data is not null)
+            if (result.Success)
             {
-                var filtered = _activeFilter.HasValue
-                    ? result.Data.Where(t => t.Status == _activeFilter.Value)
-                    : result.Data;
-
-                foreach (var t in filtered)
+                ImportedTickets.Clear();
+                var tickets = result.Data!;
+                if (_activeFilter.HasValue)
+                    tickets = tickets.Where(t => t.Status == _activeFilter.Value).ToList();
+                foreach (var t in tickets)
                     ImportedTickets.Add(t);
+                HasImportedTickets = ImportedTickets.Count > 0;
+                _analytics.TrackEvent("tickets_loaded", new() { ["count"] = ImportedTickets.Count.ToString() });
             }
-
-            HasImportedTickets = ImportedTickets.Count > 0;
-            UpdateFilterLabel();
-            _analytics.TrackEvent("tickets_loaded", new() { ["count"] = ImportedTickets.Count.ToString() });
         }
-        finally
-        {
-            IsBusy = false;
-        }
+        catch { }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand]
-    private void SetFilter(string? status)
+    private async Task Filter(string? status)
     {
         _activeFilter = status is not null && Enum.TryParse<ImportedTicketStatus>(status, out var parsed) ? parsed : null;
-        _ = LoadTickets();
+        await LoadTickets();
     }
 
     [RelayCommand]
@@ -83,27 +71,16 @@ public partial class TicketsViewModel : BaseViewModel
     [RelayCommand]
     private async Task CancelTicket(ImportedTicketResponse ticket)
     {
-        if (ticket is null) return;
+        var confirm = await Shell.Current.DisplayAlert("Cancel Ticket", "Cancel this ticket?", "Yes", "No");
+        if (!confirm) return;
         var result = await _importedService.CancelAsync(ticket.Id);
-        if (result.Success)
-            await LoadTickets();
+        if (result.Success) await LoadTickets();
     }
 
     [RelayCommand]
-    private async Task GoToLogin()
+    private static async Task GoToLogin()
     {
         App.GoToLogin();
-    }
-
-    private void UpdateFilterLabel()
-    {
-        FilterLabel = _activeFilter switch
-        {
-            ImportedTicketStatus.Active => "Active",
-            ImportedTicketStatus.Used => "Used",
-            ImportedTicketStatus.Expired => "Expired",
-            ImportedTicketStatus.Cancelled => "Cancelled",
-            _ => "All"
-        };
+        await Task.CompletedTask;
     }
 }

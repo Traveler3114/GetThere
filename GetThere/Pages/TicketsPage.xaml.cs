@@ -4,17 +4,17 @@ namespace GetThere.Pages;
 
 public partial class TicketsPage : ContentPage
 {
-    private readonly TicketsViewModel _viewModel;
+    private readonly TicketsViewModel _vm;
 
     public TicketsPage(TicketsViewModel viewModel)
     {
         InitializeComponent();
-        BindingContext = _viewModel = viewModel;
+        BindingContext = _vm = viewModel;
     }
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        _viewModel.LoadTicketsCommand.Execute(null);
+        _vm.LoadTicketsCommand.Execute(null);
     }
 }

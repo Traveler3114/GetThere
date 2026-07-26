@@ -230,7 +230,8 @@ using (var scope = app.Services.CreateScope())
         or PermissionKeys.WalletsView
         or PermissionKeys.ProfileView or PermissionKeys.ProfileManage
         or PermissionKeys.SettingsView
-        or PermissionKeys.MapView);
+        or PermissionKeys.MapView
+        or PermissionKeys.ImportedTicketsView or PermissionKeys.ImportedTicketsCreate);
     foreach (var perm in userPerms.Where(p => !userClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(userRole!, new System.Security.Claims.Claim("permission", perm));
 

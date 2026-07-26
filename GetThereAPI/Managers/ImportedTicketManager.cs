@@ -41,7 +41,6 @@ public class ImportedTicketManager
     {
         var ticket = await _db.ImportedTickets
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
-
         return ticket is null ? null : ToResponse(ticket);
     }
 
@@ -53,7 +52,6 @@ public class ImportedTicketManager
         {
             var duplicate = await _db.ImportedTickets
                 .AnyAsync(t => t.UserId == userId && t.DedupeHash == dedupeHash && t.Status == ImportedTicketStatus.Active, ct);
-
             if (duplicate)
                 throw new AppException("This ticket appears to be a duplicate of an existing active ticket.", 409);
         }
@@ -85,7 +83,6 @@ public class ImportedTicketManager
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Imported ticket {Id} created for user {UserId} via {Source}", entity.Id, userId, request.Source);
-
         return ToResponse(entity);
     }
 
@@ -93,17 +90,14 @@ public class ImportedTicketManager
     {
         var entity = await _db.ImportedTickets
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
-
         if (entity is null)
             throw new AppException("Imported ticket not found.", 404);
-
         if (entity.Status == ImportedTicketStatus.Cancelled)
             throw new AppException("Cannot update a cancelled ticket.", 400);
 
         entity.Status = newStatus;
         entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-
         return ToResponse(entity);
     }
 
@@ -111,21 +105,18 @@ public class ImportedTicketManager
     {
         var entity = await _db.ImportedTickets
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
-
         if (entity is null)
             throw new AppException("Imported ticket not found.", 404);
 
         entity.Status = ImportedTicketStatus.Cancelled;
         entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-
         _logger.LogInformation("Imported ticket {Id} cancelled by user {UserId}", id, userId);
     }
 
     private static string? ComputeDedupeHash(CreateImportedTicketRequest request)
     {
         var sb = new StringBuilder();
-
         if (!string.IsNullOrWhiteSpace(request.RawPayload))
             sb.Append(request.RawPayload.Trim());
         else
@@ -136,11 +127,8 @@ public class ImportedTicketManager
             sb.Append('|');
             sb.Append(request.ValidFrom?.ToString("O"));
         }
-
         var input = sb.ToString();
-        if (string.IsNullOrWhiteSpace(input))
-            return null;
-
+        if (string.IsNullOrWhiteSpace(input)) return null;
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexStringLower(bytes);
     }

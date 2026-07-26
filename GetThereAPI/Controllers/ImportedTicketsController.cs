@@ -26,9 +26,7 @@ public class ImportedTicketsController : ControllerBase
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
-
-        var result = await _manager.ListAsync(userId, status, source, ct);
-        return Ok(result);
+        return Ok(await _manager.ListAsync(userId, status, source, ct));
     }
 
     [HttpGet("{id}")]
@@ -37,10 +35,8 @@ public class ImportedTicketsController : ControllerBase
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
-
         var result = await _manager.GetByIdAsync(id, userId, ct);
         if (result is null) return NotFound();
-
         return Ok(result);
     }
 
@@ -50,7 +46,6 @@ public class ImportedTicketsController : ControllerBase
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
-
         var result = await _manager.CreateAsync(userId, request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -61,9 +56,7 @@ public class ImportedTicketsController : ControllerBase
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
-
-        var result = await _manager.UpdateStatusAsync(id, userId, request.Status, ct);
-        return Ok(result);
+        return Ok(await _manager.UpdateStatusAsync(id, userId, request.Status, ct));
     }
 
     [HttpDelete("{id}")]
@@ -72,7 +65,6 @@ public class ImportedTicketsController : ControllerBase
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
-
         await _manager.CancelAsync(id, userId, ct);
         return NoContent();
     }

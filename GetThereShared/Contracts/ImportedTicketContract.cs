@@ -4,10 +4,25 @@ using GetThereShared.Enums;
 
 namespace GetThereShared.Contracts;
 
-public class UpdateImportedTicketStatusRequest
+public class CreateImportedTicketRequest
 {
+    public string? OperatorGlobalId { get; set; }
+    public string? OperatorNameSnapshot { get; set; }
+
     [Required]
-    public ImportedTicketStatus Status { get; set; }
+    public ImportSource Source { get; set; }
+
+    public string? TicketName { get; set; }
+    public string? RouteDescription { get; set; }
+    [Range(0, double.MaxValue)]
+    public decimal? Price { get; set; }
+    public string? Currency { get; set; }
+    public DateTime? ValidFrom { get; set; }
+    public DateTime? ValidTo { get; set; }
+    public string? RawPayload { get; set; }
+    public TicketFormat? PayloadFormat { get; set; }
+    public string? SourceFileBlobKey { get; set; }
+    public string? SourceFileContentType { get; set; }
 }
 
 public class ImportedTicketResponse
@@ -33,23 +48,8 @@ public class ImportedTicketResponse
     public DateTime UpdatedAt { get; set; }
 }
 
-public class CreateImportedTicketRequest
+public class UpdateImportedTicketStatusRequest
 {
-    public string? OperatorGlobalId { get; set; }
-    public string? OperatorNameSnapshot { get; set; }
-
     [Required]
-    public ImportSource Source { get; set; }
-
-    public string? TicketName { get; set; }
-    public string? RouteDescription { get; set; }
-    [Range(0, double.MaxValue)]
-    public decimal? Price { get; set; }
-    public string? Currency { get; set; }
-    public DateTime? ValidFrom { get; set; }
-    public DateTime? ValidTo { get; set; }
-    public string? RawPayload { get; set; }
-    public TicketFormat? PayloadFormat { get; set; }
-    public string? SourceFileBlobKey { get; set; }
-    public string? SourceFileContentType { get; set; }
+    public ImportedTicketStatus Status { get; set; }
 }
