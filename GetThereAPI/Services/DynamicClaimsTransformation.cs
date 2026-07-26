@@ -1,10 +1,12 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Caching.Memory;
+
 using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GetThereAPI.Services;
 

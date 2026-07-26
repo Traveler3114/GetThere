@@ -1,10 +1,11 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-
+using GetThereAPI.Common;
 using GetThereAPI.Managers;
+
 using GetThereShared.Common;
 using GetThereShared.Contracts;
-using GetThereAPI.Common;
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GetThereAPI.Controllers;
 

@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Common;
 using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;
@@ -16,7 +17,7 @@ public class FeedsController : ControllerBase
 {
     private readonly FeedManager _feedService;
 
-public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
+    public FeedsController(FeedManager feedManager) { _feedService = feedManager; }
 
     [HttpGet]
     [Authorize(Policy = PermissionKeys.FeedsView)]

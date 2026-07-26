@@ -1,11 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-using TransitInfoAPI.Contracts;
-using TransitInfoAPI.Managers;
-using TransitInfoAPI.Enums;
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Enums;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -16,7 +17,7 @@ public class StationsController : ControllerBase
 {
     private readonly StationManager _stationService;
 
-public StationsController(StationManager stationManager) { _stationService = stationManager; }
+    public StationsController(StationManager stationManager) { _stationService = stationManager; }
 
     [HttpGet]
     [AllowAnonymous]

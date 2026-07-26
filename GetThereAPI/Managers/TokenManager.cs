@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+
+using GetThereAPI.Entities;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using GetThereAPI.Entities;
 
 namespace GetThereAPI.Managers;
 

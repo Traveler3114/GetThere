@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
-using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
@@ -194,8 +194,13 @@ public class ScheduleManager
             .Where(t => t.FeedVersion.IsActive)
             .Select(t => new
             {
-                t.Id, t.TripId, t.TripHeadsign, t.TripShortName, t.DirectionId,
-                t.FeedVersionId, t.ServiceId,
+                t.Id,
+                t.TripId,
+                t.TripHeadsign,
+                t.TripShortName,
+                t.DirectionId,
+                t.FeedVersionId,
+                t.ServiceId,
                 RouteName = t.CanonicalRoute != null
                     ? (t.CanonicalRoute.ShortName != "" ? t.CanonicalRoute.ShortName : t.CanonicalRoute.LongName)
                     : "",

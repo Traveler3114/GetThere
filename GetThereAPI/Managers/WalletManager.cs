@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
-
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Mapping;
+
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 

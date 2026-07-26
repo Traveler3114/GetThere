@@ -1,8 +1,8 @@
+using GetThereAPI.Entities;
+
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-
-using GetThereAPI.Entities;
 
 namespace GetThereAPI.Data;
 
@@ -130,12 +130,24 @@ public class AppDbContext : IdentityDbContext<AppUser>
                   .WithMany()
                   .HasForeignKey(t => t.PurchaseId);
         });
-
         modelBuilder.Entity<ImportedTicket>(entity =>
         {
             entity.HasIndex(t => new { t.UserId, t.Status });
-            entity.HasIndex(t => t.DedupeHash);
+            entity.HasIndex(t => new { t.UserId, t.DedupeHash })
+                  .IsUnique()
+                  .HasFilter("[Status] = 'Active' AND [DedupeHash] IS NOT NULL");
             entity.Property(t => t.Price).HasPrecision(18, 2);
+            entity.Property(t => t.OperatorGlobalId).HasMaxLength(128);
+            entity.Property(t => t.OperatorNameSnapshot).HasMaxLength(200);
+            entity.Property(t => t.TicketName).HasMaxLength(200);
+            entity.Property(t => t.RouteDescription).HasMaxLength(500);
+            entity.Property(t => t.Currency).HasMaxLength(3);
+            entity.Property(t => t.SourceFileContentType).HasMaxLength(100);
+            entity.Property(t => t.DedupeHash).HasMaxLength(64);
+            entity.Property(t => t.RawPayload).HasMaxLength(8000);
+            entity.Property(t => t.Status).HasMaxLength(32);
+            entity.Property(t => t.Source).HasMaxLength(32);
+            entity.Property(t => t.Verification).HasMaxLength(32);
             entity.HasOne(t => t.User)
                   .WithMany()
                   .HasForeignKey(t => t.UserId);

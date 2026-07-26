@@ -2,13 +2,13 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 
-using Microsoft.Extensions.Logging;
-
 using CsvHelper;
 using CsvHelper.Configuration;
 
-using NetTopologySuite.Geometries;
+using Microsoft.Extensions.Logging;
+
 using NetTopologySuite.Algorithm;
+using NetTopologySuite.Geometries;
 
 using TransitInfoAPI.Enums;
 
@@ -19,7 +19,7 @@ public class GtfsParser
     private readonly GeometryFactory _geometryFactory = new(new PrecisionModel(), 4326);
     private readonly ILogger<GtfsParser> _logger;
 
-public GtfsParser(ILogger<GtfsParser> logger) { _logger = logger; }
+    public GtfsParser(ILogger<GtfsParser> logger) { _logger = logger; }
 
     public string ComputeGtfsSha1(ZipArchive archive)
     {
@@ -489,7 +489,7 @@ internal class CalendarDateMap : ClassMap<RawCalendarDateRecord>
     }
 }
 
-    public static class GtfsRouteTypeMapper
+public static class GtfsRouteTypeMapper
 {
     public static RouteType MapGtfsRouteType(int gtfsType) => gtfsType switch
     {
@@ -533,13 +533,13 @@ internal class CalendarDateMap : ClassMap<RawCalendarDateRecord>
         800 => RouteType.Trolleybus,
         900 => RouteType.Tram,
         1000 => RouteType.Ferry,
-         1100 => RouteType.Airplane,
-         1200 => RouteType.Ferry,
+        1100 => RouteType.Airplane,
+        1200 => RouteType.Ferry,
         1300 => RouteType.CableCar,
         1400 => RouteType.Funicular,
         1500 => RouteType.Airplane,
-         1700 => RouteType.Bus,
-         203 => RouteType.Bus,
+        1700 => RouteType.Bus,
+        203 => RouteType.Bus,
         _ => RouteType.Bus
     };
 }

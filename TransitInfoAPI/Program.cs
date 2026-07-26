@@ -22,6 +22,12 @@ using TransitInfoAPI.Workers;
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders().AddConsole().AddDebug();
 
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey == "CHANGE-ME" || Encoding.UTF8.GetBytes(jwtKey).Length < 32)
+    throw new InvalidOperationException(
+        "Jwt:Key must be configured and at least 32 characters long. " +
+        "Run: dotnet user-secrets set \"Jwt:Key\" \"<64-char-key>\" --project TransitInfoAPI/TransitInfoAPI.csproj");
+
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
@@ -297,9 +303,8 @@ using (var scope = app.Services.CreateScope())
 static string GenerateSecurePassword(int length)
 {
     const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    var bytes = RandomNumberGenerator.GetBytes(length);
     var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
+    for (int i = 0; i < length; i++) result[i] = chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)];
     return new string(result);
 }
 

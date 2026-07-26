@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
 using TransitInfoAPI.Contracts;
-using TransitInfoAPI.Mapping;
+using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Exceptions;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 
@@ -12,7 +12,7 @@ public class CountryManager
 {
     private readonly TransitDbContext _db;
 
-public CountryManager(TransitDbContext db) { _db = db; }
+    public CountryManager(TransitDbContext db) { _db = db; }
 
     public async Task<List<CountryResponse>> GetAllAsync(int page = 1, int perPage = 50, CancellationToken ct = default)
     {

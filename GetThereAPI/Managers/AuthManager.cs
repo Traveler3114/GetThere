@@ -1,12 +1,13 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-
+using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Mapping;
-using GetThereAPI.Common;
+
 using GetThereShared.Contracts;
+
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 

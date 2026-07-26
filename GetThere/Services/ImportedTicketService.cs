@@ -1,9 +1,12 @@
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using GetThereShared.Common;
 using GetThereShared.Contracts;
+using GetThereShared.Enums;
+
 using static GetThereShared.Common.HttpHelper;
 
 namespace GetThere.Services;
@@ -20,20 +23,23 @@ public class ImportedTicketService
 
     public ImportedTicketService(HttpClient http) { _http = http; }
 
-    public async Task<OperationResult<List<ImportedTicketResponse>>> ListAsync()
+    public async Task<OperationResult<PagedResult<ImportedTicketResponse>>> ListAsync(int page = 1, int perPage = 50, ImportedTicketStatus? status = null, CancellationToken ct = default)
     {
         try
         {
-            var response = await _http.GetAsync("importedtickets");
+            var qs = new StringBuilder($"importedtickets?page={page}&perPage={perPage}");
+            if (status.HasValue)
+                qs.Append($"&status={status.Value}");
+            var response = await _http.GetAsync(qs.ToString(), ct);
             if (response.IsSuccessStatusCode)
             {
-                var data = await response.Content.ReadFromJsonAsync<List<ImportedTicketResponse>>(JsonOptions);
-                return OperationResult<List<ImportedTicketResponse>>.Ok(data ?? []);
+                var data = await response.Content.ReadFromJsonAsync<PagedResult<ImportedTicketResponse>>(JsonOptions, ct);
+                return OperationResult<PagedResult<ImportedTicketResponse>>.Ok(data!);
             }
             var problem = await TryReadProblemAsync(response);
-            return OperationResult<List<ImportedTicketResponse>>.Fail(problem ?? "Could not load imported tickets");
+            return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(problem ?? "Could not load imported tickets");
         }
-        catch (Exception ex) { return OperationResult<List<ImportedTicketResponse>>.Fail(ex.Message); }
+        catch (Exception ex) { return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(ex.Message); }
     }
 
     public async Task<OperationResult<ImportedTicketResponse>> CreateAsync(CreateImportedTicketRequest request)
@@ -57,9 +63,10 @@ public class ImportedTicketService
         try
         {
             var response = await _http.DeleteAsync($"importedtickets/{id}");
-            return response.IsSuccessStatusCode
-                ? OperationResult.Ok()
-                : OperationResult.Fail("Could not cancel ticket");
+            if (response.IsSuccessStatusCode)
+                return OperationResult.Ok();
+            var problem = await TryReadProblemAsync(response);
+            return OperationResult.Fail(problem ?? "Could not cancel ticket");
         }
         catch (Exception ex) { return OperationResult.Fail(ex.Message); }
     }

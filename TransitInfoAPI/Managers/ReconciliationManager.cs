@@ -1,8 +1,7 @@
 using System.Text.RegularExpressions;
 
-using Microsoft.EntityFrameworkCore;
-
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 using NetTopologySuite.Geometries;
 
@@ -846,13 +845,21 @@ public class ReconciliationManager
         {
             StationA = new MergePreviewStation
             {
-                Id = a.Id, Name = a.Name, PrimaryRouteType = a.PrimaryRouteType.ToString(),
-                IsActive = a.IsActive, OperatorCount = aOpCount, RawStopCount = aRsCount
+                Id = a.Id,
+                Name = a.Name,
+                PrimaryRouteType = a.PrimaryRouteType.ToString(),
+                IsActive = a.IsActive,
+                OperatorCount = aOpCount,
+                RawStopCount = aRsCount
             },
             StationB = new MergePreviewStation
             {
-                Id = b.Id, Name = b.Name, PrimaryRouteType = b.PrimaryRouteType.ToString(),
-                IsActive = b.IsActive, OperatorCount = bOpCount, RawStopCount = bRsCount
+                Id = b.Id,
+                Name = b.Name,
+                PrimaryRouteType = b.PrimaryRouteType.ToString(),
+                IsActive = b.IsActive,
+                OperatorCount = bOpCount,
+                RawStopCount = bRsCount
             },
             CanMerge = a.IsActive && b.IsActive && a.PrimaryRouteType == b.PrimaryRouteType,
             Warning = warning
@@ -1447,7 +1454,7 @@ public class ReconciliationManager
 
         var results = new List<ReconciliationDetailResponse>(candidates.Count);
         foreach (var candidate in candidates)
-            results.Add(await ToDetailResponseAsync(candidate, ct));
+            results.Add((await ToDetailResponseAsync(candidate, ct))!);
 
         return results;
     }
@@ -1489,114 +1496,114 @@ public class ReconciliationManager
     }
 
     public async Task<ReconciliationDetailResponse?> ToDetailResponseAsync(ReconciliationCandidate candidate, CancellationToken ct)
+    {
+        var autoNameThreshold = (double)(candidate.AutoMergeNameThresholdAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90));
+        var autoDistThreshold = (double)(candidate.AutoMergeDistanceMetersAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100));
+        var manualNameThreshold = (double)(candidate.ManualReviewNameThresholdAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70));
+        var manualDistThreshold = (double)(candidate.ManualReviewDistanceMetersAtDecision
+            ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300));
+
+        var normalizedRaw = ReconciliationManager.NormalizeName(candidate.RawStopName);
+        var normalizedStation = candidate.SuggestedCanonicalStation is not null
+            ? ReconciliationManager.NormalizeName(candidate.SuggestedCanonicalStation.Name)
+            : null;
+
+        var explanation = ReconciliationManager.ComputeMatchExplanation(
+            candidate.NameSimilarityScore, candidate.DistanceMeters,
+            candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
+            autoNameThreshold, autoDistThreshold,
+            manualNameThreshold, manualDistThreshold);
+
+        StationDetailResponse? rawDetail = null;
+        if (candidate.RawStop is not null)
         {
-            var autoNameThreshold = (double)(candidate.AutoMergeNameThresholdAtDecision
-                ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeNameThreshold", 0.90));
-            var autoDistThreshold = (double)(candidate.AutoMergeDistanceMetersAtDecision
-                ?? (decimal)_config.GetValue<double>("Reconciliation:AutoMergeDistanceMeters", 100));
-            var manualNameThreshold = (double)(candidate.ManualReviewNameThresholdAtDecision
-                ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewNameThreshold", 0.70));
-            var manualDistThreshold = (double)(candidate.ManualReviewDistanceMetersAtDecision
-                ?? (decimal)_config.GetValue<double>("Reconciliation:ManualReviewDistanceMeters", 300));
+            var rawRouteEntities = await _db.CanonicalRoutes
+                .Include(r => r.Operator)
+                .Where(r => _db.StopTimes.Any(st =>
+                    st.RawStopEntityId == candidate.RawStopId
+                    && st.Trip.CanonicalRouteId == r.Id))
+                .ToListAsync(ct);
+            var rawRoutes = rawRouteEntities.Select(RouteMapper.ToInfoResponse).ToList();
 
-            var normalizedRaw = ReconciliationManager.NormalizeName(candidate.RawStopName);
-            var normalizedStation = candidate.SuggestedCanonicalStation is not null
-                ? ReconciliationManager.NormalizeName(candidate.SuggestedCanonicalStation.Name)
-                : null;
-
-            var explanation = ReconciliationManager.ComputeMatchExplanation(
-                candidate.NameSimilarityScore, candidate.DistanceMeters,
-                candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
-                autoNameThreshold, autoDistThreshold,
-                manualNameThreshold, manualDistThreshold);
-
-            StationDetailResponse? rawDetail = null;
-            if (candidate.RawStop is not null)
+            var feedOp = candidate.Feed?.Operator;
+            List<OperatorBriefResponse> ops = [];
+            if (feedOp is not null)
             {
-                var rawRouteEntities = await _db.CanonicalRoutes
-                    .Include(r => r.Operator)
-                    .Where(r => _db.StopTimes.Any(st =>
-                        st.RawStopEntityId == candidate.RawStopId
-                        && st.Trip.CanonicalRouteId == r.Id))
-                    .ToListAsync(ct);
-                var rawRoutes = rawRouteEntities.Select(RouteMapper.ToInfoResponse).ToList();
-
-                var feedOp = candidate.Feed?.Operator;
-                List<OperatorBriefResponse> ops = [];
-                if (feedOp is not null)
+                ops.Add(new OperatorBriefResponse
                 {
-                    ops.Add(new OperatorBriefResponse
-                    {
-                        GlobalId = feedOp.GlobalId,
-                        Name = feedOp.Name,
-                        ShortName = feedOp.ShortName
-                    });
-                }
-
-                rawDetail = new StationDetailResponse
-                {
-                    Id = candidate.RawStop.Id,
-                    Name = candidate.RawStop.Name,
-                    Latitude = candidate.RawStop.Lat,
-                    Longitude = candidate.RawStop.Lon,
-                    RouteType = candidate.RawStop.RouteType?.ToString() ?? "?",
-                    Operators = ops,
-                    Routes = rawRoutes
-                };
+                    GlobalId = feedOp.GlobalId,
+                    Name = feedOp.Name,
+                    ShortName = feedOp.ShortName
+                });
             }
 
-            StationDetailResponse? suggestedDetail = null;
-            if (candidate.SuggestedCanonicalStationId.HasValue && candidate.SuggestedCanonicalStation is not null)
+            rawDetail = new StationDetailResponse
             {
-                var stationId = candidate.SuggestedCanonicalStationId.Value;
-
-                var operators = await _db.CanonicalStationOperators
-                    .Where(cso => cso.CanonicalStationId == stationId)
-                    .Select(cso => new OperatorBriefResponse
-                    {
-                        GlobalId = cso.Operator.GlobalId,
-                        Name = cso.Operator.Name,
-                        ShortName = cso.Operator.ShortName
-                    })
-                    .ToListAsync(ct);
-
-                var routeEntities = await _db.CanonicalRoutes
-                    .Include(r => r.Operator)
-                    .Where(r => _db.StopTimes.Any(st =>
-                        st.CanonicalStationId == stationId
-                        && st.Trip.CanonicalRouteId == r.Id))
-                    .ToListAsync(ct);
-                var routes = routeEntities.Select(RouteMapper.ToInfoResponse).ToList();
-
-                suggestedDetail = new StationDetailResponse
-                {
-                    Id = stationId,
-                    Name = candidate.SuggestedCanonicalStation.Name,
-                    Latitude = candidate.SuggestedCanonicalStation.Latitude,
-                    Longitude = candidate.SuggestedCanonicalStation.Longitude,
-                    RouteType = candidate.SuggestedCanonicalStation.PrimaryRouteType.ToString(),
-                    Operators = operators,
-                    Routes = routes
-                };
-            }
-
-            var verdict = ReconciliationManager.ComputeAutoMergeVerdict(
-                candidate.NameSimilarityScore, candidate.DistanceMeters,
-                candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
-                candidate.RawRouteType.ToString(), candidate.CanonicalRouteType?.ToString(),
-                autoNameThreshold, autoDistThreshold,
-                candidate.Status.ToString());
-
-            return ReconciliationMapper.ToDetailResponse(
-                candidate,
-                autoNameThreshold, autoDistThreshold,
-                manualNameThreshold, manualDistThreshold,
-                normalizedRaw, normalizedStation,
-                explanation, verdict,
-                rawDetail, suggestedDetail);
+                Id = candidate.RawStop.Id,
+                Name = candidate.RawStop.Name,
+                Latitude = candidate.RawStop.Lat,
+                Longitude = candidate.RawStop.Lon,
+                RouteType = candidate.RawStop.RouteType?.ToString() ?? "?",
+                Operators = ops,
+                Routes = rawRoutes
+            };
         }
 
-        public async Task<List<StationMergeLogResponse>> GetMergeLogAsync(CancellationToken ct)
+        StationDetailResponse? suggestedDetail = null;
+        if (candidate.SuggestedCanonicalStationId.HasValue && candidate.SuggestedCanonicalStation is not null)
+        {
+            var stationId = candidate.SuggestedCanonicalStationId.Value;
+
+            var operators = await _db.CanonicalStationOperators
+                .Where(cso => cso.CanonicalStationId == stationId)
+                .Select(cso => new OperatorBriefResponse
+                {
+                    GlobalId = cso.Operator.GlobalId,
+                    Name = cso.Operator.Name,
+                    ShortName = cso.Operator.ShortName
+                })
+                .ToListAsync(ct);
+
+            var routeEntities = await _db.CanonicalRoutes
+                .Include(r => r.Operator)
+                .Where(r => _db.StopTimes.Any(st =>
+                    st.CanonicalStationId == stationId
+                    && st.Trip.CanonicalRouteId == r.Id))
+                .ToListAsync(ct);
+            var routes = routeEntities.Select(RouteMapper.ToInfoResponse).ToList();
+
+            suggestedDetail = new StationDetailResponse
+            {
+                Id = stationId,
+                Name = candidate.SuggestedCanonicalStation.Name,
+                Latitude = candidate.SuggestedCanonicalStation.Latitude,
+                Longitude = candidate.SuggestedCanonicalStation.Longitude,
+                RouteType = candidate.SuggestedCanonicalStation.PrimaryRouteType.ToString(),
+                Operators = operators,
+                Routes = routes
+            };
+        }
+
+        var verdict = ReconciliationManager.ComputeAutoMergeVerdict(
+            candidate.NameSimilarityScore, candidate.DistanceMeters,
+            candidate.NameMatched, candidate.DistanceMatched, candidate.RouteTypeMatched,
+            candidate.RawRouteType.ToString(), candidate.CanonicalRouteType?.ToString(),
+            autoNameThreshold, autoDistThreshold,
+            candidate.Status.ToString());
+
+        return ReconciliationMapper.ToDetailResponse(
+            candidate,
+            autoNameThreshold, autoDistThreshold,
+            manualNameThreshold, manualDistThreshold,
+            normalizedRaw, normalizedStation,
+            explanation, verdict,
+            rawDetail, suggestedDetail);
+    }
+
+    public async Task<List<StationMergeLogResponse>> GetMergeLogAsync(CancellationToken ct)
     {
         var logs = await _db.StationMergeLogs
             .OrderByDescending(ml => ml.MergedAt)

@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Common;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -15,7 +16,7 @@ public class MobilityController : ControllerBase
 {
     private readonly MobilityManager _mobility;
 
-public MobilityController(MobilityManager mobility) { _mobility = mobility; }
+    public MobilityController(MobilityManager mobility) { _mobility = mobility; }
 
     [HttpGet("stations")]
     [AllowAnonymous]

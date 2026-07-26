@@ -1,10 +1,11 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-
+using GetThereAPI.Common;
 using GetThereAPI.Managers;
 using GetThereAPI.Mapping;
+
 using GetThereShared.Contracts;
-using GetThereAPI.Common;
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GetThereAPI.Controllers;
 
@@ -15,7 +16,7 @@ public class ProfileController : ControllerBase
 {
     private readonly ProfileManager _profileManager;
 
-public ProfileController(ProfileManager profileManager) { _profileManager = profileManager; }
+    public ProfileController(ProfileManager profileManager) { _profileManager = profileManager; }
 
     [HttpGet]
     [Authorize(Policy = PermissionKeys.ProfileView)]

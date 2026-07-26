@@ -1,11 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
-using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Data;
 using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;

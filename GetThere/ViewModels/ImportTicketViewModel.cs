@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 using GetThere.Services;
+
+using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
@@ -28,6 +30,10 @@ public partial class ImportTicketViewModel : BaseViewModel
     private string _errorText = string.Empty;
     [ObservableProperty]
     private bool _hasError;
+    [ObservableProperty]
+    private string _selectedCurrency = SupportedCurrencies.Default;
+
+    public string[] Currencies => SupportedCurrencies.Selectable;
 
     public ImportTicketViewModel(ImportedTicketService importedService, IAnalyticsService analytics)
     {
@@ -44,7 +50,9 @@ public partial class ImportTicketViewModel : BaseViewModel
         {
             ErrorText = "Ticket name is required."; HasError = true; return;
         }
-        if (ValidTo <= ValidFrom)
+        var validFromUtc = DateTime.SpecifyKind(ValidFrom, DateTimeKind.Local).ToUniversalTime();
+        var validToUtc = DateTime.SpecifyKind(ValidTo.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
+        if (validToUtc <= validFromUtc)
         {
             ErrorText = "Valid To must be after Valid From."; HasError = true; return;
         }
@@ -68,9 +76,9 @@ public partial class ImportTicketViewModel : BaseViewModel
                 TicketName = TicketName.Trim(),
                 RouteDescription = string.IsNullOrWhiteSpace(RouteDescription) ? null : RouteDescription.Trim(),
                 Price = price,
-                Currency = price.HasValue ? "EUR" : null,
-                ValidFrom = ValidFrom,
-                ValidTo = ValidTo,
+                Currency = price.HasValue ? SelectedCurrency : null,
+                ValidFrom = validFromUtc,
+                ValidTo = validToUtc,
                 OperatorNameSnapshot = string.IsNullOrWhiteSpace(OperatorName) ? null : OperatorName.Trim()
             };
 

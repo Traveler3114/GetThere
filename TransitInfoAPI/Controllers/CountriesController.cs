@@ -1,13 +1,14 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
-using TransitInfoAPI.Contracts;
-using TransitInfoAPI.Mapping;
-using TransitInfoAPI.Managers;
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Data;
+using TransitInfoAPI.Managers;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -18,7 +19,7 @@ public class CountriesController : ControllerBase
 {
     private readonly CountryManager _countryService;
 
-public CountriesController(CountryManager countryService) { _countryService = countryService; }
+    public CountriesController(CountryManager countryService) { _countryService = countryService; }
 
     [HttpGet]
     [Authorize(Policy = PermissionKeys.CountriesView)]

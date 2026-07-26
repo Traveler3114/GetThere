@@ -1,10 +1,28 @@
+using System.Text.Json.Serialization;
+
 namespace GetThereShared.Common;
 
-public record PagedResult<T>(List<T> Data, int Total)
+public record PagedResult<T>
 {
-    public int Page { get; init; } = 1;
-    public int PageSize { get; init; } = 50;
-    public int TotalPages => (int)Math.Ceiling((double)Total / Math.Max(PageSize, 1));
-    public bool HasNextPage => Page * PageSize < Total;
+    public List<T> Data { get; init; }
+    public int Total { get; init; }
+    public int Page { get; init; }
+    public int PerPage { get; init; }
+    public int TotalPages { get; init; }
+
+    [JsonConstructor]
+    public PagedResult(List<T> data, int total, int page, int perPage, int totalPages)
+    {
+        Data = data;
+        Total = total;
+        Page = page;
+        PerPage = perPage;
+        TotalPages = totalPages;
+    }
+
+    public PagedResult(List<T> data, int total, int page, int perPage)
+        : this(data, total, page, perPage, perPage < 1 ? 1 : (int)Math.Ceiling((double)total / perPage)) { }
+
+    public bool HasNextPage => Page < TotalPages;
     public bool HasPreviousPage => Page > 1;
 }

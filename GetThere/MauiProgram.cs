@@ -1,15 +1,16 @@
 using System.Reflection;
 using System.Text.Json;
 
-using Microsoft.Extensions.Logging;
-
 using CommunityToolkit.Maui;
-using SkiaSharp.Views.Maui.Controls.Hosting;
 
 using GetThere.Helpers;
 using GetThere.Services;
 using GetThere.State;
 using GetThere.ViewModels;
+
+using Microsoft.Extensions.Logging;
+
+using SkiaSharp.Views.Maui.Controls.Hosting;
 
 namespace GetThere;
 
@@ -30,7 +31,7 @@ public static class MauiProgram
     {
         try
         {
-            using var stream = FileSystem.OpenAppPackageFileAsync("appsettings.json").Result;
+            using var stream = FileSystem.OpenAppPackageFileAsync("appsettings.json").GetAwaiter().GetResult();
             using var reader = new StreamReader(stream);
             var json = reader.ReadToEnd();
             using var doc = JsonDocument.Parse(json);

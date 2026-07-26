@@ -1,10 +1,11 @@
+using GetThereAPI.Common;
+using GetThereAPI.Managers;
+
+using GetThereShared.Contracts;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-
-using GetThereAPI.Managers;
-using GetThereShared.Contracts;
-using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -16,7 +17,7 @@ public class AuthController : ControllerBase
 {
     private readonly AuthManager _authManager;
 
-public AuthController(AuthManager authManager) { _authManager = authManager; }
+    public AuthController(AuthManager authManager) { _authManager = authManager; }
 
     [HttpPost("register")]
     [AllowAnonymous]

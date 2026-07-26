@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
-using TransitInfoAPI.Data;
 using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Data;
 using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;

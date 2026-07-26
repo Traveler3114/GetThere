@@ -1,4 +1,5 @@
 using NetTopologySuite.Geometries;
+
 using TransitInfoAPI.Contracts;
 
 namespace TransitInfoAPI.Common;

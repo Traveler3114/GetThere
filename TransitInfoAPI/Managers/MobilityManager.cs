@@ -1,12 +1,14 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
-using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;

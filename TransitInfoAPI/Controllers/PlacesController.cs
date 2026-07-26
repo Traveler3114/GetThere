@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Common;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -16,7 +17,7 @@ public class PlacesController : ControllerBase
 {
     private readonly PlaceManager _placeManager;
 
-public PlacesController(PlaceManager placeManager) { _placeManager = placeManager; }
+    public PlacesController(PlaceManager placeManager) { _placeManager = placeManager; }
 
     [HttpGet]
     public async Task<ActionResult<Paginated<PlaceResponse>>> GetAll(

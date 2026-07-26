@@ -1,6 +1,6 @@
-using TransitInfoAPI.Enums;
-
 using NetTopologySuite.Geometries;
+
+using TransitInfoAPI.Enums;
 
 namespace TransitInfoAPI.Entities;
 

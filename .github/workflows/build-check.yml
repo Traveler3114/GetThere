@@ -18,14 +18,50 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore
+      - name: Restore GetThereShared
+        run: dotnet restore GetThereShared/GetThereShared.csproj
 
-      - name: Build TransitInfoAPI
-        run: dotnet build TransitInfoAPI/TransitInfoAPI.csproj --no-restore --warning-as-error
+      - name: Restore GetThereAPI
+        run: dotnet restore GetThereAPI/GetThereAPI.csproj
+
+      - name: Restore TransitInfoAPI
+        run: dotnet restore TransitInfoAPI/TransitInfoAPI.csproj
+
+      - name: Build GetThereShared
+        run: dotnet build GetThereShared/GetThereShared.csproj --no-restore -warnaserror
 
       - name: Build GetThereAPI
-        run: dotnet build GetThereAPI/GetThereAPI.csproj --no-restore --warning-as-error
+        run: dotnet build GetThereAPI/GetThereAPI.csproj --no-restore -warnaserror
 
-      - name: Lint
-        run: dotnet format --verify-no-changes --no-restore
+      - name: Build TransitInfoAPI
+        run: dotnet build TransitInfoAPI/TransitInfoAPI.csproj --no-restore -warnaserror
+
+      - name: Lint GetThereShared
+        run: dotnet format GetThereShared/GetThereShared.csproj --verify-no-changes --no-restore
+
+      - name: Lint GetThereAPI
+        run: dotnet format GetThereAPI/GetThereAPI.csproj --verify-no-changes --no-restore
+
+      - name: Lint TransitInfoAPI
+        run: dotnet format TransitInfoAPI/TransitInfoAPI.csproj --verify-no-changes --no-restore
+
+  maui:
+    runs-on: windows-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui-android
+
+      - name: Restore GetThere
+        run: dotnet restore GetThere/GetThere.csproj
+
+      - name: Build GetThere (Android)
+        run: dotnet build GetThere/GetThere.csproj --no-restore -f net10.0-android

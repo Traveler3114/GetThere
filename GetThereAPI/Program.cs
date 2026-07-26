@@ -2,16 +2,6 @@ using System.Reflection;
 using System.Text;
 using System.Threading.RateLimiting;
 
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Scalar.AspNetCore;
-
 using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
@@ -20,14 +10,34 @@ using GetThereAPI.Managers;
 using GetThereAPI.Sdk;
 using GetThereAPI.Services;
 
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
+using Scalar.AspNetCore;
+
 var builder = WebApplication.CreateBuilder(args);
+
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey == "CHANGE-ME" || Encoding.UTF8.GetBytes(jwtKey).Length < 32)
+    throw new InvalidOperationException(
+        "Jwt:Key must be configured and at least 32 characters long. " +
+        "Run: dotnet user-secrets set \"Jwt:Key\" \"<64-char-key>\" --project GetThereAPI/GetThereAPI.csproj");
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(connectionString));
 
 builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
 {
@@ -52,6 +62,7 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 builder.Services.Configure<TransitInfoApiOptions>(builder.Configuration.GetSection("TransitInfoApi"));
 
 builder.Services.AddSingleton<AdapterRegistry>();
+builder.Services.AddHostedService<TicketExpiryWorker>();
 
 var managerTypes = typeof(Program).Assembly.GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers" && t is { IsClass: true, IsAbstract: false });
@@ -201,6 +212,8 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseResponseCompression();
 
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
+
 app.UseHttpsRedirection();
 app.MapControllers();
 
@@ -227,11 +240,11 @@ using (var scope = app.Services.CreateScope())
     var userClaims = await roleManager.GetClaimsAsync(userRole!);
     var userPerms = PermissionKeys.All.Where(p =>
         p is PermissionKeys.TicketsView or PermissionKeys.TicketsCreate
-        or PermissionKeys.WalletsView
+        or PermissionKeys.WalletsView or PermissionKeys.WalletsManage
         or PermissionKeys.ProfileView or PermissionKeys.ProfileManage
         or PermissionKeys.SettingsView
         or PermissionKeys.MapView
-        or PermissionKeys.ImportedTicketsView or PermissionKeys.ImportedTicketsCreate);
+        or PermissionKeys.ImportedTicketsView or PermissionKeys.ImportedTicketsCreate or PermissionKeys.ImportedTicketsManage);
     foreach (var perm in userPerms.Where(p => !userClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(userRole!, new System.Security.Claims.Claim("permission", perm));
 

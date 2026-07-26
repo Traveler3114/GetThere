@@ -1,8 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+
 using GetThereShared.Contracts;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 

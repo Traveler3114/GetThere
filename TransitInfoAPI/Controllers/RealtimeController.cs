@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;

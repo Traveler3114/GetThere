@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Common;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -15,7 +16,7 @@ public class ReconciliationController : ControllerBase
 {
     private readonly ReconciliationManager _reconciliationService;
 
-public ReconciliationController(ReconciliationManager reconciliationManager) { _reconciliationService = reconciliationManager; }
+    public ReconciliationController(ReconciliationManager reconciliationManager) { _reconciliationService = reconciliationManager; }
 
     [HttpGet("pending")]
     [Authorize(Policy = PermissionKeys.ReconciliationView)]

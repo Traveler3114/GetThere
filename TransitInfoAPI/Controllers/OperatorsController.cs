@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
-using TransitInfoAPI.Common;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -15,7 +16,7 @@ public class OperatorsController : ControllerBase
 {
     private readonly OperatorManager _operatorService;
 
-public OperatorsController(OperatorManager operatorManager) { _operatorService = operatorManager; }
+    public OperatorsController(OperatorManager operatorManager) { _operatorService = operatorManager; }
 
     [HttpGet]
     [Authorize(Policy = PermissionKeys.OperatorsView)]

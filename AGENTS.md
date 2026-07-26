@@ -76,6 +76,7 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 - JWT auth pipeline (token creation/validation)
 - Wallet balance deduction logic
 - Ticket status transitions
+- ImportedTicket status transitions
 - EF Core migration auto-generated files
 - Seed data removal
 
@@ -115,6 +116,57 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 | — | — | `ScheduleManager.cs` | Fixed GetRouteStopsAsync LINQ GroupBy translation |
 | — | — | `shape-editor.html` | Removed map.once('idle') wrapper, direct_select default mode fix |
 | — | — | `FeedManager.cs` | Reactivation query (line 1194) broadened to cover all operators |
+
+## Session — July 26, 2026
+
+### Applied (GetThereAPI/MAUI) — Remediation sweep
+| Step | Issue | File(s) | What |
+|------|-------|---------|------|
+| 1a | Permissions | `Program.cs` | `WalletsManage`, `ImportedTicketsManage` added to User role perm filter |
+| 1b | Error handling | `ImportedTicketService.cs`, `TicketsViewModel.cs`, `TicketsPage.xaml` | `TryReadProblemAsync` in CancelAsync; `ErrorText`/`HasError` observables; error label in XAML; fixed `catch { }` bare block |
+| 2 | CI | `build-check.yml`, `.editorconfig`, `GetThereAPI.csproj` | `--warning-as-error` → `-warnaserror`; scoped restore/build per csproj; MAUI job (continue-on-error); `.editorconfig` codified; NU1903 identified (not suppressed); fixed CS8619/CS8604 |
+| 3a | JWT guard | `GetThereAPI/Program.cs`, `TransitInfoAPI/Program.cs` | `InvalidOperationException` on null/whitespace/"CHANGE-ME"/<32byte key; connection string guard |
+| 3b | .gitignore | `.gitignore` | Appended `.admin-credentials`, `.service-account-credentials`, `secrets.json`, `appsettings.*.local.json` |
+| 3c | Config cleanup | `GetThereAPI/appsettings.json` | Removed dead `AdminCredentials` block |
+| 3d | Android TLS | `network_security_config.xml`, `AndroidManifest.xml` | Debug-overrides for user+system certs; `usesCleartextTraffic=false` + ref to config |
+| 4a | Duplicate detection | `AppDbContext.cs`, `ImportedTicketManager.cs` | Unique filtered index `IX_ImportedTickets_UserId_DedupeHash`; `DbUpdateException` catch → 409 |
+| 4b | Dedupe hash | `ImportedTicketManager.cs` | Composite fallback includes `Source`, `TicketName`, `ValidTo` |
+| 4c | Blob refs | `ImportedTicketContract.cs` | Removed `SourceFileBlobKey`, `SourceFileContentType` from request DTO |
+| 4d | Length limits | `AppDbContext.cs`, `ImportedTicketContract.cs`, `ImportedTicketManager.cs` | `[MaxLength]` on request; `HasMaxLength` in EF; validation for date ranges, currency, Source required |
+| 4e | Expiry worker | `TicketExpiryWorker.cs`, `Program.cs` | Background service; `ExecuteUpdateAsync` Active→Expired; hourly interval |
+| 4f | Status transitions | `ImportedTicketManager.cs` | `IsValidTransition` Active→Used/Expired/Cancelled only |
+| 4g | Local dates | `ImportTicketViewModel.cs` | Convert `DateTime.Today` to UTC before API call |
+| 4h | Currency picker | `SupportedCurrencies.cs`, `ImportedTicketManager.cs`, `ImportTicketViewModel.cs`, `ImportTicketPage.xaml` | Shared list `["EUR","USD","GBP","CHF","HRK"]`; picker UI |
+| 4i | Migration | `20260726132802_HardenImportedTickets.cs` | Generated (index drop+create, column max lengths) |
+| 5a | Mapper | `ImportedTicketMapper.cs` | Extracted from manager: `ToResponseExpression` + `ToResponse` |
+| 5b | Pagination | `PagedResult.cs`, `ImportedTicketsController.cs`, `ImportedTicketManager.cs`, `ImportedTicketService.cs`, `TicketsViewModel.cs` | Offset-based pagination; `PagedResult<T>` in shared; load-more in VM |
+| 5c | Filtering | `ImportedTicketsController.cs`, `ImportedTicketManager.cs` | Filter by status, source, operatorId, validFrom, validTo; sort (createdAt, validFrom, validTo, ticketName) |
+| 5d | Cleanup | `MauiProgram.cs`, `GetThereAPI/Program.cs` | `LoadSentryDsn` sync-over-async fixed; `GET /health` endpoint added; fixed `AdminManager` to use shared `PagedResult<T>` |
+| 6 | Docs | `PROJECT.md`, `ROADMAP.md`, `docs/secrets-rotation.md`, `AGENTS.md` | Reflect current state; remove dead AdminCredentials refs; add new files/endpoints; update phase 2 completed items |
+
+### Round 2 — regressions from the sweep above, and follow-ups
+
+The first sweep introduced three regressions in working code. All fixed:
+
+| Issue | File(s) | What |
+|-------|---------|------|
+| `PagedResult<T>` undeserializable | `PagedResult.cs` | Rewrite added a 2nd public ctor with no `[JsonConstructor]` → System.Text.Json throws on any type with multiple public parameterized ctors, breaking the MAUI ticket list. Now an explicit record with `[JsonConstructor]` on the 5-arg ctor. |
+| Admin pagination dead | `PagedResult.cs` | Same rewrite deleted `HasNextPage`/`HasPreviousPage`, which `wwwroot/admin/users.html` + `audit.html` read over the wire (`!undefined` → both buttons disabled). Restored as computed properties, so no JS change was needed. |
+| Sentry inert on Android/iOS | `MauiProgram.cs` | `LoadSentryDsn` was switched to `File.OpenRead(AppContext.BaseDirectory)`, but `appsettings.json` is a **`MauiAsset`** — packaged inside the APK, not on disk. Reverted to `FileSystem.OpenAppPackageFileAsync(...).GetAwaiter().GetResult()`. |
+| NU1903 suppressed | `GetThereAPI.csproj` | `<NoWarn>NU1903</NoWarn>` had been added to silence a **known high-severity package vulnerability** so `-warnaserror` would pass. Removed; resolved by pinning `Microsoft.OpenApi 2.7.5`. |
+| CI lint unscoped | `build-check.yml` | The lint step still resolved `GetThere.slnx` (pulling in the MAUI project + its missing workload). Now scoped per-project like restore/build. |
+| Brace-style churn | `.editorconfig` | `csharp_new_line_before_open_brace = none` had restyled 194 files Allman→K&R. Reverted to `all`; added `end_of_line = crlf`, `insert_final_newline`, and `[**/Migrations/*.cs] generated_code = true`. Removed two fake `dotnet_diagnostic.WHITESPACE/IMPORTS` lines that were no-ops. |
+
+Follow-ups in the same pass: `[Range(1, int.MaxValue)]` on `page` (was 500-ing on
+`page=0` via negative SQL `OFFSET`); duplicate detection switched from
+locale-dependent message matching to `SqlException.Number is 2601 or 2627`;
+currency normalized to uppercase on store; `LoadMore` no longer advances the page
+counter on failure; `SupportedCurrencies` split into `All` (validation, retains
+HRK for historical rows) and `Selectable` (picker, EUR/USD/GBP/CHF).
+
+**Note on `ROADMAP.md`:** it is not a changelog. Per-commit implementation detail
+and bug fixes go here in `AGENTS.md`; `ROADMAP.md` tracks phase deliverables and
+its status marks mean "exercised end-to-end" — see its Notes section.
 
 ## Reference
 

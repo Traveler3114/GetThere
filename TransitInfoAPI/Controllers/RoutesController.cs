@@ -1,11 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-using TransitInfoAPI.Contracts;
-using TransitInfoAPI.Managers;
-using TransitInfoAPI.Enums;
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Enums;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
@@ -17,7 +18,7 @@ public class RoutesController : ControllerBase
     private readonly RouteManager _routeManager;
     private readonly ScheduleManager _scheduleManager;
 
-public RoutesController(RouteManager routeManager, ScheduleManager scheduleManager) { _routeManager = routeManager; _scheduleManager = scheduleManager; }
+    public RoutesController(RouteManager routeManager, ScheduleManager scheduleManager) { _routeManager = routeManager; _scheduleManager = scheduleManager; }
 
     [HttpGet]
     [AllowAnonymous]

@@ -1,13 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+
 using NetTopologySuite.Algorithm;
 using NetTopologySuite.Geometries;
+
+using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Contracts;
-using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Exceptions;
-using TransitInfoAPI.Common;
+using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
 

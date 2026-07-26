@@ -1,10 +1,11 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
+
 using GetThereShared.Common;
 using GetThereShared.Contracts;
+
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 
@@ -13,7 +14,7 @@ public class AdminManager
     private readonly AppDbContext _db;
     private readonly UserManager<AppUser> _userManager;
 
-public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = db; _userManager = userManager; }
+    public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = db; _userManager = userManager; }
 
     public async Task<PagedResult<UserListItem>> GetUsersAsync(int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
@@ -33,11 +34,7 @@ public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = d
             })
             .ToListAsync(ct);
 
-        return new PagedResult<UserListItem>(items, totalCount)
-        {
-            Page = page,
-            PageSize = pageSize
-        };
+        return new PagedResult<UserListItem>(items, totalCount, page, pageSize);
     }
 
     public async Task<PagedResult<AuditLogEntry>> GetAuditLogsAsync(int page = 1, int pageSize = 50, CancellationToken ct = default)
@@ -65,10 +62,6 @@ public AdminManager(AppDbContext db, UserManager<AppUser> userManager) { _db = d
             })
             .ToListAsync(ct);
 
-        return new PagedResult<AuditLogEntry>(items, totalCount)
-        {
-            Page = page,
-            PageSize = pageSize
-        };
+        return new PagedResult<AuditLogEntry>(items, totalCount, page, pageSize);
     }
 }

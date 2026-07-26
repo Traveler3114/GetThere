@@ -1,9 +1,10 @@
+using GetThereAPI.Common;
+using GetThereAPI.Managers;
+
+using GetThereShared.Contracts;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
-using GetThereAPI.Managers;
-using GetThereShared.Contracts;
-using GetThereAPI.Common;
 
 namespace GetThereAPI.Controllers;
 
@@ -14,7 +15,7 @@ public class TicketingController : ControllerBase
 {
     private readonly TicketingManager _ticketingManager;
 
-public TicketingController(TicketingManager ticketingManager) { _ticketingManager = ticketingManager; }
+    public TicketingController(TicketingManager ticketingManager) { _ticketingManager = ticketingManager; }
 
     [HttpGet("options")]
     [Authorize(Policy = PermissionKeys.TicketsView)]

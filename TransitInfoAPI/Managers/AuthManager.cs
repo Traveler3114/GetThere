@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Exceptions;
-using TransitInfoAPI.Contracts;
 
 namespace TransitInfoAPI.Managers;
 
@@ -57,7 +58,7 @@ public class AuthManager
         user.LastLogin = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-var accessToken = await _tokenManager.CreateTokenAsync(user);
+        var accessToken = await _tokenManager.CreateTokenAsync(user);
         var rawRefreshToken = _tokenManager.GenerateRefreshToken();
         var refreshTokenHash = _tokenManager.HashToken(rawRefreshToken);
         var refreshTokenExpiry = _tokenManager.GetRefreshTokenExpiry(rememberMe);

@@ -1,11 +1,14 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using System.Text.Json;
+
+using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Services;
+
 using GetThereShared.Contracts;
-using GetThereAPI.Common;
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace GetThereAPI.Managers;
 

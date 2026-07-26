@@ -1,11 +1,14 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+
+using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
-using GetThereAPI.Common;
-using GetThereShared.Contracts;
 using GetThereAPI.Exceptions;
+
+using GetThereShared.Contracts;
+
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 
@@ -34,7 +37,7 @@ public class RolePermissionManager
             .Where(rc => roleIds.Contains(rc.RoleId) && rc.ClaimType == "permission")
             .ToListAsync(ct);
         var claimsByRole = roleClaims.GroupBy(rc => rc.RoleId)
-            .ToDictionary(g => g.Key, g => g.Select(c => c.ClaimValue).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(c => c.ClaimValue!).ToList());
 
         return roles.Select(role => new RoleDto
         {

@@ -1,13 +1,14 @@
-using Microsoft.EntityFrameworkCore;
-
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Mapping;
 using GetThereAPI.Models;
 using GetThereAPI.Sdk;
+
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
+
+using Microsoft.EntityFrameworkCore;
 
 namespace GetThereAPI.Managers;
 
@@ -18,7 +19,7 @@ public class TicketingManager
     private readonly WalletManager _walletManager;
     private readonly ILogger<TicketingManager> _logger;
 
-public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager walletManager, ILogger<TicketingManager> logger) { _db = db; _registry = registry; _walletManager = walletManager; _logger = logger; }
+    public TicketingManager(AppDbContext db, AdapterRegistry registry, WalletManager walletManager, ILogger<TicketingManager> logger) { _db = db; _registry = registry; _walletManager = walletManager; _logger = logger; }
 
     public async Task<List<TicketOptionResponse>> GetTicketOptionsAsync(CancellationToken ct = default)
     {

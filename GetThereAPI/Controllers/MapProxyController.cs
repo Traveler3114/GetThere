@@ -1,10 +1,12 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
-using GetThereAPI.Managers;
-using GetThereShared.Contracts;
 using GetThereAPI.Common;
+using GetThereAPI.Managers;
+
+using GetThereShared.Contracts;
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GetThereAPI.Controllers;
 
@@ -15,7 +17,7 @@ public class MapProxyController : ControllerBase
 {
     private readonly MapManager _mapManager;
 
-public MapProxyController(MapManager mapManager) { _mapManager = mapManager; }
+    public MapProxyController(MapManager mapManager) { _mapManager = mapManager; }
 
     [HttpGet("stations")]
     [Authorize(Policy = PermissionKeys.MapView)]

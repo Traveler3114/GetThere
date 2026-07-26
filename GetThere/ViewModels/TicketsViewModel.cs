@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 using GetThere.Services;
+
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
@@ -18,6 +19,21 @@ public partial class TicketsViewModel : BaseViewModel
 
     [ObservableProperty]
     private bool _hasImportedTickets;
+
+    [ObservableProperty]
+    private string _errorText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasError;
+
+    [ObservableProperty]
+    private int _totalTickets;
+
+    [ObservableProperty]
+    private bool _hasMore;
+
+    private int _currentPage = 1;
+    private const int PageSize = 50;
 
     public ObservableCollection<ImportedTicketResponse> ImportedTickets { get; } = [];
 
@@ -36,22 +52,66 @@ public partial class TicketsViewModel : BaseViewModel
         if (!loggedIn) return;
 
         IsBusy = true;
+        HasError = false;
+        _currentPage = 1;
         try
         {
-            var result = await _importedService.ListAsync();
+            var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
             if (result.Success)
             {
+                var paged = result.Data!;
                 ImportedTickets.Clear();
-                var tickets = result.Data!;
-                if (_activeFilter.HasValue)
-                    tickets = tickets.Where(t => t.Status == _activeFilter.Value).ToList();
-                foreach (var t in tickets)
+                foreach (var t in paged.Data)
                     ImportedTickets.Add(t);
+                TotalTickets = paged.Total;
                 HasImportedTickets = ImportedTickets.Count > 0;
+                HasMore = _currentPage < paged.TotalPages;
                 _analytics.TrackEvent("tickets_loaded", new() { ["count"] = ImportedTickets.Count.ToString() });
             }
+            else
+            {
+                ErrorText = result.Message ?? "Could not load tickets.";
+                HasError = true;
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+            HasError = true;
+        }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task LoadMore()
+    {
+        if (IsBusy || !HasMore) return;
+        IsBusy = true;
+        HasError = false;
+        _currentPage++;
+        try
+        {
+            var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
+            if (result.Success)
+            {
+                var paged = result.Data!;
+                foreach (var t in paged.Data)
+                    ImportedTickets.Add(t);
+                HasMore = _currentPage < paged.TotalPages;
+            }
+            else
+            {
+                _currentPage--;
+                ErrorText = result.Message ?? "Could not load more tickets.";
+                HasError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _currentPage--;
+            ErrorText = ex.Message;
+            HasError = true;
+        }
         finally { IsBusy = false; }
     }
 
@@ -74,7 +134,15 @@ public partial class TicketsViewModel : BaseViewModel
         var confirm = await Shell.Current.DisplayAlert("Cancel Ticket", "Cancel this ticket?", "Yes", "No");
         if (!confirm) return;
         var result = await _importedService.CancelAsync(ticket.Id);
-        if (result.Success) await LoadTickets();
+        if (result.Success)
+        {
+            await LoadTickets();
+        }
+        else
+        {
+            ErrorText = result.Message ?? "Could not cancel ticket.";
+            HasError = true;
+        }
     }
 
     [RelayCommand]

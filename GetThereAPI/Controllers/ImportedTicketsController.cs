@@ -1,10 +1,14 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
+using GetThereAPI.Common;
 using GetThereAPI.Managers;
+
+using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
-using GetThereAPI.Common;
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GetThereAPI.Controllers;
 
@@ -19,14 +23,20 @@ public class ImportedTicketsController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = PermissionKeys.ImportedTicketsView)]
-    public async Task<ActionResult<List<ImportedTicketResponse>>> List(
+    public async Task<ActionResult<PagedResult<ImportedTicketResponse>>> List(
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, Range(1, 500)] int perPage = 50,
         [FromQuery] ImportedTicketStatus? status = null,
         [FromQuery] ImportSource? source = null,
+        [FromQuery] string? operatorId = null,
+        [FromQuery] DateTime? validFrom = null,
+        [FromQuery] DateTime? validTo = null,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
-        return Ok(await _manager.ListAsync(userId, status, source, ct));
+        return Ok(await _manager.ListAsync(userId, page, perPage, status, source, operatorId, validFrom, validTo, sort, ct));
     }
 
     [HttpGet("{id}")]

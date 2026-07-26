@@ -7,9 +7,9 @@
 - **Database**: SQL Server via Entity Framework Core 10
 - **Auth**: ASP.NET Identity + JWT Bearer tokens (+ refresh tokens)
 - **Map**: MapLibre GL JS (in WebView), OpenFreeMap tiles
-- **Transit data**: GTFS static + GTFS-RT protobuf (realtime) via OpenTripPlanner GraphQL
+- **Transit data**: GTFS static + GTFS-RT protobuf (realtime)
 - **Bike sharing**: Nextbike Live JSON API
-- **Journey planning**: OpenTripPlanner (OTP) GraphQL
+- **Journey planning**: OpenTripPlanner (OTP) GraphQL (planned — not yet integrated)
 
 ## Solution structure
 ```
@@ -27,7 +27,7 @@ GetThere/
 
 GetThereAPI/
 ├── Program.cs          # Startup, DI, middleware, global error handler
-├── Common/             # SqlHelper (database error utilities)
+├── Common/             # PermissionKeys, RoleNames, JwtClaimTypes, AppException
 ├── Controllers/        # REST API endpoints (thin — forward to managers)
 ├── Managers/           # All business logic
 ├── Mapping/            # Static DTO mappers
@@ -37,14 +37,15 @@ GetThereAPI/
 ├── Entities/           # EF Core entity classes
 ├── Enums/              # MobilityType, MobilityFeedFormat
 ├── Parsers/Mobility/   # Nextbike adapter, parser factory
-├── Transit/            # OTP client, provider, router, orchestrator
+├── Parsers/Realtime/   # GTFS-RT parser implementations
+├── Services/           # Background workers (TicketExpiryWorker)
 ├── Migrations/         # EF Core migrations
 └── wwwroot/            # Static files, admin pages
 
 GetThereShared/
-├── Common/             # OperationResult<T>, PagedResult<T>
+├── Common/             # OperationResult<T>, PagedResult<T>, SupportedCurrencies
 ├── Contracts/          # Request/response DTOs by domain
-└── Enums/              # TicketFormat, TicketStatus, PaymentStatus, WalletTransactionType
+└── Enums/              # TicketFormat, TicketStatus, PaymentStatus, WalletTransactionType, ImportedTicketStatus, ImportSource, VerificationStatus
 
 TransitInfoAPI/
 ├── Program.cs          # Startup, DI, middleware
@@ -69,7 +70,7 @@ TransitInfoAPI/
 - MapLibre GL JS
 - GTFS / GTFS-RT protobuf
 - Nextbike JSON API
-- OpenTripPlanner GraphQL
+- OpenTripPlanner GraphQL (planned — not yet integrated)
 - SkiaSharp (MAUI)
 - CommunityToolkit.Maui
 
@@ -121,7 +122,7 @@ public string Name { get; set; } = string.Empty;
 Never `= null!` or `= ""`.
 
 ### Using directives
-Order: `System.*` → `Microsoft.*` → third-party → project (`GetThereAPI.*` / `GetThereShared.*`).
+Sorted alphabetically by namespace root, with `System.*` first (enforced by `dotnet format` via `dotnet_sort_system_directives_first`). Blank lines separate groups of unrelated namespaces.
 
 ### Async pattern
 - All DB access and business logic is fully async
@@ -130,14 +131,10 @@ Order: `System.*` → `Microsoft.*` → third-party → project (`GetThereAPI.*`
 - MAUI services don't use `CancellationToken` (HTTP timeouts handle cancellation)
 
 ### Error handling
-- **Global exception handler** in `Program.cs` catches and logs all unhandled exceptions, returns `500` with `OperationResult<string>.Fail`
+- **Global exception handler** in `Program.cs` catches and logs all unhandled exceptions, returns `500` with RFC 7807 ProblemDetails
 - **Transaction catch blocks**: `catch { await dbTx.RollbackAsync(ct); throw; }` — never swallow
 - **Controllers never catch exceptions** — let them bubble to the global handler
 - **Never silently swallow exceptions** — if you catch, you must log or rethrow
-- **SqlHelper** (`GetThereAPI/Common/SqlHelper.cs`) for database error utilities:
-  - `GetUserFriendlyMessage(SqlException)` → human-readable message
-  - `IsUniqueConstraintViolation(SqlException)` → detect duplicate key violations
-  - `IsDeadlock(SqlException)` → detect deadlock for potential retry
 
 ### DTO / Contract naming
 | Element | Convention | Example |
@@ -195,7 +192,7 @@ return int.Parse(claim);
 - Always annotated: `[ApiController]`, `[Route]`, `[Authorize]` (where needed)
 - Success (2xx): return the DTO/resource directly (`Ok(dto)`)
 - Error (4xx/5xx): return `Problem(statusCode, title)` standard RFC 7807 ProblemDetails
-- Pagination: return `Ok(new Paginated<T>(items, total))` where `Paginated<T>` is a concrete record in `Models/Paginated.cs`
+- Pagination: return `Ok(new PagedResult<T>(items, total, page, perPage))` where `PagedResult<T>` is in `GetThereShared/Common/PagedResult.cs`
 - Thin: receive input → call manager → forward result
 - Never contain business logic
 
@@ -213,9 +210,9 @@ return int.Parse(claim);
 | 500 | ProblemDetails | Server error |
 
 ### Pagination
-- Offset-based: `?page=1&perPage=50`
+- Offset-based: `?page=1&perPage=50` (perPage clamped via `[Range(1, 500)]`)
 - `page` is 1-based (page 1 = items 1–50)
-- Response body: `{ "data": [...], "total": <int> }` via `Paginated<T>` record
+- Response body: `{ "data": [...], "total": <int>, "page": <int>, "perPage": <int>, "totalPages": <int> }` via `PagedResult<T>` (GetThereShared) or `Paginated<T>` (TransitInfoAPI)
 - `total` is the total matching items (not filtered by page)
 - Non-paginated list endpoints return the array directly with no wrapper
 
@@ -230,7 +227,7 @@ Managers return data directly (no envelope wrapper):
 - Controllers never handle errors — they just call the manager and return the happy path
 
 ### Auto-registration
-- MAUI services in `GetThere.Services` namespace are auto-registered by reflection in `MauiProgram.cs`
+- MAUI services in `GetThere.Services` namespace are registered individually in `MauiProgram.cs`
 - API managers in `GetThereAPI.Managers` namespace are auto-registered as scoped by reflection in `Program.cs`
 - Exceptions (explicitly registered): `MobilityManager` (singleton + hosted), `AdapterRegistry` (singleton)
 
@@ -267,8 +264,8 @@ property.SetValueConverter(converterType);
 
 ## Conventions — MAUI
 
-### MVVM / Code-behind
-- Pages use code-behind (no formal MVVM framework)
+### MVVM
+- Pages use view models with CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`)
 - Services are injected via constructor DI
 - UI logic stays in pages; business logic stays in API managers
 
@@ -292,6 +289,10 @@ MAUI pages use `DisplayAlertAsync` / `DisplayPromptAsync` extension methods from
 | `GetThereAPI/Managers/TicketingManager.cs` | Ticket business logic (wallet deduction, adapter dispatch) |
 | `GetThereAPI/Sdk/ITicketingAdapter.cs` | Ticketing provider adapter contract |
 | `GetThereAPI/Managers/WalletManager.cs` | Wallet balance, top-up, ensure |
+| `GetThereAPI/Managers/ImportedTicketManager.cs` | External ticket import, dedup, validation |
+| `GetThereAPI/Mapping/ImportedTicketMapper.cs` | Imported ticket DTO mapper |
+| `GetThereAPI/Services/TicketExpiryWorker.cs` | Background worker for expiring tickets |
+| `GetThereShared/Common/SupportedCurrencies.cs` | Shared supported-currency list |
 | `GetThere/MauiProgram.cs` | MAUI DI setup, API base URL per platform |
 | `GetThere/Platforms/Map/map.html` | Map bundle (MapLibre GL JS) |
 | `TransitInfoAPI/Managers/ReconciliationManager.cs` | Station reconciliation logic |
@@ -342,10 +343,11 @@ Stored as strings in DB via `HasConversion<string>()`. Numeric values match GTFS
 - New MAUI page: create in `Pages/` → register route in Shell → DI auto-resolves constructor deps
 
 ## Notes
-- JWT secret is in `appsettings.json` — move to env vars before production
-- SSL validation bypassed in MAUI dev builds — remove before production
+- JWT secret is stored in user secrets / env vars (not `appsettings.json`). Startup guard throws if key is null, whitespace, `CHANGE-ME`, or shorter than 32 bytes.
+- SSL validation bypassed in MAUI dev builds via `network_security_config.xml` — remove debug-overrides for release.
 - Seed data includes mock payment keys — review `HasData` calls before production
 - Do not manually edit `AppDbContextModelSnapshot.cs` — auto-generated by EF Core
+- `.editorconfig` in repo root codifies code style rules — run `dotnet format` before committing
 
 ## Off-limits areas
 These areas must not be modified without explicit human instruction:
@@ -355,5 +357,6 @@ These areas must not be modified without explicit human instruction:
 | JWT auth pipeline (token creation/validation) | Touches security — could lock all users out |
 | Wallet balance deduction logic | Financial impact — requires testing |
 | Ticket status transitions | Affects user-visible ticket validity |
+| ImportedTicket status transitions | Affects user-visible imported ticket state |
 | EF Core migration generated files | Auto-generated — manual edits are overwritten |
 | Seed data removal in production | Requires coordinated deployment plan |

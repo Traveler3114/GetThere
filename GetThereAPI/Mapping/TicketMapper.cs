@@ -1,4 +1,5 @@
 using GetThereAPI.Entities;
+
 using GetThereShared.Contracts;
 
 namespace GetThereAPI.Mapping;

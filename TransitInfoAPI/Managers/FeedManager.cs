@@ -9,10 +9,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 using NetTopologySuite.Geometries;
 
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
-using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Services;
 
@@ -92,7 +92,7 @@ public class FeedManager
     {
         if (!Enum.TryParse<FeedType>(feedType, true, out var parsedFeedType))
             throw new Exceptions.AppException($"Invalid feed type '{feedType}'.", 400, "INVALID_FEED_TYPE");
-        
+
         if (url is not null && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
             throw new Exceptions.AppException("Invalid feed URL. Must be an absolute HTTP(S) URL.", 400, "INVALID_FEED_URL");
         if (parsedFeedType == FeedType.GTFSStatic && url is not null && !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
@@ -889,9 +889,14 @@ public class FeedManager
         foreach (var c in calendar)
             _db.Calendars.Add(new Calendar
             {
-                FeedVersionId = feedVersionId, ServiceId = c.ServiceId,
-                Monday = c.Monday == 1, Tuesday = c.Tuesday == 1, Wednesday = c.Wednesday == 1,
-                Thursday = c.Thursday == 1, Friday = c.Friday == 1, Saturday = c.Saturday == 1,
+                FeedVersionId = feedVersionId,
+                ServiceId = c.ServiceId,
+                Monday = c.Monday == 1,
+                Tuesday = c.Tuesday == 1,
+                Wednesday = c.Wednesday == 1,
+                Thursday = c.Thursday == 1,
+                Friday = c.Friday == 1,
+                Saturday = c.Saturday == 1,
                 Sunday = c.Sunday == 1,
                 StartDate = DateOnly.ParseExact(c.StartDate, "yyyyMMdd"),
                 EndDate = DateOnly.ParseExact(c.EndDate, "yyyyMMdd")
@@ -906,7 +911,8 @@ public class FeedManager
             }
             _db.CalendarDates.Add(new CalendarDate
             {
-                FeedVersionId = feedVersionId, ServiceId = cd.ServiceId,
+                FeedVersionId = feedVersionId,
+                ServiceId = cd.ServiceId,
                 Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd"),
                 ExceptionType = cd.ExceptionType
             });
@@ -969,7 +975,9 @@ public class FeedManager
 
         using var bulkCopy = new Microsoft.Data.SqlClient.SqlBulkCopy(sqlConn, Microsoft.Data.SqlClient.SqlBulkCopyOptions.Default, sqlTx)
         {
-            DestinationTableName = "StopTimes", BatchSize = 50000, BulkCopyTimeout = 180
+            DestinationTableName = "StopTimes",
+            BatchSize = 50000,
+            BulkCopyTimeout = 180
         };
 
         bulkCopy.ColumnMappings.Add("TripId", "TripId");
@@ -1045,9 +1053,15 @@ public class FeedManager
             }
             _db.Agencies.Add(new Agency
             {
-                FeedVersionId = feedVersionId, AgencyId = a.AgencyId, Name = a.AgencyName,
-                Url = a.AgencyUrl, Timezone = a.AgencyTimezone, Language = a.AgencyLang,
-                Phone = a.AgencyPhone, FareUrl = a.AgencyFareUrl, Email = a.AgencyEmail,
+                FeedVersionId = feedVersionId,
+                AgencyId = a.AgencyId,
+                Name = a.AgencyName,
+                Url = a.AgencyUrl,
+                Timezone = a.AgencyTimezone,
+                Language = a.AgencyLang,
+                Phone = a.AgencyPhone,
+                FareUrl = a.AgencyFareUrl,
+                Email = a.AgencyEmail,
                 OperatorId = operatorId
             });
         }
@@ -1062,13 +1076,21 @@ public class FeedManager
             }
             _db.RawStops.Add(new RawStop
             {
-                FeedVersionId = feedVersionId, RawStopId = s.StopId, Name = s.StopName,
-                Lat = s.StopLat, Lon = s.StopLon, StationType = MapGtfsLocationType(s.LocationType),
-                ParentRawStopId = s.ParentStation, StopCode = s.StopCode, StopDesc = s.StopDesc,
-                ZoneId = s.ZoneId, PlatformCode = s.PlatformCode,
+                FeedVersionId = feedVersionId,
+                RawStopId = s.StopId,
+                Name = s.StopName,
+                Lat = s.StopLat,
+                Lon = s.StopLon,
+                StationType = MapGtfsLocationType(s.LocationType),
+                ParentRawStopId = s.ParentStation,
+                StopCode = s.StopCode,
+                StopDesc = s.StopDesc,
+                ZoneId = s.ZoneId,
+                PlatformCode = s.PlatformCode,
                 WheelchairBoarding = s.WheelchairBoarding.HasValue ? s.WheelchairBoarding == 1 : null,
                 RouteType = routeTypesPerStop.TryGetValue(s.StopId, out var rt) ? rt : null,
-                IsActive = true, ReconciliationStatus = ReconciliationStatus.Pending
+                IsActive = true,
+                ReconciliationStatus = ReconciliationStatus.Pending
             });
         }
 

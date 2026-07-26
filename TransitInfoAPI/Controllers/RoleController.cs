@@ -1,8 +1,10 @@
+using GetThereShared.Contracts;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TransitInfoAPI.Managers;
-using GetThereShared.Contracts;
+
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
 
