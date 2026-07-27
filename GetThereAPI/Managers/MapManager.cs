@@ -6,26 +6,65 @@ using GetThereAPI.Services;
 
 using GetThereShared.Contracts;
 
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+
+using static System.FormattableString;
 
 namespace GetThereAPI.Managers;
 
 public class MapManager
 {
+    /// <summary>
+    /// How long a reference-data read is reused. Stations, routes and mobility docks change on feed
+    /// import, not by the second, and panning a map re-requests the same tiles constantly — every one
+    /// of which was previously a fresh round trip to TransitInfoAPI.
+    /// </summary>
+    private static readonly TimeSpan ReferenceDataTtl = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Live data gets a much shorter window — just enough to collapse the burst of identical requests
+    /// a map produces while panning, without showing a stale vehicle position.
+    /// </summary>
+    private static readonly TimeSpan LiveDataTtl = TimeSpan.FromSeconds(5);
+
     private readonly TransitInfoApiClient _transitClient;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<MapManager> _logger;
 
-    public MapManager(TransitInfoApiClient transitClient, ILogger<MapManager> logger)
+    public MapManager(TransitInfoApiClient transitClient, IMemoryCache cache, ILogger<MapManager> logger)
     {
         _transitClient = transitClient;
+        _cache = cache;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Caches an upstream read. Entries are sized so a burst of map requests cannot grow the cache
+    /// without bound, and failures are never cached — a 502 must not stick for two minutes.
+    /// </summary>
+    private async Task<T> CachedAsync<T>(string key, TimeSpan ttl, Func<Task<T>> load)
+    {
+        if (_cache.TryGetValue<T>(key, out var hit) && hit is not null)
+            return hit;
+
+        var value = await load();
+
+        _cache.Set(key, value, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = ttl,
+            Size = 1
+        });
+
+        return value;
     }
 
     public async Task<List<MapStationResponse>> GetStationsAsync(
         double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
-        var stations = await _transitClient.GetStationsAsync(lat, lon, radiusKm, ct);
+        var stations = await CachedAsync(
+            Invariant($"map:stations:{lat}:{lon}:{radiusKm}"), ReferenceDataTtl,
+            () => _transitClient.GetStationsAsync(lat, lon, radiusKm, ct));
         return stations.Select(s => new MapStationResponse
         {
             Id = s.Id,
@@ -40,7 +79,9 @@ public class MapManager
     public async Task<List<MapRouteResponse>> GetRoutesAsync(
         int? operatorId, string? routeType, CancellationToken ct = default)
     {
-        var routes = await _transitClient.GetRoutesAsync(operatorId, routeType, ct);
+        var routes = await CachedAsync(
+            Invariant($"map:routes:{operatorId}:{routeType}"), ReferenceDataTtl,
+            () => _transitClient.GetRoutesAsync(operatorId, routeType, ct));
         return routes.Select(r => new MapRouteResponse
         {
             Id = r.Id,
@@ -54,7 +95,9 @@ public class MapManager
     public async Task<List<MapMobilityStationResponse>> GetMobilityStationsAsync(
         double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
-        var stations = await _transitClient.GetMobilityStationsAsync(lat, lon, radiusKm, ct);
+        var stations = await CachedAsync(
+            Invariant($"map:mobility:{lat}:{lon}:{radiusKm}"), LiveDataTtl,
+            () => _transitClient.GetMobilityStationsAsync(lat, lon, radiusKm, ct));
         return stations.Select(s => new MapMobilityStationResponse
         {
             StationId = s.StationId,
@@ -70,7 +113,9 @@ public class MapManager
     public async Task<List<MapVehicleResponse>> GetVehiclesAsync(
         string? feedId, double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
-        var vehicles = await _transitClient.GetVehiclesAsync(feedId, lat, lon, radiusKm, ct);
+        var vehicles = await CachedAsync(
+            Invariant($"map:vehicles:{feedId}:{lat}:{lon}:{radiusKm}"), LiveDataTtl,
+            () => _transitClient.GetVehiclesAsync(feedId, lat, lon, radiusKm, ct));
         return vehicles.Select(v => new MapVehicleResponse
         {
             VehicleId = v.VehicleId,

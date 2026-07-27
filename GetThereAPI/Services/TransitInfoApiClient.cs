@@ -26,6 +26,12 @@ public class TransitInfoApiClient
     /// <summary>Upstream page size for list endpoints. Results beyond this are not fetched.</summary>
     private const int UpstreamPageSize = 500;
 
+    /// <summary>
+    /// Ceiling on how many items a single paged read will accumulate. Guards against pulling an
+    /// entire national feed into memory when a query is too broad.
+    /// </summary>
+    private const int MaxUpstreamItems = 10_000;
+
     /// <summary>Radius used for the vehicle bounding box when the caller does not supply one.</summary>
     private const double DefaultVehicleRadiusKm = 50;
 
@@ -208,31 +214,64 @@ public class TransitInfoApiClient
             ?? throw new AppException("Transit information service returned an unreadable response.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
     }
 
-    public async Task<List<TransitStationResponse>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
+    /// <summary>
+    /// Reads every page of a paginated upstream list, up to <see cref="MaxUpstreamItems"/>.
+    /// <para>
+    /// These calls used to request a single page of 500 and return it, silently dropping anything
+    /// beyond that — a city with more than 500 stations simply lost the rest with no error and no log
+    /// line. Paging to exhaustion is the fix; the cap stops a pathological feed pulling everything
+    /// into memory, and is logged when it bites.
+    /// </para>
+    /// </summary>
+    private async Task<List<T>> FetchAllPagesAsync<T>(string path, List<string> query, CancellationToken ct)
     {
-        var query = BuildGeoQuery(lat, lon, radiusKm);
+        List<T> all = [];
+        var page = 1;
 
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/stations?{string.Join("&", query)}");
-        var result = await SendWithAuthAsync<PaginatedResponse<TransitStationResponse>>(request, ct);
-        return result.Items;
+        while (true)
+        {
+            var paged = new List<string>(query) { Invariant($"page={page}") };
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{path}?{string.Join("&", paged)}");
+            var result = await SendWithAuthAsync<PaginatedResponse<T>>(request, ct);
+
+            if (result.Data.Count == 0) break;
+
+            all.AddRange(result.Data);
+
+            if (all.Count >= MaxUpstreamItems)
+            {
+                _logger.LogWarning(
+                    "Truncating {Path} at {Count} items (upstream reports {Total}) — raise MaxUpstreamItems or narrow the query",
+                    path, all.Count, result.Total);
+                break;
+            }
+
+            if (result.Total > 0 && all.Count >= result.Total) break;
+            if (result.Data.Count < UpstreamPageSize) break;
+
+            page++;
+        }
+
+        return all;
     }
+
+    public async Task<List<TransitStationResponse>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
+        => await FetchAllPagesAsync<TransitStationResponse>("/stations", BuildGeoQuery(lat, lon, radiusKm), ct);
 
     public async Task<List<TransitRouteResponse>> GetRoutesAsync(int? operatorId, string? routeType, CancellationToken ct = default)
     {
         var query = new List<string>();
-        if (operatorId.HasValue) query.Add($"operatorId={operatorId.Value}");
-        if (!string.IsNullOrEmpty(routeType)) query.Add($"routeType={routeType}");
-        query.Add("perPage=500");
+        if (operatorId.HasValue) query.Add(Invariant($"operatorId={operatorId.Value}"));
+        if (!string.IsNullOrEmpty(routeType)) query.Add($"routeType={Uri.EscapeDataString(routeType)}");
+        query.Add(Invariant($"perPage={UpstreamPageSize}"));
 
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/routes?{string.Join("&", query)}");
-        var result = await SendWithAuthAsync<PaginatedResponse<TransitRouteResponse>>(request, ct);
-        return result.Items;
+        return await FetchAllPagesAsync<TransitRouteResponse>("/routes", query, ct);
     }
 
     public async Task<List<TransitVehicleResponse>> GetVehiclesAsync(string? feedId, double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
         var query = new List<string>();
-        if (!string.IsNullOrEmpty(feedId)) query.Add($"feedId={feedId}");
+        if (!string.IsNullOrEmpty(feedId)) query.Add($"feedId={Uri.EscapeDataString(feedId)}");
 
         // The box is centred on the point. Adding the offset to both edges (as this once did) produced
         // a box extending only north-east, so vehicles south or west of the caller were never returned.
@@ -260,8 +299,8 @@ public class TransitInfoApiClient
     public async Task<List<TransitAlertResponse>> GetAlertsAsync(string? stopOnestopId, string? routeOnestopId, CancellationToken ct = default)
     {
         var query = new List<string>();
-        if (!string.IsNullOrEmpty(stopOnestopId)) query.Add($"stopOnestopId={stopOnestopId}");
-        if (!string.IsNullOrEmpty(routeOnestopId)) query.Add($"routeOnestopId={routeOnestopId}");
+        if (!string.IsNullOrEmpty(stopOnestopId)) query.Add($"stopOnestopId={Uri.EscapeDataString(stopOnestopId)}");
+        if (!string.IsNullOrEmpty(routeOnestopId)) query.Add($"routeOnestopId={Uri.EscapeDataString(routeOnestopId)}");
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"/realtime/alerts?{string.Join("&", query)}");
         return await SendWithAuthAsync<List<TransitAlertResponse>>(request, ct);
@@ -269,11 +308,8 @@ public class TransitInfoApiClient
 
     public async Task<List<TransitMobilityStationResponse>> GetMobilityStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
-        var query = BuildGeoQuery(lat, lon, radiusKm);
-
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/mobility/stations?{string.Join("&", query)}");
-        var result = await SendWithAuthAsync<PaginatedResponse<TransitMobilityStationResponse>>(request, ct);
-        return result.Items;
+        return await FetchAllPagesAsync<TransitMobilityStationResponse>(
+            "/mobility/stations", BuildGeoQuery(lat, lon, radiusKm), ct);
     }
 
     private DateTime GetTokenExpiry(string token)
@@ -319,12 +355,22 @@ public class TransitInfoApiClient
         public string FullName { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Mirrors TransitInfoAPI's <c>Paginated&lt;T&gt;</c>, whose list property is <c>data</c>.
+    /// <para>
+    /// This declared <c>Items</c>, which matches nothing upstream sends — so it deserialised to an
+    /// empty list every time and <see cref="MapManager"/>'s typed endpoints (<c>/api/map/stations</c>,
+    /// <c>/routes</c>, <c>/mobility/stations</c>) silently returned <c>[]</c> for their entire
+    /// existence. Nothing noticed because the map page was calling TransitInfoAPI directly.
+    /// </para>
+    /// </summary>
     private class PaginatedResponse<T>
     {
-        public List<T> Items { get; set; } = [];
+        public List<T> Data { get; set; } = [];
         public int Total { get; set; }
         public int Page { get; set; }
         public int PerPage { get; set; }
+        public int TotalPages { get; set; }
     }
 }
 

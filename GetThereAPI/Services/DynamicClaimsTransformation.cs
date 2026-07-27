@@ -54,6 +54,7 @@ public class DynamicClaimsTransformation : IClaimsTransformation
         {
             entry.SlidingExpiration = CacheSlidingExpiration;
             entry.AbsoluteExpirationRelativeToNow = CacheAbsoluteExpiration;
+            entry.Size = 1; // The shared cache has a SizeLimit; entries without a Size throw.
 
             var user = await _userManager.FindByIdAsync(userId);
             if (user is null)

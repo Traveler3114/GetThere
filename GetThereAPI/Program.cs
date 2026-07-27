@@ -34,7 +34,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
 builder.Services.AddControllers();
-builder.Services.AddMemoryCache();
+// SizeLimit makes the cache bounded rather than "however much the map asks for": map reads are keyed
+// by viewport, so a user panning around produces an unbounded set of distinct keys. Every entry must
+// therefore declare a Size — both consumers (MapManager, DynamicClaimsTransformation) use 1, so this
+// is an entry count.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 2_000);
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
