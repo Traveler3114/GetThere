@@ -22,24 +22,10 @@ public static class ApiEndpoints
 #endif
 
     /// <summary>
-    /// TransitInfoAPI base address.
-    /// <para>
-    /// KNOWN ARCHITECTURE VIOLATION: the MAUI client is supposed to talk only to GetThereAPI, but
-    /// the map page fetches GeoJSON straight from TransitInfoAPI. Closing this needs GeoJSON
-    /// passthrough on <c>MapProxyController</c> and a way to hand the WebView a bearer token —
-    /// see docs/map-proxy-migration.md. Kept here so the violation lives in exactly one place.
-    /// </para>
+    /// Page hosting the map WebView. Served by GetThereAPI, and it now calls GetThereAPI's own map
+    /// proxy on the same origin — the client no longer reaches TransitInfoAPI directly, so the
+    /// one-way rule in AGENTS.md holds. <c>MapPage</c> hands the page its bearer token after
+    /// navigation.
     /// </summary>
-    public static string TransitInfoApiBase =>
-#if ANDROID
-        "https://10.0.2.2:5001";
-#else
-        "https://localhost:5001";
-#endif
-
-    /// <summary>
-    /// Page hosting the map WebView. Served by GetThereAPI; the <c>api</c> parameter tells the page
-    /// which backend to query — see the note on <see cref="TransitInfoApiBase"/>.
-    /// </summary>
-    public static string MapPageUrl => $"{GetThereApiBase}map/public.html?api={TransitInfoApiBase}";
+    public static string MapPageUrl => $"{GetThereApiBase}map/public.html";
 }

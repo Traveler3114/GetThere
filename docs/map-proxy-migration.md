@@ -1,63 +1,73 @@
-# Map proxy migration (H5) — outstanding
+# Map proxy migration (H5)
 
-**Status:** not done. The violation is isolated but still live.
+**Status: DONE, 2026-07-27.** Verified end-to-end against both APIs running.
 
-## What is wrong
+## What was wrong
 
-`AGENTS.md` states a one-way rule: the MAUI client talks only to GetThereAPI, and
-`MapProxyController` exists to serve exactly that purpose. The map does not follow it.
+`AGENTS.md` states a one-way rule: the MAUI client talks only to GetThereAPI. The map did not follow
+it. `ApiEndpoints.MapPageUrl` loaded `map/public.html` from GetThereAPI but passed TransitInfoAPI's
+address as an `?api=` parameter, and the page then fetched TransitInfoAPI directly. The client
+therefore depended on both platforms, and `MapProxyController` was dead weight for this path.
 
-`GetThere/Helpers/ApiEndpoints.MapPageUrl` loads `map/public.html` from GetThereAPI but passes
-TransitInfoAPI's address as an `api` query parameter. `public.html:60` reads it:
+`audit.md` listed this as critical #7 and marked it fixed. It was not.
 
-```js
-const API_BASE = new URLSearchParams(window.location.search).get('api') || '';
+## What was done
+
+**A whitelisted verbatim passthrough**, `GET /api/map/upstream/{**path}`
+(`MapProxyController.GetUpstream`). The map page renders upstream shapes directly — GeoJSON feature
+collections in particular — so re-modelling them in GetThereAPI would only have added drift. The
+proxy forwards the path and query string unchanged and returns the body untouched.
+
+The allowlist (`MapManager.IsAllowedUpstreamPath`) is the security control, and it is not optional:
+the proxy authenticates upstream with the **service account**, so forwarding an arbitrary path would
+let any user holding `map.view` reach TransitInfoAPI's admin endpoints. Only these are permitted:
+
+```
+stations              routes                mobility/stations
+realtime/vehicles     realtime/alerts       map/transport-types
+stations/{id}/departures                    stations/{id}/operators
 ```
 
-and then fetches TransitInfoAPI directly — `/stations`, `/routes`, `/mobility/stations`,
-`/realtime/vehicles`, `/stations/{id}/departures` (lines 100–127, 424). The MAUI client therefore
-depends on both platforms, and `MapProxyController` is dead weight for this path.
+**Token delivery without putting it in the URL.** The page starts unauthenticated and queues its
+requests behind a promise; `MapPage.OnMapNavigated` calls
+`window.setAuthToken(...)` through `EvaluateJavaScriptAsync` once navigation completes. A token in
+the query string would land in server request logs and WebView history. Browsing the page directly
+in a browser falls back to the `auth_token` already in `sessionStorage`.
 
-`audit.md` lists this as critical #7 and marks it fixed. It is not.
+**Three stubbed proxy endpoints were implemented** while doing this. `GetDeparturesAsync`,
+`GetStationOperatorsAsync` and `GetTransportTypesAsync` returned hardcoded `[]` with a log warning
+(`audit.md` high #5); they now call upstream.
 
-## Why it was not fixed in this pass
+**Upstream failures return 502, not 500.** A connection failure or timeout to TransitInfoAPI was
+surfacing as an unhandled `HttpRequestException`.
 
-Two things block a one-line redirect, and neither is small:
+`ApiEndpoints.TransitInfoApiBase` is gone — the MAUI client no longer knows TransitInfoAPI's address.
 
-1. **Response shape.** The page requests `?format=geojson` and renders GeoJSON feature collections.
-   `MapProxyController` returns `MapStationResponse` / `MapRouteResponse` lists — a different shape
-   entirely. Pointing the page at the proxy without changing anything renders an empty map.
-2. **Authentication.** The TransitInfoAPI endpoints the page calls are `[Authorize]`-gated, and so is
-   `MapProxyController` (`PermissionKeys.MapView`). A WebView navigation carries no bearer token, so
-   the page currently only works to the extent those calls succeed unauthenticated — of the endpoints
-   it uses, only `/mobility/stations` is `[AllowAnonymous]`.
+## Verified
 
-Redirecting the page at the proxy without doing both would have replaced a boundary violation with a
-blank screen, so the current behaviour was left intact and the addresses were consolidated into
-`ApiEndpoints` instead.
+With both APIs running against real data:
 
-## What the fix requires
+| Check | Result |
+|---|---|
+| `/api/map/upstream/stations?format=geojson&...` | 200, 133 KB `FeatureCollection` |
+| `/api/map/upstream/realtime/vehicles` | 200, 114 KB live vehicle array |
+| `/api/map/upstream/mobility/stations?format=geojson&...` | 200, 23 KB `FeatureCollection` |
+| `operators`, `feeds`, `users`, `reconciliation/candidates`, `agencies` | 404 — never forwarded |
+| `../auth/login`, `stations/1/../../users` | 404 — traversal does not escape the allowlist |
+| No bearer token | 401 |
+| `/map/public.html` | 200, and references `/api/map/upstream` only |
 
-1. **GeoJSON passthrough on the proxy.** Add `format=geojson` support to `MapProxyController` for
-   stations, routes and mobility stations. The cleanest form is a raw passthrough: a method on
-   `TransitInfoApiClient` that returns the upstream JSON body unparsed, so GetThereAPI does not have
-   to model GeoJSON. Add `/map/vehicles` and `/map/departures/{onestopId}` to match the page's needs.
-2. **Token delivery to the WebView.** Do *not* put the access token in the page URL — it lands in
-   server request logs and WebView history. Instead let the page start unauthenticated and have
-   `MapPage` push the token in after navigation:
+## Note for whoever runs this locally
 
-   ```csharp
-   await MapWebView.EvaluateJavaScriptAsync($"window.setAuthToken('{token}')");
-   ```
+GetThereAPI authenticates to TransitInfoAPI as `getthere-api`. In Development TransitInfoAPI seeds
+that account with a **randomly generated** password written to
+`TransitInfoAPI/bin/Debug/net10.0/.service-account-credentials`, so it will not match whatever
+`TransitInfoApi:ClientSecret` GetThereAPI already has — the symptom is a 502 from every map call.
+Either copy the generated password into GetThereAPI's user secrets:
 
-   `public.html` then holds the token in a module-scoped variable and attaches
-   `Authorization: Bearer …` to every fetch, deferring its first load until the token arrives.
-3. **Drop the `api` parameter** so `API_BASE` falls back to the page's own origin, and delete
-   `ApiEndpoints.TransitInfoApiBase`.
-4. **Token refresh.** The access token is valid for 15 minutes; a map left open outlives it. Either
-   re-inject on 401 or have the page call back out to MAUI to request a fresh token.
+```bash
+dotnet user-secrets set "TransitInfoApi:ClientSecret" "<password from .service-account-credentials>" --project GetThereAPI/GetThereAPI.csproj
+```
 
-## Verification
-
-Run the MAUI app with TransitInfoAPI **stopped**. The map must still render stations, routes and
-vehicles through GetThereAPI. Today it renders nothing.
+or set `Seed:ServiceAccountPassword` on TransitInfoAPI to a known value before the account is first
+created, which is what non-Development environments now require.

@@ -152,6 +152,19 @@ public class TicketStatusColorConverter : IValueConverter
 }
 
 /// <summary>
+/// Spent tickets are dimmed rather than hidden — the design keeps Used and Expired rows in the
+/// list at reduced opacity so the history stays visible without competing with live tickets.
+/// </summary>
+public class TicketStatusOpacityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value?.ToString() is "Used" or "Expired" or "Cancelled" ? 0.7d : 1d;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
 /// Filter-chip styling. The bound value is the active filter key; the parameter is
 /// "&lt;key&gt;:&lt;part&gt;" where part is bg, stroke or text — for example "Active:bg".
 /// </summary>
@@ -171,6 +184,58 @@ public class FilterChipConverter : IValueConverter
             _ => isSelected ? Color.FromArgb("#5EEAD4") : Color.FromArgb("#D1D5DB")
         };
     }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Chip styling driven by a plain <c>bool</c> selected flag, for chip lists that own their own
+/// state (the map's transport modes) rather than comparing against one active key — see
+/// <see cref="FilterChipConverter"/> for the single-selection case. Pass "bg", "stroke" or "text".
+/// </summary>
+public class ChipPartConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var isSelected = value is bool b && b;
+
+        return (parameter as string) switch
+        {
+            "bg" => isSelected ? Color.FromArgb("#134E4A") : Colors.Transparent,
+            "stroke" => isSelected ? Color.FromArgb("#10B981") : Color.FromArgb("#4B5563"),
+            _ => isSelected ? Color.FromArgb("#5EEAD4") : Color.FromArgb("#D1D5DB")
+        };
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// True when the bound string has content — for optional lines such as the adapter slug, which
+/// the design only prints when the integration actually reports one.
+/// </summary>
+public class NotEmptyConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => !string.IsNullOrWhiteSpace(value as string);
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Selected-card outline. The design marks the chosen fare and the chosen journey with a
+/// 1.5px emerald edge and leaves everything else on the default hairline; this returns the
+/// stroke colour for that, so the selected state is one binding rather than two.
+/// </summary>
+public class SelectedStrokeConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is bool selected && selected
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb(parameter as string ?? "#1F2937");
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -57,7 +57,45 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 </div>
 
 <script>
-const API_BASE = new URLSearchParams(window.location.search).get('api') || '';
+// Same-origin, through GetThereAPI's map proxy. The page used to be handed TransitInfoAPI's address
+// as an ?api= parameter and call it directly, which broke the one-way rule (the client is supposed
+// to talk only to GetThereAPI) and needed credentials this page never had.
+const API_BASE = '/api/map/upstream';
+
+// The proxy is authenticated. A WebView navigation cannot carry an Authorization header, so the host
+// pushes the token in after load via window.setAuthToken(...); requests queue until it arrives.
+// Deliberately not passed in the URL — that would leak it into server logs and history.
+let authToken = null;
+let authReady = null;
+let resolveAuthReady = null;
+
+if (window.self !== window.top) {
+  // Embedded without a host to inject a token: nothing to wait for.
+  authReady = Promise.resolve();
+} else {
+  authReady = new Promise(resolve => { resolveAuthReady = resolve; });
+}
+
+window.setAuthToken = function (token) {
+  authToken = token || null;
+  if (resolveAuthReady) { resolveAuthReady(); resolveAuthReady = null; }
+};
+
+// Browsing the page directly (an admin checking the map) already has a session in sessionStorage.
+if (!authToken) {
+  const stored = sessionStorage.getItem('auth_token');
+  if (stored) window.setAuthToken(stored);
+}
+
+/** fetch() against the proxy, waiting for the token and attaching it. */
+async function apiFetch(url) {
+  await authReady;
+  const headers = authToken ? { Authorization: 'Bearer ' + authToken } : {};
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error('Request failed (' + res.status + ')');
+  return res.json();
+}
+
 let mapErrorTimer = null;
 function showMapError(msg) {
   const el = document.getElementById('mapError');
@@ -101,21 +139,21 @@ function loadMapData() {
   const routeUrl = API_BASE + `/routes?format=geojson&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
   const mobilityUrl = API_BASE + `/mobility/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
 
-  fetch(stationUrl).then(r => r.json()).then(data => {
+  apiFetch(stationUrl).then(data => {
     const src = map.getSource(stationsSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
   }).catch(() => showMapError('Failed to load stations'));
 
-  fetch(routeUrl).then(r => r.json()).then(data => {
+  apiFetch(routeUrl).then(data => {
     const src = map.getSource(routesSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
   }).catch(() => showMapError('Failed to load routes'));
 
-  fetch(mobilityUrl).then(r => r.json()).then(data => {
+  apiFetch(mobilityUrl).then(data => {
     const src = map.getSource(mobilitySource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
@@ -124,7 +162,7 @@ function loadMapData() {
 }
 
 function loadVehicles() {
-  fetch(API_BASE + '/realtime/vehicles').then(r => r.json()).then(resp => {
+  apiFetch(API_BASE + '/realtime/vehicles').then(resp => {
     const vehicles = resp || [];
     const fc = {
       type: 'FeatureCollection',
@@ -421,7 +459,7 @@ function showStationDetails(id, props) {
   sidebarOpen = true;
   content.innerHTML = html;
 
-  fetch(API_BASE + `/stations/${id}/departures?count=5`).then(r => r.json()).then(resp => {
+  apiFetch(API_BASE + `/stations/${id}/departures?count=5`).then(resp => {
     const deps = resp || [];
     if (deps.length === 0) {
       document.querySelector('.departures .loading').textContent = 'No upcoming departures';
@@ -483,6 +521,89 @@ function esc(s) {
   d.textContent = s;
   return d.innerHTML;
 }
+
+// ── Mode filter ──────────────────────────────────────────────────────────────
+// The MAUI map screen draws its transport-mode chips natively over this page (frame 3a of the
+// design) and calls in here when one is toggled. Modes are the chip keys; an empty or absent
+// list means "show everything", which is also the state the page loads in.
+const MODE_ROUTE_TYPES = {
+  Tram: ['Tram'],
+  Bus: ['Bus', 'Trolleybus'],
+  Train: ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail']
+};
+
+window.setModeFilter = function (modes) {
+  if (!map || !map.isStyleLoaded()) return;
+
+  const active = Array.isArray(modes) ? modes : [];
+  const showAll = active.length === 0;
+
+  // Bike share lives in its own source, so it is a visibility toggle rather than a filter.
+  const showBikes = showAll || active.includes('Bikes');
+  for (const id of ['mobility-cluster', 'mobility-cluster-count', 'mobility-dot']) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', showBikes ? 'visible' : 'none');
+    }
+  }
+
+  // Stops carry primaryRouteType, so the unclustered icons can be filtered directly. Clusters
+  // aggregate across types and cannot be filtered by a member property, so they are hidden while
+  // a transport filter is on and the individual stops carry the answer instead.
+  const wanted = active.flatMap(m => MODE_ROUTE_TYPES[m] || []);
+  const filteringStops = wanted.length > 0 && !showAll;
+
+  if (map.getLayer('stations-circle')) {
+    map.setFilter('stations-circle', filteringStops
+      ? ['all', ['!', ['has', 'point_count']], ['in', ['get', 'primaryRouteType'], ['literal', wanted]]]
+      : ['!', ['has', 'point_count']]);
+  }
+
+  for (const id of ['stations-cluster', 'stations-cluster-count']) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', filteringStops ? 'none' : 'visible');
+    }
+  }
+
+  // Route lines and live vehicles belong to the scheduled network, so they follow the same
+  // transport selection and switch off entirely when only bikes are asked for.
+  const showNetwork = showAll || wanted.length > 0;
+  for (const id of ['routes-line', 'vehicles-circle', 'vehicles-arrow']) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', showNetwork ? 'visible' : 'none');
+    }
+  }
+};
+
+// ── Native map controls ──────────────────────────────────────────────────────
+// The two round buttons in frame 3a. Both are no-ops until the style has loaded, which is why the
+// host guards its calls with `window.x && window.x()`.
+
+const DEFAULT_CENTRE = [16.0, 45.8];
+const DEFAULT_ZOOM = 7;
+
+/** Recentres on the device's position, falling back to the country view if that is unavailable. */
+window.recentreMap = function () {
+  if (!map) return;
+
+  if (!navigator.geolocation) {
+    map.easeTo({ center: DEFAULT_CENTRE, zoom: DEFAULT_ZOOM });
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => map.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 }),
+    () => map.easeTo({ center: DEFAULT_CENTRE, zoom: DEFAULT_ZOOM }),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+  );
+};
+
+/** Layers button: shows or hides the route shapes over the basemap. */
+window.toggleRouteLines = function () {
+  if (!map || !map.isStyleLoaded() || !map.getLayer('routes-line')) return;
+
+  const visible = map.getLayoutProperty('routes-line', 'visibility') !== 'none';
+  map.setLayoutProperty('routes-line', 'visibility', visible ? 'none' : 'visible');
+};
 
 window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(vehiclesInterval); });
 </script>

@@ -19,7 +19,7 @@ public partial class ShopPage : ContentPage
         base.OnAppearing();
         try
         {
-            await _viewModel.UpdateAuthStateCommand.ExecuteAsync(null);
+            await _viewModel.LoadCommand.ExecuteAsync(null);
         }
         catch (Exception ex)
         {

@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    Navigation shell for both shapes in "GetThere App.dc.html":
+
+      · phone / tablet — the bottom tab bar of frames 3a–3f
+      · desktop        — the locked 220px side rail of frames 3g/3h
+
+    Shell cannot switch a TabBar into a flyout at runtime, so the items are built in the
+    code-behind against the device idiom rather than declared here.
+-->
 <Shell
     x:Class="GetThere.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -8,35 +17,8 @@
     xmlns:localization="clr-namespace:GetThere.Localization"
     Title="GetThere"
     Shell.NavBarIsVisible="False"
-    Shell.TabBarBackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
-    Shell.TabBarForegroundColor="#059669"
-    Shell.TabBarTitleColor="#059669"
-    Shell.TabBarUnselectedColor="{AppThemeBinding Light=#9CA3AF, Dark=#94A3B8}">
-
-    <TabBar>
-        <ShellContent 
-            Title="{localization:Translate Tab_Profile}" 
-            Icon="{AppThemeBinding Light=profile.png, Dark=profile_white.png}" 
-            ContentTemplate="{DataTemplate pages:ProfilePage}" 
-            Route="profile" />
-        
-        <ShellContent 
-            Title="{localization:Translate Tab_Map}" 
-            Icon="{AppThemeBinding Light=map.png, Dark=map_white.png}" 
-            ContentTemplate="{DataTemplate pages:MapPage}" 
-            Route="map" />
-        
-        <ShellContent 
-            Title="{localization:Translate Tab_Shop}" 
-            Icon="{AppThemeBinding Light=shop_bag.png, Dark=shop_bag_white.png}" 
-            ContentTemplate="{DataTemplate pages:ShopPage}" 
-            Route="shop" />
-        
-        <ShellContent 
-            Title="{localization:Translate Tab_Tickets}" 
-            Icon="{AppThemeBinding Light=ticket.png, Dark=ticket_white.png}" 
-            ContentTemplate="{DataTemplate pages:TicketsPage}" 
-            Route="tickets" />
-    </TabBar>
-
-</Shell>
+    FlyoutBackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+    Shell.TabBarBackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+    Shell.TabBarForegroundColor="{StaticResource StatusOkStrong}"
+    Shell.TabBarTitleColor="{StaticResource StatusOkStrong}"
+    Shell.TabBarUnselectedColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource TextMuted}}" />

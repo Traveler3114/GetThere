@@ -298,4 +298,52 @@
   <data name="Error_CouldNotLoadSchedule" xml:space="preserve"><value>Could not load schedule: </value></data>
   <data name="Error_CouldNotLoadTransportTypes" xml:space="preserve"><value>Could not load transport types: </value></data>
   <data name="Error_CouldNotLoadImage" xml:space="preserve"><value>Could not load image: </value></data>
+  <data name="Shop_Subtitle" xml:space="preserve"><value>Operators that sell through GetThere</value></data>
+  <data name="Shop_SearchPlaceholder" xml:space="preserve"><value>Search operator or city</value></data>
+  <data name="Shop_NearYou" xml:space="preserve"><value>NEAR YOU</value></data>
+  <data name="Shop_LongDistance" xml:space="preserve"><value>LONG DISTANCE</value></data>
+  <data name="Shop_NoTicketing" xml:space="preserve"><value>Timetable only — no ticketing yet</value></data>
+  <data name="Purchase_Journey" xml:space="preserve"><value>JOURNEY</value></data>
+  <data name="Purchase_Options" xml:space="preserve"><value>OPTIONS FROM OPERATOR</value></data>
+  <data name="Purchase_Selected" xml:space="preserve"><value>selected</value></data>
+  <data name="Purchase_PayFromWallet" xml:space="preserve"><value>Pay from wallet</value></data>
+  <data name="Purchase_Available" xml:space="preserve"><value>{0} available</value></data>
+  <data name="Purchase_Confirm" xml:space="preserve"><value>Confirm purchase</value></data>
+  <data name="Purchase_InsufficientFunds" xml:space="preserve"><value>Not enough in your wallet — top up first.</value></data>
+  <data name="Purchase_Success" xml:space="preserve"><value>Ticket purchased</value></data>
+  <data name="Purchase_From" xml:space="preserve"><value>FROM</value></data>
+  <data name="Purchase_To" xml:space="preserve"><value>TO</value></data>
+  <data name="Purchase_Operator" xml:space="preserve"><value>OPERATOR</value></data>
+  <data name="Purchase_Duration" xml:space="preserve"><value>VALID FOR</value></data>
+  <data name="Purchase_DurationMinutes" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Purchase_OpenEnded" xml:space="preserve"><value>No fixed duration</value></data>
+  <data name="Ticket_Title" xml:space="preserve"><value>Ticket</value></data>
+  <data name="Ticket_Active" xml:space="preserve"><value>ACTIVE</value></data>
+  <data name="Ticket_IssuedBy" xml:space="preserve"><value>QR ISSUED BY</value></data>
+  <data name="Ticket_AdapterSuffix" xml:space="preserve"><value>{0} ADAPTER</value></data>
+  <data name="Ticket_Verified" xml:space="preserve"><value>Verified just now</value></data>
+  <data name="Ticket_Departs" xml:space="preserve"><value>DEPARTS</value></data>
+  <data name="Ticket_Arrives" xml:space="preserve"><value>ARRIVES</value></data>
+  <data name="Ticket_TicketId" xml:space="preserve"><value>TICKET ID</value></data>
+  <data name="Ticket_Paid" xml:space="preserve"><value>PAID</value></data>
+  <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} wallet</value></data>
+  <data name="Ticket_AddToWallet" xml:space="preserve"><value>Add to Wallet</value></data>
+  <data name="Ticket_ShowJourney" xml:space="preserve"><value>Show journey</value></data>
+  <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
+  <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Could not load this ticket.</value></data>
+  <data name="Tickets_Subtitle" xml:space="preserve"><value>Bought and imported tickets</value></data>
+  <data name="Tickets_All" xml:space="preserve"><value>All</value></data>
+  <data name="Tickets_ImportButton" xml:space="preserve"><value>Import ticket</value></data>
+  <data name="Tickets_CountSummary" xml:space="preserve"><value>{0} tickets · {1} active</value></data>
+  <data name="Map_SearchPlaceholder" xml:space="preserve"><value>Where are you going?</value></data>
+  <data name="Map_ModeTram" xml:space="preserve"><value>Tram</value></data>
+  <data name="Map_ModeBus" xml:space="preserve"><value>Bus</value></data>
+  <data name="Map_ModeTrain" xml:space="preserve"><value>Train</value></data>
+  <data name="Map_ModeBikes" xml:space="preserve"><value>Bikes</value></data>
+  <data name="Map_Locate" xml:space="preserve"><value>Recentre</value></data>
+  <data name="Map_Layers" xml:space="preserve"><value>Layers</value></data>
+  <data name="Map_BuyTicket" xml:space="preserve"><value>Buy ticket</value></data>
+  <data name="Map_Departures" xml:space="preserve"><value>Departures</value></data>
+  <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vehicles live</value></data>
+  <data name="Login_Tagline" xml:space="preserve"><value>One account for every operator's tickets, wallet and live journeys</value></data>
 </root>

@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Frame 3d of "GetThere App.dc.html".
+
+    The design's QR square is a mockup placeholder (a checkerboard with "QR ISSUED BY … ADAPTER"
+    printed over it). This renders the panel at the drawn size and treatment but puts the adapter's
+    real payload in it rather than a decorative checkerboard, so nothing on screen looks scannable
+    unless it actually is. Turning the payload into a true QR bitmap needs a QR encoder package,
+    which the solution does not currently reference.
+-->
+<ContentPage
+    x:Class="GetThere.Pages.TicketDetailPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    x:DataType="vm:TicketDetailViewModel"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
+    Shell.NavBarIsVisible="False">
+
+    <Grid RowDefinitions="Auto,*">
+        <components:AnimatedBackground Grid.RowSpan="2" />
+
+        <!--  ── HEADER ──  -->
+        <Grid
+            Grid.Row="0"
+            Padding="20,44,20,14"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="14">
+            <Grid
+                HeightRequest="44"
+                VerticalOptions="Center"
+                WidthRequest="32">
+                <shapes:Path
+                    Data="M19,5L9,12l10,7 M9,12h14"
+                    HeightRequest="24"
+                    HorizontalOptions="Center"
+                    Stroke="{AppThemeBinding Light={StaticResource TextSecondaryLight}, Dark={StaticResource TextSecondary}}"
+                    StrokeLineCap="Round"
+                    StrokeLineJoin="Round"
+                    StrokeThickness="2.5"
+                    VerticalOptions="Center"
+                    WidthRequest="24" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding BackCommand}" />
+                </Grid.GestureRecognizers>
+            </Grid>
+            <Label
+                Grid.Column="1"
+                Style="{StaticResource DsScreenTitle}"
+                Text="{localization:Translate Ticket_Title}" />
+        </Grid>
+
+        <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">
+            <VerticalStackLayout
+                Padding="20,0,20,110"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="560"
+                Spacing="18">
+
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <ActivityIndicator
+                    HeightRequest="32"
+                    IsRunning="{Binding IsBusy}"
+                    IsVisible="{Binding IsBusy}" />
+
+                <!--  ── TICKET CARD ──  -->
+                <Border IsVisible="{Binding HasTicket}" Style="{StaticResource DsCardLarge}">
+                    <VerticalStackLayout>
+
+                        <!--  gradient header  -->
+                        <Border
+                            Background="{StaticResource CardGradientBrush}"
+                            Padding="20,18"
+                            StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <shapes:RoundRectangle CornerRadius="21,21,0,0" />
+                            </Border.StrokeShape>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label
+                                        CharacterSpacing="1.2"
+                                        FontFamily="OpenSansSemibold"
+                                        FontSize="11"
+                                        Opacity="0.72"
+                                        Text="{Binding OperatorLine}"
+                                        TextColor="White" />
+                                    <Label
+                                        FontAttributes="Bold"
+                                        FontSize="19"
+                                        Text="{Binding RouteText}"
+                                        TextColor="White" />
+                                </VerticalStackLayout>
+                                <Border
+                                    Grid.Column="1"
+                                    Padding="9,4"
+                                    BackgroundColor="#33FFFFFF"
+                                    StrokeThickness="0"
+                                    VerticalOptions="Start">
+                                    <Border.StrokeShape>
+                                        <shapes:RoundRectangle CornerRadius="6" />
+                                    </Border.StrokeShape>
+                                    <Label
+                                        FontAttributes="Bold"
+                                        FontSize="10.5"
+                                        Text="{Binding StatusText}"
+                                        TextColor="White" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!--  payload panel  -->
+                        <VerticalStackLayout
+                            Padding="20,22"
+                            HorizontalOptions="Center"
+                            Spacing="14">
+                            <Border
+                                Padding="16"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceRaisedLight}, Dark={StaticResource DarkBackground}}"
+                                HeightRequest="210"
+                                HorizontalOptions="Center"
+                                Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource DarkMuted}}"
+                                StrokeDashArray="4,3"
+                                StrokeDashOffset="0"
+                                StrokeThickness="1"
+                                WidthRequest="210">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="14" />
+                                </Border.StrokeShape>
+                                <VerticalStackLayout
+                                    HorizontalOptions="Center"
+                                    Spacing="10"
+                                    VerticalOptions="Center">
+                                    <Label
+                                        CharacterSpacing="1"
+                                        FontSize="10"
+                                        HorizontalTextAlignment="Center"
+                                        Style="{StaticResource DsMono}"
+                                        Text="{localization:Translate Ticket_IssuedBy}" />
+                                    <Label
+                                        FontSize="11"
+                                        HorizontalTextAlignment="Center"
+                                        Style="{StaticResource DsMono}"
+                                        Text="{Binding IssuedByText}"
+                                        TextColor="{StaticResource TealText}" />
+                                    <Label
+                                        FontSize="13"
+                                        HorizontalTextAlignment="Center"
+                                        LineBreakMode="CharacterWrap"
+                                        MaximumWidthRequest="170"
+                                        Style="{StaticResource DsMono}"
+                                        Text="{Binding Payload}"
+                                        TextColor="{AppThemeBinding Light={StaticResource TextPrimaryLight}, Dark={StaticResource Gray100}}" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Label
+                                HorizontalTextAlignment="Center"
+                                Style="{StaticResource DsMono}"
+                                Text="{Binding TicketReference}" />
+
+                            <HorizontalStackLayout
+                                HorizontalOptions="Center"
+                                IsVisible="{Binding IsActive}"
+                                Spacing="8">
+                                <BoxView
+                                    CornerRadius="4"
+                                    HeightRequest="7"
+                                    VerticalOptions="Center"
+                                    WidthRequest="7"
+                                    Color="{StaticResource StatusOk}" />
+                                <Label
+                                    FontSize="12"
+                                    Text="{localization:Translate Ticket_Verified}"
+                                    TextColor="{StaticResource StatusOkSoft}" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+
+                        <!--  perforation  -->
+                        <shapes:Line
+                            HeightRequest="1"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource DarkMuted}}"
+                            StrokeDashArray="5,4"
+                            StrokeThickness="1"
+                            X2="500" />
+
+                        <!--  meta grid  -->
+                        <Grid
+                            Padding="20,16"
+                            ColumnDefinitions="*,*"
+                            ColumnSpacing="12"
+                            RowDefinitions="Auto,Auto"
+                            RowSpacing="12">
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="0">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_Departs}" />
+                                <Label Style="{StaticResource DsMetaValue}" Text="{Binding DepartsText}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="1">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_Arrives}" />
+                                <Label Style="{StaticResource DsMetaValue}" Text="{Binding ArrivesText}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="0">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_TicketId}" />
+                                <Label
+                                    FontSize="13"
+                                    Style="{StaticResource DsMono}"
+                                    Text="{Binding TicketReference}"
+                                    TextColor="{StaticResource VioletMono}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="1">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_Paid}" />
+                                <Label Style="{StaticResource DsMetaValue}" Text="{Binding PaidText}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!--  ── ACTIONS ──  -->
+                <Grid
+                    ColumnDefinitions="*,*"
+                    ColumnSpacing="10"
+                    IsVisible="{Binding HasTicket}">
+                    <Button Style="{StaticResource DsGhostButton}" Text="{localization:Translate Ticket_AddToWallet}" />
+                    <Button
+                        Grid.Column="1"
+                        Style="{StaticResource DsGhostButton}"
+                        Text="{localization:Translate Ticket_ShowJourney}" />
+                </Grid>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

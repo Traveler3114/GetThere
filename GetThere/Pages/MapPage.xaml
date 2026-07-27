@@ -1,16 +1,145 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-              xmlns:vm="clr-namespace:GetThere.ViewModels"
-              xmlns:components="clr-namespace:GetThere.Components"
-              x:DataType="vm:MapViewModel"
-              x:Class="GetThere.Pages.MapPage"
-              BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
-              Shell.NavBarIsVisible="False">
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Frame 3a of "GetThere App.dc.html".
+
+    The map itself is a MapLibre WebView. The search field, transport-mode chips and map controls
+    are drawn natively over it, as in the design. Station details stay inside the page — it already
+    renders its own detail sidebar on tap, and a second, native sheet would fight it for the same
+    selection.
+-->
+<ContentPage
+    x:Class="GetThere.Pages.MapPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    x:DataType="vm:MapViewModel"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource MapCanvas}}"
+    Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:ChipPartConverter x:Key="Chip" />
+    </ContentPage.Resources>
 
     <Grid>
         <components:AnimatedBackground />
-        <WebView Source="{Binding MapUrl}" />
-    </Grid>
 
+        <WebView
+            x:Name="MapWebView"
+            Navigated="OnMapNavigated"
+            Source="{Binding MapUrl}" />
+
+        <!--  ── TOP CHROME ──  -->
+        <VerticalStackLayout
+            Margin="16,14,16,0"
+            InputTransparent="False"
+            Spacing="10"
+            VerticalOptions="Start">
+
+            <Border HeightRequest="46" Style="{StaticResource DsField}">
+                <Border.Shadow>
+                    <Shadow
+                        Brush="Black"
+                        Opacity="0.35"
+                        Radius="20"
+                        Offset="0,8" />
+                </Border.Shadow>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <Ellipse
+                        HeightRequest="16"
+                        Stroke="{AppThemeBinding Light={StaticResource TextMutedLight}, Dark={StaticResource TextDim}}"
+                        StrokeThickness="2"
+                        VerticalOptions="Center"
+                        WidthRequest="16" />
+                    <Entry
+                        Grid.Column="1"
+                        Placeholder="{localization:Translate Map_SearchPlaceholder}"
+                        Style="{StaticResource DsEntry}"
+                        Text="{Binding SearchText}" />
+                </Grid>
+            </Border>
+
+            <!--  transport-mode chips  -->
+            <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Modes}" Spacing="8">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MapModeChip">
+                            <Border
+                                BackgroundColor="{Binding IsSelected, Converter={StaticResource Chip}, ConverterParameter=bg}"
+                                Stroke="{Binding IsSelected, Converter={StaticResource Chip}, ConverterParameter=stroke}"
+                                Style="{StaticResource DsChip}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MapViewModel}}, Path=ToggleModeCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <Label
+                                    Padding="12,0"
+                                    Style="{StaticResource DsChipLabel}"
+                                    Text="{Binding Label}"
+                                    TextColor="{Binding IsSelected, Converter={StaticResource Chip}, ConverterParameter=text}" />
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </HorizontalStackLayout>
+            </ScrollView>
+        </VerticalStackLayout>
+
+        <!--  ── MAP CONTROLS ──  -->
+        <VerticalStackLayout
+            Margin="0,0,16,28"
+            HorizontalOptions="End"
+            Spacing="10"
+            VerticalOptions="End">
+            <Border Style="{StaticResource DsMapControl}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRecentreTapped" />
+                </Border.GestureRecognizers>
+                <Grid>
+                    <Ellipse
+                        HeightRequest="16"
+                        HorizontalOptions="Center"
+                        Stroke="{StaticResource TealText}"
+                        StrokeThickness="2"
+                        VerticalOptions="Center"
+                        WidthRequest="16" />
+                    <Ellipse
+                        HeightRequest="5"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        WidthRequest="5"
+                        Fill="{StaticResource TealAccentBrush}" />
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource DsMapControl}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnLayersTapped" />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout
+                    HorizontalOptions="Center"
+                    Spacing="3"
+                    VerticalOptions="Center">
+                    <BoxView
+                        CornerRadius="1"
+                        HeightRequest="2"
+                        WidthRequest="16"
+                        Color="{AppThemeBinding Light={StaticResource TextSecondaryLight}, Dark={StaticResource TextSecondary}}" />
+                    <BoxView
+                        CornerRadius="1"
+                        HeightRequest="2"
+                        WidthRequest="16"
+                        Color="{AppThemeBinding Light={StaticResource TextSecondaryLight}, Dark={StaticResource TextSecondary}}" />
+                    <BoxView
+                        CornerRadius="1"
+                        HeightRequest="2"
+                        WidthRequest="16"
+                        Color="{AppThemeBinding Light={StaticResource TextSecondaryLight}, Dark={StaticResource TextSecondary}}" />
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </Grid>
 </ContentPage>

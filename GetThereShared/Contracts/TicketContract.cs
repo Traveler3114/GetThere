@@ -7,6 +7,11 @@ public class TicketOptionResponse
     public int Id { get; set; }
     public int AdapterId { get; set; }
     public string AdapterName { get; set; } = string.Empty;
+    /// <summary>
+    /// The adapter's type slug (for example <c>hzpp.v1</c>). Surfaced to clients so a ticket can
+    /// say which integration issued it, which is what the ticket screen prints under the QR.
+    /// </summary>
+    public string AdapterType { get; set; } = string.Empty;
     public string ExternalProductId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }

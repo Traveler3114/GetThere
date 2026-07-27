@@ -1,33 +1,157 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!--  Frames 3b (iPhone) and the operator rail of 3g/3h of "GetThere App.dc.html".  -->
 <ContentPage
     x:Class="GetThere.Pages.ShopPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:GetThere.ViewModels"
     xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:localization="clr-namespace:GetThere.Localization"
     x:DataType="vm:ShopViewModel"
-    Title="Shop"
-    BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
+    Title="{localization:Translate Shop_Title}"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
     Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+
+        <!--  One operator row: monogram, name + what they sell, chevron.  -->
+        <DataTemplate x:Key="OperatorTemplate" x:DataType="vm:ShopOperator">
+            <Border
+                Margin="0,0,0,10"
+                Padding="14"
+                Opacity="{Binding RowOpacity}"
+                Style="{StaticResource DsCard}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer
+                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ShopViewModel}}, Path=OpenOperatorCommand}"
+                        CommandParameter="{Binding .}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Border BackgroundColor="{Binding MonogramBackground}" Style="{StaticResource DsMonogram}">
+                        <Label
+                            Style="{StaticResource DsMonogramLabel}"
+                            Text="{Binding Monogram}"
+                            TextColor="{Binding MonogramForeground}" />
+                    </Border>
+
+                    <VerticalStackLayout
+                        Grid.Column="1"
+                        Spacing="2"
+                        VerticalOptions="Center">
+                        <Label
+                            FontSize="15"
+                            Style="{StaticResource DsCardTitle}"
+                            Text="{Binding Name}" />
+                        <Label
+                            FontSize="12"
+                            LineBreakMode="TailTruncation"
+                            Style="{StaticResource DsCardSubtitle}"
+                            Text="{Binding Subtitle}" />
+                    </VerticalStackLayout>
+
+                    <Image
+                        Grid.Column="2"
+                        HeightRequest="12"
+                        IsVisible="{Binding IsBuyable}"
+                        Source="{AppThemeBinding Light=arrow_right.svg, Dark=arrow_right_white.svg}"
+                        VerticalOptions="Center"
+                        WidthRequest="12" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </ContentPage.Resources>
 
     <Grid>
         <components:AnimatedBackground />
 
-        <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="16" Padding="40">
-            <Label Text="Shop" FontSize="32" FontAttributes="Bold"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-            <Label Text="{Binding TitleText}"
-                   FontSize="20"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=Gray, Dark=#9CA3AF}" />
-            <Label Text="{Binding DescriptionText}"
-                   FontSize="14"
-                   HorizontalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
-                   MaximumWidthRequest="400" />
+        <!--  ── DIRECTORY ──  -->
+        <ScrollView IsVisible="{Binding IsAuthenticated}" VerticalScrollBarVisibility="Never">
+            <VerticalStackLayout
+                Padding="20,32,20,110"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="720"
+                Spacing="16">
+
+                <VerticalStackLayout Spacing="4">
+                    <Label Style="{StaticResource DsPageTitle}" Text="{localization:Translate Shop_Title}" />
+                    <Label Style="{StaticResource DsPageSubtitle}" Text="{localization:Translate Shop_Subtitle}" />
+                </VerticalStackLayout>
+
+                <Border HeightRequest="42" Style="{StaticResource DsField}">
+                    <Entry
+                        Placeholder="{localization:Translate Shop_SearchPlaceholder}"
+                        Style="{StaticResource DsEntry}"
+                        Text="{Binding SearchText}" />
+                </Border>
+
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <ActivityIndicator
+                    HeightRequest="32"
+                    IsRunning="{Binding IsBusy}"
+                    IsVisible="{Binding IsBusy}" />
+
+                <!--  NEAR YOU  -->
+                <VerticalStackLayout IsVisible="{Binding HasNearYou}" Spacing="10">
+                    <Label Style="{StaticResource DsSectionCaption}" Text="{localization:Translate Shop_NearYou}" />
+                    <VerticalStackLayout
+                        BindableLayout.ItemTemplate="{StaticResource OperatorTemplate}"
+                        BindableLayout.ItemsSource="{Binding NearYou}" />
+                </VerticalStackLayout>
+
+                <!--  LONG DISTANCE  -->
+                <VerticalStackLayout IsVisible="{Binding HasLongDistance}" Spacing="10">
+                    <Label Style="{StaticResource DsSectionCaption}" Text="{localization:Translate Shop_LongDistance}" />
+                    <VerticalStackLayout
+                        BindableLayout.ItemTemplate="{StaticResource OperatorTemplate}"
+                        BindableLayout.ItemsSource="{Binding LongDistance}" />
+                </VerticalStackLayout>
+
+                <VerticalStackLayout
+                    Margin="0,40,0,0"
+                    IsVisible="{Binding IsEmpty}"
+                    Spacing="8">
+                    <Label
+                        HorizontalOptions="Center"
+                        Style="{StaticResource DsCardTitle}"
+                        Text="{localization:Translate Shop_NoOperators}" />
+                    <Label
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Style="{StaticResource DsCardSubtitle}"
+                        Text="{localization:Translate Shop_MockDisclaimer}" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!--  ── SIGNED OUT ──  -->
+        <VerticalStackLayout
+            Padding="40"
+            HorizontalOptions="Center"
+            IsVisible="{Binding IsAuthenticated, Converter={StaticResource InverseBoolConverter}}"
+            Spacing="16"
+            VerticalOptions="Center">
+            <Label
+                HorizontalTextAlignment="Center"
+                Style="{StaticResource DsPageTitle}"
+                Text="{Binding TitleText}" />
+            <Label
+                HorizontalTextAlignment="Center"
+                MaximumWidthRequest="400"
+                Style="{StaticResource DsPageSubtitle}"
+                Text="{Binding DescriptionText}" />
+            <Button
+                Margin="0,8,0,0"
+                Command="{Binding GoToLoginCommand}"
+                Style="{StaticResource DsPrimaryButton}"
+                Text="{localization:Translate Profile_LoginRegister}"
+                WidthRequest="220" />
         </VerticalStackLayout>
     </Grid>
-
 </ContentPage>

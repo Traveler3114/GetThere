@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Frame 3c of "GetThere App.dc.html".
+
+    The design's top card is a rail journey (from / to / date / passengers) because it draws the
+    HŽPP flow. The app's ticketing API is fare-based rather than journey-based — an adapter offers
+    a list of products, not an origin/destination search — so that card carries the operator and
+    what it sells instead. Everything below it (fare list with the emerald selected edge, wallet
+    footer, commit button) is the design as drawn.
+-->
+<ContentPage
+    x:Class="GetThere.Pages.TicketPurchasePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    x:DataType="vm:TicketPurchaseViewModel"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
+    Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:SelectedStrokeConverter x:Key="SelectedStroke" />
+        <helpers:BoolToStrokeConverter x:Key="SelectedThickness" />
+        <helpers:NotEmptyConverter x:Key="NotEmpty" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <components:AnimatedBackground Grid.RowSpan="3" />
+
+        <!--  ── HEADER ──  -->
+        <Grid
+            Grid.Row="0"
+            Padding="20,44,20,12"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="14">
+            <Grid
+                HeightRequest="44"
+                VerticalOptions="Center"
+                WidthRequest="32">
+                <shapes:Path
+                    Data="M19,5L9,12l10,7 M9,12h14"
+                    HeightRequest="24"
+                    HorizontalOptions="Center"
+                    Stroke="{AppThemeBinding Light={StaticResource TextSecondaryLight}, Dark={StaticResource TextSecondary}}"
+                    StrokeLineCap="Round"
+                    StrokeLineJoin="Round"
+                    StrokeThickness="2.5"
+                    VerticalOptions="Center"
+                    WidthRequest="24" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding BackCommand}" />
+                </Grid.GestureRecognizers>
+            </Grid>
+            <Label
+                Grid.Column="1"
+                Style="{StaticResource DsScreenTitle}"
+                Text="{Binding OperatorName}" />
+        </Grid>
+
+        <!--  ── BODY ──  -->
+        <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">
+            <VerticalStackLayout
+                Padding="20,0,20,20"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="720"
+                Spacing="16">
+
+                <!--  operator summary (stands in for the design's journey card)  -->
+                <Border Padding="16" Style="{StaticResource DsCard}">
+                    <VerticalStackLayout Spacing="14">
+                        <Label Style="{StaticResource DsSectionCaption}" Text="{localization:Translate Purchase_Operator}" />
+                        <Border Style="{StaticResource DsRow}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                <BoxView
+                                    CornerRadius="5"
+                                    HeightRequest="9"
+                                    VerticalOptions="Center"
+                                    WidthRequest="9"
+                                    Color="{StaticResource TealText}" />
+                                <VerticalStackLayout Grid.Column="1">
+                                    <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Purchase_Operator}" />
+                                    <Label
+                                        FontSize="14.5"
+                                        Style="{StaticResource DsMetaValue}"
+                                        Text="{Binding OperatorName}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </Border>
+                        <Label
+                            IsVisible="{Binding OperatorType, Converter={StaticResource NotEmpty}}"
+                            Style="{StaticResource DsMono}"
+                            Text="{Binding OperatorType}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!--  ── FARES ──  -->
+                <VerticalStackLayout IsVisible="{Binding HasOptions}" Spacing="10">
+                    <Label Style="{StaticResource DsSectionCaption}" Text="{localization:Translate Purchase_Options}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Options}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PurchaseOption">
+                                <Border
+                                    Margin="0,0,0,10"
+                                    Padding="14"
+                                    Stroke="{Binding IsSelected, Converter={StaticResource SelectedStroke}}"
+                                    StrokeThickness="{Binding IsSelected, Converter={StaticResource SelectedThickness}}"
+                                    Style="{StaticResource DsCard}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketPurchaseViewModel}}, Path=SelectCommand}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                        <VerticalStackLayout Spacing="3" VerticalOptions="Center">
+                                            <Label
+                                                FontSize="14.5"
+                                                Style="{StaticResource DsCardTitle}"
+                                                Text="{Binding Name}" />
+                                            <Label
+                                                FontSize="12"
+                                                Style="{StaticResource DsCardSubtitle}"
+                                                Text="{Binding Detail}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout
+                                            Grid.Column="1"
+                                            HorizontalOptions="End"
+                                            Spacing="2"
+                                            VerticalOptions="Center">
+                                            <Label
+                                                FontSize="16"
+                                                HorizontalTextAlignment="End"
+                                                Style="{StaticResource DsCardTitle}"
+                                                Text="{Binding PriceText}" />
+                                            <Label
+                                                FontSize="11"
+                                                HorizontalTextAlignment="End"
+                                                IsVisible="{Binding IsSelected}"
+                                                Text="{localization:Translate Purchase_Selected}"
+                                                TextColor="{StaticResource StatusOkSoft}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+
+                <Label
+                    Margin="0,30,0,0"
+                    HorizontalOptions="Center"
+                    IsVisible="{Binding HasNoOptions}"
+                    Style="{StaticResource DsCardSubtitle}"
+                    Text="{localization:Translate TicketPurchase_NoOptions}" />
+
+                <ActivityIndicator
+                    HeightRequest="32"
+                    IsRunning="{Binding IsBusy}"
+                    IsVisible="{Binding IsBusy}" />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!--  ── WALLET FOOTER ──  -->
+        <Border
+            Grid.Row="2"
+            Padding="20,16"
+            BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+            Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkSurfaceAlt}}"
+            StrokeThickness="1"
+            IsVisible="{Binding HasOptions}">
+            <Border.StrokeShape>
+                <shapes:RoundRectangle CornerRadius="0" />
+            </Border.StrokeShape>
+            <VerticalStackLayout
+                HorizontalOptions="Center"
+                MaximumWidthRequest="680"
+                Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <VerticalStackLayout VerticalOptions="Center">
+                        <Label
+                            FontSize="11"
+                            Style="{StaticResource DsMetaCaption}"
+                            Text="{localization:Translate Purchase_PayFromWallet}" />
+                        <Label
+                            FontSize="13"
+                            Style="{StaticResource DsMetaValue}"
+                            Text="{Binding WalletBalanceText}" />
+                    </VerticalStackLayout>
+                    <Label
+                        Grid.Column="1"
+                        FontSize="20"
+                        Style="{StaticResource DsCardTitle}"
+                        Text="{Binding SelectedPriceText}"
+                        VerticalOptions="Center" />
+                </Grid>
+
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <Button
+                    Command="{Binding ConfirmCommand}"
+                    IsEnabled="{Binding CanConfirm}"
+                    Style="{StaticResource DsPrimaryButton}"
+                    Text="{localization:Translate Purchase_Confirm}" />
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>

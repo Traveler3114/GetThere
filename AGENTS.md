@@ -287,6 +287,21 @@ The money path was off-limits for the first two passes and was then explicitly a
 real SQL Server database — `EnsureDeleted` + `Migrate` per run — because the debit path depends on
 raw SQL, transactions and a filtered unique index that the in-memory provider does not implement.
 
+### Fourth pass — map proxy, and TransitInfoAPI made startable
+
+| Area | File(s) | What |
+|------|---------|------|
+| **TransitInfoAPI could not start** | `docs/transitinfodb-rebaseline.md` | Startup `MigrateAsync` died on `There is already an object named 'Countries'`. The migrations folder was squashed to `20260722145915_InitialCreate` but the database still held the pre-squash 35-migration history. Repaired **without data loss**: created the nine Identity/auth tables the squash introduced (extracted from `dotnet ef migrations script`, applied in one transaction) and stamped the baseline. 4.2M StopTimes intact; `/health` 200 |
+| **H5 — map through the proxy** | `MapProxyController.cs`, `MapManager.cs`, `TransitInfoApiClient.cs`, `public.html`, `MapPage.xaml(.cs)`, `ApiEndpoints.cs` | `GET /api/map/upstream/{**path}` forwards whitelisted reads verbatim, so the page gets GeoJSON without GetThereAPI re-modelling it. The allowlist is the security control — the proxy authenticates as the service account, so an open path would expose TransitInfoAPI's admin surface to anyone with `map.view`. `ApiEndpoints.TransitInfoApiBase` deleted: the client no longer knows TransitInfoAPI exists |
+| Token into the WebView | `MapPage.xaml.cs`, `public.html` | The page queues requests until `window.setAuthToken(...)` arrives after navigation. Not passed in the URL, which would put it in request logs and history |
+| Three stubs implemented | `MapManager.cs` | `GetDeparturesAsync`, `GetStationOperatorsAsync`, `GetTransportTypesAsync` returned hardcoded `[]` (`audit.md` high #5). They call upstream now |
+| Upstream errors | `TransitInfoApiClient.cs` | A connection failure or timeout to TransitInfoAPI escaped as `HttpRequestException` → bare 500. Now 502 |
+
+**Verified with both APIs live against real data:** stations 200 (133 KB `FeatureCollection`),
+vehicles 200 (114 KB), mobility 200 (23 KB); `operators`, `feeds`, `users`,
+`reconciliation/candidates`, `agencies` and traversal attempts all 404 and never forwarded; no token
+→ 401.
+
 **Verified end-to-end after the rebuild:** duplicate registration is indistinguishable from success;
 `/wallet/ensure` → 201 then `/wallet` → 200; `/tickets`, `/tickets/options`, `/admin/stats`,
 `/admin/purchases`, `/admin/adapters`, `/admin/users` all 200; `/wallet/topup` → 403 for a plain user.

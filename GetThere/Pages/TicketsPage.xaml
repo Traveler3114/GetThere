@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!--  Frame 3e (Android · My Tickets) of "GetThere App.dc.html".  -->
 <ContentPage
     x:Class="GetThere.Pages.TicketsPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -7,134 +8,236 @@
     xmlns:helpers="clr-namespace:GetThere.Helpers"
     xmlns:components="clr-namespace:GetThere.Components"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
     x:DataType="vm:TicketsViewModel"
-    Title="Tickets"
-    BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#0F172A}"
+    Title="{localization:Translate Tickets_Title}"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
     Shell.NavBarIsVisible="False">
 
     <ContentPage.Resources>
         <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
         <helpers:FilterChipConverter x:Key="Chip" />
         <helpers:TicketStatusColorConverter x:Key="StatusColor" />
+        <helpers:TicketStatusOpacityConverter x:Key="StatusOpacity" />
     </ContentPage.Resources>
 
     <Grid>
         <components:AnimatedBackground />
 
-        <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20,32,20,96">
+        <Grid
+            Padding="20,32,20,96"
+            HorizontalOptions="Center"
+            MaximumWidthRequest="720"
+            RowDefinitions="Auto,Auto,Auto,*">
+
             <VerticalStackLayout Grid.Row="0" Spacing="4">
-                <Label Text="My Tickets" FontSize="32" FontAttributes="Bold"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                <Label Text="Your imported transit tickets" FontSize="15"
-                       TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}" />
+                <Label Style="{StaticResource DsPageTitle}" Text="{localization:Translate Tickets_Title}" />
+                <Label Style="{StaticResource DsPageSubtitle}" Text="{localization:Translate Tickets_Subtitle}" />
             </VerticalStackLayout>
 
-            <!-- Filter Chips -->
-            <HorizontalStackLayout Grid.Row="1" Spacing="8" Margin="0,16,0,0">
-                <Border StrokeThickness="1"
+            <!--  ── FILTER CHIPS ──  -->
+            <ScrollView
+                Grid.Row="1"
+                Margin="0,16,0,0"
+                HorizontalScrollBarVisibility="Never"
+                Orientation="Horizontal">
+                <HorizontalStackLayout Spacing="8">
+                    <Border
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':bg'}"
                         Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':stroke'}"
-                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':bg'}">
-                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="All" FontSize="13" Padding="14,6"
-                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':text'}" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="" />
-                    </Border.GestureRecognizers>
-                </Border>
-                <Border StrokeThickness="1"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_All}"
+                            TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:bg'}"
                         Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:stroke'}"
-                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:bg'}">
-                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="Active" FontSize="13" Padding="14,6"
-                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:text'}" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Active" />
-                    </Border.GestureRecognizers>
-                </Border>
-                <Border StrokeThickness="1"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Active" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_Active}"
+                            TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:bg'}"
                         Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:stroke'}"
-                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:bg'}">
-                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="Used" FontSize="13" Padding="14,6"
-                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:text'}" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Used" />
-                    </Border.GestureRecognizers>
-                </Border>
-                <Border StrokeThickness="1"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Used" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_Used}"
+                            TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Used:text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:bg'}"
                         Stroke="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:stroke'}"
-                        BackgroundColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:bg'}">
-                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                    <Label Text="Expired" FontSize="13" Padding="14,6"
-                           TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:text'}" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Expired" />
-                    </Border.GestureRecognizers>
-                </Border>
-            </HorizontalStackLayout>
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterCommand}" CommandParameter="Expired" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_Expired}"
+                            TextColor="{Binding ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Expired:text'}" />
+                    </Border>
+                </HorizontalStackLayout>
+            </ScrollView>
 
-            <Label Grid.Row="2" Text="{Binding ErrorText}" IsVisible="{Binding HasError}"
-                   TextColor="#DC2626" FontSize="13" Margin="0,8,0,0" />
-            <CollectionView Grid.Row="3" ItemsSource="{Binding ImportedTickets}" Margin="0,12,0,0">
+            <Label
+                Grid.Row="2"
+                Margin="0,8,0,0"
+                IsVisible="{Binding HasError}"
+                Style="{StaticResource DsErrorLabel}"
+                Text="{Binding ErrorText}" />
+
+            <!--  ── TICKET LIST ──  -->
+            <CollectionView
+                x:Name="TicketList"
+                Grid.Row="3"
+                Margin="0,12,0,0"
+                ItemsSource="{Binding ImportedTickets}">
                 <CollectionView.EmptyView>
-                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="8">
-                        <Label Text="No tickets yet" FontSize="20" FontAttributes="Bold"
-                               TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" HorizontalOptions="Center" />
-                        <Label Text="Import your first ticket using the + button below" FontSize="14"
-                               TextColor="{AppThemeBinding Light=#D1D5DB, Dark=#4B5563}" HorizontalOptions="Center" />
+                    <VerticalStackLayout
+                        HorizontalOptions="Center"
+                        Spacing="8"
+                        VerticalOptions="Center">
+                        <Label
+                            FontSize="20"
+                            HorizontalOptions="Center"
+                            Style="{StaticResource DsCardTitle}"
+                            Text="{localization:Translate Tickets_NoItems}" />
+                        <Label
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            Style="{StaticResource DsCardSubtitle}"
+                            Text="{localization:Translate Tickets_Subtitle}" />
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,6" Padding="16" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}"
-                                StrokeThickness="0">
-                            <Border.StrokeShape><shapes:RoundRectangle CornerRadius="16" /></Border.StrokeShape>
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="4">
-                                <Label Grid.Row="0" Grid.Column="0" Text="{Binding TicketName}" FontSize="16" FontAttributes="Bold"
-                                       TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                                <Border Grid.Row="0" Grid.Column="1" StrokeThickness="0" Padding="8,2"
-                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}">
-                                    <Border.StrokeShape><shapes:RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                                    <Label Text="{Binding Status}" FontSize="11"
-                                           TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
+                        <Border
+                            Margin="0,6"
+                            Padding="16"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                            Opacity="{Binding Status, Converter={StaticResource StatusOpacity}}"
+                            StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <shapes:RoundRectangle CornerRadius="16" />
+                            </Border.StrokeShape>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=CancelTicketCommand}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid
+                                ColumnDefinitions="*,Auto"
+                                ColumnSpacing="12"
+                                RowDefinitions="Auto,Auto,Auto"
+                                RowSpacing="6">
+                                <Label
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Style="{StaticResource DsCardTitle}"
+                                    Text="{Binding TicketName}" />
+                                <Border
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                    Style="{StaticResource DsBadge}">
+                                    <Label
+                                        Style="{StaticResource DsBadgeLabel}"
+                                        Text="{Binding Status}"
+                                        TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
                                 </Border>
-                                <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding RouteDescription}"
-                                       FontSize="13" TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
-                                       LineBreakMode="TailTruncation" />
-                                <HorizontalStackLayout Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="12">
-                                    <Label Text="{Binding ValidFrom, StringFormat='{0:dd.MM.yyyy}'}" FontSize="12"
-                                           TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" />
-                                    <Label Text="→" FontSize="12" TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" />
-                                    <Label Text="{Binding ValidTo, StringFormat='{0:dd.MM.yyyy}'}" FontSize="12"
-                                           TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}" />
-                                    <Label Text="{Binding Price, StringFormat='{0:N2} EUR'}" FontSize="13" FontAttributes="Bold"
-                                           TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                                <Label
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="2"
+                                    LineBreakMode="TailTruncation"
+                                    Style="{StaticResource DsCardSubtitle}"
+                                    Text="{Binding RouteDescription}" />
+                                <HorizontalStackLayout
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="2"
+                                    Spacing="12">
+                                    <Label
+                                        FontSize="12"
+                                        Style="{StaticResource DsMetaCaption}"
+                                        Text="{Binding ValidFrom, StringFormat='{0:dd.MM.yyyy}'}" />
+                                    <Label
+                                        FontSize="12"
+                                        Style="{StaticResource DsMetaCaption}"
+                                        Text="→" />
+                                    <Label
+                                        FontSize="12"
+                                        Style="{StaticResource DsMetaCaption}"
+                                        Text="{Binding ValidTo, StringFormat='{0:dd.MM.yyyy}'}" />
+                                    <Label
+                                        FontSize="13"
+                                        Style="{StaticResource DsMetaValue}"
+                                        Text="{Binding Price, StringFormat='{0:N2} EUR'}" />
                                 </HorizontalStackLayout>
                             </Grid>
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=CancelTicketCommand}"
-                                                      CommandParameter="{Binding .}" />
-                            </Border.GestureRecognizers>
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
         </Grid>
 
-        <Button Text="+" Command="{Binding ImportTicketCommand}"
-                BackgroundColor="#512BD4" TextColor="White"
-                FontSize="28" FontAttributes="Bold"
-                CornerRadius="32" WidthRequest="64" HeightRequest="64"
-                HorizontalOptions="End" VerticalOptions="End" Margin="0,0,24,120" />
+        <!--  ── IMPORT FAB ──  -->
+        <Button
+            Margin="0,0,24,120"
+            BackgroundColor="{StaticResource Primary}"
+            Command="{Binding ImportTicketCommand}"
+            CornerRadius="32"
+            FontAttributes="Bold"
+            FontSize="28"
+            HeightRequest="64"
+            HorizontalOptions="End"
+            Text="+"
+            TextColor="White"
+            VerticalOptions="End"
+            WidthRequest="64">
+            <Button.Shadow>
+                <Shadow
+                    Brush="{StaticResource PrimaryBrush}"
+                    Opacity="0.45"
+                    Radius="24"
+                    Offset="0,10" />
+            </Button.Shadow>
+        </Button>
 
-        <Grid IsVisible="{Binding IsAuthenticated, Converter={StaticResource InverseBoolConverter}}"
-              BackgroundColor="{AppThemeBinding Light=#80FFFFFF, Dark=#80000000}">
-            <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12" Padding="32">
-                <Label Text="Sign in to manage your tickets" FontSize="18" FontAttributes="Bold"
-                       TextColor="{AppThemeBinding Light=Black, Dark=White}" HorizontalOptions="Center" />
-                <Button Text="Sign In" Command="{Binding GoToLoginCommand}"
-                        BackgroundColor="#512BD4" TextColor="White"
-                        CornerRadius="24" HeightRequest="48" WidthRequest="200" />
+        <!--  ── SIGNED OUT ──  -->
+        <Grid
+            BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}"
+            IsVisible="{Binding IsAuthenticated, Converter={StaticResource InverseBoolConverter}}">
+            <VerticalStackLayout
+                Padding="32"
+                HorizontalOptions="Center"
+                Spacing="16"
+                VerticalOptions="Center">
+                <Label
+                    FontSize="20"
+                    HorizontalOptions="Center"
+                    HorizontalTextAlignment="Center"
+                    Style="{StaticResource DsCardTitle}"
+                    Text="{localization:Translate Tickets_AccountRequired}" />
+                <Button
+                    Command="{Binding GoToLoginCommand}"
+                    Style="{StaticResource DsVioletButton}"
+                    Text="{localization:Translate Profile_LoginRegister}"
+                    WidthRequest="220" />
             </VerticalStackLayout>
         </Grid>
     </Grid>

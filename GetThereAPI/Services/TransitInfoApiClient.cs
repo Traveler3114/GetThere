@@ -78,8 +78,25 @@ public class TransitInfoApiClient
                 Password = _options.ClientSecret
             };
 
-            var response = await _httpClient.PostAsJsonAsync("/auth/login", loginRequest, ct);
-            response.EnsureSuccessStatusCode();
+            HttpResponseMessage response;
+            try
+            {
+                response = await _httpClient.PostAsJsonAsync("/auth/login", loginRequest, ct);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+            {
+                // TransitInfoAPI unreachable or timed out. That is an upstream failure, not a fault
+                // in this API, so it must not surface as a bare 500.
+                _logger.LogError(ex, "Could not reach TransitInfoAPI to authenticate");
+                throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("TransitInfoAPI rejected the service account credentials ({Status})", (int)response.StatusCode);
+                response.Dispose();
+                throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+            }
 
             var json = await response.Content.ReadAsStringAsync(ct);
             var loginResult = JsonSerializer.Deserialize<LoginResult>(json, JsonOptions);
@@ -110,6 +127,55 @@ public class TransitInfoApiClient
         if (radiusKm.HasValue) query.Add(Invariant($"radiusKm={radiusKm.Value}"));
         query.Add(Invariant($"perPage={UpstreamPageSize}"));
         return query;
+    }
+
+    /// <summary>
+    /// Forwards a GET to TransitInfoAPI and returns the response body untouched, along with its
+    /// content type. Used by the map proxy: the map page renders GeoJSON and other upstream shapes
+    /// directly, and re-modelling them here would only add drift.
+    /// </summary>
+    public async Task<(string Body, string ContentType)> GetRawAsync(string pathAndQuery, CancellationToken ct = default)
+    {
+        var token = await GetAccessTokenAsync(ct);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, pathAndQuery);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "Could not reach TransitInfoAPI for {Path}", pathAndQuery);
+            throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+        }
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("TransitInfoAPI returned 401 for {Path}, refreshing token and retrying", pathAndQuery);
+            InvalidateCachedToken();
+            token = await GetAccessTokenAsync(ct);
+
+            using var retry = new HttpRequestMessage(HttpMethod.Get, pathAndQuery);
+            retry.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            response.Dispose();
+            response = await _httpClient.SendAsync(retry, ct);
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("TransitInfoAPI returned {Status} for {Path}", (int)response.StatusCode, pathAndQuery);
+                throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+            }
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/json";
+            return (body, contentType);
+        }
     }
 
     private async Task<T> SendWithAuthAsync<T>(HttpRequestMessage request, CancellationToken ct)

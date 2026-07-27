@@ -40,11 +40,31 @@ public class TicketService
         }
     }
 
-    public async Task<OperationResult<TicketResponse>> PurchaseTicketAsync(PurchaseTicketRequest request)
+    /// <summary>
+    /// Buys a ticket.
+    /// <para>
+    /// Sends an <c>Idempotency-Key</c>. This matters: the API charges the wallet, and
+    /// <see cref="Helpers.AuthenticatedHttpHandler"/> replays the request after a 401 token refresh —
+    /// without a key that replay is a second purchase. The server returns the original ticket when it
+    /// sees a key it has already settled.
+    /// </para>
+    /// <param name="idempotencyKey">
+    /// Pass the same value when retrying the *same* user action; pass null (a fresh key is generated)
+    /// for a new purchase.
+    /// </param>
+    /// </summary>
+    public async Task<OperationResult<TicketResponse>> PurchaseTicketAsync(
+        PurchaseTicketRequest request, string? idempotencyKey = null)
     {
         try
         {
-            var response = await _http.PostAsJsonAsync("tickets/purchase", request, JsonOptions);
+            using var message = new HttpRequestMessage(HttpMethod.Post, "tickets/purchase")
+            {
+                Content = JsonContent.Create(request, options: JsonOptions)
+            };
+            message.Headers.Add("Idempotency-Key", idempotencyKey ?? NewIdempotencyKey());
+
+            var response = await _http.SendAsync(message);
             if (response.IsSuccessStatusCode)
             {
                 var data = await response.Content.ReadFromJsonAsync<TicketResponse>(JsonOptions);
@@ -59,6 +79,9 @@ public class TicketService
             return OperationResult<TicketResponse>.Fail(ex.Message);
         }
     }
+
+    /// <summary>32 hex characters — inside the server's 8..64 range.</summary>
+    public static string NewIdempotencyKey() => Guid.NewGuid().ToString("N");
 
     public async Task<OperationResult<List<TicketResponse>>> GetMyTicketsAsync()
     {

@@ -1,30 +1,109 @@
-using Microsoft.Maui.Controls;
-
+using GetThere.Localization;
 using GetThere.Pages;
 using GetThere.Services;
-using GetThere.State;
 
 namespace GetThere;
 
 public partial class AppShell : Shell
 {
+    /// <summary>
+    /// One navigation destination, in the order the design lists them.
+    /// <para>
+    /// Settings is desktop-only: frames 3g/3h put it at the foot of the side rail, and the phone
+    /// frames have no room for a fifth tab — its contents are reachable from Profile → Account there.
+    /// </para>
+    /// </summary>
+    private sealed record NavItem(
+        string TitleKey,
+        string LightIcon,
+        string DarkIcon,
+        string Route,
+        Type PageType,
+        bool DesktopOnly = false);
+
+    private static readonly NavItem[] Destinations =
+    [
+        new("Tab_Profile", "profile.png", "profile_white.png", "profile", typeof(ProfilePage)),
+        new("Tab_Map", "map.png", "map_white.png", "map", typeof(MapPage)),
+        new("Tab_Shop", "shop_bag.png", "shop_bag_white.png", "shop", typeof(ShopPage)),
+        new("Tab_Tickets", "ticket.png", "ticket_white.png", "tickets", typeof(TicketsPage)),
+        new("Settings_Title", "settings.png", "settings_white.png", "settings", typeof(SettingsPage), DesktopOnly: true)
+    ];
+
     public AppShell(IAnalyticsService analytics)
     {
         InitializeComponent();
+        BuildNavigation();
+
         Navigated += (s, e) =>
         {
             if (e.Current?.Location is not null)
                 analytics.TrackScreen(e.Current.Location.OriginalString);
         };
+
         Routing.RegisterRoute("importticket", typeof(ImportTicketPage));
+        Routing.RegisterRoute("ticketpurchase", typeof(TicketPurchasePage));
+        Routing.RegisterRoute("ticketdetail", typeof(TicketDetailPage));
     }
 
+    private void BuildNavigation()
+    {
+        var isDesktop = DeviceInfo.Idiom == DeviceIdiom.Desktop;
+
+        if (isDesktop)
+        {
+            // Locked flyout = the permanent side rail the desktop frames draw.
+            FlyoutBehavior = FlyoutBehavior.Locked;
+            FlyoutWidth = 220;
+
+            foreach (var item in Destinations)
+                Items.Add(new FlyoutItem
+                {
+                    Title = LocalizationService.Instance[item.TitleKey],
+                    Route = item.Route,
+                    Items = { BuildContent(item) }
+                });
+
+            return;
+        }
+
+        FlyoutBehavior = FlyoutBehavior.Disabled;
+
+        var tabBar = new TabBar();
+        foreach (var item in Destinations.Where(d => !d.DesktopOnly))
+            tabBar.Items.Add(BuildContent(item));
+
+        Items.Add(tabBar);
+    }
+
+    private static ShellContent BuildContent(NavItem item)
+    {
+        var content = new ShellContent
+        {
+            Title = LocalizationService.Instance[item.TitleKey],
+            Route = item.Route,
+            ContentTemplate = new DataTemplate(item.PageType)
+        };
+
+        content.SetAppTheme<ImageSource>(ShellContent.IconProperty, item.LightIcon, item.DarkIcon);
+        return content;
+    }
+
+    /// <summary>
+    /// Swaps the Profile tab's icon for the user's own picture.
+    /// <para>
+    /// Looks the item up by route rather than by position — the tree is a TabBar on phones and a
+    /// list of FlyoutItems on desktop, so a fixed index would find the wrong item on one of them.
+    /// </para>
+    /// </summary>
     public void UpdateProfileIcon(ImageSource? source)
     {
-        var profileItem = Items.FirstOrDefault()?.Items.FirstOrDefault()?.Items.FirstOrDefault() as ShellContent;
-        if (profileItem is not null && profileItem.Route == "profile")
-        {
-            profileItem.Icon = source ?? "profile.svg";
-        }
+        var profileItem = Items
+            .SelectMany(section => section.Items)
+            .SelectMany(group => group.Items)
+            .FirstOrDefault(content => content.Route == "profile");
+
+        if (profileItem is not null)
+            profileItem.Icon = source ?? "profile.png";
     }
 }

@@ -90,4 +90,22 @@ public class MapProxyController : ControllerBase
         var types = await _mapManager.GetTransportTypesAsync(ct);
         return Ok(types);
     }
+
+    /// <summary>
+    /// Verbatim passthrough to a whitelisted TransitInfoAPI read.
+    /// <para>
+    /// The map page renders upstream shapes directly — GeoJSON feature collections in particular —
+    /// so it needs the response unmodelled. This is what lets the client honour the one-way rule and
+    /// talk only to GetThereAPI. The whitelist lives in
+    /// <see cref="MapManager.IsAllowedUpstreamPath"/>; without it this would be an open gateway to
+    /// TransitInfoAPI carrying the service account's credentials.
+    /// </para>
+    /// </summary>
+    [HttpGet("upstream/{**path}")]
+    [Authorize(Policy = PermissionKeys.MapView)]
+    public async Task<IActionResult> GetUpstream(string path, CancellationToken ct = default)
+    {
+        var (body, contentType) = await _mapManager.GetUpstreamAsync(path, Request.QueryString.Value, ct);
+        return Content(body, contentType);
+    }
 }

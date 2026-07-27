@@ -298,4 +298,52 @@
   <data name="Payment_TopUpFailed" xml:space="preserve"><value>Uplata nije uspjela: {0}</value></data>
   <data name="Payment_NoProvidersReturned" xml:space="preserve"><value>Nijedan pružatelj plaćanja nije vraćen.</value></data>
   <data name="Payment_TopUpNoPayload" xml:space="preserve"><value>Uplata je dovršena, ali nije vraćen podatak o novčaniku.</value></data>
+  <data name="Shop_Subtitle" xml:space="preserve"><value>Operateri koji prodaju putem GetThere</value></data>
+  <data name="Shop_SearchPlaceholder" xml:space="preserve"><value>Pretraži operatera ili grad</value></data>
+  <data name="Shop_NearYou" xml:space="preserve"><value>U BLIZINI</value></data>
+  <data name="Shop_LongDistance" xml:space="preserve"><value>DALJINSKI PRIJEVOZ</value></data>
+  <data name="Shop_NoTicketing" xml:space="preserve"><value>Samo vozni red — prodaja karata još nije dostupna</value></data>
+  <data name="Purchase_Journey" xml:space="preserve"><value>PUTOVANJE</value></data>
+  <data name="Purchase_Options" xml:space="preserve"><value>PONUDA OPERATERA</value></data>
+  <data name="Purchase_Selected" xml:space="preserve"><value>odabrano</value></data>
+  <data name="Purchase_PayFromWallet" xml:space="preserve"><value>Plati iz novčanika</value></data>
+  <data name="Purchase_Available" xml:space="preserve"><value>{0} dostupno</value></data>
+  <data name="Purchase_Confirm" xml:space="preserve"><value>Potvrdi kupnju</value></data>
+  <data name="Purchase_InsufficientFunds" xml:space="preserve"><value>Nemate dovoljno sredstava — prvo nadoplatite novčanik.</value></data>
+  <data name="Purchase_Success" xml:space="preserve"><value>Karta je kupljena</value></data>
+  <data name="Purchase_From" xml:space="preserve"><value>OD</value></data>
+  <data name="Purchase_To" xml:space="preserve"><value>DO</value></data>
+  <data name="Purchase_Operator" xml:space="preserve"><value>OPERATER</value></data>
+  <data name="Purchase_Duration" xml:space="preserve"><value>VRIJEDI</value></data>
+  <data name="Purchase_DurationMinutes" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Purchase_OpenEnded" xml:space="preserve"><value>Bez određenog trajanja</value></data>
+  <data name="Ticket_Title" xml:space="preserve"><value>Karta</value></data>
+  <data name="Ticket_Active" xml:space="preserve"><value>AKTIVNA</value></data>
+  <data name="Ticket_IssuedBy" xml:space="preserve"><value>QR IZDAO</value></data>
+  <data name="Ticket_AdapterSuffix" xml:space="preserve"><value>ADAPTER {0}</value></data>
+  <data name="Ticket_Verified" xml:space="preserve"><value>Provjereno upravo sada</value></data>
+  <data name="Ticket_Departs" xml:space="preserve"><value>POLAZAK</value></data>
+  <data name="Ticket_Arrives" xml:space="preserve"><value>DOLAZAK</value></data>
+  <data name="Ticket_TicketId" xml:space="preserve"><value>BROJ KARTE</value></data>
+  <data name="Ticket_Paid" xml:space="preserve"><value>PLAĆENO</value></data>
+  <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} novčanik</value></data>
+  <data name="Ticket_AddToWallet" xml:space="preserve"><value>Dodaj u novčanik</value></data>
+  <data name="Ticket_ShowJourney" xml:space="preserve"><value>Prikaži putovanje</value></data>
+  <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
+  <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Nije moguće učitati ovu kartu.</value></data>
+  <data name="Tickets_Subtitle" xml:space="preserve"><value>Kupljene i uvezene karte</value></data>
+  <data name="Tickets_All" xml:space="preserve"><value>Sve</value></data>
+  <data name="Tickets_ImportButton" xml:space="preserve"><value>Uvezi kartu</value></data>
+  <data name="Tickets_CountSummary" xml:space="preserve"><value>{0} karata · {1} aktivnih</value></data>
+  <data name="Map_SearchPlaceholder" xml:space="preserve"><value>Kamo putujete?</value></data>
+  <data name="Map_ModeTram" xml:space="preserve"><value>Tramvaj</value></data>
+  <data name="Map_ModeBus" xml:space="preserve"><value>Autobus</value></data>
+  <data name="Map_ModeTrain" xml:space="preserve"><value>Vlak</value></data>
+  <data name="Map_ModeBikes" xml:space="preserve"><value>Bicikli</value></data>
+  <data name="Map_Locate" xml:space="preserve"><value>Centriraj</value></data>
+  <data name="Map_Layers" xml:space="preserve"><value>Slojevi</value></data>
+  <data name="Map_BuyTicket" xml:space="preserve"><value>Kupi kartu</value></data>
+  <data name="Map_Departures" xml:space="preserve"><value>Polasci</value></data>
+  <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vozila uživo</value></data>
+  <data name="Login_Tagline" xml:space="preserve"><value>Jedan račun za karte, novčanik i putovanja svih operatera</value></data>
 </root>

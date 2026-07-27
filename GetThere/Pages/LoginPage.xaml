@@ -1,17 +1,25 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-             xmlns:components="clr-namespace:GetThere.Components"
-             xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
-             xmlns:localization="clr-namespace:GetThere.Localization"
-             xmlns:vm="clr-namespace:GetThere.ViewModels"
-             xmlns:helpers="clr-namespace:GetThere.Helpers"
-             x:Class="GetThere.Pages.LoginPage"
-             x:DataType="vm:LoginViewModel"
-             Title="{localization:Translate Login_Title}"
-             BackgroundColor="{AppThemeBinding Light=#F8F9FA, Dark=#0F172A}"
-             Shell.NavBarIsVisible="False">
+<!--
+    Frames 3i (iPhone · Login) and 3k (Windows · Login) of "GetThere App.dc.html".
+
+    Both frames are the same two pieces — a gradient brand panel and the sign-in form — arranged
+    differently: stacked with the form riding up over the gradient on phones, side by side on
+    desktop. The code-behind moves the two containers between rows and columns on resize rather
+    than the markup carrying two copies of the form.
+-->
+<ContentPage
+    x:Class="GetThere.Pages.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    x:DataType="vm:LoginViewModel"
+    Title="{localization:Translate Login_Title}"
+    BackgroundColor="{AppThemeBinding Light={StaticResource OffWhite}, Dark={StaticResource DarkBackground}}"
+    Shell.NavBarIsVisible="False">
 
     <ContentPage.Resources>
         <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
@@ -19,83 +27,140 @@
 
     <Grid>
         <components:AnimatedBackground />
-        <!--  ── HERO AREA ──  -->
-        <Border VerticalOptions="Start" HeightRequest="320" StrokeThickness="0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                    <GradientStop Offset="0" Color="#4E85F2" />
-                    <GradientStop Offset="1" Color="#512BD4" />
-                </LinearGradientBrush>
-            </Border.Background>
-            <Border.Shadow>
-                <Shadow Brush="Black" Opacity="0.3" Offset="0,5" Radius="10" />
-            </Border.Shadow>
 
-            <VerticalStackLayout Spacing="15" VerticalOptions="Start" Margin="0,30,0,0">
-                <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
-                    <Border WidthRequest="18" HeightRequest="18" BackgroundColor="#10B981" StrokeThickness="0">
-                        <Border.StrokeShape><RoundRectangle CornerRadius="9"/></Border.StrokeShape>
+        <Grid x:Name="LoginRoot" ColumnDefinitions="*" RowDefinitions="Auto,*">
+
+            <!--  ── BRAND PANEL ──  -->
+            <Border
+                x:Name="BrandPanel"
+                Grid.Row="0"
+                Grid.Column="0"
+                Background="{StaticResource DsHeroGradient}"
+                HeightRequest="320"
+                StrokeThickness="0"
+                VerticalOptions="Fill">
+                <Border.Shadow>
+                    <Shadow
+                        Brush="Black"
+                        Opacity="0.3"
+                        Radius="10"
+                        Offset="0,5" />
+                </Border.Shadow>
+
+                <VerticalStackLayout
+                    x:Name="BrandStack"
+                    Margin="0,30,0,0"
+                    Spacing="15"
+                    VerticalOptions="Start">
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="10">
+                        <BoxView
+                            CornerRadius="9"
+                            HeightRequest="18"
+                            VerticalOptions="Center"
+                            WidthRequest="18"
+                            Color="{StaticResource StatusOk}" />
+                        <Label
+                            FontAttributes="Bold"
+                            FontSize="22"
+                            Text="GetThere"
+                            TextColor="White"
+                            VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+
+                    <Border
+                        BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark={StaticResource PrimaryDark}}"
+                        HeightRequest="160"
+                        HorizontalOptions="Center"
+                        StrokeThickness="0"
+                        WidthRequest="160">
+                        <Border.StrokeShape>
+                            <shapes:RoundRectangle CornerRadius="80" />
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow
+                                Brush="Black"
+                                Opacity="0.2"
+                                Radius="10"
+                                Offset="3,3" />
+                        </Border.Shadow>
+                        <Image
+                            x:Name="LogoImage"
+                            Margin="10"
+                            Aspect="AspectFit"
+                            Source="logo.svg" />
                     </Border>
-                    <Label Text="GetThere" FontSize="22" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
-                </HorizontalStackLayout>
 
-                <Border WidthRequest="160" HeightRequest="160" BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark=#2C167A}" HorizontalOptions="Center" StrokeThickness="0" Opacity="1">
-                    <Border.StrokeShape><RoundRectangle CornerRadius="80" /></Border.StrokeShape>
-                    <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.2" Offset="3,3" Radius="10" />
-                    </Border.Shadow>
-                    <Image x:Name="LogoImage" Source="logo.svg" Margin="10" Aspect="AspectFit" Opacity="1" />
-                </Border>
-            </VerticalStackLayout>
-        </Border>
+                    <!--  desktop-only strapline (frame 3k)  -->
+                    <Label
+                        x:Name="BrandTagline"
+                        Margin="0,10,0,0"
+                        FontSize="14"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        IsVisible="False"
+                        MaximumWidthRequest="320"
+                        Opacity="0.75"
+                        Text="{localization:Translate Login_Tagline}"
+                        TextColor="White" />
+                </VerticalStackLayout>
+            </Border>
 
-        <Grid Margin="0,260,0,0" HorizontalOptions="Center" VerticalOptions="Fill">
-            <ScrollView VerticalOptions="Fill">
-                <Border x:Name="LoginCard" Margin="1" Padding="30,15,30,30"
-                        BackgroundColor="{AppThemeBinding Light=White, Dark=#111827}"
-                        StrokeThickness="0" VerticalOptions="Start">
+            <!--  ── FORM ──  -->
+            <ScrollView
+                x:Name="FormHost"
+                Grid.Row="1"
+                Grid.Column="0"
+                Margin="0,-60,0,0"
+                VerticalOptions="Fill">
+                <Border
+                    x:Name="LoginCard"
+                    Margin="1"
+                    Padding="30,15,30,30"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+                    HorizontalOptions="Center"
+                    StrokeThickness="0"
+                    VerticalOptions="Start">
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.15" Offset="0,10" Radius="15" />
+                        <Shadow
+                            Brush="Black"
+                            Opacity="0.15"
+                            Radius="15"
+                            Offset="0,10" />
                     </Border.Shadow>
-                    <Border.StrokeShape><RoundRectangle CornerRadius="16" /></Border.StrokeShape>
+                    <Border.StrokeShape>
+                        <shapes:RoundRectangle CornerRadius="22,22,0,0" />
+                    </Border.StrokeShape>
 
                     <VerticalStackLayout Spacing="16">
-                        <BoxView WidthRequest="40" HeightRequest="4" CornerRadius="2"
-                                 BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#334155}"
-                                 HorizontalOptions="Center" Margin="0,0,0,15" />
+                        <BoxView
+                            x:Name="SheetHandle"
+                            Margin="0,0,0,15"
+                            Style="{StaticResource DsSheetHandle}" />
 
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="{localization:Translate Login_EmailLabel}" FontAttributes="Bold"
-                                   FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                            <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1"
-                                    Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}"
-                                    HeightRequest="50">
-                                <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                                <Entry Text="{Binding Email}"
-                                       Placeholder="{localization:Translate Login_EmailPlaceholder}"
-                                       PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}"
-                                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                                       Keyboard="Email" HeightRequest="50" VerticalOptions="Center" />
+                            <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Login_EmailLabel}" />
+                            <Border Style="{StaticResource DsField}">
+                                <Entry
+                                    Keyboard="Email"
+                                    Placeholder="{localization:Translate Login_EmailPlaceholder}"
+                                    Style="{StaticResource DsEntry}"
+                                    Text="{Binding Email}" />
                             </Border>
                         </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="{localization:Translate Login_PasswordLabel}" FontAttributes="Bold"
-                                   FontSize="14" TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                            <Border Stroke="{AppThemeBinding Light=#EBEBEC, Dark=#374151}" StrokeThickness="1"
-                                    Padding="15,0" BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2937}"
-                                    HeightRequest="50">
-                                <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
-                                <Grid ColumnDefinitions="*, auto">
-                                    <Entry Text="{Binding Password}"
-                                           IsPassword="{Binding IsPasswordVisible, Converter={StaticResource InverseBoolConverter}}"
-                                           Placeholder="{localization:Translate Login_PasswordPlaceholder}"
-                                           PlaceholderColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}"
-                                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
-                                           HeightRequest="50" VerticalOptions="Center" />
-                                    <Label Grid.Column="1" Text="{Binding PasswordToggleText}"
-                                           TextColor="{AppThemeBinding Light=#A0A0A0, Dark=#94A3B8}"
-                                           VerticalOptions="Center">
+                            <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Login_PasswordLabel}" />
+                            <Border Style="{StaticResource DsField}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry
+                                        IsPassword="{Binding IsPasswordVisible, Converter={StaticResource InverseBoolConverter}}"
+                                        Placeholder="{localization:Translate Login_PasswordPlaceholder}"
+                                        Style="{StaticResource DsEntry}"
+                                        Text="{Binding Password}" />
+                                    <Label
+                                        Grid.Column="1"
+                                        Style="{StaticResource DsFieldAction}"
+                                        Text="{Binding PasswordToggleText}">
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding TogglePasswordCommand}" />
                                         </Label.GestureRecognizers>
@@ -104,86 +169,130 @@
                             </Border>
                         </VerticalStackLayout>
 
-                        <Label Text="{Binding ErrorText}" TextColor="{AppThemeBinding Light=Red, Dark=#FCA5A5}"
-                               FontSize="12" HorizontalOptions="Center"
-                               IsVisible="{Binding HasError}" />
+                        <Label
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            IsVisible="{Binding HasError}"
+                            Style="{StaticResource DsErrorLabel}"
+                            Text="{Binding ErrorText}" />
 
-                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center" Padding="0,5">
-                            <CheckBox IsChecked="{Binding RememberMe}"
-                                      Color="{AppThemeBinding Light=#009688, Dark=#5EEAD4}"
-                                      VerticalOptions="Center" />
-                            <Label Text="{localization:Translate Login_RememberMe}" FontSize="14"
-                                   TextColor="{AppThemeBinding Light=Black, Dark=White}" VerticalOptions="Center">
+                        <HorizontalStackLayout
+                            Padding="0,5"
+                            Spacing="8"
+                            VerticalOptions="Center">
+                            <CheckBox
+                                Color="{AppThemeBinding Light={StaticResource Accent}, Dark={StaticResource TealText}}"
+                                IsChecked="{Binding RememberMe}"
+                                VerticalOptions="Center" />
+                            <Label
+                                FontSize="13.5"
+                                Text="{localization:Translate Login_RememberMe}"
+                                TextColor="{AppThemeBinding Light={StaticResource TextPrimaryLight}, Dark={StaticResource TextPrimary}}"
+                                VerticalOptions="Center">
                                 <Label.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding ToggleRememberMeCommand}" />
                                 </Label.GestureRecognizers>
                             </Label>
                         </HorizontalStackLayout>
 
-                        <Grid Margin="0,20,0,0">
-                            <Button Text="{localization:Translate Login_Button}"
-                                    Command="{Binding LoginCommand}"
-                                    BackgroundColor="#009688" TextColor="White" CornerRadius="26"
-                                    HeightRequest="52" FontAttributes="Bold">
+                        <Grid Margin="0,4,0,0">
+                            <Button
+                                Command="{Binding LoginCommand}"
+                                IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}"
+                                Style="{StaticResource DsPrimaryButton}"
+                                Text="{localization:Translate Login_Button}">
                                 <Button.Shadow>
-                                    <Shadow Brush="Black" Opacity="0.25" Offset="4,4" Radius="4" />
+                                    <Shadow
+                                        Brush="{StaticResource AccentBrush}"
+                                        Opacity="0.35"
+                                        Radius="14"
+                                        Offset="0,6" />
                                 </Button.Shadow>
                             </Button>
 
-                            <Border x:Name="LoadingState" IsVisible="False" HeightRequest="52"
-                                    BackgroundColor="{AppThemeBinding Light=#E0F2F1, Dark=#134E4A}"
-                                    StrokeThickness="0">
-                                <Border.StrokeShape><RoundRectangle CornerRadius="26" /></Border.StrokeShape>
-                                <Grid IsClippedToBounds="True">
-                                    <Label x:Name="LoadingDotsLabel"
-                                           Text="{localization:Translate Login_SigningIn}"
-                                           FontSize="16" TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}"
-                                           FontAttributes="Bold" HorizontalOptions="Center"
-                                           VerticalOptions="Center" />
-                                    <BoxView x:Name="ShimmerBox" WidthRequest="60" HorizontalOptions="Start"
-                                             TranslationX="-60">
-                                        <BoxView.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                <GradientStop Color="Transparent" Offset="0" />
-                                                <GradientStop Color="#80FFFFFF" Offset="0.5" />
-                                                <GradientStop Color="Transparent" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </BoxView.Background>
-                                    </BoxView>
-                                </Grid>
+                            <!--  Busy state sits on top of the button, as in the design's signing-in frame.  -->
+                            <Border
+                                BackgroundColor="{AppThemeBinding Light={StaticResource TealSurfaceLight}, Dark={StaticResource TealSurface}}"
+                                HeightRequest="52"
+                                IsVisible="{Binding IsLoading}"
+                                StrokeThickness="0">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="26" />
+                                </Border.StrokeShape>
+                                <HorizontalStackLayout
+                                    HorizontalOptions="Center"
+                                    Spacing="10"
+                                    VerticalOptions="Center">
+                                    <ActivityIndicator
+                                        HeightRequest="18"
+                                        IsRunning="{Binding IsLoading}"
+                                        WidthRequest="18"
+                                        Color="{AppThemeBinding Light={StaticResource Accent}, Dark={StaticResource TealText}}" />
+                                    <Label
+                                        FontAttributes="Bold"
+                                        FontSize="15.5"
+                                        Text="{localization:Translate Login_SigningIn}"
+                                        TextColor="{AppThemeBinding Light={StaticResource Accent}, Dark={StaticResource TealText}}"
+                                        VerticalOptions="Center" />
+                                </HorizontalStackLayout>
                             </Border>
                         </Grid>
 
-                        <Label Text="{localization:Translate Login_CreateAccount}"
-                               TextColor="{AppThemeBinding Light=#009688, Dark=#5EEAD4}"
-                               FontAttributes="Bold" HorizontalOptions="Center" Margin="0,5">
+                        <Label
+                            Margin="0,5"
+                            HorizontalOptions="Center"
+                            Style="{StaticResource DsLinkLabel}"
+                            Text="{localization:Translate Login_CreateAccount}">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding GoToRegisterCommand}" />
                             </Label.GestureRecognizers>
                         </Label>
 
-                        <Label Text="{localization:Translate Login_ContinueAsGuest}"
-                               TextColor="{AppThemeBinding Light=#6B7280, Dark=#9CA3AF}"
-                               FontSize="14" HorizontalOptions="Center" Margin="0,0,0,5">
+                        <Label
+                            Margin="0,0,0,5"
+                            HorizontalOptions="Center"
+                            Style="{StaticResource DsPageSubtitle}"
+                            Text="{localization:Translate Login_ContinueAsGuest}">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding ContinueAsGuestCommand}" />
                             </Label.GestureRecognizers>
                         </Label>
 
-                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="20" Margin="0,15,0,0">
-                            <Border WidthRequest="44" HeightRequest="44"
-                                    Stroke="{AppThemeBinding Light=#F1F5F9, Dark=#334155}"
-                                    BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}">
-                                <Border.StrokeShape><RoundRectangle CornerRadius="22"/></Border.StrokeShape>
-                                <Label Text="G" FontAttributes="Bold" HorizontalOptions="Center"
-                                       VerticalOptions="Center" TextColor="#4285F4" FontSize="18" />
+                        <HorizontalStackLayout
+                            Margin="0,15,0,0"
+                            HorizontalOptions="Center"
+                            Spacing="16">
+                            <Border
+                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceRaisedLight}, Dark={StaticResource DarkMuted}}"
+                                HeightRequest="44"
+                                StrokeThickness="0"
+                                WidthRequest="44">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="22" />
+                                </Border.StrokeShape>
+                                <Label
+                                    FontAttributes="Bold"
+                                    FontSize="18"
+                                    HorizontalOptions="Center"
+                                    Text="G"
+                                    TextColor="#93C5FD"
+                                    VerticalOptions="Center" />
                             </Border>
-                            <Border WidthRequest="44" HeightRequest="44"
-                                    Stroke="{AppThemeBinding Light=#1F2937, Dark=#475569}"
-                                    BackgroundColor="{AppThemeBinding Light=#1F2937, Dark=#475569}">
-                                <Border.StrokeShape><RoundRectangle CornerRadius="22"/></Border.StrokeShape>
-                                <Label Text="Ap" FontAttributes="Bold" HorizontalOptions="Center"
-                                       VerticalOptions="Center" TextColor="White" FontSize="16" />
+                            <Border
+                                BackgroundColor="{AppThemeBinding Light={StaticResource DarkSurfaceAlt}, Dark={StaticResource TextFaint}}"
+                                HeightRequest="44"
+                                StrokeThickness="0"
+                                WidthRequest="44">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="22" />
+                                </Border.StrokeShape>
+                                <Label
+                                    FontAttributes="Bold"
+                                    FontSize="16"
+                                    HorizontalOptions="Center"
+                                    Text=""
+                                    TextColor="White"
+                                    VerticalOptions="Center" />
                             </Border>
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
