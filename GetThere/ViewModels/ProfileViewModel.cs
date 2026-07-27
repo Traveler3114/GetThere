@@ -416,6 +416,19 @@ public partial class ProfileViewModel : BaseViewModel
     }
 }
 
+/// <summary>
+/// A country in the region picker. Lived in SettingsViewModel until that page was folded into
+/// Profile → Account; Profile was already the only other consumer.
+/// </summary>
+public partial class CountryItem : ObservableObject
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
 public partial class LanguageItem : ObservableObject
 {
     public string Code { get; set; } = string.Empty;

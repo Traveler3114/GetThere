@@ -26,8 +26,7 @@ public partial class AppShell : Shell
         new("Tab_Profile", "profile.png", "profile_white.png", "profile", typeof(ProfilePage)),
         new("Tab_Map", "map.png", "map_white.png", "map", typeof(MapPage)),
         new("Tab_Shop", "shop_bag.png", "shop_bag_white.png", "shop", typeof(ShopPage)),
-        new("Tab_Tickets", "ticket.png", "ticket_white.png", "tickets", typeof(TicketsPage)),
-        new("Settings_Title", "settings.png", "settings_white.png", "settings", typeof(SettingsPage), DesktopOnly: true)
+        new("Tab_Tickets", "ticket.png", "ticket_white.png", "tickets", typeof(TicketsPage))
     ];
 
     public AppShell(IAnalyticsService analytics)
