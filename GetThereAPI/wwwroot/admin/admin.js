@@ -67,9 +67,52 @@
 
     /* -------------------------------------------------------------- api --- */
 
-    /** GET a JSON endpoint. Redirects to login on 401, throws otherwise. */
+    /**
+     * Exchanges the stored refresh token for a new access token.
+     * Access tokens live 15 minutes, so without this the console logged the operator out mid-task.
+     * Concurrent callers share one in-flight request — the server rotates refresh tokens and revokes
+     * the old one, so a second parallel refresh would present a replayed token and kill the session.
+     */
+    refresh: function () {
+      if (Admin._refreshInFlight) return Admin._refreshInFlight;
+
+      var refreshToken = sessionStorage.getItem('refresh_token');
+      if (!refreshToken) return Promise.resolve(false);
+
+      Admin._refreshInFlight = fetch('/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refreshToken })
+      }).then(function (res) {
+        if (!res.ok) return false;
+        return res.json().then(function (data) {
+          if (!data || !data.accessToken) return false;
+          sessionStorage.setItem('auth_token', data.accessToken);
+          if (data.refreshToken) sessionStorage.setItem('refresh_token', data.refreshToken);
+          return true;
+        });
+      }).catch(function () {
+        return false;
+      }).finally(function () {
+        Admin._refreshInFlight = null;
+      });
+
+      return Admin._refreshInFlight;
+    },
+
+    _refreshInFlight: null,
+
+    /** GET a JSON endpoint. Refreshes once on 401, then redirects to login; throws otherwise. */
     api: async function (path, options) {
       var res = await fetch(path, Object.assign({ headers: Admin.headers() }, options || {}));
+
+      if (res.status === 401) {
+        var refreshed = await Admin.refresh();
+        if (refreshed) {
+          res = await fetch(path, Object.assign({ headers: Admin.headers() }, options || {}));
+        }
+      }
+
       if (res.status === 401) {
         Admin.logout();
         throw new Error('Session expired.');

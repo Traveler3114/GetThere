@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
@@ -25,49 +25,66 @@ public partial class AnimatedBackground : ContentView
         set => SetValue(YOffsetProperty, value);
     }
 
-    private static float _blueX, _blueY;
-    private static float _purpleX, _purpleY;
-    private static float _blueVx, _blueVy;
-    private static float _purpleVx, _purpleVy;
-    
-    private readonly Stopwatch _stopwatch = new();
-    private bool _isAnimating = false;
+    // Per instance, not static. Shared state meant every AnimatedBackground on screen drew the same
+    // two blobs at the same coordinates and fought over their velocities, so tabs visibly jumped as
+    // one page's animation stepped another's.
+    private float _blueX, _blueY;
+    private float _purpleX, _purpleY;
+    private float _blueVx, _blueVy;
+    private float _purpleVx, _purpleVy;
 
-    private static bool _initialized = false;
+    private bool _isAnimating;
+    private bool _initialized;
+
+    /// <summary>Frames per second the drift loop aims for.</summary>
+    private const int TargetFps = 60;
+
+    private const int FrameIntervalMs = 1000 / TargetFps;
+
+    /// <summary>Blob drift speed in device-independent pixels per second.</summary>
+    private const float DriftSpeed = 54f;
 
     public AnimatedBackground()
     {
         InitializeComponent();
         
-        if (!_initialized)
-        {
-            _blueVx = 54f;
-            _blueVy = 54f;
-            _purpleVx = -54f; // Start moving LEFT
-            _purpleVy = -54f; // Start moving UP
-        }
+        // Unconditional: _initialized was never set true here, so this ran on every construction
+        // anyway — and with the fields static that reset the velocities of every other instance.
+        _blueVx = DriftSpeed;
+        _blueVy = DriftSpeed;
+        _purpleVx = -DriftSpeed; // Start moving LEFT
+        _purpleVy = -DriftSpeed; // Start moving UP
 
         Loaded += (s, e) => StartAnimation();
         Unloaded += (s, e) => _isAnimating = false;
     }
 
+    // async void is forced by the Loaded event signature; the try/catch keeps a failure in the draw
+    // loop from tearing down the app.
     private async void StartAnimation()
     {
         if (_isAnimating) return;
         _isAnimating = true;
-        _stopwatch.Restart();
 
-        while (_isAnimating)
+        try
         {
-            UpdatePositions();
-            CanvasView.InvalidateSurface();
-            await Task.Delay(16); // ~60 FPS
+            while (_isAnimating)
+            {
+                UpdatePositions();
+                CanvasView.InvalidateSurface();
+                await Task.Delay(FrameIntervalMs);
+            }
+        }
+        catch (Exception ex)
+        {
+            _isAnimating = false;
+            System.Diagnostics.Trace.WriteLine($"[AnimatedBackground] animation stopped: {ex.Message}");
         }
     }
 
     private void UpdatePositions()
     {
-        float dt = 0.016f; // delta time approx
+        const float dt = 1f / TargetFps; // fixed step; the loop paces itself with Task.Delay
         
         var width = (float)CanvasView.Width;
         var height = (float)CanvasView.Height;

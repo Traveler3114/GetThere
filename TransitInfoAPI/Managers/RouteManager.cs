@@ -17,9 +17,8 @@ public class RouteManager
 {
     private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private readonly TransitDbContext _db;
-    private readonly IConfiguration _config;
 
-    public RouteManager(TransitDbContext db, IConfiguration config) { _db = db; _config = config; }
+    public RouteManager(TransitDbContext db) { _db = db; }
 
     public async Task<List<RouteResponse>> GetAllAsync(int? operatorId, RouteType? routeType, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {

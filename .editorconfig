@@ -85,3 +85,49 @@ charset = utf-8
 
 [**/Migrations/*.cs]
 generated_code = true
+
+# ---------------------------------------------------------------- analyzers ---
+# .NET analyzers are enabled in Directory.Build.props. CI builds with -warnaserror, so every rule
+# left at warning level has to stay clean. The rules below are deliberately turned off rather than
+# fixed: they are style or micro-performance preferences whose ~240 hits across this solution would
+# drown the correctness rules that matter (CA1305 culture handling, CA2016 token forwarding,
+# CA2201 reserved exception types), all of which stay on.
+[*.cs]
+
+# High-performance LoggerMessage delegates instead of ILogger extension calls. Not worth the
+# ceremony at this call volume.
+dotnet_diagnostic.CA1848.severity = none
+
+# String interpolation in a logging call. Same reasoning as CA1848.
+dotnet_diagnostic.CA1873.severity = none
+
+# Public fields / static members on generic types / naming preferences — style, not correctness.
+dotnet_diagnostic.CA1000.severity = none
+dotnet_diagnostic.CA1051.severity = none
+dotnet_diagnostic.CA1716.severity = none
+dotnet_diagnostic.CA1725.severity = none
+
+# SHA1 is used to fingerprint GTFS archives for change detection, never as a security primitive.
+dotnet_diagnostic.CA5350.severity = none
+
+# Type names ending in 'Collection'. GeoJsonFeatureCollection is named after the GeoJSON spec's own
+# "FeatureCollection" type — renaming it to satisfy the rule would make the contract harder to read.
+dotnet_diagnostic.CA1711.severity = none
+
+# ------------------------------------------------------- analyzers: MAUI app ---
+# The client renders text for a person, so current-culture formatting is the correct behaviour
+# there — the opposite of the API projects, where CA1305 catches real bugs (a comma-decimal locale
+# emitting "lat=45,8" into a query string). Keep those rules strict server-side and off here.
+[GetThere/**.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1311.severity = none
+
+# ViewModel command handlers and service methods are instance members by design: [RelayCommand]
+# generates commands from instance methods, and the services are resolved through DI.
+dotnet_diagnostic.CA1822.severity = none
+
+# ------------------------------------------------------------ analyzers: tests ---
+# Underscored test names are the xUnit convention and read as sentences in the runner output.
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
+using TransitInfoAPI.Exceptions;
 
 namespace TransitInfoAPI.Managers;
 
@@ -81,7 +82,7 @@ public class RolePermissionManager
     {
         var role = new IdentityRole { Name = name };
         var result = await _roleManager.CreateAsync(role);
-        if (!result.Succeeded) throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+        if (!result.Succeeded) throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)), 400, "ROLE_CREATE_FAILED");
 
         foreach (var perm in permissions)
             await _roleManager.AddClaimAsync(role, new Claim("permission", perm));
@@ -94,7 +95,7 @@ public class RolePermissionManager
     public async Task UpdateRolePermissionsAsync(string name, IEnumerable<string> permissions, CancellationToken ct = default)
     {
         var role = await _roleManager.FindByNameAsync(name);
-        if (role is null) throw new Exception("Role not found");
+        if (role is null) throw new AppException("Role not found", 404, "ROLE_NOT_FOUND");
 
         var existingClaims = await _roleManager.GetClaimsAsync(role);
 
@@ -117,7 +118,7 @@ public class RolePermissionManager
         if (role is null) return;
 
         if (name == RoleNames.Admin || name == RoleNames.Client)
-            throw new Exception("Cannot delete built-in role");
+            throw new AppException("Cannot delete built-in role", 400, "ROLE_BUILT_IN");
 
         LogAudit("RoleDeleted", "Role", name);
         await _db.SaveChangesAsync(ct);

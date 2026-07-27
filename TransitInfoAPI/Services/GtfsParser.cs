@@ -203,7 +203,7 @@ public class GtfsParser
         return hull;
     }
 
-    private List<T> ParseCsv<T>(ZipArchive archive, string fileName, Action<CsvContext>? configure = null)
+    private static List<T> ParseCsv<T>(ZipArchive archive, string fileName, Action<CsvContext>? configure = null)
     {
         var entry = archive.Entries.FirstOrDefault(e =>
             e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
@@ -215,7 +215,7 @@ public class GtfsParser
         return csv.GetRecords<T>().ToList();
     }
 
-    private async IAsyncEnumerable<List<T>> ParseCsvBatchedAsync<T>(
+    private static async IAsyncEnumerable<List<T>> ParseCsvBatchedAsync<T>(
         ZipArchive archive, string fileName, int batchSize, Action<CsvContext>? configure = null)
     {
         var entry = archive.Entries.FirstOrDefault(e =>

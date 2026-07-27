@@ -18,10 +18,22 @@ using TransitInfoAPI.Services;
 
 namespace TransitInfoAPI.Managers;
 
+/// <summary>Tunables for the GTFS import path.</summary>
+public class FeedImportOptions
+{
+    /// <summary>
+    /// Command timeout for the bulk import statements. A large feed's StopTimes backfill runs far
+    /// past the 30 s default.
+    /// </summary>
+    public int BulkCommandTimeoutSeconds { get; set; } = 600;
+}
+
 public class FeedManager
 {
+    /// <summary>Ceiling on the declared uncompressed size of a GTFS archive — decompression-bomb guard.</summary>
+    private const long MaxUncompressedArchiveBytes = 4L * 1024 * 1024 * 1024;
+
     private readonly TransitDbContext _db;
-    private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<FeedManager> _logger;
     private readonly IWebHostEnvironment _env;
     private readonly Services.GtfsParser _gtfs;
@@ -30,12 +42,12 @@ public class FeedManager
     private readonly PlaceMatchingManager _placeMatching;
     private readonly Services.ImportLogStore _logStore;
     private readonly ExternalFeedSource _externalFeedSource;
+    private readonly int _bulkCommandTimeoutSeconds;
     private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
 
     public FeedManager(
         TransitDbContext db,
-        IHttpClientFactory httpFactory,
         ILogger<FeedManager> logger,
         IWebHostEnvironment env,
         Services.GtfsParser gtfs,
@@ -43,10 +55,10 @@ public class FeedManager
         ReconciliationManager reconciliation,
         PlaceMatchingManager placeMatching,
         Services.ImportLogStore logStore,
-        ExternalFeedSource externalFeedSource)
+        ExternalFeedSource externalFeedSource,
+        Microsoft.Extensions.Options.IOptions<FeedImportOptions> importOptions)
     {
         _db = db;
-        _httpFactory = httpFactory;
         _logger = logger;
         _env = env;
         _gtfs = gtfs;
@@ -55,6 +67,7 @@ public class FeedManager
         _placeMatching = placeMatching;
         _logStore = logStore;
         _externalFeedSource = externalFeedSource;
+        _bulkCommandTimeoutSeconds = importOptions.Value.BulkCommandTimeoutSeconds;
     }
 
     public async Task<(List<FeedResponse> Feeds, int Total)> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
@@ -200,7 +213,7 @@ public class FeedManager
         await _db.Database.ExecuteSqlRawAsync(
             $"UPDATE CanonicalStations SET IsActive = 0 WHERE IsActive = 1 AND StationType = '{nameof(StationType.Stop)}' "
             + "AND NOT EXISTS (SELECT 1 FROM CanonicalStationOperators WHERE CanonicalStationId = Id) "
-            + "AND NOT EXISTS (SELECT 1 FROM RawStops WHERE CanonicalStationId = Id AND IsActive = 1)");
+            + "AND NOT EXISTS (SELECT 1 FROM RawStops WHERE CanonicalStationId = Id AND IsActive = 1)", ct);
 
         var candidates = await _db.ReconciliationCandidates
             .Where(rc => rc.FeedId == id)
@@ -250,13 +263,13 @@ public class FeedManager
             // Content-type validation for external HTTP responses
             if (result.ContentType is not null
                 && result.ContentType != "application/zip"
-                && !result.ContentType.StartsWith("application/"))
+                && !result.ContentType.StartsWith("application/", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Feed {FeedId} has unexpected Content-Type {ContentType}, skipping", feed.FeedId, result.ContentType);
                 return null;
             }
 
-            var outputDir = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId);
+            var outputDir = GetFeedStorageDirectory(feed.FeedId);
             try { Directory.CreateDirectory(outputDir); }
             catch (Exception ex) { _logger.LogError(ex, "Failed to create directory {Dir} for feed {FeedId}", outputDir, feed.FeedId); return null; }
             var zipPath = Path.Combine(outputDir, "gtfs.zip");
@@ -353,10 +366,23 @@ public class FeedManager
             using var archive = ZipFile.OpenRead(tempZipPath);
             _logStore.AddEntry(feedVersionId, "Opening GTFS archive...");
 
+            // Decompression-bomb guard: a small zip can declare an enormous expansion, and the
+            // parser streams entries into memory.
+            var declaredUncompressed = archive.Entries.Sum(e => e.Length);
+            if (declaredUncompressed > MaxUncompressedArchiveBytes)
+            {
+                version.ImportStatus = FeedImportStatus.Failed;
+                version.ImportError = $"Archive expands to {declaredUncompressed / (1024 * 1024)} MB, over the "
+                    + $"{MaxUncompressedArchiveBytes / (1024 * 1024)} MB limit";
+                _logStore.AddEntry(feedVersionId, $"Error: {version.ImportError}");
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+
             var (sqlConn, sqlTx) = await BeginImportTransactionAsync(ct);
             try
             {
-                _db.Database.SetCommandTimeout(600);
+                _db.Database.SetCommandTimeout(_bulkCommandTimeoutSeconds);
                 _db.ChangeTracker.AutoDetectChangesEnabled = false;
                 try
                 {
@@ -440,7 +466,7 @@ public class FeedManager
                     500, "InternalFeedNoActiveVersion");
             }
 
-            var zipPath = Path.Combine(_env.ContentRootPath, "feeds", feed.FeedId, "gtfs.zip");
+            var zipPath = GetFeedZipPath(feed.FeedId);
             var sha1 = $"{feed.FeedId}-manual-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():n}";
             if (File.Exists(zipPath))
             {
@@ -504,9 +530,27 @@ public class FeedManager
         _ => StationType.Stop
     };
 
+    /// <summary>
+    /// Resolves the on-disk storage directory for a feed. <see cref="Feed.FeedId"/> is caller-supplied,
+    /// so the resolved path is verified to stay under ContentRootPath/feeds — defence in depth behind
+    /// the character restriction on <c>CreateFeedRequest.FeedId</c>.
+    /// </summary>
+    private string GetFeedStorageDirectory(string feedId)
+    {
+        var feedsRoot = Path.GetFullPath(Path.Combine(_env.ContentRootPath, "feeds"));
+        var resolved = Path.GetFullPath(Path.Combine(feedsRoot, feedId));
+
+        if (!resolved.StartsWith(feedsRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            throw new Exceptions.AppException($"Invalid feed id '{feedId}'.", 400, "INVALID_FEED_ID");
+
+        return resolved;
+    }
+
+    private string GetFeedZipPath(string feedId) => Path.Combine(GetFeedStorageDirectory(feedId), "gtfs.zip");
+
     private string? PrepareImportTempZip(FeedVersion version, int feedVersionId)
     {
-        var zipPath = Path.Combine(_env.ContentRootPath, "feeds", version.Feed.FeedId, "gtfs.zip");
+        var zipPath = GetFeedZipPath(version.Feed.FeedId);
         if (!File.Exists(zipPath))
         {
             version.ImportStatus = FeedImportStatus.Failed;
@@ -1114,7 +1158,7 @@ public class FeedManager
             // This UPDATE joins StopTimes (potentially millions of rows) with RawStops
             // and may exceed the default 30s timeout. Raise it for this query only.
             var prevTimeout = _db.Database.GetCommandTimeout();
-            _db.Database.SetCommandTimeout(600);
+            _db.Database.SetCommandTimeout(_bulkCommandTimeoutSeconds);
             var rows = await _db.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", ct);
             _db.Database.SetCommandTimeout(prevTimeout);

@@ -9,7 +9,7 @@ using GetThereShared.Contracts;
 
 namespace GetThere.Services;
 
-public class AuthService
+public class AuthService : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -18,12 +18,24 @@ public class AuthService
     };
 
     private readonly HttpClient _http;
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private string? _cachedToken;
     private string? _cachedRefreshToken;
     public const string TokenKey = "auth_token";
     public const string RefreshTokenKey = "refresh_token";
 
     public AuthService(HttpClient http) { _http = http; }
+
+    /// <summary>
+    /// Registered as a singleton, so in practice this runs only at shutdown — but the refresh lock
+    /// and the owned HttpClient are disposable, and leaving them undisposed trips CA1001.
+    /// </summary>
+    public void Dispose()
+    {
+        _refreshLock.Dispose();
+        _http.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     public async Task<OperationResult> RegisterAsync(RegisterRequest request)
     {
@@ -60,25 +72,43 @@ public class AuthService
 
     public async Task<bool> TryRefreshTokenAsync()
     {
-        var refreshToken = await GetRefreshTokenAsync();
-        if (string.IsNullOrWhiteSpace(refreshToken)) return false;
+        var observedRefreshToken = await GetRefreshTokenAsync();
+        if (string.IsNullOrWhiteSpace(observedRefreshToken)) return false;
 
-        var response = await _http.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest(refreshToken), JsonOptions);
-
-        if (response.IsSuccessStatusCode)
+        // Refresh is serialized. The server rotates the refresh token and revokes the old one, so two
+        // concurrent requests presenting the same token would leave the second one holding a replayed
+        // token — which trips reuse detection and signs the user out mid-session.
+        await _refreshLock.WaitAsync();
+        try
         {
-            var data = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(JsonOptions);
-            if (data is not null)
-            {
-                _cachedToken = data.AccessToken;
-                _cachedRefreshToken = data.RefreshToken;
-                await SecureStorage.Default.SetAsync(TokenKey, data.AccessToken);
-                await SecureStorage.Default.SetAsync(RefreshTokenKey, data.RefreshToken);
-                return true;
-            }
-        }
+            var currentRefreshToken = await GetRefreshTokenAsync();
+            if (string.IsNullOrWhiteSpace(currentRefreshToken)) return false;
 
-        return false;
+            // Someone else refreshed while we waited; their new token is already stored.
+            if (currentRefreshToken != observedRefreshToken)
+                return true;
+
+            var response = await _http.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest(currentRefreshToken), JsonOptions);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(JsonOptions);
+                if (data is not null)
+                {
+                    _cachedToken = data.AccessToken;
+                    _cachedRefreshToken = data.RefreshToken;
+                    await SecureStorage.Default.SetAsync(TokenKey, data.AccessToken);
+                    await SecureStorage.Default.SetAsync(RefreshTokenKey, data.RefreshToken);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
 
     public async Task Logout()
@@ -165,7 +195,7 @@ public class AuthService
     private static Task<string?> TryReadProblemAsync(HttpResponseMessage response)
         => HttpHelper.TryReadProblemAsync(response);
 
-    private class JwtPayloadReader(string token)
+    private sealed class JwtPayloadReader(string token)
     {
         private readonly JsonElement _payload = ParsePayload(token);
 

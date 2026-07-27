@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 using GetThereAPI.Common;
 using GetThereAPI.Managers;
 
@@ -6,8 +8,6 @@ using GetThereShared.Contracts;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
-using System.ComponentModel.DataAnnotations;
 
 namespace GetThereAPI.Controllers;
 
@@ -44,7 +44,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("stats")]
-    [Authorize(Policy = PermissionKeys.TicketsView)]
+    [Authorize(Policy = PermissionKeys.AdminStatsView)]
     public async Task<ActionResult<AdminStats>> GetStats(
         [FromQuery, Range(1, 720)] int windowHours = 24, CancellationToken ct = default)
     {
@@ -53,7 +53,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("purchases")]
-    [Authorize(Policy = PermissionKeys.TicketsView)]
+    [Authorize(Policy = PermissionKeys.AdminPurchasesView)]
     public async Task<ActionResult<PagedResult<PurchaseListItem>>> GetPurchases(
         [FromQuery] string? status = null,
         [FromQuery] int? adapterId = null,

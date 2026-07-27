@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
@@ -83,7 +85,13 @@ public class AdminManager
 
         var walletTransactions = _db.WalletTransactions.AsNoTracking().Where(t => t.CreatedAt >= windowStart);
 
-        var pending = await purchases.Where(p => p.Status == PaymentStatus.Pending).ToListAsync(ct);
+        // Aggregate in SQL — materialising every pending purchase to call Count()/Min() on it grows
+        // unbounded with the size of the backlog.
+        var pendingQuery = purchases.Where(p => p.Status == PaymentStatus.Pending);
+        var pendingCount = await pendingQuery.CountAsync(ct);
+        var oldestPendingAt = pendingCount == 0
+            ? null
+            : await pendingQuery.MinAsync(p => (DateTime?)p.PurchasedAt, ct);
 
         var activeAdapters = await _db.TicketingAdapters.AsNoTracking()
             .Where(a => a.IsActive)
@@ -116,8 +124,8 @@ public class AdminManager
             PurchaseSuccessRate = SuccessRate(sold, failed),
             PurchaseSuccessRateChangePercent = SuccessRate(sold, failed) - SuccessRate(soldPrevious, failedPrevious),
 
-            PendingPurchases = pending.Count,
-            OldestPendingPurchaseAt = pending.Count > 0 ? pending.Min(p => p.PurchasedAt) : null,
+            PendingPurchases = pendingCount,
+            OldestPendingPurchaseAt = oldestPendingAt,
 
             TotalUsers = await _userManager.Users.CountAsync(ct),
             TotalTickets = await _db.Tickets.AsNoTracking().CountAsync(ct),
@@ -226,7 +234,7 @@ public class AdminManager
                 UserId = CurrentUserId,
                 Action = isActive ? "EnableAdapter" : "DisableAdapter",
                 EntityType = nameof(TicketingAdapter),
-                EntityId = adapter.Id.ToString(),
+                EntityId = adapter.Id.ToString(CultureInfo.InvariantCulture),
                 OldValues = $"{{\"isActive\":{(adapter.IsActive ? "true" : "false")}}}",
                 NewValues = $"{{\"isActive\":{(isActive ? "true" : "false")}}}"
             });

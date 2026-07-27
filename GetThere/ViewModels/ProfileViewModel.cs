@@ -27,7 +27,6 @@ public partial class ProfileViewModel : BaseViewModel
     private readonly CountryPreferenceService _prefs;
     private readonly IAnalyticsService _analytics;
 
-    private static readonly CultureInfo BalanceCulture = CultureInfo.GetCultureInfo("hr-HR");
     private string _currentBalanceText = "€0,00";
 
     [ObservableProperty]
@@ -113,7 +112,7 @@ public partial class ProfileViewModel : BaseViewModel
         }
         catch
         {
-            await Shell.Current.DisplayAlert(
+            await Shell.Current.DisplayAlertAsync(
                 LocalizationService.Instance["App_Error"],
                 LocalizationService.Instance["Error_CouldNotLoadProfile"],
                 LocalizationService.Instance["App_Ok"]);
@@ -129,7 +128,7 @@ public partial class ProfileViewModel : BaseViewModel
         var result = await _walletService.GetWalletAsync();
         if (result.Success && result.Data is not null)
         {
-            _currentBalanceText = $"€{result.Data.Balance.ToString("N2", BalanceCulture)}";
+            _currentBalanceText = result.Data.FormattedBalance;
             UpdateBalanceDisplay();
         }
     }
@@ -220,7 +219,7 @@ public partial class ProfileViewModel : BaseViewModel
                 {
                     _analytics.TrackEvent("top_up", new() { ["amount"] = amount.ToString(CultureInfo.InvariantCulture) });
                     await LoadWallet();
-                    await Shell.Current.DisplayAlert(
+                    await Shell.Current.DisplayAlertAsync(
                         LocalizationService.Instance["Profile_SubSettings_Success"],
                         string.Format(LocalizationService.Instance["Profile_TopUp_Added"], amount),
                         LocalizationService.Instance["App_Ok"]);
@@ -228,7 +227,7 @@ public partial class ProfileViewModel : BaseViewModel
                 }
                 else
                 {
-                    await Shell.Current.DisplayAlert(
+                    await Shell.Current.DisplayAlertAsync(
                         LocalizationService.Instance["Profile_TopUp_FailedTitle"],
                         result.Message ?? LocalizationService.Instance["Profile_TopUp_Failed"],
                         LocalizationService.Instance["App_Ok"]);
@@ -236,14 +235,14 @@ public partial class ProfileViewModel : BaseViewModel
             }
             catch (Exception ex)
             {
-                await Shell.Current.DisplayAlert(
+                await Shell.Current.DisplayAlertAsync(
                     LocalizationService.Instance["App_Error"], ex.Message,
                     LocalizationService.Instance["App_Ok"]);
             }
         }
         else
         {
-            await Shell.Current.DisplayAlert(
+            await Shell.Current.DisplayAlertAsync(
                 LocalizationService.Instance["Profile_TopUp_InvalidAmountTitle"],
                 LocalizationService.Instance["Profile_TopUp_InvalidAmount"],
                 LocalizationService.Instance["App_Ok"]);
@@ -253,7 +252,7 @@ public partial class ProfileViewModel : BaseViewModel
     [RelayCommand]
     private async Task Logout()
     {
-        var confirmed = await Shell.Current.DisplayAlert(
+        var confirmed = await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_SignOut"],
             LocalizationService.Instance["Profile_SignOutConfirm"],
             LocalizationService.Instance["App_Yes"],
@@ -275,7 +274,7 @@ public partial class ProfileViewModel : BaseViewModel
     [RelayCommand]
     private async Task OnPrivacy()
     {
-        await Shell.Current.DisplayAlert(
+        await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_PrivacyTitle"],
             LocalizationService.Instance["Profile_PrivacyMessage"],
             LocalizationService.Instance["App_Ok"]);
@@ -284,7 +283,7 @@ public partial class ProfileViewModel : BaseViewModel
     [RelayCommand]
     private async Task OnPaymentMethods()
     {
-        await Shell.Current.DisplayAlert(
+        await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_PaymentMethodsTitle"],
             LocalizationService.Instance["Profile_PaymentMethodsMessage"],
             LocalizationService.Instance["App_Ok"]);
@@ -293,7 +292,7 @@ public partial class ProfileViewModel : BaseViewModel
     [RelayCommand]
     private async Task OnHelpCenter()
     {
-        await Shell.Current.DisplayAlert(
+        await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_SupportTitle"],
             LocalizationService.Instance["Profile_SupportMessage"],
             LocalizationService.Instance["App_Ok"]);
@@ -302,7 +301,7 @@ public partial class ProfileViewModel : BaseViewModel
     [RelayCommand]
     private async Task OnAbout()
     {
-        await Shell.Current.DisplayAlert(
+        await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_AboutTitle"],
             LocalizationService.Instance["Profile_AboutMessage"],
             LocalizationService.Instance["App_Ok"]);
@@ -376,7 +375,7 @@ public partial class ProfileViewModel : BaseViewModel
         if (country is null) return;
         _prefs.SetSelectedCountry(country.Id, country.Name);
         IsSubSettingsVisible = false;
-        await Shell.Current.DisplayAlert(
+        await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_SubSettings_Success"],
             string.Format(LocalizationService.Instance["Profile_SubSettings_RegionUpdated"], country.Name),
             LocalizationService.Instance["App_Ok"]);
@@ -403,13 +402,13 @@ public partial class ProfileViewModel : BaseViewModel
     {
         if (string.IsNullOrWhiteSpace(SubSettingsNewPassword) || SubSettingsNewPassword != SubSettingsConfirmPassword)
         {
-            await Shell.Current.DisplayAlert(
+            await Shell.Current.DisplayAlertAsync(
                 LocalizationService.Instance["App_Error"],
                 LocalizationService.Instance["Profile_SubSettings_PasswordMismatch"],
                 LocalizationService.Instance["App_Ok"]);
             return;
         }
-        await Shell.Current.DisplayAlert(
+        await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Profile_SubSettings_ComingSoon"],
             LocalizationService.Instance["Profile_SubSettings_PasswordComingSoon"],
             LocalizationService.Instance["App_Ok"]);

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -95,24 +97,35 @@ public class AuthManager
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
-        if (existingRefreshToken is null || !existingRefreshToken.IsActive)
+        if (existingRefreshToken is null)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
 
-        if (existingRefreshToken.IpAddress is not null && ipAddress is not null &&
-            existingRefreshToken.IpAddress != ipAddress)
+        // Token reuse detection — if this token was already replaced, revoke all tokens for this user.
+        // This must run *before* the IsActive guard: rotation sets both RevokedAt and ReplacedByToken,
+        // so a replayed rotated token is already inactive and would otherwise never reach this branch.
+        if (existingRefreshToken.ReplacedByToken is not null)
         {
+            var revokedAt = DateTime.UtcNow;
+            var userTokens = await _db.RefreshTokens
+                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.RevokedAt == null && rt.ExpiresAt > revokedAt)
+                .ToListAsync(ct);
+            foreach (var t in userTokens)
+                t.RevokedAt = revokedAt;
+
+            LogAudit(existingRefreshToken.UserId, "RefreshTokenReuseDetected", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
+            await _db.SaveChangesAsync(ct);
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 
-        // Token reuse detection — if this token was already replaced, revoke all tokens for this user
-        if (existingRefreshToken.ReplacedByToken is not null)
+        if (!existingRefreshToken.IsActive)
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+
+        // IP binding. A caller that presents no address at all is rejected when the token was issued
+        // with one — otherwise suppressing the address is enough to skip the check entirely. A token
+        // stored without an address (issued before the address was captured) cannot be compared, so
+        // it is allowed through.
+        if (existingRefreshToken.IpAddress is not null && existingRefreshToken.IpAddress != ipAddress)
         {
-            var userTokens = await _db.RefreshTokens
-                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.IsActive)
-                .ToListAsync(ct);
-            foreach (var t in userTokens)
-                t.RevokedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 
@@ -135,7 +148,7 @@ public class AuthManager
         existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
         _db.RefreshTokens.Add(newRefreshTokenEntity);
 
-        LogAudit(existingRefreshToken.UserId, "TokenRefresh", "RefreshToken", existingRefreshToken.Id.ToString());
+        LogAudit(existingRefreshToken.UserId, "TokenRefresh", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
         await _db.SaveChangesAsync(ct);
 
         var newAccessToken = await _tokenManager.CreateTokenAsync(existingRefreshToken.User);
@@ -158,7 +171,7 @@ public class AuthManager
             if (existingRefreshToken is not null && !existingRefreshToken.RevokedAt.HasValue)
             {
                 existingRefreshToken.RevokedAt = DateTime.UtcNow;
-                LogAudit(existingRefreshToken.UserId, "Logout", "RefreshToken", existingRefreshToken.Id.ToString());
+                LogAudit(existingRefreshToken.UserId, "Logout", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
                 await _db.SaveChangesAsync(ct);
             }
         }
@@ -174,15 +187,18 @@ public class AuthManager
         if (!result.Succeeded)
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
 
-        LogAudit(user.Id, "PasswordChanged", "User", user.Id.ToString());
+        LogAudit(user.Id, "PasswordChanged", "User", user.Id.ToString(CultureInfo.InvariantCulture));
         await _db.SaveChangesAsync(ct);
 
-        // Revoke all active refresh tokens
+        // Revoke all active refresh tokens.
+        // The predicate is spelled out rather than using RefreshToken.IsActive: that property is
+        // computed in C# and unmapped, so EF cannot translate it and the query throws at runtime.
+        var revokedAt = DateTime.UtcNow;
         var activeTokens = await _db.RefreshTokens
-            .Where(rt => rt.UserId == userId && rt.IsActive)
+            .Where(rt => rt.UserId == userId && rt.RevokedAt == null && rt.ExpiresAt > revokedAt)
             .ToListAsync(ct);
         foreach (var t in activeTokens)
-            t.RevokedAt = DateTime.UtcNow;
+            t.RevokedAt = revokedAt;
         await _db.SaveChangesAsync(ct);
     }
 
@@ -205,7 +221,7 @@ public class AuthManager
 
         await _userManager.AddToRoleAsync(user, TransitInfoAPI.Common.RoleNames.Client);
 
-        LogAudit(user.Id, "Register", "User", user.Id.ToString());
+        LogAudit(user.Id, "Register", "User", user.Id.ToString(CultureInfo.InvariantCulture));
         await _db.SaveChangesAsync(ct);
 
         return user;

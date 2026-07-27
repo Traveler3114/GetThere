@@ -48,6 +48,7 @@ builder.Services.AddHttpClient("gtfsrt", client =>
 });
 
 builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
+builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("FeedImport"));
 builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
 builder.Services.Configure<PlaceMatchingOptions>(builder.Configuration.GetSection("PlaceMatching"));
 
@@ -132,6 +133,17 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddTransient<IClaimsTransformation, TransitInfoAPI.Services.DynamicClaimsTransformation>();
 builder.Services.AddHttpContextAccessor();
 
+// Behind a reverse proxy, Connection.RemoteIpAddress is the proxy's address — every caller would
+// otherwise share a single rate-limit partition. KnownNetworks/KnownProxies are cleared because the
+// proxy address is not known at build time; only enable this where a trusted proxy terminates TLS.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddRateLimiter(limiter =>
 {
     limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -164,6 +176,8 @@ builder.Services.AddResponseCompression(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
@@ -193,17 +207,11 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Protect /admin static files — reject unauthenticated requests
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/admin") &&
-        context.User.Identity?.IsAuthenticated != true)
-    {
-        context.Response.StatusCode = 401;
-        return;
-    }
-    await next();
-});
+// The /admin console is served as plain static files. It deliberately carries no authorization
+// gate: authentication here is bearer-token based, and a browser navigation to an .html file
+// cannot send an Authorization header — a gate on these paths 401s the login page itself and
+// makes the console unreachable. The console holds no secrets; every byte of data it renders
+// comes from API endpoints that are authorized per-endpoint.
 app.UseHsts();
 app.UseHttpsRedirection();
 app.UseResponseCompression();
@@ -216,6 +224,23 @@ app.UseStaticFiles(new StaticFileOptions
         {
             ctx.Context.Response.Headers.CacheControl = "no-cache, no-store";
         }
+
+        if (!ctx.Context.Request.Path.StartsWithSegments("/admin")) return;
+
+        var headers = ctx.Context.Response.Headers;
+        headers["X-Robots-Tag"] = "noindex, nofollow";
+
+        // Backstop for the escaping in these pages, which render feed- and operator-supplied text.
+        // Map tiles and the Bootstrap/MapLibre CDNs the legacy pages still use are allowed
+        // explicitly; 'unsafe-inline' stays until the inline scripts move to files.
+        headers["Content-Security-Policy"] =
+            "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " +
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " +
+            "img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:; " +
+            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["Referrer-Policy"] = "no-referrer";
     }
 });
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
@@ -268,35 +293,78 @@ using (var scope = app.Services.CreateScope())
     // Add permission claims to Client role (all .view permissions)
     var clientRole = await roleManager.FindByNameAsync(RoleNames.Client);
     var clientClaims = await roleManager.GetClaimsAsync(clientRole!);
-    foreach (var perm in PermissionKeys.All.Where(p => p.EndsWith(".view") && !clientClaims.Any(c => c.Value == p)))
+    foreach (var perm in PermissionKeys.All.Where(p => p.EndsWith(".view", StringComparison.Ordinal) && !clientClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(clientRole!, new Claim("permission", perm));
 
     // Admin user
     var admin = await userManager.FindByNameAsync("admin@transit.local");
     if (admin is null)
     {
-        var pwd = GenerateSecurePassword(24);
-        admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
-        await userManager.CreateAsync(admin, pwd);
-        await userManager.AddToRoleAsync(admin, RoleNames.Admin);
-        var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
-        await File.WriteAllTextAsync(credFile,
-            $"Email: admin@transit.local\nPassword: {pwd}\n");
-        Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+        var configuredPassword = app.Configuration["Seed:AdminPassword"];
+
+        // Outside Development the password must be supplied through configuration. Generating one
+        // and dropping it on disk in plaintext leaves a credential at rest on every deployment.
+        if (string.IsNullOrWhiteSpace(configuredPassword) && !app.Environment.IsDevelopment())
+        {
+            app.Logger.LogWarning(
+                "No admin account exists and Seed:AdminPassword is not configured — skipping admin seed. " +
+                "Set it via user-secrets or the environment to create admin@transit.local.");
+        }
+        else
+        {
+            var pwd = configuredPassword ?? GenerateSecurePassword(24);
+            admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
+            await userManager.CreateAsync(admin, pwd);
+            await userManager.AddToRoleAsync(admin, RoleNames.Admin);
+
+            if (configuredPassword is null)
+            {
+                // Development only — the generated password has to reach the developer somehow.
+                var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
+                await File.WriteAllTextAsync(credFile,
+                    $"Email: admin@transit.local\nPassword: {pwd}\n");
+                Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+            }
+            else
+            {
+                app.Logger.LogInformation("Admin account created from Seed:AdminPassword.");
+            }
+        }
     }
 
     // Service account for GetThereAPI
     var client = await userManager.FindByNameAsync("getthere-api");
     if (client is null)
     {
-        var pwd = GenerateSecurePassword(32);
-        client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
-        await userManager.CreateAsync(client, pwd);
-        await userManager.AddToRoleAsync(client, RoleNames.Client);
-        var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
-        await File.WriteAllTextAsync(svcCredFile,
-            $"Username: getthere-api\nPassword: {pwd}\n");
-        Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
+        // Must match GetThereAPI's TransitInfoApi:ClientSecret, so it is configuration-driven
+        // outside Development rather than generated and written to disk.
+        var configuredSecret = app.Configuration["Seed:ServiceAccountPassword"];
+
+        if (string.IsNullOrWhiteSpace(configuredSecret) && !app.Environment.IsDevelopment())
+        {
+            app.Logger.LogWarning(
+                "No service account exists and Seed:ServiceAccountPassword is not configured — skipping. " +
+                "GetThereAPI will not be able to authenticate until it is created.");
+        }
+        else
+        {
+            var pwd = configuredSecret ?? GenerateSecurePassword(32);
+            client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
+            await userManager.CreateAsync(client, pwd);
+            await userManager.AddToRoleAsync(client, RoleNames.Client);
+
+            if (configuredSecret is null)
+            {
+                var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
+                await File.WriteAllTextAsync(svcCredFile,
+                    $"Username: getthere-api\nPassword: {pwd}\n");
+                Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
+            }
+            else
+            {
+                app.Logger.LogInformation("Service account created from Seed:ServiceAccountPassword.");
+            }
+        }
     }
 }
 

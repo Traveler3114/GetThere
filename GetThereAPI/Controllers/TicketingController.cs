@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 using GetThereAPI.Common;
 using GetThereAPI.Managers;
 
@@ -38,13 +40,19 @@ public class TicketingController : ControllerBase
 
     [HttpPost("purchase")]
     [Authorize(Policy = PermissionKeys.TicketsCreate)]
+    /// <param name="idempotencyKey">
+    /// Optional client-generated key. Sending the same key twice returns the original ticket instead
+    /// of charging the wallet again — mobile clients retry, and a retry must not double-charge.
+    /// </param>
     public async Task<ActionResult<TicketResponse>> Purchase(
-        PurchaseTicketRequest request, CancellationToken ct = default)
+        PurchaseTicketRequest request,
+        [FromHeader(Name = "Idempotency-Key"), StringLength(64, MinimumLength = 8)] string? idempotencyKey = null,
+        CancellationToken ct = default)
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
-        var result = await _ticketingManager.PurchaseTicketAsync(userId, request.AdapterId, request.OptionId, ct);
+        var result = await _ticketingManager.PurchaseTicketAsync(userId, request.AdapterId, request.OptionId, idempotencyKey, ct);
         return CreatedAtAction(nameof(GetMyTickets), new { }, result);
     }
 }

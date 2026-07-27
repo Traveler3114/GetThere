@@ -184,7 +184,7 @@ public class OperatorManager
                     _ => rt.ToString()
                 };
                 icons.TryGetValue(id, out var meta);
-                return new { Id = id, Name = name, IconFile = meta.Icon ?? $"{rt.ToString().ToLower()}.png", Color = meta.Color ?? "#808080" };
+                return new { Id = id, Name = name, IconFile = meta.Icon ?? $"{rt.ToString().ToLowerInvariant()}.png", Color = meta.Color ?? "#808080" };
             })
             .ToList<object>();
     }

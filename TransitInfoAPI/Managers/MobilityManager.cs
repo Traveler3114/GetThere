@@ -18,9 +18,8 @@ public class MobilityManager
     private readonly TransitDbContext _db;
     private readonly ILogger<MobilityManager> _logger;
     private readonly PlaceMatchingManager _placeMatching;
-    private readonly IConfiguration _config;
 
-    public MobilityManager(TransitDbContext db, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching, IConfiguration config) { _db = db; _logger = logger; _placeMatching = placeMatching; _config = config; }
+    public MobilityManager(TransitDbContext db, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching) { _db = db; _logger = logger; _placeMatching = placeMatching; }
 
     public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {

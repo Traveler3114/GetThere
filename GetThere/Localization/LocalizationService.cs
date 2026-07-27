@@ -42,6 +42,11 @@ public sealed class LocalizationService
     public void SetCulture(CultureInfo culture)
     {
         CurrentCulture = culture;
+
+        // Setting only the calling thread leaves every other thread — and every continuation that
+        // resumes on the thread pool — on the old culture, so a language change appears to half-apply.
+        CultureInfo.DefaultThreadCurrentCulture = culture;
+        CultureInfo.DefaultThreadCurrentUICulture = culture;
         Thread.CurrentThread.CurrentCulture = culture;
         Thread.CurrentThread.CurrentUICulture = culture;
         Preferences.Default.Set("app_language", culture.TwoLetterISOLanguageName);

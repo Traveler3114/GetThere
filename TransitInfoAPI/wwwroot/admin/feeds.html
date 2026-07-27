@@ -130,7 +130,7 @@ function renderFeeds(feeds, totalCount) {
     <td><code class="small">${esc(f.onestopId||'-')}</code></td>
     <td>${feedTypeBadge(f.feedType)}</td>
     <td>${esc(f.operatorName||'-')}</td>
-    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isInternal ? '<span class="small">Internal</span>' : '<a href="' + esc(f.externalUrl||'#') + '" target="_blank" class="text-decoration-none small">' + esc(f.externalUrl) + '</a>'}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isInternal ? '<span class="small">Internal</span>' : '<a href="' + esc(safeUrl(f.externalUrl)) + '" target="_blank" rel="noopener noreferrer" class="text-decoration-none small">' + esc(f.externalUrl) + '</a>'}</td>
     <td>${f.isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
     <td class="small">${f.refreshIntervalSeconds}s</td>
     <td>
@@ -579,7 +579,8 @@ async function addFeed() {
 }
 
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
-function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
 
 loadFeeds();
 </script>

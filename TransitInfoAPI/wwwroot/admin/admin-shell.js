@@ -71,8 +71,51 @@
       }
     },
 
+    /**
+     * Exchanges the stored refresh token for a new access token.
+     * Access tokens live 15 minutes, so without this the console logged the operator out mid-task.
+     * Concurrent callers share one in-flight request — the server rotates refresh tokens and revokes
+     * the old one, so a second parallel refresh would present a replayed token and kill the session.
+     */
+    refresh: function () {
+      if (Shell._refreshInFlight) return Shell._refreshInFlight;
+
+      var refreshToken = sessionStorage.getItem('refresh_token');
+      if (!refreshToken) return Promise.resolve(false);
+
+      Shell._refreshInFlight = fetch('/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refreshToken })
+      }).then(function (res) {
+        if (!res.ok) return false;
+        return res.json().then(function (data) {
+          if (!data || !data.accessToken) return false;
+          sessionStorage.setItem('auth_token', data.accessToken);
+          if (data.refreshToken) sessionStorage.setItem('refresh_token', data.refreshToken);
+          return true;
+        });
+      }).catch(function () {
+        return false;
+      }).finally(function () {
+        Shell._refreshInFlight = null;
+      });
+
+      return Shell._refreshInFlight;
+    },
+
+    _refreshInFlight: null,
+
     api: async function (path, options) {
       var res = await fetch(path, Object.assign({ headers: Shell.headers() }, options || {}));
+
+      if (res.status === 401) {
+        var refreshed = await Shell.refresh();
+        if (refreshed) {
+          res = await fetch(path, Object.assign({ headers: Shell.headers() }, options || {}));
+        }
+      }
+
       if (res.status === 401) {
         Shell.logout();
         throw new Error('Session expired.');

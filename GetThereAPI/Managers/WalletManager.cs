@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
@@ -27,40 +29,78 @@ public class WalletManager
         return wallet is null ? null : WalletMapper.ToResponse(wallet);
     }
 
+    /// <summary>Largest single top-up. A bound is the difference between a typo and a fortune.</summary>
+    public const decimal MaxTopUpAmount = 1000m;
+
+    /// <summary>
+    /// Credits the wallet.
+    /// <para>
+    /// NOTE: there is still no payment provider behind this — nothing is actually charged. The
+    /// endpoint is gated on an admin-only permission for that reason; see
+    /// <c>docs/money-path-defects.md</c>. Wiring a provider means taking payment here and only
+    /// crediting on a confirmed settlement.
+    /// </para>
+    /// </summary>
     public async Task<WalletResponse> TopUpAsync(string userId, decimal amount, string paymentMethod, CancellationToken ct = default)
     {
         if (amount <= 0)
-            throw new AppException("Amount must be greater than zero.");
+            throw new AppException("Amount must be greater than zero.", 400, "INVALID_AMOUNT");
 
-        var wallet = await _db.Wallets
-            .FirstOrDefaultAsync(w => w.UserId == userId, ct);
+        if (amount > MaxTopUpAmount)
+            throw new AppException($"Amount may not exceed {MaxTopUpAmount:N2}.", 400, "AMOUNT_TOO_LARGE");
 
-        if (wallet is null)
-            throw new AppException("Wallet not found", 404);
+        // Guards against a fractional-cent amount that would not survive the decimal(18,2) column.
+        if (decimal.Round(amount, 2) != amount)
+            throw new AppException("Amount may not have more than two decimal places.", 400, "INVALID_AMOUNT");
 
-        var balanceBefore = wallet.Balance;
+        if (string.IsNullOrWhiteSpace(paymentMethod))
+            throw new AppException("Payment method is required.", 400, "INVALID_PAYMENT_METHOD");
 
-        // Atomic UPDATE prevents race conditions on concurrent top-ups
+        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == userId, ct)
+            ?? throw new AppException("Wallet not found", 404);
+
+        var creditedAt = DateTime.UtcNow;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        // Atomic UPDATE prevents race conditions on concurrent top-ups.
         await _db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE Wallets SET Balance = Balance + {amount}, UpdatedAt = {DateTime.UtcNow} WHERE Id = {wallet.Id}", ct);
+            $"UPDATE Wallets SET Balance = Balance + {amount}, UpdatedAt = {creditedAt} WHERE Id = {wallet.Id}", ct);
 
-        var updatedBalance = balanceBefore + amount;
+        // Re-read the committed value: raw SQL does not refresh the tracked entity, so both the
+        // ledger row and the response used to report the balance from *before* the top-up.
+        var balanceAfter = await _db.Wallets.AsNoTracking()
+            .Where(w => w.Id == wallet.Id).Select(w => w.Balance).FirstAsync(ct);
 
         _db.WalletTransactions.Add(new WalletTransaction
         {
             WalletId = wallet.Id,
             Amount = amount,
-            BalanceBefore = balanceBefore,
-            BalanceAfter = updatedBalance,
+            BalanceBefore = balanceAfter - amount,
+            BalanceAfter = balanceAfter,
             Type = WalletTransactionType.Deposit,
             Description = $"Top-up via {paymentMethod}",
-            ReferenceId = null
+            ReferenceId = null,
+            CreatedAt = creditedAt
+        });
+
+        _db.Set<AuditLog>().Add(new AuditLog
+        {
+            UserId = userId,
+            Action = "WalletTopUp",
+            EntityType = nameof(Wallet),
+            EntityId = wallet.Id.ToString(CultureInfo.InvariantCulture),
+            NewValues = $"{{\"amount\":{amount.ToString(CultureInfo.InvariantCulture)},\"method\":\"{paymentMethod}\"}}",
+            CreatedAt = creditedAt
         });
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
-        _logger.LogInformation("Wallet {WalletId} topped up {Amount} via {Method}, new balance {Balance}", wallet.Id, amount, paymentMethod, updatedBalance);
-        return WalletMapper.ToResponse(wallet);
+        _logger.LogInformation("Wallet {WalletId} topped up {Amount} via {Method}, new balance {Balance}", wallet.Id, amount, paymentMethod, balanceAfter);
+
+        // Return freshly-read state rather than the stale tracked entity.
+        return await GetWalletAsync(userId, ct) ?? throw new AppException("Wallet not found", 404);
     }
 
     public async Task<Wallet> EnsureWalletAsync(string userId, CancellationToken ct = default)

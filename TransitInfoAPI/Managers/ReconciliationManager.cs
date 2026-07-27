@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using System.Text.RegularExpressions;
 
 using Microsoft.Data.SqlClient;
@@ -218,12 +220,11 @@ public class ReconciliationManager
             var station = onestopToStation[onestopId];
             rawStop.CanonicalStationId = station.Id;
 
-            var cellKey = GetSpatialCellKey(rawStop.Lat, rawStop.Lon);
-            var nearbyStations = stationGrid.TryGetValue(cellKey, out var bucket) ? bucket : [];
+            var nearbyStations = GetStationsNearCell(stationGrid, rawStop.Lat, rawStop.Lon);
 
             var match = FindBestMatch(
                 rawStop.Name, rawStop.Lat, rawStop.Lon, rawStop.RouteType!.Value,
-                rawStop.RawStopId, nearbyStations, autoDistThreshold * 2,
+                rawStop.RawStopId, nearbyStations, autoDistThreshold * CandidateSearchRadiusFactor,
                 routeLookup, stationToRawStopIds);
 
             if (match is not null &&
@@ -583,8 +584,8 @@ public class ReconciliationManager
             List<string> details = [];
             foreach (var line in shared)
             {
-                var aStr = string.Join(",", dirsA[line].Select(d => d?.ToString() ?? "null"));
-                var bStr = string.Join(",", dirsB[line].Select(d => d?.ToString() ?? "null"));
+                var aStr = string.Join(",", dirsA[line].Select(d => d?.ToString(CultureInfo.InvariantCulture) ?? "null"));
+                var bStr = string.Join(",", dirsB[line].Select(d => d?.ToString(CultureInfo.InvariantCulture) ?? "null"));
                 details.Add($"{line} (A: [{aStr}], B: [{bStr}])");
             }
             return $"Direction mismatch on shared lines: {string.Join("; ", details)}.";
@@ -673,8 +674,8 @@ public class ReconciliationManager
             List<string> details = [];
             foreach (var line in shared)
             {
-                var aStr = string.Join(",", dirsSrc[line].Select(d => d?.ToString() ?? "null"));
-                var bStr = string.Join(",", dirsTgt[line].Select(d => d?.ToString() ?? "null"));
+                var aStr = string.Join(",", dirsSrc[line].Select(d => d?.ToString(CultureInfo.InvariantCulture) ?? "null"));
+                var bStr = string.Join(",", dirsTgt[line].Select(d => d?.ToString(CultureInfo.InvariantCulture) ?? "null"));
                 details.Add($"{line} (src: [{aStr}], tgt: [{bStr}])");
             }
             throw new AppException(
@@ -773,7 +774,7 @@ public class ReconciliationManager
         source.IsActive = true;
 
         // Read moved raw stops from join table (fall back to CSV parse for legacy records)
-        var rawStopIds = log.MovedRawStops.Any()
+        var rawStopIds = log.MovedRawStops.Count > 0
             ? log.MovedRawStops.Select(mrs => mrs.RawStopId).ToList()
             : (log.MovedRawStopIds ?? "[]")
                 .Trim('[', ']')
@@ -1092,12 +1093,12 @@ public class ReconciliationManager
                 var inDir = inDirs.Single();
                 var stDir = stDirs.Single();
                 if (inDir != stDir)
-                    conflicts.Add($"{line} (raw: dir {inDir?.ToString() ?? "null"}, station: dir {stDir?.ToString() ?? "null"})");
+                    conflicts.Add($"{line} (raw: dir {inDir?.ToString(CultureInfo.InvariantCulture) ?? "null"}, station: dir {stDir?.ToString(CultureInfo.InvariantCulture) ?? "null"})");
             }
             else if (inDirs.Count == 0 || stDirs.Count == 0 || inDirs.Any(d => d is null) || stDirs.Any(d => d is null))
             {
-                var inStr = string.Join(",", inDirs.Select(d => d?.ToString() ?? "null"));
-                var stStr = string.Join(",", stDirs.Select(d => d?.ToString() ?? "null"));
+                var inStr = string.Join(",", inDirs.Select(d => d?.ToString(CultureInfo.InvariantCulture) ?? "null"));
+                var stStr = string.Join(",", stDirs.Select(d => d?.ToString(CultureInfo.InvariantCulture) ?? "null"));
                 conflicts.Add($"{line} (raw: [{inStr}], station: [{stStr}])");
             }
         }
@@ -1165,32 +1166,82 @@ public class ReconciliationManager
         return result;
     }
 
-    private static int LevenshteinDistance(string s, string t)
+    /// <summary>
+    /// Levenshtein distance over two rolling rows rather than a full m×n matrix. This runs once per
+    /// candidate pair across a whole feed import, so the matrix allocation dominated GC there.
+    /// </summary>
+    internal static int LevenshteinDistance(string s, string t)
     {
-        var m = s.Length;
+        if (s.Length == 0) return t.Length;
+        if (t.Length == 0) return s.Length;
+
+        // Iterate over the shorter string so the rows stay small.
+        if (s.Length < t.Length)
+            (s, t) = (t, s);
+
         var n = t.Length;
-        var d = new int[m + 1, n + 1];
+        Span<int> previous = n < 256 ? stackalloc int[n + 1] : new int[n + 1];
+        Span<int> current = n < 256 ? stackalloc int[n + 1] : new int[n + 1];
 
-        for (var i = 0; i <= m; i++) d[i, 0] = i;
-        for (var j = 0; j <= n; j++) d[0, j] = j;
+        for (var j = 0; j <= n; j++) previous[j] = j;
 
-        for (var j = 1; j <= n; j++)
+        for (var i = 1; i <= s.Length; i++)
         {
-            for (var i = 1; i <= m; i++)
+            current[0] = i;
+            for (var j = 1; j <= n; j++)
             {
                 var cost = s[i - 1] == t[j - 1] ? 0 : 1;
-                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+                current[j] = Math.Min(Math.Min(current[j - 1] + 1, previous[j] + 1), previous[j - 1] + cost);
+            }
+
+            // Swap the rows; the just-computed row becomes the previous one.
+            var swap = previous;
+            previous = current;
+            current = swap;
+        }
+
+        return previous[n];
+    }
+
+    /// <summary>
+    /// Side of a spatial index cell in degrees (~22 km) — far larger than any match threshold, so the
+    /// 3×3 neighbourhood scanned by <see cref="GetStationsNearCell"/> always covers the search radius.
+    /// </summary>
+    private const double SpatialCellSizeDeg = 0.2;
+
+    /// <summary>
+    /// How far past the auto-merge distance to look for candidates. Wider than the merge threshold on
+    /// purpose: a near-miss should surface for manual review rather than never be considered.
+    /// </summary>
+    private const double CandidateSearchRadiusFactor = 2.0;
+
+    internal static string GetSpatialCellKey(double lat, double lon)
+        => GetSpatialCellKey((int)Math.Floor(lat / SpatialCellSizeDeg), (int)Math.Floor(lon / SpatialCellSizeDeg));
+
+    private static string GetSpatialCellKey(int latCell, int lonCell) => $"{latCell}:{lonCell}";
+
+    /// <summary>
+    /// Collects candidate stations from the cell containing the point *and its eight neighbours*.
+    /// Reading only the containing cell silently loses every match that falls across a cell
+    /// boundary — two stations metres apart can sit in different cells.
+    /// </summary>
+    internal static List<CanonicalStation> GetStationsNearCell(
+        Dictionary<string, List<CanonicalStation>> grid, double lat, double lon)
+    {
+        var latCell = (int)Math.Floor(lat / SpatialCellSizeDeg);
+        var lonCell = (int)Math.Floor(lon / SpatialCellSizeDeg);
+
+        List<CanonicalStation> nearby = [];
+        for (var dLat = -1; dLat <= 1; dLat++)
+        {
+            for (var dLon = -1; dLon <= 1; dLon++)
+            {
+                if (grid.TryGetValue(GetSpatialCellKey(latCell + dLat, lonCell + dLon), out var bucket))
+                    nearby.AddRange(bucket);
             }
         }
 
-        return d[m, n];
-    }
-
-    private static string GetSpatialCellKey(double lat, double lon)
-    {
-        var cellX = (int)Math.Floor(lat / 0.2);
-        var cellY = (int)Math.Floor(lon / 0.2);
-        return $"{cellX}:{cellY}";
+        return nearby;
     }
 
     internal static string ComputeMatchExplanation(
@@ -1200,10 +1251,10 @@ public class ReconciliationManager
         double manualNameThreshold, double manualDistThreshold)
     {
         List<string> parts = [];
-        var namePct = (nameSimilarity * 100).ToString("F0");
+        var namePct = (nameSimilarity * 100).ToString("F0", CultureInfo.InvariantCulture);
         var distStr = distanceMeters < 1000
-            ? distanceMeters.ToString("F0") + " m"
-            : (distanceMeters / 1000).ToString("F2") + " km";
+            ? distanceMeters.ToString("F0", CultureInfo.InvariantCulture) + " m"
+            : (distanceMeters / 1000).ToString("F2", CultureInfo.InvariantCulture) + " km";
 
         parts.Add($"Name: {namePct}% match");
         if (nameSimilarity >= (decimal)autoNameThreshold)
@@ -1251,15 +1302,15 @@ public class ReconciliationManager
 
         if (!nameMatched)
         {
-            var pct = (nameSimilarity * 100).ToString("F0");
+            var pct = (nameSimilarity * 100).ToString("F0", CultureInfo.InvariantCulture);
             failures.Add($"name {pct}% < {(autoNameThreshold * 100):F0}%");
         }
 
         if (!distanceMatched)
         {
             var d = distanceMeters < 1000
-                ? distanceMeters.ToString("F0") + "m"
-                : (distanceMeters / 1000).ToString("F2") + "km";
+                ? distanceMeters.ToString("F0", CultureInfo.InvariantCulture) + "m"
+                : (distanceMeters / 1000).ToString("F2", CultureInfo.InvariantCulture) + "km";
             failures.Add($"distance {d} > {autoDistThreshold:F0}m");
         }
 

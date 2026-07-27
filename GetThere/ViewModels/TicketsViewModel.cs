@@ -136,7 +136,7 @@ public partial class TicketsViewModel : BaseViewModel
     [RelayCommand]
     private async Task CancelTicket(ImportedTicketResponse ticket)
     {
-        var confirm = await Shell.Current.DisplayAlert("Cancel Ticket", "Cancel this ticket?", "Yes", "No");
+        var confirm = await Shell.Current.DisplayAlertAsync("Cancel Ticket", "Cancel this ticket?", "Yes", "No");
         if (!confirm) return;
         var result = await _importedService.CancelAsync(ticket.Id);
         if (result.Success)

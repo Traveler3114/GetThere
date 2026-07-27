@@ -19,6 +19,13 @@ public class Purchase
     public WalletTransaction? WalletTransaction { get; set; }
 
     public string? ExternalPurchaseId { get; set; }
+
+    /// <summary>
+    /// Client-supplied key that makes a purchase retry safe. Unique per user, so a repeated request
+    /// returns the original outcome instead of charging the wallet twice.
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "EUR";
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;

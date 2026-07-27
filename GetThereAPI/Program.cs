@@ -13,6 +13,7 @@ using GetThereAPI.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -41,7 +42,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["TransitInfoApi:BaseUrl"] ?? "http://localhost:5000");
+    client.BaseAddress = new Uri(builder.Configuration["TransitInfoApi:BaseUrl"] ?? "https://localhost:5001");
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
@@ -107,6 +108,16 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddTransient<IClaimsTransformation, DynamicClaimsTransformation>();
 builder.Services.AddHttpContextAccessor();
 
+// Behind a reverse proxy, Connection.RemoteIpAddress is the proxy's address — every caller would
+// otherwise share a single rate-limit partition. KnownNetworks/KnownProxies are cleared because the
+// proxy address is not known at build time; only enable this where a trusted proxy terminates TLS.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddRateLimiter(limiter =>
 {
     limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -143,6 +154,8 @@ builder.Services.AddResponseCompression(options =>
 });
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 {
@@ -190,31 +203,51 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+app.UseHttpsRedirection();
+app.UseResponseCompression();
+
+// The permissive policy exists so the map assets can be embedded cross-origin; it is scoped to
+// /map rather than applied globally, so it never widens access to the authenticated API surface.
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/map"),
+    branch => branch.UseCors("MapAssets"));
+
+// The /admin console is served as plain static files. It deliberately carries no authorization
+// gate: authentication here is bearer-token based, and a browser navigation to an .html file
+// cannot send an Authorization header — a gate on these paths 401s the login page itself and
+// makes the console unreachable. The console holds no secrets; every byte of data it renders
+// comes from API endpoints that are authorized per-endpoint (see AdminController).
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (!ctx.Context.Request.Path.StartsWithSegments("/admin")) return;
+
+        var headers = ctx.Context.Response.Headers;
+        headers["X-Robots-Tag"] = "noindex, nofollow";
+
+        // The console renders operator-supplied text; a CSP is the backstop if an escaping bug slips
+        // through. 'unsafe-inline' is required because the pages carry inline <script> and style
+        // blocks — remove it once those move to files.
+        headers["Content-Security-Policy"] =
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["Referrer-Policy"] = "no-referrer";
+    }
+});
+
 app.UseRateLimiter();
-app.UseCors("MapAssets");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Protect /admin static files — reject unauthenticated requests
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/admin") &&
-        context.User.Identity?.IsAuthenticated != true)
-    {
-        context.Response.StatusCode = 401;
-        return;
-    }
-    await next();
-});
-
-app.UseDefaultFiles();
-app.UseStaticFiles();
-app.UseResponseCompression();
-
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
 
-app.UseHttpsRedirection();
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
@@ -238,28 +271,44 @@ using (var scope = app.Services.CreateScope())
     // Add permission claims to User role (standard user permissions)
     var userRole = await roleManager.FindByNameAsync(RoleNames.User);
     var userClaims = await roleManager.GetClaimsAsync(userRole!);
-    var userPerms = PermissionKeys.All.Where(p =>
-        p is PermissionKeys.TicketsView or PermissionKeys.TicketsCreate
-        or PermissionKeys.WalletsView or PermissionKeys.WalletsManage
-        or PermissionKeys.ProfileView or PermissionKeys.ProfileManage
-        or PermissionKeys.SettingsView
-        or PermissionKeys.MapView
-        or PermissionKeys.ImportedTicketsView or PermissionKeys.ImportedTicketsCreate or PermissionKeys.ImportedTicketsManage);
-    foreach (var perm in userPerms.Where(p => !userClaims.Any(c => c.Value == p)))
+    foreach (var perm in PermissionKeys.UserRoleDefaults.Where(p => !userClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(userRole!, new System.Security.Claims.Claim("permission", perm));
 
     // Seed admin user
     var admin = await userManager.FindByNameAsync("admin@getthere.local");
     if (admin is null)
     {
-        var pwd = GenerateSecurePassword(24);
-        admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
-        await userManager.CreateAsync(admin, pwd);
-        await userManager.AddToRoleAsync(admin, RoleNames.Admin);
-        var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
-        await File.WriteAllTextAsync(credFile,
-            $"Email: admin@getthere.local\nPassword: {pwd}\n");
-        Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+        var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        var configuredPassword = app.Configuration["Seed:AdminPassword"];
+
+        // Outside Development the password must be supplied through configuration. Generating one
+        // and dropping it on disk in plaintext leaves a credential at rest on every deployment.
+        if (string.IsNullOrWhiteSpace(configuredPassword) && !app.Environment.IsDevelopment())
+        {
+            startupLogger.LogWarning(
+                "No admin account exists and Seed:AdminPassword is not configured — skipping admin seed. " +
+                "Set it via user-secrets or the environment to create admin@getthere.local.");
+        }
+        else
+        {
+            var pwd = configuredPassword ?? GenerateSecurePassword(24);
+            admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
+            await userManager.CreateAsync(admin, pwd);
+            await userManager.AddToRoleAsync(admin, RoleNames.Admin);
+
+            if (configuredPassword is null)
+            {
+                // Development only — the generated password has to reach the developer somehow.
+                var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
+                await File.WriteAllTextAsync(credFile,
+                    $"Email: admin@getthere.local\nPassword: {pwd}\n");
+                Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+            }
+            else
+            {
+                startupLogger.LogInformation("Admin account created from Seed:AdminPassword.");
+            }
+        }
     }
 }
 

@@ -96,7 +96,13 @@ public class AuthenticatedHttpHandler : DelegatingHandler
                 return expiry <= DateTimeOffset.UtcNow.Add(TokenRefreshBuffer);
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
+        {
+            // Returning false here means no pre-emptive refresh — the request goes out with the
+            // token as-is and relies on the 401 retry below. Worth knowing about, so it is logged
+            // rather than silently swallowed.
+            Trace.WriteLine($"[AuthenticatedHttpHandler] Could not read token expiry: {ex.Message}");
+        }
 
         return false;
     }

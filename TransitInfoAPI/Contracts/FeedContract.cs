@@ -46,7 +46,11 @@ public record CreateFeedRequest
 {
     [Range(1, int.MaxValue)] public int OperatorId { get; set; }
     [Required, StringLength(50)] public string FeedType { get; set; } = string.Empty;
-    [Required, StringLength(200)] public string FeedId { get; set; } = string.Empty;
+    // FeedId becomes a directory name under ContentRootPath/feeds — restrict it to characters that
+    // cannot escape that directory. See FeedManager.GetFeedStorageDirectory.
+    [Required, StringLength(200)]
+    [RegularExpression(@"^[A-Za-z0-9._-]+$", ErrorMessage = "FeedId may only contain letters, digits, dot, underscore and hyphen.")]
+    public string FeedId { get; set; } = string.Empty;
     [JsonPropertyName("externalUrl"), Url] public string? Url { get; set; }
     [Range(60, int.MaxValue)] public int RefreshIntervalSeconds { get; set; } = 3600;
 }

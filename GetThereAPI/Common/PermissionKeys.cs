@@ -22,6 +22,13 @@ public static class PermissionKeys
     public const string WalletsView = "wallets.view";
     public const string WalletsManage = "wallets.manage";
 
+    /// <summary>
+    /// Credits a wallet. Deliberately NOT in <see cref="UserRoleDefaults"/>: no payment provider is
+    /// wired up, so this mints balance outright. Move it into the User role only once top-up takes
+    /// real money — see docs/money-path-defects.md.
+    /// </summary>
+    public const string WalletsTopUp = "wallets.topup";
+
     // Profile
     public const string ProfileView = "profile.view";
     public const string ProfileManage = "profile.manage";
@@ -34,6 +41,11 @@ public static class PermissionKeys
     public const string AdaptersView = "adapters.view";
     public const string AdaptersManage = "adapters.manage";
 
+    // Admin console — platform-wide views. Never grant these to the User role:
+    // they expose every user's purchases and the platform's financial totals.
+    public const string AdminStatsView = "admin.stats.view";
+    public const string AdminPurchasesView = "admin.purchases.view";
+
     // Audit
     public const string AuditView = "audit.view";
 
@@ -45,12 +57,28 @@ public static class PermissionKeys
         UsersView, UsersManage, RolesView, RolesManage,
         TicketsView, TicketsCreate, TicketsManage,
         ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage,
-        WalletsView, WalletsManage,
+        WalletsView, WalletsManage, WalletsTopUp,
         ProfileView, ProfileManage,
         SettingsView, SettingsManage,
         AdaptersView, AdaptersManage,
+        AdminStatsView, AdminPurchasesView,
         AuditView,
         MapView
+    ];
+
+    /// <summary>
+    /// Permissions granted to the <see cref="RoleNames.User"/> role at startup. Anything listed here
+    /// is held by every registered account, so an endpoint gated on one of these is effectively
+    /// public to authenticated users — never use one to guard platform-wide or cross-user data.
+    /// </summary>
+    public static readonly string[] UserRoleDefaults =
+    [
+        TicketsView, TicketsCreate,
+        WalletsView, WalletsManage,
+        ProfileView, ProfileManage,
+        SettingsView,
+        MapView,
+        ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage
     ];
 
     public static readonly Dictionary<string, (string DisplayName, string Description, string Category)> Meta = new()
@@ -66,13 +94,16 @@ public static class PermissionKeys
         [ImportedTicketsCreate] = ("Import Tickets", "Import tickets via manual entry, photo, PDF, or scan", "Tickets"),
         [ImportedTicketsManage] = ("Manage Imported Tickets", "Update status, cancel imported tickets", "Tickets"),
         [WalletsView] = ("View Wallet", "View wallet balance and transactions", "Wallet"),
-        [WalletsManage] = ("Manage Wallet", "Top up, withdraw, transfer", "Wallet"),
+        [WalletsManage] = ("Manage Wallet", "Manage own wallet", "Wallet"),
+        [WalletsTopUp] = ("Top Up Wallet", "Credit a wallet balance — no payment provider is wired up yet", "Wallet"),
         [ProfileView] = ("View Profile", "View own profile", "Profile"),
         [ProfileManage] = ("Manage Profile", "Update profile, change password", "Profile"),
         [SettingsView] = ("View Settings", "View app settings", "Settings"),
         [SettingsManage] = ("Manage Settings", "Update app settings", "Settings"),
         [AdaptersView] = ("View Adapters", "List ticketing adapters", "Adapters"),
         [AdaptersManage] = ("Manage Adapters", "Create, update, delete ticketing adapters", "Adapters"),
+        [AdminStatsView] = ("View Platform Stats", "View platform-wide KPIs, revenue and wallet float", "Admin"),
+        [AdminPurchasesView] = ("View All Purchases", "View the purchase feed across all users", "Admin"),
         [AuditView] = ("View Audit Log", "View audit log entries", "Audit"),
         [MapView] = ("View Map", "Access map data (stations, routes, vehicles)", "Map"),
     };

@@ -69,7 +69,12 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 ### Auto-registration
 - `GetThereAPI.Managers.*` — auto-registered as scoped
 - `GetThere.Services.*` — auto-registered by reflection in `MauiProgram.cs`
-- Exceptions (explicitly registered): `MobilityManager` (singleton), `AdapterRegistry` (singleton)
+- TransitInfoAPI registers its managers explicitly in `Program.cs`; `MobilityManager` is **scoped**
+  (it depends on `TransitDbContext`). The singletons there are `OnestopIdManager`, `RealtimeManager`,
+  `ImportLogStore` and `ExternalFeedSource` — `RealtimeManager` resolves its DbContext per poll
+  through `IServiceScopeFactory`
+- `AdapterRegistry` (singleton) and `AuthService` in MAUI (singleton — it owns the token cache and
+  the refresh lock)
 
 ## Off-limits (need human instruction)
 
@@ -200,6 +205,91 @@ approve/reject-with-warning; re-laying it out is a rewrite of that logic, so it 
 left working and dark-skinned instead. The remaining MAUI screens (3a–3d, 3f–3g)
 already matched the mockups — the canvases were drawn from the existing app — so
 only the token extraction above was needed.
+
+## Session — July 27, 2026
+
+### Full-solution audit + remediation (fresh read of `main` @ `773b694`)
+
+Audit findings live in `plans/` (see the session plan); the money path was **reported, not
+modified** — see `docs/money-path-defects.md`.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Broken access control** | `PermissionKeys.cs`, `AdminController.cs`, `Program.cs` | `/admin/stats` and `/admin/purchases` were gated on `tickets.view`, which the **User** role holds — any account could read every user's purchases (incl. email) and the wallet float. New admin-only `AdminStatsView`/`AdminPurchasesView`. The User-role grant list moved out of `Program.cs` into `PermissionKeys.UserRoleDefaults` so it is testable |
+| **Refresh-token reuse** | both `AuthManager.cs` | Reuse detection was unreachable: rotation sets `RevokedAt` *and* `ReplacedByToken`, so a replayed token failed the `IsActive` guard first and the family-revocation branch never ran. Reordered; reuse is now audit-logged |
+| Claims cache | both `DynamicClaimsTransformation.cs` | `SlidingExpiration` alone never lapses for an active user, so a revoked role could stay live indefinitely. Added a 5-minute absolute ceiling |
+| Admin console | both `Program.cs` | The `/admin` guard 401'd every browser navigation (no bearer header on a navigation), including `login.html` — the consoles were unreachable. Removed; authorization stays per-endpoint on the API, pages get `X-Robots-Tag: noindex` |
+| Middleware order | `GetThereAPI/Program.cs` | `UseHttpsRedirection` ran after auth/static/`/health`; added HSTS, `UseForwardedHeaders` (rate limiting partitioned on the proxy IP), and scoped the `AllowAnyOrigin` CORS policy to `/map` instead of globally |
+| Seeded credentials | both `Program.cs` | Admin + service-account passwords were generated and written to plaintext files on every cold start. Now `Seed:AdminPassword` / `Seed:ServiceAccountPassword` outside Development; the file is Development-only |
+| Path traversal | `FeedContract.cs`, `FeedManager.cs` | `FeedId` (unrestricted, caller-supplied) flowed into `Path.Combine(...,"feeds",FeedId)`. Character-restricted in the contract; all three call sites go through `GetFeedStorageDirectory`, which verifies the resolved path stays under `feeds/` |
+| SSRF + bombs | `ExternalFeedSource.cs`, `FeedManager.cs` | Feed URLs are fetched server-side with no destination check. Added a private/loopback/link-local blocklist (incl. `169.254.169.254`), re-checked after redirects, a 512 MB streamed download cap, and a 4 GB declared-expansion guard on the archive. `Feeds:AllowPrivateNetworkUrls` is the dev escape hatch |
+| XSS | 14 × `TransitInfoAPI/wwwroot/admin/*.html` | Each page had its own `esc()` built on `textContent`, which does **not** escape `"` or `'` — and it was used inside `title="…"`, `value="…"` and `href="…"`. Replaced with a quote-escaping version; added `safeUrl()` so a feed/operator URL cannot be `javascript:` |
+| **Reconciliation matching** | `ReconciliationManager.cs` | Candidate lookup read only the grid cell containing the raw stop, so stations metres apart across a ~22 km cell boundary were never compared — silent duplicate `CanonicalStation` rows. Now scans the 3×3 neighbourhood, like `PlaceMatchingManager` already did |
+| Vehicle bounding box | `TransitInfoApiClient.cs` | `minLat = lat; maxLat = lat + r` built a box extending only north-east — vehicles south/west of the caller were never returned. Now centred; uses `GeoConstants.KmPerDegree` |
+| Culture bugs | `TransitInfoApiClient.cs`, `LocalizationService.cs` | Coordinates were interpolated with the current culture (`lat=45,8` under hr-HR); now invariant. `SetCulture` set only `Thread.CurrentThread`, so language changes half-applied across continuations |
+| MAUI auth | `AuthService.cs`, `MauiProgram.cs` | `AuthService` was **transient** and new'd its own `HttpClient`, so the token cache was per-instance and useless. Now singleton, with refresh serialized behind a `SemaphoreSlim` — concurrent requests each rotated the refresh token and the loser was signed out |
+| Upstream errors | `TransitInfoApiClient.cs` | `EnsureSuccessStatusCode()` surfaced upstream failures as bare 500s; now 502 `AppException`. Static `JsonSerializerOptions`; token invalidation moved under the semaphore; the empty `catch {}` around token-expiry parsing now logs and falls back to 10 min instead of 1 h |
+| Worker | `TicketExpiryWorker.cs` | Slept before its first sweep (nothing expired for an hour after restart) and a configured `0` would have spun against the DB. Sweeps first; interval floored at 1 min |
+| Perf | `AdminManager.cs` | `GetStatsAsync` materialised every pending purchase to call `Count()`/`Min()`; now aggregates in SQL |
+| Dead code | 6 managers | Removed injected-but-unused dependencies (`MapManager._db`, `FeedManager._httpFactory`, `RealtimeManager._httpFactory`, `MobilityManager._config`, `RouteManager._config`) |
+| **Migration drift** | `20260727081211_...` | Scaffolding re-emitted the whole `HardenImportedTickets` DDL — the model snapshot had drifted from the migration history, so the *next* migration anyone generated would have failed against a migrated DB. Migration trimmed to the new unique index on `RefreshTokens.Token`; the regenerated snapshot repairs the drift |
+| **Tests** | `tests/GetThere.Tests/` | First test project in the solution. 36 tests: endpoint/permission matrix (fails if an admin endpoint is gated on a User-role permission), reconciliation cell-boundary regressions, SSRF blocklist, `PagedResult<T>` serialization contract |
+| CI | `build-check.yml` | Added the test job, a blocking `--vulnerable` scan, `permissions:`, NuGet caching, a concurrency group, and `develop` to the PR trigger |
+
+**Still open (deliberately):** the money path (`docs/money-path-defects.md`) and the map boundary
+violation (`docs/map-proxy-migration.md`). `audit.md` items #7 and #10 were marked fixed but are
+not — corrected in place.
+
+### Second pass — medium findings, analyzers, and runtime verification
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Refresh-token queries threw at runtime** | both `AuthManager.cs` | `.Where(rt => ... && rt.IsActive)` — `IsActive` is a computed, unmapped property, so EF cannot translate it and the query throws. This made `POST /auth/change-password` return 500, and it would have broken the reuse-detection branch the moment that branch became reachable. Replaced with `RevokedAt == null && ExpiresAt > now` at all four sites |
+| **`IX_RefreshTokens_Token` never existed** | `AppDbContext.cs`, `20260727092919_HardenRefreshTokenIndex` | The model declared the index from `AddIdentity` onwards, but `Token` was unbounded → `nvarchar(max)`, which SQL Server cannot index. Every refresh was a table scan. Column bounded to 128 and the index created as unique; migration applied and verified |
+| Realtime resilience | `RealtimeManager.cs` | The cache was rebuilt from each cycle's successes alone, so one feed failing blanked that operator's realtime data until the next good poll. Results are now held per feed and flattened |
+| Admin sessions | `admin.js`, `admin-shell.js`, `TransitInfoAPI/.../login.html` | Both consoles dropped the operator at the 15-minute access-token expiry. Added a shared-in-flight refresh with a single retry; TransitInfoAPI's login was not storing the refresh token at all |
+| IP binding | both `AuthManager.cs` | The check was skipped when *either* address was null, so suppressing the caller address bypassed it entirely |
+| Money formatting | `MoneyFormatter.cs`, `WalletContract.cs`, `ProfileViewModel.cs` | Was hardcoded `€` in one place and a fixed `hr-HR` culture in another. One currency-aware formatter now |
+| Perf | `PlaceMatchingManager.cs`, `ReconciliationManager.cs` | `AsNoTracking` on the whole-table place cache; Levenshtein rewritten from an m×n matrix to two rolling rows (verified equivalent against the old implementation over 300 random pairs) |
+| Analyzers | `Directory.Build.props`, `.editorconfig` | `latest-recommended` enabled. Noisy logging/style rules turned off with reasons; the culture rules stay strict server-side and are off in the MAUI client, where current-culture display formatting is correct. ~390 initial warnings resolved to zero |
+| Packages | `Directory.Packages.props` | Central package management; versions were duplicated across four csproj files |
+| MAUI CI | `build-check.yml` | 76 `CS0618` warnings (obsolete `DisplayAlert`/`DisplayActionSheet`) cleared, so the MAUI job is no longer `continue-on-error` and builds with `-warnaserror` |
+
+**Verified against a running API:** a plain user now gets 403 on `/admin/purchases`, `/admin/stats`,
+`/admin/users` and `/admin/audit` (was 200 with every user's email); admin still gets through; the
+admin console and its login page load without a bearer token; replaying a rotated refresh token
+returns 401 *and* revokes the whole family; change-password succeeds and the new password works.
+
+**`GetThereDB` was not built from these migrations** — see `docs/database-drift.md`. Dropped and
+rebuilt on request; all four previously-500 endpoints now return 200.
+
+### Third pass — money path, database rebuild, remaining cleanups
+
+The money path was off-limits for the first two passes and was then explicitly authorised.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Purchase flow rewritten** | `TicketingManager.cs` | Three stages: validate (adapter registered, option, wallet, currency, idempotency) → debit + `Pending` purchase committed → adapter called **with no transaction open** → settle or reverse. A failed purchase now writes a compensating `Refund` and restores the balance instead of committing the debit and throwing. Full detail in `docs/money-path-defects.md` |
+| **Adapter checked before the debit** | `TicketingManager.cs` | With no `ITicketingAdapter` registered — the state the app ships in — every purchase used to charge and fail. Now 503 with no money moved |
+| Idempotency | `Purchase.cs`, `AppDbContext.cs`, `TicketingController.cs` | `Idempotency-Key` header; filtered unique index per user; a retry replays the original ticket |
+| Currency | `TicketingManager.cs` | A wallet in a different currency to the option is rejected rather than debited at face value |
+| Top-up | `WalletManager.cs`, `WalletController.cs`, `PermissionKeys.cs` | New admin-only `wallets.topup` (it still credits without taking payment); 1000 cap, 2-dp and payment-method validation, audit-logged; returns the balance *after* the credit |
+| Ticket expiry | `TicketExpiryWorker.cs` | Now expires purchased `Tickets`, not just `ImportedTickets` |
+| **Mapper NRE** | `TicketingManager.cs` | `TicketMapper.ToTicketResponse` dereferences `Purchase.TicketOption`, which is never populated (the option is read `AsNoTracking`) — every *successful* purchase would have thrown. Invisible until purchases could succeed. Ticket is re-read with its navigations |
+| Registration enumeration | `AuthManager.cs` | A duplicate address returned 409 `EMAIL_ALREADY_IN_USE`, making registration an account oracle. Now indistinguishable from success, audit-logged, with the Identity duplicate-error race collapsed the same way |
+| Fallback country | `PlaceMatchingManager.cs`, `appsettings.json` | `DefaultCountryId` was a raw identity that defaulted to `1` in code while config said `2`. Replaced with `DefaultCountryIsoCode` resolved by ISO code |
+| Magic numbers | `FeedManager.cs`, `ReconciliationManager.cs` | `SetCommandTimeout(600)` → `FeedImportOptions.BulkCommandTimeoutSeconds`; `autoDistThreshold * 2` → named `CandidateSearchRadiusFactor` |
+| Animation state | `AnimatedBackground.xaml.cs` | Position and velocity were `static`, so every instance shared them and tabs fought over the same blobs; `_initialized` was never set, so each construction reset every other instance's velocity |
+| Admin consoles | both `Program.cs` | CSP, `X-Content-Type-Options` and `Referrer-Policy` on `/admin` |
+| Dead code | `GetThereShared`, `.resx` | Deleted `TransportTypeContract`; removed the two unused `PasswordTooShort` keys from both resource files |
+
+**Tests: 60** (was 0 before this audit). `tests/GetThere.Tests/Money/` runs nine of them against a
+real SQL Server database — `EnsureDeleted` + `Migrate` per run — because the debit path depends on
+raw SQL, transactions and a filtered unique index that the in-memory provider does not implement.
+
+**Verified end-to-end after the rebuild:** duplicate registration is indistinguishable from success;
+`/wallet/ensure` → 201 then `/wallet` → 200; `/tickets`, `/tickets/options`, `/admin/stats`,
+`/admin/purchases`, `/admin/adapters`, `/admin/users` all 200; `/wallet/topup` → 403 for a plain user.
 
 ## Reference
 

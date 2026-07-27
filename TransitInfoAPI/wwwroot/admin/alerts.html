@@ -86,7 +86,7 @@ function renderAlerts() {
         ${a.descriptionText ? `<p class="card-text small mb-1 text-muted">${esc(a.descriptionText)}</p>` : ''}
         <div class="small text-muted d-flex gap-3 flex-wrap">
           <span><strong>Period:</strong> ${periodStart} &ndash; ${periodEnd}</span>
-          ${a.url ? `<span><strong>URL:</strong> <a href="${esc(a.url)}" target="_blank">${esc(a.url)}</a></span>` : ''}
+          ${a.url ? `<span><strong>URL:</strong> <a href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a></span>` : ''}
           <span><strong>Fetched:</strong> ${fetched}</span>
         </div>
       </div>
@@ -121,7 +121,8 @@ function effectBadge(effect) {
 }
 
 function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
-function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
 
 loadAlerts();
 </script>

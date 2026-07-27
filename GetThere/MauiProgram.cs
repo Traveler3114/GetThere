@@ -16,16 +16,7 @@ namespace GetThere;
 
 public static class MauiProgram
 {
-    private static string GetApiBaseUrl()
-    {
-#if ANDROID
-        return "https://10.0.2.2:7230/";
-#elif IOS || MACCATALYST
-        return "https://localhost:7230/";
-#else
-        return "https://localhost:7230/";
-#endif
-    }
+    private static string GetApiBaseUrl() => Helpers.ApiEndpoints.GetThereApiBase;
 
     private static string? LoadSentryDsn()
     {
@@ -67,7 +58,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAnalyticsService, AnalyticsService>();
         builder.Services.AddSingleton<CountryPreferenceService>();
 
-        builder.Services.AddTransient<AuthService>(_ =>
+        // Singleton: AuthService holds the in-memory token cache and serializes token refresh.
+        // As a transient, every consumer got its own cache (so the cache never hit) and its own
+        // refresh lock (so concurrent requests each rotated the refresh token, and the loser was
+        // logged out). It also allocates its own HttpClient, which must not be per-instance.
+        builder.Services.AddSingleton<AuthService>(_ =>
             new AuthService(new HttpClient { BaseAddress = new Uri(apiBase) }));
 
         builder.Services.AddTransient<AuthenticatedHttpHandler>();

@@ -18,7 +18,8 @@ public static class WalletMapper
                 Amount = t.Amount,
                 Type = t.Type,
                 Description = t.Description,
-                CreatedAt = t.CreatedAt
+                CreatedAt = t.CreatedAt,
+                Currency = wallet.Currency
             }).ToList()
     };
 }

@@ -15,13 +15,8 @@ public partial class MapViewModel : BaseViewModel
     [RelayCommand]
     private void LoadMap()
     {
-#if ANDROID
-        var transitApi = "https://10.0.2.2:5001";
-        var mapUrl = "https://10.0.2.2:7230/map/public.html?api=" + transitApi;
-#else
-        var transitApi = "https://localhost:5001";
-        var mapUrl = "https://localhost:7230/map/public.html?api=" + transitApi;
-#endif
+        var mapUrl = Helpers.ApiEndpoints.MapPageUrl;
+
         Trace.WriteLine($"[MapViewModel] Loading map: {mapUrl}");
         MapUrl = mapUrl;
     }

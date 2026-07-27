@@ -30,8 +30,10 @@ public class WalletController : ControllerBase
         return Ok(result);
     }
 
+    // WalletsTopUp, not WalletsManage: the User role holds WalletsManage, and this endpoint credits
+    // balance with no payment provider behind it.
     [HttpPost("topup")]
-    [Authorize(Policy = PermissionKeys.WalletsManage)]
+    [Authorize(Policy = PermissionKeys.WalletsTopUp)]
     public async Task<ActionResult<WalletResponse>> TopUp(TopUpRequest request, CancellationToken ct = default)
     {
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;

@@ -12,9 +12,18 @@ public partial class ShopPage : ContentPage
         BindingContext = _viewModel = viewModel;
     }
 
+    // async void is forced by the base signature — the try/catch is what keeps an unobserved
+    // exception here from tearing down the app.
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await _viewModel.UpdateAuthStateCommand.ExecuteAsync(null);
+        try
+        {
+            await _viewModel.UpdateAuthStateCommand.ExecuteAsync(null);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"[ShopPage] OnAppearing failed: {ex}");
+        }
     }
 }

@@ -66,7 +66,7 @@ public partial class SettingsViewModel : BaseViewModel
         }
         catch (Exception ex)
         {
-            await Shell.Current.DisplayAlert(
+            await Shell.Current.DisplayAlertAsync(
                 LocalizationService.Instance["App_Error"],
                 LocalizationService.Instance["Error_CouldNotLoadCountries"] + ex.Message,
                 LocalizationService.Instance["App_Ok"]);
@@ -93,7 +93,7 @@ public partial class SettingsViewModel : BaseViewModel
     [RelayCommand]
     private async Task Logout()
     {
-        var confirmed = await Shell.Current.DisplayAlert(
+        var confirmed = await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Settings_Logout"],
             LocalizationService.Instance["Settings_LogoutConfirm"],
             LocalizationService.Instance["Settings_LogoutButton"],

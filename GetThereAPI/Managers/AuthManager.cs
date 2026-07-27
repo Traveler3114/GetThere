@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using GetThereAPI.Common;
 using GetThereAPI.Data;
 using GetThereAPI.Entities;
@@ -38,13 +40,31 @@ public class AuthManager
     {
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser is not null)
-            throw new AppException("Email already in use", 409, "EMAIL_ALREADY_IN_USE");
+        {
+            // Deliberately indistinguishable from success. Answering "email already in use" turns
+            // registration into an oracle for whether an address has an account here. The address
+            // owner is told by mail instead — see the note below.
+            _userManager.PasswordHasher.HashPassword(new AppUser(), request.Password);
+            LogAudit(existingUser.Id, "RegisterAttemptOnExistingAccount", "User", existingUser.Id);
+            await _db.SaveChangesAsync(ct);
+
+            // TODO: send a "someone tried to register with your address" mail once an email sender
+            // exists. Until then the duplicate attempt is only visible in the audit log.
+            return;
+        }
 
         var user = new AppUser { Email = request.Email, UserName = request.Email, FullName = request.FullName };
         var result = await _userManager.CreateAsync(user, request.Password);
 
         if (!result.Succeeded)
+        {
+            // Identity reports duplicate-email as a validation error too; collapse it into the same
+            // silent success so the race between the check above and this call is not an oracle either.
+            if (result.Errors.All(e => e.Code is "DuplicateUserName" or "DuplicateEmail"))
+                return;
+
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
 
         await _userManager.AddToRoleAsync(user, RoleNames.User);
 
@@ -56,7 +76,12 @@ public class AuthManager
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user is null)
+        {
+            // Hash the supplied password anyway so an unknown address does not answer measurably
+            // faster than a known one, which would make the endpoint an account oracle.
+            _userManager.PasswordHasher.HashPassword(new AppUser(), request.Password);
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
+        }
 
         var signInResult = await _signInManager.CheckPasswordSignInAsync(user, request.Password, true);
         if (!signInResult.Succeeded)
@@ -103,24 +128,35 @@ public class AuthManager
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
-        if (existingRefreshToken is null || !existingRefreshToken.IsActive)
+        if (existingRefreshToken is null)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
 
-        if (existingRefreshToken.IpAddress is not null && ipAddress is not null &&
-            existingRefreshToken.IpAddress != ipAddress)
+        // Token reuse detection — if this token was already replaced, revoke all tokens for this user.
+        // This must run *before* the IsActive guard: rotation sets both RevokedAt and ReplacedByToken,
+        // so a replayed rotated token is already inactive and would otherwise never reach this branch.
+        if (existingRefreshToken.ReplacedByToken is not null)
         {
+            var revokedAt = DateTime.UtcNow;
+            var userTokens = await _db.RefreshTokens
+                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.RevokedAt == null && rt.ExpiresAt > revokedAt)
+                .ToListAsync(ct);
+            foreach (var t in userTokens)
+                t.RevokedAt = revokedAt;
+
+            LogAudit(existingRefreshToken.UserId, "RefreshTokenReuseDetected", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
+            await _db.SaveChangesAsync(ct);
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 
-        // Token reuse detection — if this token was already replaced, revoke all tokens for this user
-        if (existingRefreshToken.ReplacedByToken is not null)
+        if (!existingRefreshToken.IsActive)
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+
+        // IP binding. A caller that presents no address at all is rejected when the token was issued
+        // with one — otherwise suppressing the address is enough to skip the check entirely. A token
+        // stored without an address (issued before the address was captured) cannot be compared, so
+        // it is allowed through.
+        if (existingRefreshToken.IpAddress is not null && existingRefreshToken.IpAddress != ipAddress)
         {
-            var userTokens = await _db.RefreshTokens
-                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.IsActive)
-                .ToListAsync(ct);
-            foreach (var t in userTokens)
-                t.RevokedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 
@@ -145,7 +181,7 @@ public class AuthManager
 
         _db.RefreshTokens.Add(newRefreshTokenEntity);
 
-        LogAudit(existingRefreshToken.UserId, "TokenRefresh", "RefreshToken", existingRefreshToken.Id.ToString());
+        LogAudit(existingRefreshToken.UserId, "TokenRefresh", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
         await _db.SaveChangesAsync(ct);
 
         var newAccessToken = await _tokenManager.CreateTokenAsync(existingRefreshToken.User);
@@ -168,7 +204,7 @@ public class AuthManager
             if (existingRefreshToken is not null && !existingRefreshToken.RevokedAt.HasValue)
             {
                 existingRefreshToken.RevokedAt = DateTime.UtcNow;
-                LogAudit(existingRefreshToken.UserId, "Logout", "RefreshToken", existingRefreshToken.Id.ToString());
+                LogAudit(existingRefreshToken.UserId, "Logout", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
                 await _db.SaveChangesAsync(ct);
             }
         }
@@ -187,12 +223,15 @@ public class AuthManager
         LogAudit(userId, "PasswordChanged", "User", userId);
         await _db.SaveChangesAsync(ct);
 
-        // Revoke all active refresh tokens
+        // Revoke all active refresh tokens.
+        // The predicate is spelled out rather than using RefreshToken.IsActive: that property is
+        // computed in C# and unmapped, so EF cannot translate it and the query throws at runtime.
+        var revokedAt = DateTime.UtcNow;
         var activeTokens = await _db.RefreshTokens
-            .Where(rt => rt.UserId == userId && rt.IsActive)
+            .Where(rt => rt.UserId == userId && rt.RevokedAt == null && rt.ExpiresAt > revokedAt)
             .ToListAsync(ct);
         foreach (var t in activeTokens)
-            t.RevokedAt = DateTime.UtcNow;
+            t.RevokedAt = revokedAt;
         await _db.SaveChangesAsync(ct);
     }
 }

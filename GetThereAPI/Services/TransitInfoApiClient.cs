@@ -2,21 +2,35 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
+using GetThereAPI.Common;
+using GetThereAPI.Exceptions;
+
 using GetThereShared.Common;
 
 using Microsoft.Extensions.Options;
+
+using static System.FormattableString;
 
 namespace GetThereAPI.Services;
 
 public class TransitInfoApiOptions
 {
-    public string BaseUrl { get; set; } = "http://localhost:5000";
+    /// <summary>Matches the HTTPS endpoint in TransitInfoAPI's Kestrel configuration.</summary>
+    public string BaseUrl { get; set; } = "https://localhost:5001";
     public string ClientId { get; set; } = "getthere-api@transit.local";
     public string ClientSecret { get; set; } = "";
 }
 
 public class TransitInfoApiClient
 {
+    /// <summary>Upstream page size for list endpoints. Results beyond this are not fetched.</summary>
+    private const int UpstreamPageSize = 500;
+
+    /// <summary>Radius used for the vehicle bounding box when the caller does not supply one.</summary>
+    private const double DefaultVehicleRadiusKm = 50;
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
     private readonly HttpClient _httpClient;
     private readonly TransitInfoApiOptions _options;
     private readonly ILogger<TransitInfoApiClient> _logger;
@@ -30,6 +44,21 @@ public class TransitInfoApiClient
         _options = options.Value;
         _logger = logger;
         _httpClient.BaseAddress = new Uri(_options.BaseUrl);
+    }
+
+    /// <summary>Clears the shared token under the same lock that writes it.</summary>
+    private static void InvalidateCachedToken()
+    {
+        _tokenSemaphore.Wait();
+        try
+        {
+            _cachedAccessToken = null;
+            _tokenExpiry = default;
+        }
+        finally
+        {
+            _tokenSemaphore.Release();
+        }
     }
 
     private async Task<string> GetAccessTokenAsync(CancellationToken ct = default)
@@ -53,12 +82,10 @@ public class TransitInfoApiClient
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync(ct);
-            var loginResult = JsonSerializer.Deserialize<LoginResult>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var loginResult = JsonSerializer.Deserialize<LoginResult>(json, JsonOptions);
 
-            _cachedAccessToken = loginResult?.AccessToken ?? throw new Exception("Failed to get access token from TransitInfoAPI");
+            _cachedAccessToken = loginResult?.AccessToken
+                ?? throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
             _tokenExpiry = GetTokenExpiry(_cachedAccessToken);
             _logger.LogInformation("Obtained new access token from TransitInfoAPI, expires at {Expiry}", _tokenExpiry);
 
@@ -68,6 +95,21 @@ public class TransitInfoApiClient
         {
             _tokenSemaphore.Release();
         }
+    }
+
+    /// <summary>
+    /// Builds a lat/lon/radius query string. Coordinates are formatted with the invariant culture —
+    /// interpolating a double under a comma-decimal culture (hr-HR) emits "lat=45,8", which the
+    /// upstream API cannot parse.
+    /// </summary>
+    private static List<string> BuildGeoQuery(double? lat, double? lon, double? radiusKm)
+    {
+        List<string> query = [];
+        if (lat.HasValue) query.Add(Invariant($"lat={lat.Value}"));
+        if (lon.HasValue) query.Add(Invariant($"lon={lon.Value}"));
+        if (radiusKm.HasValue) query.Add(Invariant($"radiusKm={radiusKm.Value}"));
+        query.Add(Invariant($"perPage={UpstreamPageSize}"));
+        return query;
     }
 
     private async Task<T> SendWithAuthAsync<T>(HttpRequestMessage request, CancellationToken ct)
@@ -80,24 +122,29 @@ public class TransitInfoApiClient
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
             _logger.LogWarning("TransitInfoAPI returned 401, refreshing token and retrying {Method} {Path}", request.Method, request.RequestUri?.PathAndQuery);
-            _cachedAccessToken = null;
+            InvalidateCachedToken();
             token = await GetAccessTokenAsync(ct);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             response = await _httpClient.SendAsync(request, ct);
         }
 
-        response.EnsureSuccessStatusCode();
+        // An upstream failure is not this API's fault — surface it as 502 rather than letting
+        // HttpRequestException bubble to the handler and become a bare 500.
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("TransitInfoAPI returned {Status} for {Method} {Path}",
+                (int)response.StatusCode, request.Method, request.RequestUri?.PathAndQuery);
+            throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+        }
+
         var json = await response.Content.ReadAsStringAsync(ct);
-        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        return JsonSerializer.Deserialize<T>(json, JsonOptions)
+            ?? throw new AppException("Transit information service returned an unreadable response.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
     }
 
     public async Task<List<TransitStationResponse>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
-        var query = new List<string>();
-        if (lat.HasValue) query.Add($"lat={lat.Value}");
-        if (lon.HasValue) query.Add($"lon={lon.Value}");
-        if (radiusKm.HasValue) query.Add($"radiusKm={radiusKm.Value}");
-        query.Add("perPage=500");
+        var query = BuildGeoQuery(lat, lon, radiusKm);
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"/stations?{string.Join("&", query)}");
         var result = await SendWithAuthAsync<PaginatedResponse<TransitStationResponse>>(request, ct);
@@ -120,10 +167,25 @@ public class TransitInfoApiClient
     {
         var query = new List<string>();
         if (!string.IsNullOrEmpty(feedId)) query.Add($"feedId={feedId}");
-        if (lat.HasValue) query.Add($"minLat={lat.Value}");
-        if (lon.HasValue) query.Add($"minLon={lon.Value}");
-        if (lat.HasValue) query.Add($"maxLat={lat.Value + (radiusKm ?? 50) / 111.0}");
-        if (lon.HasValue) query.Add($"maxLon={lon.Value + (radiusKm ?? 50) / 111.0}");
+
+        // The box is centred on the point. Adding the offset to both edges (as this once did) produced
+        // a box extending only north-east, so vehicles south or west of the caller were never returned.
+        if (lat.HasValue || lon.HasValue)
+        {
+            var offsetDeg = (radiusKm ?? DefaultVehicleRadiusKm) / GeoConstants.KmPerDegree;
+
+            if (lat.HasValue)
+            {
+                query.Add(Invariant($"minLat={lat.Value - offsetDeg}"));
+                query.Add(Invariant($"maxLat={lat.Value + offsetDeg}"));
+            }
+
+            if (lon.HasValue)
+            {
+                query.Add(Invariant($"minLon={lon.Value - offsetDeg}"));
+                query.Add(Invariant($"maxLon={lon.Value + offsetDeg}"));
+            }
+        }
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"/realtime/vehicles?{string.Join("&", query)}");
         return await SendWithAuthAsync<List<TransitVehicleResponse>>(request, ct);
@@ -141,18 +203,14 @@ public class TransitInfoApiClient
 
     public async Task<List<TransitMobilityStationResponse>> GetMobilityStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
-        var query = new List<string>();
-        if (lat.HasValue) query.Add($"lat={lat.Value}");
-        if (lon.HasValue) query.Add($"lon={lon.Value}");
-        if (radiusKm.HasValue) query.Add($"radiusKm={radiusKm.Value}");
-        query.Add("perPage=500");
+        var query = BuildGeoQuery(lat, lon, radiusKm);
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"/mobility/stations?{string.Join("&", query)}");
         var result = await SendWithAuthAsync<PaginatedResponse<TransitMobilityStationResponse>>(request, ct);
         return result.Items;
     }
 
-    private static DateTime GetTokenExpiry(string token)
+    private DateTime GetTokenExpiry(string token)
     {
         try
         {
@@ -167,10 +225,18 @@ public class TransitInfoApiClient
             {
                 return DateTimeOffset.FromUnixTimeSeconds(expSeconds).UtcDateTime.AddMinutes(-5);
             }
-        }
-        catch { }
 
-        return DateTime.UtcNow.AddHours(1);
+            _logger.LogWarning("TransitInfoAPI access token carries no readable 'exp' claim; assuming a short lifetime.");
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
+        {
+            // Falling back silently would cache a 15-minute token for an hour and send expired
+            // credentials upstream until the 401 retry kicks in.
+            _logger.LogWarning(ex, "Could not read the expiry from the TransitInfoAPI access token.");
+        }
+
+        // Deliberately short: better to re-authenticate too often than to treat an unknown token as long-lived.
+        return DateTime.UtcNow.AddMinutes(10);
     }
 
     private class LoginResult

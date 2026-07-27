@@ -1,0 +1,14 @@
+<Project>
+
+  <!--
+    Shared build settings. The .NET analyzers are on so that correctness rules (disposal, async
+    misuse, culture-sensitive formatting) are enforced at build time rather than found by audit.
+    CI builds with -warnaserror, so anything surfaced here has to be fixed or explicitly suppressed.
+  -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+</Project>

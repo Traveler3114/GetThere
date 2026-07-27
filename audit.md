@@ -32,14 +32,14 @@
 ### Architecture Violations
 | # | Issue | Location |
 |---|-------|----------|
-| 7 | ~~MAUI client directly accesses TransitInfoAPI (port 5001) instead of routing through GetThereAPI~~ | *(fixed 2026-07-13)* |
+| 7 | MAUI client directly accesses TransitInfoAPI (port 5001) instead of routing through GetThereAPI | **still open** — re-verified 2026-07-27. The map WebView is handed TransitInfoAPI's address; see `docs/map-proxy-migration.md`. The addresses are now consolidated in `GetThere/Helpers/ApiEndpoints.cs` |
 | 8 | ~~All admin HTML pages expect `{ success, data }` wrapper but controllers return data directly — pages broken~~ | *(fixed 2026-07-13)* |
 
 ### Code Quality
 | # | Issue | Location |
 |---|-------|----------|
 | 9 | ~~`JsonDocument` disposed via `using` but `RootElement` returned — latent `ObjectDisposedException`~~ | *(fixed 2026-07-13)* |
-| 10 | ~~Empty `catch { }` swallows all exceptions (including `OutOfMemoryException`)~~ | *(fixed 2026-07-13)* |
+| 10 | Empty `catch { }` swallows all exceptions (including `OutOfMemoryException`) | *(partly fixed 2026-07-13)* — three survived to 2026-07-27: `TransitInfoApiClient.GetTokenExpiry` (now logged), `AuthenticatedHttpHandler.IsTokenExpiringSoon`, `HttpHelper.TryReadProblemAsync` |
 | 11 | ~~Infinite `while(true)` loops with no cancellation — memory leak after navigation~~ | *(fixed 2026-07-13)* |
 | 12 | ~~`async void` on public method~~ | *(fixed 2026-07-13)* |
 

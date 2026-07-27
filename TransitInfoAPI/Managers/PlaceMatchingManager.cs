@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -10,8 +12,10 @@ namespace TransitInfoAPI.Managers;
 public class PlaceMatchingOptions
 {
     public int MaxDistanceMeters { get; set; } = 50000;
-    public int CooldownHours { get; set; } = 0;
-    public int DefaultCountryId { get; set; } = 1;
+    public int CooldownHours { get; set; }
+
+    /// <summary>ISO 3166-1 alpha-2 code of the country to attribute a location to when detection fails.</summary>
+    public string DefaultCountryIsoCode { get; set; } = "HR";
 }
 
 public class PlaceMatchingManager
@@ -86,7 +90,11 @@ public class PlaceMatchingManager
     public async Task LoadPlacesAsync(CancellationToken ct)
     {
         if (_placeCache is not null) return;
-        _placeCache = await _db.Places.ToListAsync(ct);
+
+        // AsNoTracking: the cache is read-only (callers copy Id/AdmCountryCode/AdmRegionCode off it
+        // and never mutate a Place), and tracking the whole table put every row into the change
+        // tracker for the lifetime of the scope — which, during a feed import, is the whole import.
+        _placeCache = await _db.Places.AsNoTracking().ToListAsync(ct);
         BuildPlaceGrid();
         _logger.LogInformation("Loaded {Count} places into cache ({CellCount} grid cells)", _placeCache.Count, _placeGrid?.Count);
     }
@@ -210,7 +218,7 @@ public class PlaceMatchingManager
         }
 
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Re-matched station {StationId} to place {PlaceId}", stationId, station.PlaceId?.ToString() ?? "null");
+        _logger.LogInformation("Re-matched station {StationId} to place {PlaceId}", stationId, station.PlaceId?.ToString(CultureInfo.InvariantCulture) ?? "null");
     }
 
     public async Task<int> DeriveCountryIdAsync(double lat, double lon, CancellationToken ct)
@@ -251,6 +259,32 @@ public class PlaceMatchingManager
             _countryIdCache[iso] = country.Id;
             return country.Id;
         }
-        return _options.Value.DefaultCountryId;
+
+        return await ResolveFallbackCountryIdAsync(ct);
+    }
+
+    /// <summary>
+    /// Country used when the location cannot be attributed to one.
+    /// <para>
+    /// Configured by ISO code rather than by primary key: <c>DefaultCountryId</c> was a raw identity
+    /// value that defaulted to <c>1</c> in code while configuration set <c>2</c>, so the fallback
+    /// silently pointed at a different country depending on which one applied — and at whatever
+    /// country happened to occupy that row.
+    /// </para>
+    /// </summary>
+    private async Task<int> ResolveFallbackCountryIdAsync(CancellationToken ct)
+    {
+        var iso = _options.Value.DefaultCountryIsoCode;
+
+        if (_countryIdCache.TryGetValue(iso, out var cachedId))
+            return cachedId;
+
+        var country = await _db.Countries.FirstOrDefaultAsync(c => c.IsoCode == iso, ct)
+            ?? throw new Exceptions.AppException(
+                $"Fallback country '{iso}' (PlaceMatching:DefaultCountryIsoCode) does not exist.",
+                500, "FALLBACK_COUNTRY_MISSING");
+
+        _countryIdCache[iso] = country.Id;
+        return country.Id;
     }
 }

@@ -15,7 +15,6 @@ namespace TransitInfoAPI.Managers;
 
 public class RealtimeManager
 {
-    private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ExternalFeedSource _externalFeedSource;
@@ -38,14 +37,18 @@ public class RealtimeManager
 
     private volatile ConcurrentDictionary<string, TripUpdateBundle> _tripUpdateCache = new();
 
+    /// <summary>
+    /// Last known good trip updates per feed. Keeping them separate is what lets a feed that fails a
+    /// poll retain its previous data instead of being blanked from the flattened cache.
+    /// </summary>
+    private readonly ConcurrentDictionary<int, ConcurrentDictionary<string, TripUpdateBundle>> _tripUpdatesByFeed = new();
+
     public RealtimeManager(
-        IHttpClientFactory httpFactory,
         ILogger<RealtimeManager> logger,
         IServiceScopeFactory scopeFactory,
         ExternalFeedSource externalFeedSource,
         Microsoft.Extensions.Options.IOptions<RealtimePollingOptions> options)
     {
-        _httpFactory = httpFactory;
         _logger = logger;
         _scopeFactory = scopeFactory;
         _externalFeedSource = externalFeedSource;
@@ -66,8 +69,6 @@ public class RealtimeManager
 
         _logger.LogInformation("Polling {Count} active GTFS-RT feeds", activeRtFeeds.Count);
 
-        var allTripUpdates = new ConcurrentDictionary<string, TripUpdateBundle>();
-
         await Parallel.ForEachAsync(activeRtFeeds, new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = ct }, async (feed, innerCt) =>
         {
             try
@@ -76,8 +77,11 @@ public class RealtimeManager
                 lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
 
-                foreach (var kvp in feedUpdates)
-                    allTripUpdates[kvp.Key] = kvp.Value;
+                // Results are held per feed so that one feed failing does not discard its previously
+                // good data: the cache used to be rebuilt from this cycle's successes alone, so a
+                // single transient failure blanked that operator's realtime view until the next
+                // successful poll.
+                _tripUpdatesByFeed[feed.Id] = feedUpdates;
             }
             catch (Exception ex) when (!innerCt.IsCancellationRequested)
             {
@@ -109,11 +113,25 @@ public class RealtimeManager
                         _logger.LogError(inner, "Failed to deactivate GTFS-RT feed {FeedId}", feed.FeedId);
                     }
                     lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
+                    _tripUpdatesByFeed.TryRemove(feed.Id, out _);
                 }
             }
         });
 
-        Interlocked.Exchange(ref _tripUpdateCache, new ConcurrentDictionary<string, TripUpdateBundle>(allTripUpdates));
+        // Drop feeds that are no longer active, then flatten what remains into the lookup the
+        // readers use.
+        var activeFeedIds = activeRtFeeds.Select(f => f.Id).ToHashSet();
+        foreach (var goneFeedId in _tripUpdatesByFeed.Keys.Where(id => !activeFeedIds.Contains(id)).ToList())
+            _tripUpdatesByFeed.TryRemove(goneFeedId, out _);
+
+        var merged = new ConcurrentDictionary<string, TripUpdateBundle>();
+        foreach (var feedUpdates in _tripUpdatesByFeed.Values)
+        {
+            foreach (var kvp in feedUpdates)
+                merged[kvp.Key] = kvp.Value;
+        }
+
+        Interlocked.Exchange(ref _tripUpdateCache, merged);
 
         // Vehicle stale cutoff matches realtime poll interval. Move to per-feed config if needed.
         var cutoff = DateTime.UtcNow.AddMinutes(-_vehicleStaleCutoffMinutes);

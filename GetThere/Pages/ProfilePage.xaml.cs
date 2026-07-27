@@ -32,7 +32,7 @@ public partial class ProfilePage : ContentPage
 
     private async void OnAvatarClicked(object? sender, TappedEventArgs e)
     {
-        var action = await DisplayActionSheet(
+        var action = await DisplayActionSheetAsync(
             Localization.LocalizationService.Instance["Profile_PhotoTitle"],
             Localization.LocalizationService.Instance["App_Cancel"], null,
             Localization.LocalizationService.Instance["Profile_PhotoTake"],
@@ -41,7 +41,7 @@ public partial class ProfilePage : ContentPage
         if (action == Localization.LocalizationService.Instance["Profile_PhotoTake"]
             || action == Localization.LocalizationService.Instance["Profile_PhotoUpload"])
         {
-            await DisplayAlert(
+            await DisplayAlertAsync(
                 Localization.LocalizationService.Instance["Profile_PhotoTitle"],
                 Localization.LocalizationService.Instance["Profile_PhotoResult"],
                 Localization.LocalizationService.Instance["App_Ok"]);

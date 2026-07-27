@@ -16,6 +16,14 @@ public class DynamicClaimsTransformation : IClaimsTransformation
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IMemoryCache _cache;
 
+    private static readonly TimeSpan CacheSlidingExpiration = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Hard ceiling on the claims cache. Sliding expiration alone never lapses for a user who keeps
+    /// making requests, which would let a revoked role or permission stay live indefinitely.
+    /// </summary>
+    private static readonly TimeSpan CacheAbsoluteExpiration = TimeSpan.FromMinutes(5);
+
     private record CachedClaims(List<string> Roles, List<string> Permissions);
 
     public DynamicClaimsTransformation(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager, IMemoryCache cache)
@@ -44,7 +52,8 @@ public class DynamicClaimsTransformation : IClaimsTransformation
 
         var cached = await _cache.GetOrCreateAsync($"claims:{userId}", async entry =>
         {
-            entry.SlidingExpiration = TimeSpan.FromSeconds(30);
+            entry.SlidingExpiration = CacheSlidingExpiration;
+            entry.AbsoluteExpirationRelativeToNow = CacheAbsoluteExpiration;
 
             var user = await _userManager.FindByIdAsync(userId);
             if (user is null)

@@ -111,7 +111,7 @@ public partial class RegistrationViewModel : BaseViewModel
             if (result.Success)
             {
                 _analytics.TrackEvent("register_success");
-                await Shell.Current.DisplayAlert(
+                await Shell.Current.DisplayAlertAsync(
                     LocalizationService.Instance["Register_Success"],
                     LocalizationService.Instance["Register_SuccessMessage"],
                     LocalizationService.Instance["App_Continue"]);

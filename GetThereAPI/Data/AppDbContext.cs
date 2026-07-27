@@ -46,7 +46,17 @@ public class AppDbContext : IdentityDbContext<AppUser>
 
         modelBuilder.Entity<RefreshToken>(entity =>
         {
-            entity.HasIndex(rt => rt.Token);
+            // Token holds a base64 SHA-256 hash (44 chars). It was previously unbounded, which made
+            // it nvarchar(max) — SQL Server cannot index that, so the declared index was never
+            // actually created and every refresh table-scanned.
+            entity.Property(rt => rt.Token).HasMaxLength(128);
+            entity.Property(rt => rt.ReplacedByToken).HasMaxLength(128);
+            entity.Property(rt => rt.DeviceInfo).HasMaxLength(256);
+            entity.Property(rt => rt.IpAddress).HasMaxLength(64);
+
+            // Unique: the token hash is the lookup key in RefreshAsync, and two rows sharing one
+            // hash would make rotation and reuse detection ambiguous.
+            entity.HasIndex(rt => rt.Token).IsUnique();
             entity.HasOne(rt => rt.User)
                   .WithMany()
                   .HasForeignKey(rt => rt.UserId);
@@ -107,7 +117,16 @@ public class AppDbContext : IdentityDbContext<AppUser>
         {
             entity.HasIndex(p => p.UserId);
             entity.HasIndex(p => p.ExternalPurchaseId);
+
+            // Filtered unique index: a retried purchase with the same key must collide rather than
+            // charge the wallet a second time. Filtered so rows without a key are unconstrained.
+            entity.Property(p => p.IdempotencyKey).HasMaxLength(64);
+            entity.HasIndex(p => new { p.UserId, p.IdempotencyKey })
+                  .IsUnique()
+                  .HasFilter("[IdempotencyKey] IS NOT NULL");
+
             entity.Property(p => p.Amount).HasPrecision(18, 2);
+            entity.Property(p => p.Currency).HasMaxLength(3);
             entity.HasOne(p => p.User)
                   .WithMany()
                   .HasForeignKey(p => p.UserId);

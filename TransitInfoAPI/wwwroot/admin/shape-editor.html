@@ -92,10 +92,10 @@ function showToast(msg, type) {
 }
 
 function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+  // Escapes quotes as well as angle brackets — the result is interpolated into HTML attributes,
+  // where a textContent round-trip would leave " and ' intact and allow attribute injection.
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
 function cancelEdit() {

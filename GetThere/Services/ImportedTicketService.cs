@@ -36,7 +36,7 @@ public class ImportedTicketService
                 var data = await response.Content.ReadFromJsonAsync<PagedResult<ImportedTicketResponse>>(JsonOptions, ct);
                 return OperationResult<PagedResult<ImportedTicketResponse>>.Ok(data!);
             }
-            var problem = await TryReadProblemAsync(response);
+            var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(problem ?? "Could not load imported tickets");
         }
         catch (Exception ex) { return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(ex.Message); }

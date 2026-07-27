@@ -88,6 +88,9 @@ document.getElementById('loginForm').addEventListener('submit', async function (
 
     var data = await resp.json();
     sessionStorage.setItem('auth_token', data.accessToken);
+    // Needed by Shell.refresh(): the access token expires after 15 minutes, and without this the
+    // console drops the operator back here mid-task.
+    if (data.refreshToken) sessionStorage.setItem('refresh_token', data.refreshToken);
     window.location.href = redirectTarget();
   } catch (ex) {
     fail('Network error — is the API running?');

@@ -15,13 +15,11 @@ namespace GetThereAPI.Managers;
 public class MapManager
 {
     private readonly TransitInfoApiClient _transitClient;
-    private readonly AppDbContext _db;
     private readonly ILogger<MapManager> _logger;
 
-    public MapManager(TransitInfoApiClient transitClient, AppDbContext db, ILogger<MapManager> logger)
+    public MapManager(TransitInfoApiClient transitClient, ILogger<MapManager> logger)
     {
         _transitClient = transitClient;
-        _db = db;
         _logger = logger;
     }
 
