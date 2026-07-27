@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -35,10 +36,13 @@ public class ImportedTicketManager
             query = query.Where(t => t.Source == source.Value);
         if (!string.IsNullOrWhiteSpace(operatorId))
             query = query.Where(t => t.OperatorGlobalId == operatorId);
+        // Overlap, not containment. Filtering on ValidFrom >= from && ValidTo <= to dropped every
+        // ticket that spanned the requested window — exactly the ones a "valid this week" query
+        // is looking for. A ticket matches if its validity period intersects the range at all.
         if (validFrom.HasValue)
-            query = query.Where(t => t.ValidFrom >= validFrom.Value);
+            query = query.Where(t => t.ValidTo == null || t.ValidTo >= validFrom.Value);
         if (validTo.HasValue)
-            query = query.Where(t => t.ValidTo <= validTo.Value);
+            query = query.Where(t => t.ValidFrom == null || t.ValidFrom <= validTo.Value);
 
         query = sort?.ToLowerInvariant() switch
         {
@@ -75,13 +79,31 @@ public class ImportedTicketManager
         if (request.Source is null)
             throw new AppException("Source is required.", 400);
 
-        if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidTo <= request.ValidFrom)
+        // Photo/Pdf/QrScan describe a file the caller cannot supply yet — there is no upload
+        // endpoint. Accepting them would write tickets claiming a provenance they do not have, and
+        // because Source feeds the dedupe hash, the same ticket sent under two sources would evade
+        // dedupe entirely. The upload endpoint lifts this guard.
+        if (request.Source.Value != ImportSource.Manual)
+            throw new AppException($"Import source '{request.Source.Value}' requires a file upload, which is not available yet. Use manual entry.", 400);
+
+        var validFrom = ToUtc(request.ValidFrom);
+        var validTo = ToUtc(request.ValidTo);
+
+        if (validFrom.HasValue && validTo.HasValue && validTo <= validFrom)
             throw new AppException("ValidTo must be after ValidFrom.", 400);
 
         if (request.Currency is not null && !SupportedCurrencies.All.Contains(request.Currency.ToUpperInvariant()))
             throw new AppException($"Unsupported currency '{request.Currency}'. Supported: {string.Join(", ", SupportedCurrencies.All)}", 400);
 
-        var dedupeHash = ComputeDedupeHash(request);
+        // A price without a currency renders against whatever the UI happens to default to, and a
+        // currency without a price is meaningless. The client already pairs them; the API has to
+        // as well, because it is not the only possible caller.
+        if (request.Price.HasValue && request.Currency is null)
+            throw new AppException("Currency is required when a price is supplied.", 400);
+        if (request.Currency is not null && !request.Price.HasValue)
+            throw new AppException("Price is required when a currency is supplied.", 400);
+
+        var dedupeHash = ComputeDedupeHash(request, validFrom, validTo);
 
         if (dedupeHash is not null)
         {
@@ -103,8 +125,8 @@ public class ImportedTicketManager
             RouteDescription = request.RouteDescription,
             Price = request.Price,
             Currency = request.Currency?.ToUpperInvariant(),
-            ValidFrom = request.ValidFrom,
-            ValidTo = request.ValidTo,
+            ValidFrom = validFrom,
+            ValidTo = validTo,
             RawPayload = request.RawPayload,
             PayloadFormat = request.PayloadFormat,
             DedupeHash = dedupeHash,
@@ -133,8 +155,6 @@ public class ImportedTicketManager
             .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
         if (entity is null)
             throw new AppException("Imported ticket not found.", 404);
-        if (entity.Status == ImportedTicketStatus.Cancelled)
-            throw new AppException("Cannot update a cancelled ticket.", 400);
 
         if (!IsValidTransition(entity.Status, newStatus))
             throw new AppException($"Cannot transition from {entity.Status} to {newStatus}.", 400);
@@ -152,13 +172,23 @@ public class ImportedTicketManager
         if (entity is null)
             throw new AppException("Imported ticket not found.", 404);
 
+        // Already cancelled is the caller's desired end state, so this succeeds without a write —
+        // DELETE should be idempotent, and re-cancelling used to bump UpdatedAt for nothing.
+        if (entity.Status == ImportedTicketStatus.Cancelled)
+            return;
+
+        // This used to assign Cancelled unconditionally, so DELETE quietly did what
+        // PATCH /{id}/status forbids: cancelling a ticket that was already Used or Expired.
+        if (!IsValidTransition(entity.Status, ImportedTicketStatus.Cancelled))
+            throw new AppException($"Cannot cancel a ticket that is {entity.Status}.", 400);
+
         entity.Status = ImportedTicketStatus.Cancelled;
         entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Imported ticket {Id} cancelled by user {UserId}", id, userId);
     }
 
-    private static bool IsValidTransition(ImportedTicketStatus from, ImportedTicketStatus to) => (from, to) switch
+    internal static bool IsValidTransition(ImportedTicketStatus from, ImportedTicketStatus to) => (from, to) switch
     {
         (ImportedTicketStatus.Active, ImportedTicketStatus.Used) => true,
         (ImportedTicketStatus.Active, ImportedTicketStatus.Expired) => true,
@@ -173,28 +203,59 @@ public class ImportedTicketManager
         return false;
     }
 
-    private static string? ComputeDedupeHash(CreateImportedTicketRequest request)
+    /// <summary>
+    /// Forces a wall-clock value to UTC. <see cref="Services.TicketExpiryWorker"/> compares
+    /// <c>ValidTo</c> against <see cref="DateTime.UtcNow"/>, but <c>System.Text.Json</c> yields
+    /// <see cref="DateTimeKind.Unspecified"/> for an offset-less timestamp and <c>datetime2</c>
+    /// carries no kind — so an offset-bearing or naive payload would otherwise be stored verbatim
+    /// and expire off by the caller's UTC offset. Unspecified is taken at face value as UTC, which
+    /// is what the existing MAUI client already sends.
+    /// </summary>
+    internal static DateTime? ToUtc(DateTime? value) => value?.Kind switch
+    {
+        null => null,
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.Value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+    };
+
+    /// <summary>
+    /// Dates are the already-normalised UTC values rather than the raw request, because the hash
+    /// formats them with "O" — hashing before normalising would give the same logical ticket two
+    /// different hashes depending on how the caller expressed the offset.
+    /// </summary>
+    internal static string? ComputeDedupeHash(CreateImportedTicketRequest request, DateTime? validFrom, DateTime? validTo)
     {
         var sb = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(request.RawPayload))
             sb.Append(request.RawPayload.Trim());
         else
         {
-            sb.Append(request.OperatorGlobalId);
-            sb.Append('|');
-            sb.Append(request.RouteDescription);
-            sb.Append('|');
-            sb.Append(request.ValidFrom?.ToString("O"));
-            sb.Append('|');
-            sb.Append(request.ValidTo?.ToString("O"));
-            sb.Append('|');
-            sb.Append(request.Source?.ToString());
-            sb.Append('|');
-            sb.Append(request.TicketName);
+            // Length-prefixed rather than delimiter-joined: a bare '|' separator let a value
+            // containing the delimiter shift the field boundary, so TicketName "Zagreb|Rijeka"
+            // could collide with a different ticket whose route happened to start "Rijeka".
+            AppendField(sb, request.OperatorGlobalId);
+            AppendField(sb, request.RouteDescription);
+            AppendField(sb, validFrom?.ToString("O"));
+            AppendField(sb, validTo?.ToString("O"));
+            AppendField(sb, request.Source?.ToString());
+            AppendField(sb, request.TicketName);
+            // Price is part of the identity: two otherwise-identical tickets bought at different
+            // fares are different tickets, and were previously collapsed into one.
+            AppendField(sb, request.Price?.ToString(CultureInfo.InvariantCulture));
+            AppendField(sb, request.Currency);
         }
         var input = sb.ToString();
         if (string.IsNullOrWhiteSpace(input)) return null;
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexStringLower(bytes);
+    }
+
+    private static void AppendField(StringBuilder sb, string? value)
+    {
+        sb.Append(value?.Length ?? -1);
+        sb.Append(':');
+        sb.Append(value);
+        sb.Append('|');
     }
 }
