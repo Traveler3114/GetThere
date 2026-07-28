@@ -19,6 +19,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # The database-backed fixtures (AuthFixture, MoneyPathFixture) exercise refresh-token rotation
+    # and the wallet debit against a real SQL Server, because neither behaviour survives the
+    # in-memory provider. Without this container their constructors throw on the runner and take the
+    # whole job red, which is why no run of this workflow had ever been green.
+    #
+    # The password is a throwaway for an ephemeral container on the job's private network. It is not
+    # a secret and must not be reused anywhere else.
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Ci_Ephemeral_Pw123!"
+        ports:
+          - 1433:1433
+
+    env:
+      TESTS_SQL_CONNECTION: "Server=localhost,1433;User Id=sa;Password=Ci_Ephemeral_Pw123!;TrustServerCertificate=True;Encrypt=False"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +75,24 @@ jobs:
 
       - name: Build TransitInfoAPI
         run: dotnet build TransitInfoAPI/TransitInfoAPI.csproj --no-restore -warnaserror
+
+      # The container reports "started" well before SQL Server accepts logins, so the first fixture
+      # would race it. sqlcmd lives at a different path across image generations; try both.
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 60); do
+            for tool in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do
+              if docker exec "${{ job.services.sqlserver.id }}" "$tool" \
+                   -S localhost -U sa -P "Ci_Ephemeral_Pw123!" -C -Q "SELECT 1" >/dev/null 2>&1; then
+                echo "SQL Server accepted a connection after ${i} attempt(s)."
+                exit 0
+              fi
+            done
+            sleep 2
+          done
+          echo "::error::SQL Server did not become ready within 120s"
+          docker logs "${{ job.services.sqlserver.id }}" || true
+          exit 1
 
       - name: Test
         run: dotnet test tests/GetThere.Tests/GetThere.Tests.csproj --no-restore --verbosity normal

@@ -15,8 +15,7 @@ namespace GetThere.Tests.Auth;
 /// </summary>
 public sealed class AuthFixture : IDisposable
 {
-    private const string ConnectionString =
-        "Server=localhost;Database=GetThereAuthTests;Trusted_Connection=True;TrustServerCertificate=True";
+    private static readonly string ConnectionString = TestDatabase.ConnectionStringFor("GetThereAuthTests");
 
     private readonly ServiceProvider _provider;
 

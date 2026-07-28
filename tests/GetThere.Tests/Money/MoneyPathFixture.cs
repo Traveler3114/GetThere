@@ -19,8 +19,7 @@ namespace GetThere.Tests.Money;
 /// </summary>
 public sealed class MoneyPathFixture : IDisposable
 {
-    public const string ConnectionString =
-        "Server=localhost;Database=GetThereMoneyPathTests;Trusted_Connection=True;TrustServerCertificate=True";
+    public static readonly string ConnectionString = TestDatabase.ConnectionStringFor("GetThereMoneyPathTests");
 
     public MoneyPathFixture()
     {
