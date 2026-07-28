@@ -10,18 +10,18 @@ public class AppDbContext : IdentityDbContext<AppUser>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<Wallet> Wallets { get; set; }
-    public DbSet<WalletTransaction> WalletTransactions { get; set; }
-    public DbSet<UserSettings> UserSettings { get; set; }
-    public DbSet<AuditLog> AuditLogs { get; set; }
-    public DbSet<TicketingAdapter> TicketingAdapters { get; set; }
-    public DbSet<TicketOption> TicketOptions { get; set; }
-    public DbSet<Purchase> Purchases { get; set; }
-    public DbSet<Ticket> Tickets { get; set; }
-    public DbSet<ImportedTicket> ImportedTickets { get; set; }
-    public DbSet<TicketUpload> TicketUploads { get; set; }
-    public DbSet<Journey> Journeys { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<Wallet> Wallets { get; set; } = null!;
+    public DbSet<WalletTransaction> WalletTransactions { get; set; } = null!;
+    public DbSet<UserSettings> UserSettings { get; set; } = null!;
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+    public DbSet<TicketingAdapter> TicketingAdapters { get; set; } = null!;
+    public DbSet<TicketOption> TicketOptions { get; set; } = null!;
+    public DbSet<Purchase> Purchases { get; set; } = null!;
+    public DbSet<Ticket> Tickets { get; set; } = null!;
+    public DbSet<ImportedTicket> ImportedTickets { get; set; } = null!;
+    public DbSet<TicketUpload> TicketUploads { get; set; } = null!;
+    public DbSet<Journey> Journeys { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -119,6 +119,16 @@ public class AppDbContext : IdentityDbContext<AppUser>
         {
             entity.HasIndex(p => p.UserId);
             entity.HasIndex(p => p.ExternalPurchaseId);
+
+            // The reconciliation sweep looks for Pending purchases older than a cutoff, and the
+            // admin console asks for the oldest one. Without this the sweep table-scans Purchases
+            // on every pass, and it runs far more often than any user-facing query.
+            //
+            // The length is explicit because the status is stored as its enum name: left unbounded
+            // it is nvarchar(max), which cannot be indexed at all, and letting EF widen it to the
+            // 450-char key limit would put ~900 bytes per row in an index over four short words.
+            entity.Property(p => p.Status).HasMaxLength(20);
+            entity.HasIndex(p => new { p.Status, p.PurchasedAt });
 
             // Filtered unique index: a retried purchase with the same key must collide rather than
             // charge the wallet a second time. Filtered so rows without a key are unconstrained.

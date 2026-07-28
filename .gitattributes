@@ -4,6 +4,20 @@
 * text=auto
 
 ###############################################################################
+# Check C# files out with CRLF on every platform.
+#
+# .editorconfig sets end_of_line = crlf under [*], and `dotnet format
+# --verify-no-changes` enforces it. With only `text=auto` above, a Linux
+# checkout gets LF for every file, so the lint step reported an ENDOFLINE error
+# on every line of every C# file and could never pass on the CI runner — while
+# passing locally on Windows, where autocrlf hides the difference.
+#
+# Pinning the checkout keeps the working tree agreeing with .editorconfig
+# everywhere. Files are still stored LF-normalised in the repository.
+###############################################################################
+*.cs text eol=crlf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

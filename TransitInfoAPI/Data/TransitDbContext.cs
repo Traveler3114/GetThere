@@ -11,29 +11,29 @@ public class TransitDbContext : IdentityDbContext<AppUser>
 {
     public TransitDbContext(DbContextOptions<TransitDbContext> options) : base(options) { }
 
-    public DbSet<Country> Countries { get; set; }
-    public DbSet<City> Cities { get; set; }
-    public DbSet<Operator> Operators { get; set; }
-    public DbSet<Feed> Feeds { get; set; }
-    public DbSet<FeedVersion> FeedVersions { get; set; }
-    public DbSet<Agency> Agencies { get; set; }
-    public DbSet<CanonicalStation> CanonicalStations { get; set; }
-    public DbSet<CanonicalStationOperator> CanonicalStationOperators { get; set; }
-    public DbSet<CanonicalRoute> CanonicalRoutes { get; set; }
-    public DbSet<RawStop> RawStops { get; set; }
-    public DbSet<ReconciliationCandidate> ReconciliationCandidates { get; set; }
-    public DbSet<MobilityStation> MobilityStations { get; set; }
-    public DbSet<Alert> Alerts { get; set; }
-    public DbSet<Place> Places { get; set; }
-    public DbSet<Trip> Trips { get; set; }
-    public DbSet<StopTime> StopTimes { get; set; }
-    public DbSet<Calendar> Calendars { get; set; }
-    public DbSet<CalendarDate> CalendarDates { get; set; }
-    public DbSet<Shape> Shapes { get; set; }
-    public DbSet<StationSplitLog> StationSplitLogs { get; set; }
-    public DbSet<StationMergeLog> StationMergeLogs { get; set; }
-    public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<Country> Countries { get; set; } = null!;
+    public DbSet<City> Cities { get; set; } = null!;
+    public DbSet<Operator> Operators { get; set; } = null!;
+    public DbSet<Feed> Feeds { get; set; } = null!;
+    public DbSet<FeedVersion> FeedVersions { get; set; } = null!;
+    public DbSet<Agency> Agencies { get; set; } = null!;
+    public DbSet<CanonicalStation> CanonicalStations { get; set; } = null!;
+    public DbSet<CanonicalStationOperator> CanonicalStationOperators { get; set; } = null!;
+    public DbSet<CanonicalRoute> CanonicalRoutes { get; set; } = null!;
+    public DbSet<RawStop> RawStops { get; set; } = null!;
+    public DbSet<ReconciliationCandidate> ReconciliationCandidates { get; set; } = null!;
+    public DbSet<MobilityStation> MobilityStations { get; set; } = null!;
+    public DbSet<Alert> Alerts { get; set; } = null!;
+    public DbSet<Place> Places { get; set; } = null!;
+    public DbSet<Trip> Trips { get; set; } = null!;
+    public DbSet<StopTime> StopTimes { get; set; } = null!;
+    public DbSet<Calendar> Calendars { get; set; } = null!;
+    public DbSet<CalendarDate> CalendarDates { get; set; } = null!;
+    public DbSet<Shape> Shapes { get; set; } = null!;
+    public DbSet<StationSplitLog> StationSplitLogs { get; set; } = null!;
+    public DbSet<StationMergeLog> StationMergeLogs { get; set; } = null!;
+    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
