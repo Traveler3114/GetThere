@@ -1,0 +1,616 @@
+const params = new URLSearchParams(window.location.search);
+const candidateId = params.get('candidateId');
+const stationId = params.get('stationId');
+
+if (!candidateId && !stationId) {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-content').innerHTML = `
+    <h2>Station Search</h2>
+    <div class="search-container">
+      <input type="text" id="station-search-input" placeholder="Search stations by name..." autofocus>
+    </div>
+    <div id="search-results"></div>`;
+}
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: '/map/style.json',
+  center: [16.0, 45.8],
+  zoom: 5
+});
+
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+let rawMarker = null;
+let matchMarker = null;
+let lineMarker = null;
+let distancePopup = null;
+let stationModeMarkers = [];
+let stationModeLayers = [];
+
+function fmtDist(m) {
+  if (m == null) return '-';
+  if (m < 1000) return m.toFixed(0) + ' m';
+  return (m / 1000).toFixed(2) + ' km';
+}
+
+function createMarkerElement(color, label, size) {
+  const el = document.createElement('div');
+  el.style.cssText = `width:${size}px;height:${size}px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);cursor:pointer;position:relative;`;
+  if (label) {
+    const lbl = document.createElement('div');
+    lbl.style.cssText = `position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;white-space:nowrap;font-weight:600;`;
+    lbl.textContent = label;
+    el.appendChild(lbl);
+  }
+  return el;
+}
+
+function renderSidebar(data) {
+  const rtColor = getRouteColor(data.rawRouteType);
+  const ctColor = data.canonicalRouteType ? getRouteColor(data.canonicalRouteType) : '#888';
+
+  // Verdict styling
+  const verdict = data.autoMergeVerdict || '';
+  let verdictStyle = '';
+  if (verdict.startsWith('\u2705')) verdictStyle = 'color:#27ae60;font-weight:700';
+  else if (verdict.startsWith('\u274C')) verdictStyle = 'color:#e74c3c;font-weight:700';
+  else if (verdict.startsWith('\u26A0') || verdict.startsWith('\u2139')) verdictStyle = 'color:#f39c12;font-weight:700';
+
+  let html = `
+    <h2>${esc(data.rawStopName)}</h2>
+    <div class="sidebar-section">
+      <span class="status-badge ${data.status}">${data.status}</span>
+      <span style="margin-left:8px;font-size:0.85rem;color:#666">${(data.confidenceScore*100).toFixed(0)}% confidence</span>
+    </div>
+
+    ${verdict ? `<div class="sidebar-section" style="padding:8px 12px;background:#f8f9fa;border-radius:6px;border-left:4px solid ${verdict.startsWith('\u2705') ? '#27ae60' : '#e74c3c'};${verdictStyle};font-size:0.95rem">${esc(verdict)}</div>` : ''}
+
+    <div class="sidebar-section">
+      <h3>Review</h3>
+      ${data.reviewedAt ? `<div style="font-size:0.85rem">Reviewed by <strong>${esc(data.reviewedByAdminId || '?')}</strong> on ${new Date(data.reviewedAt).toLocaleString()}</div>` : '<div style="font-size:0.85rem;color:#888">Awaiting review</div>'}
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Stations</h3>
+      <div class="marker-label">
+        <span class="marker-dot raw"></span>
+        <div><strong>Raw stop</strong><br>
+          <span style="font-size:0.85rem">${esc(data.rawStopName)}</span>
+          <span class="route-type-badge" style="background:${rtColor}">${data.rawRouteType||'-'}</span><br>
+          <span style="font-size:0.8rem;color:#888">${data.rawStopLat.toFixed(5)}, ${data.rawStopLon.toFixed(5)}</span>
+          ${data.rawStopGtfsId ? `<br><span style="font-size:0.8rem;color:#888">GTFS ID: <code>${esc(data.rawStopGtfsId)}</code></span>` : ''}
+        </div>
+      </div>
+      ${data.suggestedStationName ? `
+      <div class="marker-label" style="margin-top:8px">
+        <span class="marker-dot match"></span>
+        <div><strong>Matched station</strong><br>
+          <span style="font-size:0.85rem">${esc(data.suggestedStationName)}</span>
+          ${data.canonicalRouteType ? `<span class="route-type-badge" style="background:${ctColor}">${data.canonicalRouteType}</span>` : ''}<br>
+          <span style="font-size:0.8rem;color:#888">${data.suggestedStationLat.toFixed(5)}, ${data.suggestedStationLon.toFixed(5)}</span>
+          ${data.suggestedStationId ? `<br><span style="font-size:0.8rem;color:#888">ID: <code>${data.suggestedStationId}</code></span>` : ''}
+        </div>
+      </div>` : '<p class="small text-muted mt-2">No matched station â€” this was created as a new station.</p>'}
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Match Scores</h3>
+      <div class="score-row">
+        <span>Name similarity</span>
+        <span class="score-value ${data.nameMatched ? 'score-pass' : 'score-fail'}">${(data.nameSimilarityScore*100).toFixed(0)}% ${data.nameMatched ? '&#10003;' : '&#10007;'}</span>
+      </div>
+      <div class="score-row">
+        <span>Distance</span>
+        <span class="score-value ${data.distanceMatched ? 'score-pass' : 'score-fail'}">${fmtDist(data.distanceMeters)} ${data.distanceMatched ? '&#10003;' : '&#10007;'}</span>
+      </div>
+      <div class="score-row">
+        <span>Route type</span>
+        <span class="score-value ${data.routeTypeMatched ? 'score-pass' : 'score-fail'}">${data.routeTypeMatched ? 'Match &#10003;' : 'Mismatch &#10007;'}</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Why this match?</h3>
+      <div class="explanation-text">`;
+
+  if (data.nameSimilarityScore != null) {
+    const namePct = (data.nameSimilarityScore * 100).toFixed(0);
+    html += `<div class="part"><strong>Name:</strong> ${namePct}% match`;
+    if (data.autoMergeNameThreshold && data.nameSimilarityScore >= data.autoMergeNameThreshold * 0.99) {
+      html += ` (â‰¥${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge threshold)`;
+    } else if (data.manualReviewNameThreshold && data.nameSimilarityScore >= data.manualReviewNameThreshold * 0.99) {
+      html += ` (â‰¥${(data.manualReviewNameThreshold * 100).toFixed(0)}% manual-review threshold, <${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge)`;
+    } else {
+      html += ` (<${(data.manualReviewNameThreshold * 100).toFixed(0)}% review threshold)`;
+    }
+    html += '</div>';
+  }
+
+  if (data.distanceMeters != null) {
+    html += `<div class="part"><strong>Distance:</strong> ${fmtDist(data.distanceMeters)}`;
+    if (data.autoMergeDistanceMeters && data.distanceMeters <= data.autoMergeDistanceMeters) {
+      html += ` (â‰¤${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge threshold)`;
+    } else if (data.manualReviewDistanceMeters && data.distanceMeters <= data.manualReviewDistanceMeters * 0.99) {
+      html += ` (â‰¤${data.manualReviewDistanceMeters.toFixed(0)}m manual-review threshold, >${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge)`;
+    } else {
+      html += ` (>${data.manualReviewDistanceMeters.toFixed(0)}m review threshold)`;
+    }
+    html += '</div>';
+  }
+
+  html += `<div class="part"><strong>Route type:</strong> ${data.routeTypeMatched ? 'Match' : 'Mismatch'}</div>`;
+
+  if (data.feedId) {
+    html += `<div class="part" style="margin-top:6px;color:#888;font-size:0.8rem">
+      Feed: ${esc(data.feedId)}</div>`;
+  }
+
+  html += `</div></div>`;
+
+  // Raw stop routes & operators
+  if (data.rawStopDetail && data.rawStopDetail.routes && data.rawStopDetail.routes.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Raw Stop Routes</h3>
+      <div class="d-flex flex-wrap gap-1">`;
+    data.rawStopDetail.routes.forEach(r => {
+      const color = getRouteColor(r.routeType);
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  if (data.rawStopDetail && data.rawStopDetail.operators && data.rawStopDetail.operators.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Raw Stop Operators</h3>
+      <div style="font-size:0.9rem">`;
+    data.rawStopDetail.operators.forEach(o => {
+      html += `<div><strong>${esc(o.name)}</strong> <span class="text-muted">(${o.operatorType})</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Suggested station routes & operators
+  if (data.suggestedStationDetail && data.suggestedStationDetail.routes && data.suggestedStationDetail.routes.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Matched Station Routes</h3>
+      <div class="d-flex flex-wrap gap-1">`;
+    data.suggestedStationDetail.routes.forEach(r => {
+      const color = getRouteColor(r.routeType);
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  if (data.suggestedStationDetail && data.suggestedStationDetail.operators && data.suggestedStationDetail.operators.length > 0) {
+    html += `<div class="sidebar-section">
+      <h3>Matched Station Operators</h3>
+      <div style="font-size:0.9rem">`;
+    data.suggestedStationDetail.operators.forEach(o => {
+      html += `<div><strong>${esc(o.name)}</strong> <span class="text-muted">(${o.operatorType})</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  if (data.normalizedRawName && data.normalizedStationName) {
+    html += `<div class="sidebar-section">
+      <h3>Normalized names (for comparison)</h3>
+      <div style="font-size:0.85rem">
+        <div><span class="text-muted">Raw:</span> <code>${esc(data.normalizedRawName)}</code></div>
+        <div><span class="text-muted">Match:</span> <code>${esc(data.normalizedStationName)}</code></div>
+      </div>
+    </div>`;
+  }
+
+  currentCandidateData = data;
+
+  html += `<div class="action-bar" data-candidate-id="${data.id}">
+    <button class="action-btn approve" data-cid="${data.id}" onclick="performAction(${data.id},'approve')">Approve</button>
+    <button class="action-btn reject" data-cid="${data.id}" onclick="performAction(${data.id},'reject')">Reject</button>
+    <button class="action-btn reassign" data-cid="${data.id}" onclick="promptReassign(${data.id},${data.suggestedStationId ?? null})">Reassign</button>
+  </div>`;
+
+  document.getElementById('sidebar-content').innerHTML = html;
+  document.getElementById('sidebar').classList.add('open');
+}
+
+function clearStationMode() {
+  stationModeMarkers.forEach(m => m.remove());
+  stationModeMarkers = [];
+  stationModeLayers.forEach(id => { try { map.removeLayer(id); } catch (e) {} });
+  stationModeLayers.forEach(id => { try { map.removeSource(id); } catch (e) {} });
+  stationModeLayers = [];
+}
+
+function renderStationTimeline(station, candidates) {
+  let html = `
+    <h2>${esc(station.name)}</h2>
+    <div class="sidebar-section">
+      <span style="font-size:0.85rem;color:#666">Station ID: ${station.id}</span>
+      ${station.primaryRouteType ? `<span class="route-type-badge" style="background:${getRouteColor(station.primaryRouteType)};margin-left:8px">${station.primaryRouteType}</span>` : ''}
+    </div>
+    <div class="sidebar-section">
+      <h3>Candidates (${candidates.length})</h3>`;
+
+  candidates.forEach((c, i) => {
+    const dateStr = c.createdAt ? new Date(c.createdAt).toLocaleString() : '';
+    const confidence = c.confidenceScore != null ? (c.confidenceScore * 100).toFixed(0) + '%' : '-';
+    const distStr = c.distanceMeters != null ? fmtDist(c.distanceMeters) : '-';
+    const rtColor = getRouteColor(c.rawRouteType || 'default');
+
+    html += `
+      <div class="timeline-entry">
+        <div onclick="location.search='?candidateId=${c.id}'" style="cursor:pointer">
+          <div class="entry-header">
+            <span class="status-badge ${c.status}">${c.status}</span>
+            <strong style="font-size:0.9rem">${esc(c.rawStopName)}</strong>
+          </div>
+          <div class="entry-summary">
+            <span class="route-type-badge" style="background:${rtColor}">${c.rawRouteType || '-'}</span>
+            <span style="margin-left:8px;font-size:0.85rem;color:#666">${confidence} confidence</span>
+            <span style="margin-left:8px;font-size:0.85rem;color:#666">${distStr}</span>
+          </div>
+          <div class="entry-meta">${dateStr}${c.reviewedAt ? ` &middot; Reviewed by ${esc(c.reviewedByAdminId || '?')}` : ' &middot; <span style="color:#888">Awaiting review</span>'}</div>
+        </div>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="action-btn approve" data-cid="${c.id}" style="padding:3px 10px;font-size:0.75rem" onclick="event.stopPropagation();performAction(${c.id},'approve')">Approve</button>
+          <button class="action-btn reject" data-cid="${c.id}" style="padding:3px 10px;font-size:0.75rem" onclick="event.stopPropagation();performAction(${c.id},'reject')">Reject</button>
+          <button class="action-btn reassign" data-cid="${c.id}" style="padding:3px 10px;font-size:0.75rem" onclick="event.stopPropagation();promptReassign(${c.id},${c.suggestedStationId ?? null})">Reassign</button>
+        </div>
+      </div>`;
+  });
+
+  html += `</div>`;
+
+  document.getElementById('sidebar-content').innerHTML = html;
+  document.getElementById('sidebar').classList.add('open');
+}
+
+function esc(s) {
+  // Escapes quotes as well as angle brackets — the result is interpolated into HTML attributes,
+  // where a textContent round-trip would leave " and ' intact and allow attribute injection.
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+// Station search (Task 4.4)
+// TODO: Before Phase 3 (public launch), this search UI lets admins find
+// stations for reconciliation. It calls /stations/search and the results
+// link into the reconciliation timeline view. Must be restricted to admin-only.
+let searchTimer = null;
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('station-search-input');
+  if (input) {
+    input.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const q = input.value.trim();
+      if (q.length < 2) { document.getElementById('search-results').innerHTML = ''; return; }
+      searchTimer = setTimeout(() => {
+        fetch('/stations/search?q=' + encodeURIComponent(q) + '&perPage=20')
+          .then(r => r.json())
+          .then(resp => {
+            const results = resp.data || [];
+            let html = '';
+            results.forEach(s => {
+              const color = getRouteColor(s.primaryRouteType || 'default');
+              html += `<div class="search-result" onclick="location.search='?stationId=${s.id}'">
+                <div class="sr-name">${esc(s.name)} <span class="route-type-badge" style="background:${color}">${s.primaryRouteType || '-'}</span></div>
+                <div class="sr-meta">${s.cityName ? esc(s.cityName) + ' &middot; ' : ''}${s.countryName || ''} &middot; ID: ${s.id}</div>
+              </div>`;
+            });
+            if (!html) html = '<p class="small" style="color:#888;padding:8px">No stations found</p>';
+            document.getElementById('search-results').innerHTML = html;
+          })
+          .catch(() => {});
+      }, 300);
+    });
+  }
+});
+
+function showStationRoutes(stationId, stationName, lat, lon) {
+  fetch('/stations/' + stationId + '/routes')
+    .then(r => { if (!r.ok) throw new Error('Failed to load routes'); return r.json(); })
+    .then(routes => {
+      let html = `
+        <h2>${esc(stationName)}</h2>
+        <div class="sidebar-section">
+          <h3>Routes (${routes.length})</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+      routes.forEach(r => {
+        const color = getRouteColor(r.routeType || 'default');
+        html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+      });
+      html += `</div></div>`;
+      document.getElementById('sidebar-content').innerHTML = html;
+      document.getElementById('sidebar').classList.add('open');
+    })
+    .catch(err => {
+      document.getElementById('sidebar-content').innerHTML = '<p class="error">' + esc(err.message) + '</p>';
+      document.getElementById('sidebar').classList.add('open');
+    });
+
+  fetch('/stations/' + stationId + '/routes')
+    .then(r => r.json())
+    .then(routes => {
+      routes.forEach(route => {
+        fetch('/routes/' + route.id + '/shape')
+          .then(r => r.json())
+          .then(shapeData => {
+            if (!shapeData || !shapeData.features || shapeData.features.length === 0) return;
+            const layerId = 'route-shape-' + route.id;
+            const sourceId = 'route-source-' + route.id;
+            if (map.getSource(sourceId)) return;
+            map.addSource(sourceId, { type: 'geojson', data: shapeData });
+            map.addLayer({
+              id: layerId,
+              type: 'line',
+              source: sourceId,
+              paint: {
+                'line-color': getRouteColor(route.routeType || 'default'),
+                'line-width': 2.5,
+                'line-opacity': 0.7
+              }
+            });
+            stationModeLayers.push(sourceId, layerId);
+          })
+          .catch(() => {});
+      });
+    })
+    .catch(() => {});
+}
+
+let currentCandidateData = null;
+
+function disableActionBtns(id, disable) {
+  document.querySelectorAll(`.action-btn[data-cid="${id}"]`).forEach(b => b.disabled = disable);
+}
+
+// TODO: Before Phase 3 (public launch), these action functions call
+// approve/reject/reassign endpoints exposed in Tasks 4.11/4.13. They
+// also call check-action-warning (Task 4.16) and re-fetch via by-station
+// (Task 4.1) and /reconciliation/{id}. Must all be restricted to admin-only.
+function performAction(id, action) {
+  disableActionBtns(id, true);
+
+  let url;
+  if (action === 'reject') {
+    url = '/reconciliation/' + id + '/reject?createNewStation=false';
+  } else {
+    url = '/reconciliation/' + id + '/' + action;
+  }
+
+  fetch(url, { method: 'POST' })
+    .then(r => {
+      if (!r.ok) throw new Error(action + ' failed (status ' + r.status + ')');
+      return r.json().catch(() => ({}));
+    })
+    .then(() => {
+      if (stationId) reFetchStationTimeline(stationId);
+      else if (candidateId) reFetchCandidate(candidateId);
+      else document.getElementById('sidebar-content').innerHTML = '<p class="loading">Action completed.</p>';
+    })
+    .catch(err => {
+      disableActionBtns(id, false);
+      alert('Error: ' + err.message);
+    });
+}
+
+function promptReassign(candidateId, currentStationId) {
+  const targetStr = prompt('Enter target station ID for reassignment:');
+  if (!targetStr || !targetStr.trim()) return;
+  const targetId = parseInt(targetStr, 10);
+  if (isNaN(targetId) || targetId <= 0) { alert('Invalid station ID'); return; }
+
+  if (currentStationId == null) {
+    alert('Cannot check warning: no current station assigned.');
+    doReassign(candidateId, targetId);
+    return;
+  }
+
+  fetch('/reconciliation/check-action-warning?stationAId=' + currentStationId + '&stationBId=' + targetId)
+    .then(r => r.json())
+    .then(result => {
+      if (result.warning && !confirm('Warning:\n' + result.warning + '\n\nProceed with reassignment anyway?')) return;
+      doReassign(candidateId, targetId);
+    })
+    .catch(err => {
+      alert('Warning check failed: ' + err.message + '\nProceeding anyway.');
+      doReassign(candidateId, targetId);
+    });
+}
+
+function doReassign(candidateId, targetStationId) {
+  disableActionBtns(candidateId, true);
+  fetch('/reconciliation/' + candidateId + '/reassign?canonicalStationId=' + targetStationId, { method: 'POST' })
+    .then(r => {
+      if (!r.ok) throw new Error('Reassign failed (status ' + r.status + ')');
+      return r.json().catch(() => ({}));
+    })
+    .then(() => {
+      if (stationId) reFetchStationTimeline(stationId);
+      else if (candidateId) reFetchCandidate(candidateId);
+    })
+    .catch(err => { disableActionBtns(candidateId, false); alert('Error: ' + err.message); });
+}
+
+function reFetchCandidate(id) {
+  fetch('/reconciliation/' + id)
+    .then(r => { if (!r.ok) throw new Error('Failed to re-fetch'); return r.json(); })
+    .then(data => renderSidebar(data))
+    .catch(() => {});
+}
+
+function reFetchStationTimeline(id) {
+  clearStationMode();
+  Promise.all([
+    fetch('/stations/' + id).then(r => { if (!r.ok) throw new Error('Station not found'); return r.json(); }),
+    fetch('/reconciliation/by-station/' + id).then(r => { if (!r.ok) throw new Error('Failed to load candidates'); return r.json(); })
+  ])
+    .then(([station, candidates]) => {
+      renderStationTimeline(station, candidates);
+
+      const stationEl = createMarkerElement('#27ae60', 'STATION', 28);
+      stationEl.addEventListener('click', () => showStationRoutes(station.id, station.name, station.latitude, station.longitude));
+      const stationMarker = new maplibregl.Marker({ element: stationEl })
+        .setLngLat([station.longitude, station.latitude])
+        .addTo(map);
+      stationModeMarkers.push(stationMarker);
+
+      const plottedRaw = new Set();
+      const bounds = new maplibregl.LngLatBounds();
+      bounds.extend([station.longitude, station.latitude]);
+      candidates.forEach(c => {
+        if (!plottedRaw.has(c.rawStopId)) {
+          plottedRaw.add(c.rawStopId);
+          const rawEl = createMarkerElement('#e74c3c', 'RAW', 24);
+          const rawMarkerM = new maplibregl.Marker({ element: rawEl })
+            .setLngLat([c.rawStopLon, c.rawStopLat])
+            .addTo(map);
+          stationModeMarkers.push(rawMarkerM);
+          bounds.extend([c.rawStopLon, c.rawStopLat]);
+        }
+      });
+      map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+    })
+    .catch(() => {});
+}
+
+map.on('load', () => {
+  if (stationId) {
+    clearStationMode();
+
+    Promise.all([
+      fetch('/stations/' + stationId).then(r => { if (!r.ok) throw new Error('Station not found (status ' + r.status + ')'); return r.json(); }),
+      fetch('/reconciliation/by-station/' + stationId).then(r => { if (!r.ok) throw new Error('Failed to load candidates (status ' + r.status + ')'); return r.json(); })
+    ])
+      .then(([station, candidates]) => {
+        renderStationTimeline(station, candidates);
+
+        // Plot station marker (green)
+        const stationEl = createMarkerElement('#27ae60', 'STATION', 28);
+        stationEl.addEventListener('click', () => showStationRoutes(station.id, station.name, station.latitude, station.longitude));
+        const stationMarker = new maplibregl.Marker({ element: stationEl })
+          .setLngLat([station.longitude, station.latitude])
+          .addTo(map);
+        stationModeMarkers.push(stationMarker);
+
+        // Plot distinct raw stop markers (red)
+        const plottedRaw = new Set();
+        const bounds = new maplibregl.LngLatBounds();
+        bounds.extend([station.longitude, station.latitude]);
+
+        candidates.forEach(c => {
+          if (!plottedRaw.has(c.rawStopId)) {
+            plottedRaw.add(c.rawStopId);
+            const rawEl = createMarkerElement('#e74c3c', 'RAW', 24);
+            const rawMarkerM = new maplibregl.Marker({ element: rawEl })
+              .setLngLat([c.rawStopLon, c.rawStopLat])
+              .addTo(map);
+            stationModeMarkers.push(rawMarkerM);
+            bounds.extend([c.rawStopLon, c.rawStopLat]);
+          }
+        });
+
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+        document.getElementById('legend').classList.remove('d-none');
+      })
+      .catch(err => {
+        document.getElementById('sidebar-content').innerHTML =
+          '<p class="error">' + esc(err.message) + '</p>';
+        document.getElementById('sidebar').classList.add('open');
+      });
+    return;
+  }
+
+  if (!candidateId) return;
+
+  fetch('/reconciliation/' + candidateId)
+    .then(r => {
+      if (!r.ok) throw new Error('Failed to load candidate (status ' + r.status + ')');
+      return r.json();
+    })
+    .then(data => {
+      renderSidebar(data);
+
+      const hasMatch = data.suggestedStationLat != null && data.suggestedStationLon != null;
+
+      // Add raw stop marker
+      const rawEl = createMarkerElement('#e74c3c', 'RAW', 24);
+      rawMarker = new maplibregl.Marker({ element: rawEl })
+        .setLngLat([data.rawStopLon, data.rawStopLat])
+        .addTo(map);
+
+      // Add matched station marker
+      if (hasMatch) {
+        const matchEl = createMarkerElement('#27ae60', 'MATCH', 24);
+        matchMarker = new maplibregl.Marker({ element: matchEl })
+          .setLngLat([data.suggestedStationLon, data.suggestedStationLat])
+          .addTo(map);
+
+        // Add dashed connector line
+        const lineCoords = [
+          [data.rawStopLon, data.rawStopLat],
+          [data.suggestedStationLon, data.suggestedStationLat]
+        ];
+
+        map.addSource('connector', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: lineCoords },
+            properties: {}
+          }
+        });
+
+        map.addLayer({
+          id: 'connector-line',
+          type: 'line',
+          source: 'connector',
+          paint: {
+            'line-color': '#f39c12',
+            'line-width': 2.5,
+            'line-dasharray': [3, 3],
+            'line-opacity': 0.8
+          }
+        });
+
+        // Distance label at midpoint
+        if (data.distanceMeters != null) {
+          const midLon = (data.rawStopLon + data.suggestedStationLon) / 2;
+          const midLat = (data.rawStopLat + data.suggestedStationLat) / 2;
+          distancePopup = new maplibregl.Marker({
+            element: (() => {
+              const el = document.createElement('div');
+              el.className = 'distance-label';
+              el.textContent = fmtDist(data.distanceMeters);
+              return el;
+            })()
+          })
+            .setLngLat([midLon, midLat])
+            .addTo(map);
+        }
+
+        // Show legend distance
+        document.getElementById('legend-distance').style.display = 'block';
+
+        // Fit bounds to both markers
+        const bounds = new maplibregl.LngLatBounds();
+        bounds.extend([data.rawStopLon, data.rawStopLat]);
+        bounds.extend([data.suggestedStationLon, data.suggestedStationLat]);
+        map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
+      } else {
+        // Only raw stop â€” center on it
+        map.flyTo({ center: [data.rawStopLon, data.rawStopLat], zoom: 14 });
+      }
+
+      document.getElementById('legend').classList.remove('d-none');
+    })
+    .catch(err => {
+      document.getElementById('sidebar-content').innerHTML =
+        '<p class="error">Failed to load candidate: ' + esc(err.message) + '</p>';
+      document.getElementById('sidebar').classList.add('open');
+    });
+});

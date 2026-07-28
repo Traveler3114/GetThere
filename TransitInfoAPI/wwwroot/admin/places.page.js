@@ -1,0 +1,118 @@
+const BASE = '';
+let allPlaces = [];
+
+async function loadPlaces() {
+  document.getElementById('loading').classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  try {
+    const r = await fetch(BASE + '/places?perPage=200');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    const j = await r.json();
+    allPlaces = j.data || [];
+    filterPlaces();
+    paginatedItems = allPlaces;
+    showPage(1);
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('content').classList.remove('d-none');
+  } catch(e) {
+    document.getElementById('loading').classList.add('d-none');
+    showError('Failed to load places: ' + e.message);
+  }
+}
+
+function filterPlaces() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const cc = document.getElementById('countryFilter').value.toUpperCase();
+  let filtered = allPlaces;
+  if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q));
+  if (cc) filtered = filtered.filter(p => p.admCountryCode === cc);
+  paginatedItems = filtered;
+  showPage(1);
+}
+
+let currentPage = 1;
+const pageSize = 50;
+let paginatedItems = [];
+
+function showPage(page) {
+  currentPage = page;
+  const start = (currentPage - 1) * pageSize;
+  const pageData = paginatedItems.slice(start, start + pageSize);
+  const totalPages = Math.ceil(paginatedItems.length / pageSize) || 1;
+  renderPlaces(pageData);
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && paginatedItems.length <= pageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage - 1})">Previous</button></li>
+    ${currentPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === currentPage ? 'active' : ''}"><button class="page-link" onclick="showPage(${p})">${p}</button></li>`).join('')}
+    ${currentPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage + 1})">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${currentPage} of ${totalPages} (${paginatedItems.length} items)</small></nav>`;
+}
+
+function renderPlaces(list) {
+  if (!list.length) {
+    document.getElementById('content').innerHTML = '<div class="alert alert-info">No places found.</div>';
+    return;
+  }
+  const rows = list.map(p => `<tr>
+    <td><a href="#" class="text-decoration-none" onclick="event.preventDefault();showDetail(${p.id})">${esc(p.name)}</a></td>
+    <td><code>${esc(p.admCountryCode)}</code></td>
+    <td>${p.admRegionCode || '-'}</td>
+    <td class="small text-muted">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</td>
+    <td class="small text-muted">${p.population != null ? p.population.toLocaleString() : '-'}</td>
+    <td><button class="btn btn-sm btn-outline-info" onclick="showDetail(${p.id})"><i class="bi bi-eye"></i></button></td>
+  </tr>`).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Country</th><th>Region</th><th>Location</th><th>Population</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} place(s)</small>`;
+}
+
+async function showDetail(id) {
+  const p = allPlaces.find(x => x.id === id);
+  if (!p) return;
+  let opsHtml = '', stnHtml = '';
+  try {
+    const [oR, sR] = await Promise.all([
+      fetch(BASE + '/places/' + id + '/operators').then(r=>r.json()),
+      fetch(BASE + '/places/' + id + '/stations').then(r=>r.json())
+    ]);
+    const ops = oR.data || [];
+    const stns = sR.data || [];
+    opsHtml = ops.length ? '<h6>Operators</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th><th>Onestop ID</th></tr></thead><tbody>' + ops.map(o => `<tr><td>${esc(o.name)}</td><td>${esc(o.operatorType)}</td><td><code>${esc(o.onestopId||'-')}</code></td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No operators.</p>';
+    stnHtml = stns.length ? '<h6>Stations</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th><th>Onestop ID</th></tr></thead><tbody>' + stns.map(s => `<tr><td>${esc(s.name)}</td><td>${formatEnumName(s.stationType)}</td><td><code>${esc(s.onestopId||'-')}</code></td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No stations.</p>';
+  } catch(e) { opsHtml = '<p class="text-danger small">Error loading details.</p>'; }
+
+  const html = `<div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">${esc(p.name)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <dl class="row mb-3">
+        <dt class="col-sm-3">Country</dt><dd class="col-sm-9">${p.admCountryCode}</dd>
+        <dt class="col-sm-3">Region</dt><dd class="col-sm-9">${p.admRegionCode || '-'}</dd>
+        <dt class="col-sm-3">Location</dt><dd class="col-sm-9">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</dd>
+        <dt class="col-sm-3">Population</dt><dd class="col-sm-9">${p.population != null ? p.population.toLocaleString() : '-'}</dd>
+      </dl>
+      ${opsHtml}
+      ${stnHtml}
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+  </div></div></div>`;
+  const existing = document.getElementById('detailModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+  modal.show();
+  document.getElementById('detailModal').addEventListener('hidden.bs.modal', () => document.getElementById('detailModal').remove());
+}
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+
+loadPlaces();

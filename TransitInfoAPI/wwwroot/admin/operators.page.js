@@ -1,0 +1,257 @@
+const BASE = '';
+let allOperators = [];
+
+async function loadOperators() {
+  const el = document.getElementById('loading'); el.classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  try {
+    const r = await fetch(BASE + '/operators');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    const j = await r.json();
+    allOperators = j.data || [];
+    filterOperators();
+    paginatedItems = allOperators;
+    showPage(1);
+    el.classList.add('d-none');
+    document.getElementById('content').classList.remove('d-none');
+  } catch(e) {
+    el.classList.add('d-none');
+    showError('Failed to load operators: ' + e.message);
+  }
+}
+
+function filterOperators() {
+  const q = document.getElementById('search').value.toLowerCase();
+  let filtered = allOperators;
+  if (q) filtered = filtered.filter(o => (o.name || '').toLowerCase().includes(q) || (o.shortName || '').toLowerCase().includes(q) || (o.globalId || '').toLowerCase().includes(q));
+  paginatedItems = filtered;
+  showPage(1);
+}
+
+let currentPage = 1;
+const pageSize = 50;
+let paginatedItems = [];
+
+function showPage(page) {
+  currentPage = page;
+  const start = (currentPage - 1) * pageSize;
+  const pageData = paginatedItems.slice(start, start + pageSize);
+  const totalPages = Math.ceil(paginatedItems.length / pageSize) || 1;
+  renderOperators(pageData);
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && paginatedItems.length <= pageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${currentPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage - 1})">Previous</button></li>
+    ${currentPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === currentPage ? 'active' : ''}"><button class="page-link" onclick="showPage(${p})">${p}</button></li>`).join('')}
+    ${currentPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showPage(${currentPage + 1})">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${currentPage} of ${totalPages} (${paginatedItems.length} items)</small></nav>`;
+}
+
+function renderOperators(list) {
+  if (!list.length) {
+    document.getElementById('content').innerHTML = '<div class="alert alert-info">No operators found.</div>';
+    return;
+  }
+  const rows = list.map(o => `<tr>
+    <td><a href="#" class="text-decoration-none" onclick="event.preventDefault();showDetail('${o.globalId}')">${esc(o.name)}</a></td>
+    <td>${esc(o.shortName)}</td>
+    <td><code class="small">${esc(o.onestopId||'-')}</code></td>
+    <td><span class="badge bg-secondary">${esc(o.operatorType)}</span></td>
+    <td>
+      <button class="btn btn-sm btn-outline-info" onclick="showDetail('${o.globalId}')" title="View details"><i class="bi bi-eye"></i></button>
+      <button class="btn btn-sm btn-outline-primary" onclick="showEditModal('${o.globalId}')" title="Edit"><i class="bi bi-pencil"></i></button>
+      <button class="btn btn-sm btn-outline-danger" onclick="deleteOperator('${o.globalId}', '${esc(o.name)}')" title="Delete"><i class="bi bi-trash"></i></button>
+      ${o.website ? `<a href="${esc(safeUrl(o.website))}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary" title="Visit website"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
+    </td>
+  </tr>`).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Short Name</th><th>Onestop ID</th><th>Type</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} operator(s)</small>`;
+}
+
+async function showDetail(globalId) {
+  const o = allOperators.find(x => x.globalId === globalId);
+  if (!o) return;
+  let stationsHtml = '', routesHtml = '', feedsHtml = '';
+  try {
+    const [sR, rR, fR] = await Promise.all([
+      fetch(BASE + '/operators/' + globalId + '/stations').then(r=>r.json()),
+      fetch(BASE + '/operators/' + globalId + '/routes').then(r=>r.json()),
+      fetch(BASE + '/operators/' + globalId + '/feeds').then(r=>r.json())
+    ]);
+    const stations = sR.data || [];
+    const routes = rR.data || [];
+    const feeds = fR.data || [];
+    stationsHtml = stations.length ? '<h6>Stations</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th><th>Location</th></tr></thead><tbody>' + stations.map(s => `<tr><td>${esc(s.name)}</td><td>${formatEnumName(s.stationType)}</td><td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No stations.</p>';
+    routesHtml = routes.length ? '<h6>Routes</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>' + routes.map(r => `<tr><td>${esc(r.name)}</td><td>${rtBadge(r.routeType)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No routes.</p>';
+    feedsHtml = feeds.length ? '<h6>Feeds</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Feed ID</th><th>Type</th><th>Active</th></tr></thead><tbody>' + feeds.map(f => `<tr><td>${esc(f.feedId)}</td><td>${esc(f.feedType)}</td><td>${f.isActive ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No feeds.</p>';
+  } catch(e) { stationsHtml = '<p class="text-danger small">Error loading details.</p>'; }
+
+  const html = `<div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">${esc(o.name)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <dl class="row mb-3">
+        <dt class="col-sm-3">Global ID</dt><dd class="col-sm-9">${esc(o.globalId)}</dd>
+        <dt class="col-sm-3">Onestop ID</dt><dd class="col-sm-9"><code>${esc(o.onestopId||'-')}</code></dd>
+        <dt class="col-sm-3">Website</dt><dd class="col-sm-9">${o.website ? '<a href="'+esc(safeUrl(o.website))+'" target="_blank" rel="noopener noreferrer">'+esc(o.website)+'</a>' : '-'}</dd>
+      </dl>
+      ${stationsHtml}
+      ${routesHtml}
+      ${feedsHtml}
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+  </div></div></div>`;
+  const existing = document.getElementById('detailModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+  modal.show();
+  document.getElementById('detailModal').addEventListener('hidden.bs.modal', () => document.getElementById('detailModal').remove());
+}
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
+
+async function showAddModal() {
+  const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Add Operator</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text" id="addName" class="form-control form-control-sm" placeholder="e.g. ZagrebaÄki elektriÄni tramvaj">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Short Name</label>
+        <input type="text" id="addShortName" class="form-control form-control-sm" placeholder="e.g. ZET">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Website</label>
+        <input type="url" id="addWebsite" class="form-control form-control-sm" placeholder="https://...">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Global ID <small class="text-muted">(leave empty to auto-generate)</small></label>
+        <input type="text" id="addGlobalId" class="form-control form-control-sm" placeholder="Auto: gt-{shortname}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="addOperator()">Add Operator</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('addModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('addModal'));
+  modal.show();
+  document.getElementById('addModal').addEventListener('hidden.bs.modal', () => document.getElementById('addModal').remove());
+}
+
+async function addOperator() {
+  const btn = document.querySelector('#addModal .btn-primary');
+  btn.disabled = true;
+  const name = document.getElementById('addName').value.trim();
+  const shortName = document.getElementById('addShortName').value.trim();
+  const website = document.getElementById('addWebsite').value.trim() || null;
+  const globalId = document.getElementById('addGlobalId').value.trim() || null;
+  if (!name || !shortName) { alert('Name and Short Name are required.'); btn.disabled = false; return; }
+  try {
+    const r = await fetch(BASE + '/operators', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, shortName, website, globalId})
+    });
+    if (r.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+      loadOperators();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      alert(j.title || j.message || 'Failed to add operator.');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+  btn.disabled = false;
+}
+
+async function showEditModal(globalId) {
+  const o = allOperators.find(x => x.globalId === globalId);
+  if (!o) return;
+  const html = `<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Edit Operator</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text" id="editName" class="form-control form-control-sm" value="${esc(o.name)}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Short Name</label>
+        <input type="text" id="editShortName" class="form-control form-control-sm" value="${esc(o.shortName)}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Website</label>
+        <input type="url" id="editWebsite" class="form-control form-control-sm" value="${esc(o.website||'')}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="editOperator('${globalId}')">Save</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('editModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('editModal'));
+  modal.show();
+  document.getElementById('editModal').addEventListener('hidden.bs.modal', () => document.getElementById('editModal').remove());
+}
+
+async function editOperator(globalId) {
+  const btn = document.querySelector('#editModal .btn-primary');
+  btn.disabled = true;
+  const name = document.getElementById('editName').value.trim();
+  const shortName = document.getElementById('editShortName').value.trim();
+  const website = document.getElementById('editWebsite').value.trim() || null;
+  if (!name || !shortName) { alert('Name and Short Name are required.'); btn.disabled = false; return; }
+  try {
+    const r = await fetch(BASE + '/operators/' + globalId, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, shortName, website})
+    });
+    if (r.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+      loadOperators();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      alert(j.title || j.message || 'Failed to update operator.');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+  btn.disabled = false;
+}
+
+async function deleteOperator(globalId, name) {
+  if (!confirm(`Delete operator "${name}"?\n\nThis action cannot be undone.`)) return;
+  const btn = event.target.closest('button');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(BASE + '/operators/' + globalId, { method: 'DELETE' });
+    if (r.ok) {
+      loadOperators();
+    } else if (r.status === 409) {
+      const j = await r.json().catch(() => ({}));
+      alert(j.title || 'Cannot delete: operator has associated records.');
+    } else {
+      alert('Failed to delete operator.');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+  if (btn) btn.disabled = false;
+}
+
+loadOperators();

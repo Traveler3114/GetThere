@@ -1,0 +1,550 @@
+const BASE = '';
+let allFeeds = [];
+let feedPage = 1;
+const feedPageSize = 25;
+
+function showFeedPage(page, feeds) {
+  feedPage = page;
+  const start = (feedPage - 1) * feedPageSize;
+  const pageData = feeds.slice(start, start + feedPageSize);
+  const totalPages = Math.ceil(feeds.length / feedPageSize) || 1;
+  renderFeeds(pageData, feeds.length);
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1 && feeds.length <= feedPageSize) { el.classList.add('d-none'); return; }
+  el.classList.remove('d-none');
+  let pages = [];
+  for (let i = Math.max(1, feedPage - 2); i <= Math.min(totalPages, feedPage + 2); i++) pages.push(i);
+  el.innerHTML = `<nav><ul class="pagination pagination-sm justify-content-center mt-2">
+    <li class="page-item ${feedPage <= 1 ? 'disabled' : ''}"><button class="page-link" onclick="showFeedPage(${feedPage - 1}, allFeeds)">Previous</button></li>
+    ${feedPage > 3 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    ${pages.map(p => `<li class="page-item ${p === feedPage ? 'active' : ''}"><button class="page-link" onclick="showFeedPage(${p}, allFeeds)">${p}</button></li>`).join('')}
+    ${feedPage < totalPages - 2 ? '<li class="page-item disabled"><span class="page-link">...</span></li>' : ''}
+    <li class="page-item ${feedPage >= totalPages ? 'disabled' : ''}"><button class="page-link" onclick="showFeedPage(${feedPage + 1}, allFeeds)">Next</button></li>
+  </ul><small class="text-muted d-block text-center">Page ${feedPage} of ${totalPages} (${feeds.length} items)</small></nav>`;
+}
+
+async function loadFeeds() {
+  document.getElementById('loading').classList.remove('d-none');
+  document.getElementById('error').classList.add('d-none');
+  document.getElementById('content').classList.add('d-none');
+  document.getElementById('healthSection').classList.add('d-none');
+  const showInternal = document.getElementById('showInternalToggle').checked;
+  try {
+    const r = await fetch(BASE + '/feeds?showInternal=' + showInternal + '&perPage=500');
+    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    const j = await r.json();
+    allFeeds = j.data || [];
+    showFeedPage(1, allFeeds);
+    if (!showInternal) checkFeedHealth();
+    document.getElementById('loading').classList.add('d-none');
+    document.getElementById('content').classList.remove('d-none');
+  } catch(e) {
+    document.getElementById('loading').classList.add('d-none');
+    showError('Failed to load feeds: ' + e.message);
+  }
+}
+
+async function checkFeedHealth() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const unhealthy = [];
+
+  for (let i = 0; i < allFeeds.length; i += 20) {
+    const batch = allFeeds.slice(i, i + 20);
+    const results = await Promise.all(batch.map(async feed => {
+      try {
+        const r = await fetch(BASE + '/feeds/' + feed.id + '/versions');
+        const versions = await r.json();
+        const latest = versions[0];
+        if (feed.feedType !== 'GTFSStatic') return null;
+        if (!latest) return feed;
+        if (latest.importStatus === 'Success' && latest.importedAt && new Date(latest.importedAt) >= sevenDaysAgo) return null;
+        return feed;
+      } catch { return feed; }
+    }));
+    unhealthy.push(...results.filter(f => f !== null));
+  }
+
+  if (!unhealthy.length) return;
+
+  const html = unhealthy.map(f => `<li class="list-group-item list-group-item-danger d-flex justify-content-between align-items-center py-1">
+    <span><strong>${esc(f.feedId)}</strong> <code class="small">${esc(f.onestopId||'-')}</code> ${feedTypeBadge(f.feedType)}</span>
+    <button class="btn btn-sm btn-outline-danger" onclick="openFeedHealth(${f.id})">Inspect</button>
+  </li>`).join('');
+
+  document.getElementById('healthSection').innerHTML = `<div class="alert alert-danger mb-3"><h6 class="mb-2"><i class="bi bi-exclamation-triangle-fill"></i> ${unhealthy.length} feed(s) without successful import in the last 7 days</h6><ul class="list-group list-group-flush">${html}</ul></div>`;
+  document.getElementById('healthSection').classList.remove('d-none');
+}
+
+function openFeedHealth(feedId) {
+  const feed = allFeeds.find(f => f.id === feedId);
+  if (!feed) return;
+  const btn = document.querySelector(`button[onclick*="expandVersions(${feedId})"]`);
+  if (btn) btn.click();
+  document.getElementById('healthSection').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderFeeds(feeds, totalCount) {
+  if (!feeds.length) {
+    document.getElementById('content').innerHTML = '<div class="alert alert-info">No feeds configured.</div>';
+    return;
+  }
+  const rows = feeds.map(f => {
+    const isInternal = f.isInternal === true;
+    return `<tr${isInternal ? ' class="table-info"' : ''}>
+    <td>${esc(f.feedId)}</td>
+    <td><code class="small">${esc(f.onestopId||'-')}</code></td>
+    <td>${feedTypeBadge(f.feedType)}</td>
+    <td>${esc(f.operatorName||'-')}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isInternal ? '<span class="small">Internal</span>' : '<a href="' + esc(safeUrl(f.externalUrl)) + '" target="_blank" rel="noopener noreferrer" class="text-decoration-none small">' + esc(f.externalUrl) + '</a>'}</td>
+    <td>${f.isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+    <td class="small">${f.refreshIntervalSeconds}s</td>
+    <td>
+      <button class="btn btn-sm btn-outline-success" onclick="expandVersions(${f.id}, this)" title="Versions"><i class="bi bi-clock-history"></i></button>
+      ${!isInternal && f.feedType === 'GTFSStatic' ? `<button class="btn btn-sm btn-outline-primary" onclick="fetchFeed(${f.id})" title="Fetch & Import"><i class="bi bi-download"></i></button>` : ''}
+      ${!isInternal ? `<button class="btn btn-sm btn-outline-warning" onclick="editFeed(${f.id})" title="Edit"><i class="bi bi-pencil"></i></button>` : ''}
+      ${!isInternal ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>` : ''}
+      ${isInternal && f.customFeedId ? `<a href="/admin/custom-source-editor.html?id=${f.customFeedId}" class="btn btn-sm btn-outline-info" title="View Custom Source"><i class="bi bi-gear"></i></a>` : ''}
+    </td>
+  </tr>`;
+  }).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="feedTable"><thead class="table-dark"><tr><th>Feed ID</th><th>Onestop ID</th><th>Type</th><th>Operator</th><th>URL</th><th>Status</th><th>Interval</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById('pagination').classList.add('d-none');
+}
+
+async function expandVersions(feedId, btn) {
+  const row = btn.closest('tr');
+  const nextRow = row.nextElementSibling;
+  if (nextRow && nextRow.classList.contains('version-row')) {
+    nextRow.classList.toggle('show');
+    return;
+  }
+  const html = `<tr class="version-row show"><td colspan="8"><div class="detail-inner"><div id="versions-${feedId}"><i class="bi bi-hourglass-split"></i> Loading versions...</div></div></td></tr>`;
+  row.insertAdjacentHTML('afterend', html);
+  try {
+    const r = await fetch(BASE + '/feeds/' + feedId + '/versions');
+    const versions = await r.json();
+    const vHtml = versions.length ? '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>SHA1</th><th>Status</th><th>Active</th><th>Fetched</th><th>Service</th><th>Stops</th><th>Routes</th><th>Trips</th></tr></thead><tbody>' + versions.map(v => `<tr>
+      <td><code class="small">${esc(v.sha1.substring(0, 16))}...</code></td>
+      <td>${statusBadge(v.importStatus)}</td>
+      <td>${v.isActive ? '<span class="badge bg-success">Active</span>' : ''}</td>
+      <td class="small">${v.fetchedAt ? new Date(v.fetchedAt).toLocaleString() : '-'}</td>
+      <td class="small">${v.serviceLevelStart || '-'} &ndash; ${v.serviceLevelEnd || '-'}</td>
+      <td>${v.stopCount || 0}</td>
+      <td>${v.routeCount || 0}</td>
+      <td>${v.tripCount || 0}</td>
+    </tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No versions yet.</p>';
+    document.getElementById('versions-' + feedId).innerHTML = '<div class="d-flex justify-content-between"><h6 class="mb-2">Version History</h6><span class="text-muted small">' + versions.length + ' version(s)</span></div>' + vHtml;
+  } catch(e) {
+    document.getElementById('versions-' + feedId).innerHTML = '<p class="text-danger small">Failed to load versions.</p>';
+  }
+}
+
+function feedTypeBadge(type) {
+  const map = { GTFSStatic: 'bg-success', GTFSRealtime: 'bg-primary', GBFS: 'bg-warning text-dark' };
+  const label = { GTFSStatic: 'GTFS Static', GTFSRealtime: 'GTFS RT', GBFS: 'GBFS' };
+  return `<span class="badge ${map[type] || 'bg-secondary'}">${label[type] || type}</span>`;
+}
+
+function statusBadge(status) {
+  const map = { Success: 'badge-success', Importing: 'badge-importing', Failed: 'badge-failed', Pending: 'badge-pending', Skipped: 'badge-skipped' };
+  return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
+}
+
+let importInFlight = false;
+
+async function fetchFeed(id) {
+  if (importInFlight) return;
+  importInFlight = true;
+
+  try {
+  const feed = allFeeds.find(f => f.id === id);
+  const modalId = 'importProgressModal';
+
+  function closeModal() {
+    const el = document.getElementById(modalId);
+    if (el) bootstrap.Modal.getInstance(el)?.hide();
+  }
+
+  function showImportModal() {
+    const existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+    const html = `<div class="modal fade" id="${modalId}" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Importing <code>${esc(feed?.feedId||id)}</code></h5>
+            <div><span class="spinner-border spinner-border-sm me-2" role="status"></span><span id="importStatusText">Starting...</span></div>
+          </div>
+          <div class="modal-body p-2" style="max-height:60vh;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-family:ui-monospace,monospace;font-size:.8rem;line-height:1.5" id="importLogContainer">
+            <div id="importLogContent"></div>
+          </div>
+          <div class="modal-footer">
+            <span id="importResult" class="me-auto small"></span>
+            <button type="button" class="btn btn-secondary btn-sm" id="importCloseBtn" disabled onclick="closeImportModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = new bootstrap.Modal(document.getElementById(modalId));
+    modal.show();
+    document.getElementById(modalId).addEventListener('hidden.bs.modal', () => {
+      document.getElementById(modalId)?.remove();
+      importInFlight = false;
+    });
+  }
+
+  window.closeImportModal = closeModal;
+
+  showImportModal();
+  const logContainer = document.getElementById('importLogContainer');
+  const logContent = document.getElementById('importLogContent');
+  const statusText = document.getElementById('importStatusText');
+  const resultSpan = document.getElementById('importResult');
+  const closeBtn = document.getElementById('importCloseBtn');
+
+  function appendLog(msg) {
+    const line = document.createElement('div');
+    line.textContent = msg;
+    logContent.appendChild(line);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
+
+  // Fire POST without awaiting (with 10 min timeout)
+  const abortController = new AbortController();
+  const fetchTimeout = setTimeout(() => abortController.abort(), 600000);
+  const fetchPromise = fetch(BASE + '/feeds/' + id + '/fetch', { method: 'POST', signal: abortController.signal }).catch(e => {
+    clearTimeout(fetchTimeout);
+    return e;
+  });
+
+  // Poll versions to discover the version ID, then poll logs
+  let versionId = null;
+  let knownFirstVersionId = null;
+  let pollTimer = null;
+  let logPollTimer = null;
+
+  // Before starting, check what versions already exist
+  try {
+      const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+      const existingVersions = await vr.json();
+      knownFirstVersionId = existingVersions.length > 0 ? existingVersions[0].id : null;
+  } catch(e) {}
+
+  pollTimer = setInterval(async () => {
+    try {
+      const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+      const versions = await vr.json();
+      if (versions.length > 0) {
+        const latest = versions[0];
+        if (latest.id !== knownFirstVersionId || (latest.importStatus === 'Importing' || latest.importStatus === 'Pending')) {
+          versionId = latest.id;
+          knownFirstVersionId = latest.id;
+          clearInterval(pollTimer);
+          pollTimer = null;
+
+          // Start polling logs
+          logPollTimer = setInterval(async () => {
+            try {
+              const lr = await fetch(BASE + '/feeds/versions/' + versionId + '/logs');
+              const logs = await lr.json();
+              // Only append new entries
+              const currentCount = logContent.children.length;
+              for (let i = currentCount; i < logs.length; i++) {
+                appendLog(logs[i]);
+                if (logs[i].includes('Import complete') || logs[i].includes('Import failed') || logs[i].includes('Validation failed') || logs[i].includes('Error:')) {
+                  statusText.textContent = 'Done';
+                }
+              }
+            } catch(e) {}
+          }, 1000);
+        }
+      }
+    } catch(e) {}
+  }, 2000);
+
+  // Wait for the POST to finish
+  const r = await fetchPromise;
+  clearTimeout(fetchTimeout);
+  clearInterval(pollTimer);
+  if (logPollTimer) clearInterval(logPollTimer);
+  logPollTimer = null;
+
+  // If we never discovered the version ID, try one more time now
+  if (!versionId) {
+    try {
+    const vr = await fetch(BASE + '/feeds/' + id + '/versions?perPage=1');
+    const versions = await vr.json();
+    if (versions.length > 0) versionId = versions[0].id;
+    } catch(e) {}
+  }
+
+  // One final log poll to catch any last entries
+  if (versionId) {
+    try {
+      const lr = await fetch(BASE + '/feeds/versions/' + versionId + '/logs');
+      const logs = await lr.json();
+      const currentCount = logContent.children.length;
+      for (let i = currentCount; i < logs.length; i++) appendLog(logs[i]);
+    } catch(e) {}
+  }
+
+  if (r instanceof Error) {
+    appendLog('Network error: ' + r.message);
+    resultSpan.textContent = 'Import failed';
+    resultSpan.className = 'me-auto small text-danger';
+  } else {
+    if (r.ok) {
+      const j = await r.json().catch(() => ({}));
+      resultSpan.textContent = j.message || 'Import succeeded';
+      resultSpan.className = 'me-auto small text-success';
+      statusText.textContent = 'Complete';
+      const btn = document.querySelector(`button[onclick*="expandVersions(${id})"]`);
+      if (btn) { expandVersions(id, btn); loadFeeds(); }
+      else { loadFeeds(); }
+      setTimeout(closeModal, 5000);
+    } else {
+      const j = await r.json().catch(() => ({}));
+      resultSpan.textContent = j.message || 'Import failed';
+      resultSpan.className = 'me-auto small text-danger';
+    }
+  }
+  closeBtn.disabled = false;
+  } finally {
+    importInFlight = false;
+  }
+}
+
+async function editFeed(id) {
+  const feed = allFeeds.find(f => f.id === id);
+  if (!feed) return;
+  try {
+    const r = await fetch(BASE + '/operators');
+    const j = await r.json();
+    _operators = j.data || [];
+  } catch(e) {}
+  const html = `<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Edit Feed: ${esc(feed.feedId)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">Feed Type</label>
+        <select id="editFeedType" class="form-select form-select-sm">
+          <option value="GTFSStatic" ${feed.feedType === 'GTFSStatic' ? 'selected' : ''}>GTFS Static</option>
+          <option value="GTFSRealtime" ${feed.feedType === 'GTFSRealtime' ? 'selected' : ''}>GTFS Realtime</option>
+          <option value="GBFS" ${feed.feedType === 'GBFS' ? 'selected' : ''}>GBFS</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Active</label>
+        <select id="editIsActive" class="form-select form-select-sm">
+          <option value="true" ${feed.isActive ? 'selected' : ''}>Active</option>
+          <option value="false" ${!feed.isActive ? 'selected' : ''}>Inactive</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Refresh Interval (seconds)</label>
+        <input type="number" id="editInterval" class="form-control form-control-sm" value="${feed.refreshIntervalSeconds}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">External URL</label>
+        <input type="url" id="editExternalUrl" class="form-control form-control-sm" value="${esc(feed.externalUrl||'')}">
+      </div>
+      <hr>
+      <h6>License</h6>
+      <div class="mb-2">
+        <label class="form-label">License Name</label>
+        <input type="text" id="editLicenseName" class="form-control form-control-sm" value="${esc(feed.licenseName||'')}">
+      </div>
+      <div class="mb-2">
+        <label class="form-label">License URL</label>
+        <input type="url" id="editLicenseUrl" class="form-control form-control-sm" value="${esc(feed.licenseUrl||'')}">
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="editLicenseCommercialUseAllowed" ${feed.licenseCommercialUseAllowed === true ? 'checked' : ''}>
+        <label class="form-check-label" for="editLicenseCommercialUseAllowed">Commercial Use Allowed</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="editLicenseShareAlikeOptional" ${feed.licenseShareAlikeOptional === true ? 'checked' : ''}>
+        <label class="form-check-label" for="editLicenseShareAlikeOptional">Share Alike Optional</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="editLicenseRedistributionAllowed" ${feed.licenseRedistributionAllowed === true ? 'checked' : ''}>
+        <label class="form-check-label" for="editLicenseRedistributionAllowed">Redistribution Allowed</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="saveEditFeed(${id})">Save</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('editModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('editModal'));
+  modal.show();
+  document.getElementById('editModal').addEventListener('hidden.bs.modal', () => document.getElementById('editModal').remove());
+}
+
+async function saveEditFeed(id) {
+  const feed = allFeeds.find(f => f.id === id);
+  if (!feed) return;
+  const updated = {
+    ...feed,
+    feedType: document.getElementById('editFeedType').value,
+    isActive: document.getElementById('editIsActive').value === 'true',
+    refreshIntervalSeconds: parseInt(document.getElementById('editInterval').value) || 3600,
+    externalUrl: document.getElementById('editExternalUrl').value.trim() || null,
+    licenseName: document.getElementById('editLicenseName').value.trim() || null,
+    licenseUrl: document.getElementById('editLicenseUrl').value.trim() || null,
+    licenseCommercialUseAllowed: document.getElementById('editLicenseCommercialUseAllowed').checked || null,
+    licenseShareAlikeOptional: document.getElementById('editLicenseShareAlikeOptional').checked || null,
+    licenseRedistributionAllowed: document.getElementById('editLicenseRedistributionAllowed').checked || null
+  };
+  try {
+    const r = await fetch(BASE + '/feeds/' + id, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(updated)
+    });
+    if (r.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+      loadFeeds();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      showError(j.message || 'Failed to update feed.');
+    }
+  } catch(e) { showError('Error: ' + e.message); }
+}
+
+async function deleteFeed(id) {
+  if (!confirm('Delete this feed?')) return;
+  try {
+    const r = await fetch(BASE + '/feeds/' + id, { method: 'DELETE' });
+    if (r.ok) { loadFeeds(); } else { showError('Failed to delete feed.'); }
+  } catch(e) { showError('Error: ' + e.message); }
+}
+
+let _operators = [];
+
+function feedIdFromGlobalId(globalId) {
+  const parts = (globalId || '').split('-');
+  if (parts.length === 2) return parts[1];
+  return parts.slice(2).join('-');
+}
+
+async function showAddModal() {
+  try {
+    const r = await fetch(BASE + '/operators');
+    const j = await r.json();
+    _operators = j.data || [];
+  } catch(e) {}
+
+  const opOptions = _operators.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.globalId)})</option>`).join('');
+  const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Add Feed</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="mb-3">
+        <label class="form-label">Operator</label>
+        <select id="addOperatorId" class="form-select form-select-sm" onchange="updateFeedIdFromOperator()">${opOptions}</select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Feed Type</label>
+        <select id="addFeedType" class="form-select form-select-sm">
+          <option value="GTFSStatic">GTFS Static</option>
+          <option value="GTFSRealtime">GTFS Realtime</option>
+          <option value="GBFS">GBFS</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Feed ID</label>
+        <input type="text" id="addFeedId" class="form-control form-control-sm">
+        <div id="feedIdHint" class="form-text"></div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">External URL</label>
+        <input type="url" id="addExternalUrl" class="form-control form-control-sm" placeholder="https://...">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Refresh Interval (seconds)</label>
+        <input type="number" id="addInterval" class="form-control form-control-sm" value="3600">
+      </div>
+      <hr>
+      <h6>License</h6>
+      <div class="mb-2">
+        <label class="form-label">License Name</label>
+        <input type="text" id="addLicenseName" class="form-control form-control-sm" placeholder="e.g., ODbL">
+      </div>
+      <div class="mb-2">
+        <label class="form-label">License URL</label>
+        <input type="url" id="addLicenseUrl" class="form-control form-control-sm" placeholder="https://...">
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="addLicenseCommercialUseAllowed">
+        <label class="form-check-label" for="addLicenseCommercialUseAllowed">Commercial Use Allowed</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="addLicenseShareAlikeOptional">
+        <label class="form-check-label" for="addLicenseShareAlikeOptional">Share Alike Optional</label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="addLicenseRedistributionAllowed">
+        <label class="form-check-label" for="addLicenseRedistributionAllowed">Redistribution Allowed</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="addFeed()">Add Feed</button>
+    </div>
+  </div></div></div>`;
+  const existing = document.getElementById('addModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById('addModal'));
+  modal.show();
+  updateFeedIdFromOperator();
+  document.getElementById('addModal').addEventListener('hidden.bs.modal', () => document.getElementById('addModal').remove());
+}
+
+function updateFeedIdFromOperator() {
+  const sel = document.getElementById('addOperatorId');
+  const op = _operators.find(o => o.id === parseInt(sel?.value));
+  const feedIdInput = document.getElementById('addFeedId');
+  if (!op || !feedIdInput) return;
+  const base = feedIdFromGlobalId(op.globalId);
+  let candidate = base;
+  let n = 2;
+  while (allFeeds.some(f => f.feedId === candidate))
+    candidate = base + '-' + n++;
+  feedIdInput.value = candidate;
+  const hint = document.getElementById('feedIdHint');
+  if (base !== candidate)
+    hint.textContent = '"' + base + '" already in use â€” using "' + candidate + '"';
+  else
+    hint.textContent = '';
+}
+
+async function addFeed() {
+  const operatorId = parseInt(document.getElementById('addOperatorId').value);
+  const feedType = document.getElementById('addFeedType').value;
+  const feedId = document.getElementById('addFeedId').value.trim();
+  const externalUrl = document.getElementById('addExternalUrl').value.trim();
+  const interval = parseInt(document.getElementById('addInterval').value) || 3600;
+  if (!feedId) { alert('Feed ID is required.'); return; }
+  try {
+    const body = JSON.stringify({ operatorId, feedType, feedId, externalUrl, refreshIntervalSeconds: interval });
+    const r = await fetch(BASE + '/feeds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    if (r.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+      loadFeeds();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      alert(j.message || 'Failed to add feed.');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
+
+loadFeeds();

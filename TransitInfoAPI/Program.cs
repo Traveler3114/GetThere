@@ -248,7 +248,15 @@ app.UseStaticFiles(new StaticFileOptions
 
         // Backstop for the escaping in these pages, which render feed- and operator-supplied text.
         // Map tiles and the Bootstrap/MapLibre CDNs the legacy pages still use are allowed
-        // explicitly; 'unsafe-inline' stays until the inline scripts move to files.
+        // explicitly.
+        //
+        // script-src still allows 'unsafe-inline', unlike GetThereAPI's console, which no longer
+        // does. The inline <script> blocks have been moved into per-page .js files, but these pages
+        // also wire behaviour through inline on* attributes — 48 in the markup and 63 more inside
+        // generated HTML strings — and 'unsafe-inline' is what makes those run. Dropping it before
+        // all 111 are converted to addEventListener would leave buttons that silently do nothing.
+        // That conversion is the remaining work; it needs the pages exercised against a populated
+        // database, since a missed handler is invisible until someone clicks it.
         headers["Content-Security-Policy"] =
             "default-src 'self'; " +
             "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " +

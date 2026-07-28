@@ -285,10 +285,15 @@ app.UseStaticFiles(new StaticFileOptions
         headers["X-Robots-Tag"] = "noindex, nofollow";
 
         // The console renders operator-supplied text; a CSP is the backstop if an escaping bug slips
-        // through. 'unsafe-inline' is required because the pages carry inline <script> and style
-        // blocks — remove it once those move to files.
+        // through. script-src no longer allows 'unsafe-inline': every page's script now lives in its
+        // own file and none carries an inline handler, so injected script cannot execute even if
+        // something unescaped reaches the DOM. That matters here because the refresh token is held
+        // in sessionStorage, which any executing script could read.
+        //
+        // style-src keeps 'unsafe-inline' for the handful of style attributes still in the markup.
+        // An injected style is a defacement risk, not a token-theft one.
         headers["Content-Security-Policy"] =
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
             "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         headers["X-Content-Type-Options"] = "nosniff";
         headers["Referrer-Policy"] = "no-referrer";

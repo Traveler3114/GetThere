@@ -1,0 +1,275 @@
+'use strict';
+
+var state = { adapters: [], selected: null, busy: false };
+
+if (Admin.mount({ active: 'adapters', crumb: 'Adapters', title: '…', meta: 'last 24h' })) {
+  document.getElementById('content').innerHTML = '<div class="loading">Loading adapters</div>';
+  load();
+}
+
+async function load() {
+  try {
+    state.adapters = await Admin.api('/admin/adapters');
+  } catch (e) {
+    Admin.fail(e.message);
+    return;
+  }
+
+  if (!state.adapters.length) {
+    document.getElementById('content').innerHTML =
+      '<div class="card is-flush"><div class="card-title">No ticketing adapters</div>' +
+      '<p class="muted" style="margin:0;font-size:12.5px">Adapters are rows in <span class="mono">TicketingAdapters</span>, ' +
+      'bound to a TransitInfoAPI operator GlobalId and served by an <span class="mono">ITicketingAdapter</span> ' +
+      'implementation registered in <span class="mono">AdapterRegistry</span>.</p></div>';
+    return;
+  }
+
+  state.selected = state.adapters[0].id;
+  render();
+}
+
+function selected() {
+  return state.adapters.filter(function (a) { return a.id === state.selected; })[0];
+}
+
+function render() {
+  var a = selected();
+  if (!a) return;
+
+  document.querySelector('.topbar h1').textContent = a.adapterType;
+
+  var errorRate = a.purchases ? (a.failures / a.purchases) * 100 : 0;
+
+  document.getElementById('content').innerHTML =
+    '<div class="split is-wide" style="flex:1">' +
+      '<div class="stack" style="gap:18px">' +
+
+        '<div class="grid-4">' +
+          metric('PURCHASES 24H', Admin.num(a.purchases), '') +
+          metric('FAILURES 24H', Admin.num(a.failures), a.failures ? 'is-danger' : '') +
+          metric('ERROR RATE', Admin.percent(errorRate),
+            errorRate >= 50 ? 'is-danger' : (errorRate > 2 ? 'is-warn' : '')) +
+          metric('TICKET OPTIONS', Admin.num(a.ticketOptions), a.ticketOptions ? '' : 'is-warn') +
+        '</div>' +
+
+        '<div class="card is-flush">' +
+          '<div style="display:flex;align-items:center;gap:10px">' +
+            '<div class="card-title">Interface contract</div>' +
+            '<div class="card-meta">ITicketingAdapter</div>' +
+            '<div class="spacer"></div>' +
+            '<span class="badge ' + (a.isRegistered ? 'is-ok' : 'is-warn') + '">' +
+              (a.isRegistered ? 'REGISTERED' : 'NOT REGISTERED') + '</span>' +
+          '</div>' +
+          '<div class="grid-2">' + contractCards(a) + '</div>' +
+        '</div>' +
+
+        '<div class="card is-grow">' +
+          '<div class="card-head">' +
+            '<div class="card-title">Recent purchases through this adapter</div>' +
+            '<div class="spacer"></div>' +
+            '<div class="card-meta" id="feedMeta">—</div>' +
+          '</div>' +
+          '<div id="feed"><div class="loading">Loading</div></div>' +
+        '</div>' +
+
+      '</div>' +
+
+      '<div class="stack" style="gap:18px">' +
+        adapterPicker() +
+        bindingCard(a) +
+        credentialsCard(a) +
+        configCard(a) +
+      '</div>' +
+    '</div>';
+
+  wire();
+  loadFeed(a.id);
+}
+
+function metric(label, value, tone) {
+  return '<div class="card is-flush" style="gap:6px;padding:14px">' +
+    '<span class="kpi-label" style="font-size:10.5px">' + label + '</span>' +
+    '<span style="font-size:22px;font-weight:700' +
+      (tone === 'is-danger' ? ';color:var(--danger-text)' : (tone === 'is-warn' ? ';color:var(--warn-text)' : '')) +
+      '">' + value + '</span></div>';
+}
+
+/* ----------------------------------------------------- interface contract --- */
+
+function contractCards(a) {
+  var inputs = a.requiredInputs.length ? a.requiredInputs.join(', ') : 'none — purchase needs no user input';
+
+  return [
+    member('AdapterType', 'Registry key this adapter is resolved by.',
+      a.isRegistered ? 'resolved' : 'unresolved', a.isRegistered ? 'ok' : 'warn', a.adapterType),
+    member('RequiredInputs', 'Fields the app collects before calling Purchase.',
+      a.requiredInputs.length + ' declared', a.isRegistered ? 'ok' : 'warn', inputs),
+    member('PurchaseAsync(request)', 'Charges the wallet, then issues the ticket payload.',
+      a.purchases ? a.failures + ' failed of ' + a.purchases : 'no traffic in 24h',
+      a.failures ? (a.failures >= a.purchases / 2 ? 'danger' : 'warn') : 'ok',
+      a.pending ? a.pending + ' purchase(s) still pending' : 'no pending purchases'),
+    member('ValidateAsync(externalTicketId)', 'Re-checks an issued ticket with the operator.',
+      a.isRegistered ? 'available' : 'unavailable', a.isRegistered ? 'ok' : 'warn',
+      a.lastPurchaseAt ? 'last purchase ' + Admin.ago(a.lastPurchaseAt) : 'never used')
+  ].join('');
+}
+
+function member(name, description, statusText, tone, detail) {
+  var color = tone === 'danger' ? 'var(--danger-text)' : (tone === 'warn' ? 'var(--warn-text)' : 'var(--ok-text)');
+  var dot = tone === 'danger' ? 'is-danger' : (tone === 'warn' ? 'is-warn' : '');
+  return '<div class="card" style="padding:14px;gap:6px;background:var(--surface)' +
+      (tone === 'ok' ? '' : ';border-color:var(--' + tone + '-surface)') + '">' +
+    '<div class="mono" style="font-size:12.5px;color:' + (tone === 'ok' ? 'var(--accent-link)' : color) + '">' +
+      Admin.esc(name) + '</div>' +
+    '<div style="font-size:11.5px;color:var(--text-3)">' + Admin.esc(description) + '</div>' +
+    '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:' + color + '">' +
+      '<span class="dot ' + dot + '" style="width:6px;height:6px;flex-basis:6px"></span>' +
+      Admin.esc(statusText) + '</div>' +
+    '<div class="mono" style="font-size:10.5px;color:var(--text-4)">' + Admin.esc(detail) + '</div>' +
+  '</div>';
+}
+
+/* ---------------------------------------------------------------- panels --- */
+
+function adapterPicker() {
+  return '<div class="stack" style="gap:12px">' +
+    '<div class="section-label">ADAPTERS</div>' +
+    '<div class="card"><div class="list">' +
+      state.adapters.map(function (a) {
+        return '<div class="row' + (a.id === state.selected ? ' is-selected' : '') + '" data-adapter="' + a.id + '">' +
+          '<div class="tile' + (a.status === 'Ok' || a.status === 'Idle' ? '' :
+            (a.status === 'Failing' ? ' is-danger' : ' is-warn')) + '">' +
+            Admin.esc(Admin.initials(a.name)) + '</div>' +
+          '<div class="grow"><b>' + Admin.esc(a.name) + '</b><span>' + Admin.esc(a.adapterType) + '</span></div>' +
+          '<span class="badge ' + Admin.statusClass(a.status) + '">' + Admin.esc(a.status.toUpperCase()) + '</span>' +
+        '</div>';
+      }).join('') +
+    '</div></div></div>';
+}
+
+function bindingCard(a) {
+  return '<div class="stack" style="gap:12px">' +
+    '<div class="section-label">BINDING</div>' +
+    '<div class="card is-flush" style="gap:14px">' +
+      '<div class="field">' +
+        '<label>Operator GlobalId</label>' +
+        '<div class="input is-mono">' + Admin.esc(a.transitInfoGlobalId || '—') + '</div>' +
+        '<span class="hint">Resolved from TransitInfoAPI · read-only</span>' +
+      '</div>' +
+      '<div class="field">' +
+        '<label>Adapter type</label>' +
+        '<div class="input is-readonly">' + Admin.esc(a.adapterType) + '</div>' +
+      '</div>' +
+      '<div class="switch-row">' +
+        '<div><b>Ticketing enabled</b><span>Buy button visible in the app</span></div>' +
+        '<button type="button" class="toggle' + (a.isActive ? ' is-on' : '') + '" id="activeToggle"' +
+          ' aria-pressed="' + a.isActive + '" title="Enable or disable this adapter"><i></i></button>' +
+      '</div>' +
+      '<div id="toggleError" class="alert hidden"></div>' +
+    '</div></div>';
+}
+
+function credentialsCard(a) {
+  return '<div class="stack" style="gap:12px">' +
+    '<div class="section-label">CREDENTIALS</div>' +
+    '<div class="card is-flush" style="gap:14px">' +
+      '<div class="field">' +
+        '<label>API key</label>' +
+        '<div class="input is-mono" style="color:var(--text-2)">' +
+          (a.hasApiKey ? '•••••••••••••••• stored' : 'not set') + '</div>' +
+      '</div>' +
+      (a.hasApiKey
+        ? '<div class="note is-warn"><div><b>Rotate on schedule</b>' +
+          '<span>Runbook: docs/secrets-rotation.md</span></div></div>'
+        : '<div class="note"><div><b>No credential stored</b>' +
+          '<span>Purchases fail if the upstream API requires a key.</span></div></div>') +
+    '</div></div>';
+}
+
+function configCard(a) {
+  return '<div class="stack" style="gap:12px;flex:1;min-height:0">' +
+    '<div class="section-label">CONFIG</div>' +
+    '<pre class="code">{\n' +
+      '  <span class="k">"name"</span>: <span class="s">"' + Admin.esc(a.name) + '"</span>,\n' +
+      '  <span class="k">"adapterType"</span>: <span class="s">"' + Admin.esc(a.adapterType) + '"</span>,\n' +
+      '  <span class="k">"baseUrl"</span>: <span class="s">"' + Admin.esc(a.baseUrl || '') + '"</span>,\n' +
+      '  <span class="k">"globalId"</span>: <span class="s">"' + Admin.esc(a.transitInfoGlobalId) + '"</span>,\n' +
+      '  <span class="k">"isActive"</span>: <span class="n">' + a.isActive + '</span>,\n' +
+      '  <span class="k">"ticketOptions"</span>: <span class="n">' + a.ticketOptions + '</span>\n' +
+    '}</pre></div>';
+}
+
+/* ------------------------------------------------------------------ wire --- */
+
+function wire() {
+  document.querySelectorAll('[data-adapter]').forEach(function (row) {
+    row.addEventListener('click', function () {
+      state.selected = Number(row.dataset.adapter);
+      render();
+    });
+  });
+
+  var toggle = document.getElementById('activeToggle');
+  if (toggle) toggle.addEventListener('click', onToggle);
+}
+
+async function onToggle() {
+  if (state.busy) return;
+  var a = selected();
+  var next = !a.isActive;
+  var error = document.getElementById('toggleError');
+  var toggle = document.getElementById('activeToggle');
+
+  state.busy = true;
+  toggle.classList.toggle('is-on', next);
+  error.classList.add('hidden');
+
+  try {
+    var updated = await Admin.api('/admin/adapters/' + a.id, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive: next })
+    });
+    state.adapters = state.adapters.map(function (item) {
+      return item.id === updated.id ? updated : item;
+    });
+    render();
+  } catch (e) {
+    toggle.classList.toggle('is-on', a.isActive);
+    error.textContent = e.message;
+    error.classList.remove('hidden');
+  } finally {
+    state.busy = false;
+  }
+}
+
+/* ------------------------------------------------------------------ feed --- */
+
+var FEED_COLS = '96px minmax(0,1fr) 110px 92px 96px';
+
+async function loadFeed(adapterId) {
+  var host = document.getElementById('feed');
+  try {
+    var result = await Admin.api('/admin/purchases?adapterId=' + adapterId + '&pageSize=8');
+    var rows = result.data || [];
+
+    document.getElementById('feedMeta').textContent = Admin.num(result.total) + ' total';
+
+    if (!rows.length) {
+      host.innerHTML = '<div class="empty">No purchases have gone through this adapter yet.</div>';
+      return;
+    }
+
+    host.innerHTML = '<div class="log">' + rows.map(function (p) {
+      var cls = p.paymentStatus === 'Completed' ? 'ok' : (p.paymentStatus === 'Failed' ? 'err' : 'warn');
+      return '<div><span class="t">' + Admin.esc(Admin.time(p.purchasedAt)) + '</span> ' +
+        '<span class="' + cls + '">' + Admin.esc(p.paymentStatus.toUpperCase()) + '</span> ' +
+        Admin.esc(p.optionName) + ' · ' + Admin.esc(p.userEmail || 'unknown user') +
+        ' <span class="t">' + Admin.esc(Admin.money(p.amount, p.currency)) + '</span>' +
+        (p.failureReason ? ' <span class="err">' + Admin.esc(p.failureReason) + '</span>' : '') +
+        (p.externalTicketId ? ' <span class="t">→ ' + Admin.esc(p.externalTicketId) + '</span>' : '') +
+      '</div>';
+    }).join('') + '</div>';
+  } catch (e) {
+    host.innerHTML = '<div class="alert" style="margin:18px">' + Admin.esc(e.message) + '</div>';
+  }
+}
