@@ -1,6 +1,27 @@
 # Code Audit Report — GetThere Solution
 **Date:** 2026-07-13 | **Scope:** ~200 files across 4 projects
 
+> ## ⚠️ Superseded — do not plan work from this file
+>
+> **Re-verified against the tree on 2026-07-28. Most of what is still marked open below has since
+> been fixed, and acting on it means redoing finished work.** Spot checks from that re-read:
+>
+> | Claimed below | Actually true on 2026-07-28 |
+> |---|---|
+> | "Localization key mismatch — English and Croatian `.resx` have different keys" | Exact parity, 306 keys each |
+> | "250+ hardcoded hex colours bypassing `Colors.xaml`" | 14 across every page and component |
+> | "MAUI has zero ViewModel layer — no compiled bindings, no `x:DataType`" | Full CommunityToolkit.Mvvm layer; `x:DataType` on every page |
+> | "Secrets in source control" (JWT keys, admin passwords) | Both `appsettings.json` carry `CHANGE-ME`; startup refuses to boot on a weak key |
+> | "No test projects — zero tests anywhere" | `tests/GetThere.Tests`, 247 tests |
+> | "No CI/CD — `.github/workflows/` is completely empty" | `build-check.yml`: build, test, lint, vulnerability scan, MAUI |
+> | "Empty `catch {}` swallows all exceptions" | None remain in the solution |
+>
+> The counts in the summary table are from the original read and were never revised as items were
+> fixed, so they overstate what is left by a wide margin.
+>
+> Kept for provenance: several later documents cite its numbering (`docs/map-proxy-migration.md`,
+> `docs/changelog.md`). For what is actually outstanding, use `ROADMAP.md`.
+
 ## Executive Summary
 
 | Severity | Count |

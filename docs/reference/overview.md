@@ -351,7 +351,8 @@ that was found or a boundary that would be silent if it broke.
 | [../../PROJECT.md](../../PROJECT.md) | Product intent and scope |
 | [../../ROADMAP.md](../../ROADMAP.md) | What is planned |
 | [../../AGENTS.md](../../AGENTS.md) | Conventions and rules for working in this repo |
-| [../../audit.md](../../audit.md) | Audit findings |
+| [../../audit.md](../../audit.md) | **Superseded** 2026-07-13 audit; kept for provenance |
+| [../changelog.md](../changelog.md) | Per-session implementation detail |
 | [../money-path-defects.md](../money-path-defects.md) | Known money-path issues |
 | [../secrets-rotation.md](../secrets-rotation.md) | Credential rotation |
 | [../database-drift.md](../database-drift.md) | Schema drift notes |

@@ -74,4 +74,5 @@ they are, not just what each type does.
 - [../PROJECT.md](../PROJECT.md) — product intent and scope
 - [../ROADMAP.md](../ROADMAP.md) — what is planned
 - [../AGENTS.md](../AGENTS.md) — conventions and rules for working in this repo
-- [../audit.md](../audit.md) — audit findings
+- [../audit.md](../audit.md) — **superseded** 2026-07-13 audit; most open items are since fixed. Kept for provenance only
+- [changelog.md](changelog.md) — per-session implementation detail
