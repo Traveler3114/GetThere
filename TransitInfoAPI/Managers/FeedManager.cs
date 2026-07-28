@@ -535,18 +535,15 @@ public class FeedManager
     /// so the resolved path is verified to stay under ContentRootPath/feeds — defence in depth behind
     /// the character restriction on <c>CreateFeedRequest.FeedId</c>.
     /// </summary>
-    private string GetFeedStorageDirectory(string feedId)
-    {
-        var feedsRoot = Path.GetFullPath(Path.Combine(_env.ContentRootPath, "feeds"));
-        var resolved = Path.GetFullPath(Path.Combine(feedsRoot, feedId));
+    /// <summary>
+    /// The containment rule itself now lives in <see cref="Services.FeedStorage"/>, where it can be
+    /// tested without standing up this manager and its eight dependencies.
+    /// </summary>
+    private string GetFeedStorageDirectory(string feedId) =>
+        new Services.FeedStorage(_env.ContentRootPath).DirectoryFor(feedId);
 
-        if (!resolved.StartsWith(feedsRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            throw new Exceptions.AppException($"Invalid feed id '{feedId}'.", 400, "INVALID_FEED_ID");
-
-        return resolved;
-    }
-
-    private string GetFeedZipPath(string feedId) => Path.Combine(GetFeedStorageDirectory(feedId), "gtfs.zip");
+    private string GetFeedZipPath(string feedId) =>
+        new Services.FeedStorage(_env.ContentRootPath).ZipPathFor(feedId);
 
     private string? PrepareImportTempZip(FeedVersion version, int feedVersionId)
     {
