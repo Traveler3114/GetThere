@@ -157,6 +157,11 @@ public class AppDbContext : IdentityDbContext<AppUser>
         modelBuilder.Entity<Ticket>(entity =>
         {
             entity.HasIndex(t => t.ExternalTicketId);
+
+            // The hourly expiry sweep selects on Status plus ValidTo across the whole table. There
+            // was no index leading with Status here at all, so it scanned every ticket ever sold.
+            entity.Property(t => t.Status).HasMaxLength(20);
+            entity.HasIndex(t => new { t.Status, t.ValidTo });
             entity.HasOne(t => t.Purchase)
                   .WithMany()
                   .HasForeignKey(t => t.PurchaseId);
@@ -164,6 +169,10 @@ public class AppDbContext : IdentityDbContext<AppUser>
         modelBuilder.Entity<ImportedTicket>(entity =>
         {
             entity.HasIndex(t => new { t.UserId, t.Status });
+
+            // As above: the sweep is not per-user, so the (UserId, Status) index cannot serve it.
+            entity.HasIndex(t => new { t.Status, t.ValidTo });
+
             entity.HasIndex(t => new { t.UserId, t.DedupeHash })
                   .IsUnique()
                   .HasFilter("[Status] = 'Active' AND [DedupeHash] IS NOT NULL");

@@ -38,6 +38,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<TransitDbContext>(options =>
     options.UseSqlServer(connectionString, x => x.UseNetTopologySuite().CommandTimeout(120)));
 
+// Liveness answers "is this process running", readiness answers "can it serve a request". They must
+// be separate: the old single /health returned 200 as long as the process was up, so an instance
+// whose database was unreachable still looked healthy and a load balancer kept routing to it.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<TransitDbContext>("database", tags: ["ready"]);
+
 builder.Services.AddHttpClient("gtfs", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(10);
@@ -212,7 +218,12 @@ app.UseAuthorization();
 // cannot send an Authorization header — a gate on these paths 401s the login page itself and
 // makes the console unreachable. The console holds no secrets; every byte of data it renders
 // comes from API endpoints that are authorized per-endpoint.
-app.UseHsts();
+// Guarded by environment, matching GetThereAPI. Sending HSTS from a Development run pins localhost
+// to HTTPS in the developer's browser for the max-age, which then breaks every other local project
+// served over plain HTTP on the same host.
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
 app.UseHttpsRedirection();
 app.UseResponseCompression();
 app.UseDefaultFiles();
@@ -243,7 +254,22 @@ app.UseStaticFiles(new StaticFileOptions
         headers["Referrer-Policy"] = "no-referrer";
     }
 });
+// Kept for anything already pointing at it, and still a pure liveness answer.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
+
+// Liveness: the process is up and the pipeline responds. No dependency is consulted, so a restart
+// loop cannot be caused by a database blip.
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+}).AllowAnonymous();
+
+// Readiness: everything this instance needs in order to serve. Fails while the database is
+// unreachable, so a load balancer stops routing to an instance that cannot answer.
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).AllowAnonymous();
 
 app.MapControllers();
 
@@ -251,7 +277,18 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
-    await db.Database.MigrateAsync();
+
+    // Applying migrations from application startup is a convenience for a single instance that owns
+    // its database, and a hazard anywhere else: several instances coming up together race each other
+    // through the same schema changes, and a destructive migration is applied by whichever pod
+    // restarts first rather than by a reviewed deployment step. GetThereAPI never did this, so the
+    // two services disagreed about how their schema arrives.
+    //
+    // Defaulting to Development keeps local runs working exactly as before. Set
+    // Database:MigrateOnStartup=true to keep the old behaviour in a deployed environment, or run
+    // `dotnet ef database update` as a deploy step (see docs/guides/ef-database-commands.md).
+    if (app.Configuration.GetValue("Database:MigrateOnStartup", app.Environment.IsDevelopment()))
+        await db.Database.MigrateAsync();
 
     var stuck = await db.FeedVersions
         .Where(fv => fv.ImportStatus == FeedImportStatus.Importing)
@@ -274,7 +311,18 @@ using (var scope = app.Services.CreateScope())
         await db.Shapes.Where(s => stuckIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync();
     }
 
-    // Seed roles and users
+    // Seed roles and users.
+    //
+    // Gated for the same reason as the migration above: scaled out, every instance races the others
+    // through the same writes on every deploy. Enabled by default so local runs are unchanged; set
+    // Seed:Enabled=false on instances that must not do it. The stuck-import recovery above stays
+    // unconditional — it repairs this instance's own interrupted work and is safe to repeat.
+    if (app.Configuration.GetValue("Seed:Enabled", true))
+        await SeedIdentityAsync(app, scope);
+}
+
+static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
+{
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 

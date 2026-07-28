@@ -18,6 +18,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />
   </ItemGroup>

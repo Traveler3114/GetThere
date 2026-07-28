@@ -14,6 +14,7 @@ using GetThereAPI.Services.Extraction;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -44,6 +45,12 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+// Liveness answers "is this process running", readiness answers "can it serve a request". They must
+// be separate: the old single /health returned 200 as long as the process was up, so an instance
+// whose database was unreachable still looked healthy and a load balancer kept routing to it.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
 
 builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
 {
@@ -141,15 +148,27 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 builder.Services.AddRateLimiter(limiter =>
 {
+    // Partition on the authenticated user first, and only fall back to the address for anonymous
+    // callers. Keying everything on the address puts every subscriber behind one carrier-grade NAT
+    // into a single 100/minute bucket, so a busy cell tower throttles real users who have done
+    // nothing wrong. An authenticated caller is identifiable, so it gets its own allowance.
     limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+    {
+        var userId = context.User.FindFirst(JwtClaimTypes.UserId)?.Value;
+
+        var partitionKey = userId is not null
+            ? $"user:{userId}"
+            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 100,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     limiter.AddFixedWindowLimiter("Auth", opt =>
     {
@@ -271,17 +290,42 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+app.UseAuthentication();
+
+// After authentication, deliberately: the limiter partitions on the caller's user id when there is
+// one, and context.User is not populated until the authentication middleware has run. Ordered the
+// other way the claim is always absent and every authenticated caller silently falls back to being
+// bucketed by IP address, which is the behaviour this partitioning exists to avoid.
 app.UseRateLimiter();
 
-app.UseAuthentication();
 app.UseAuthorization();
 
+// Kept for anything already pointing at it, and still a pure liveness answer.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
+
+// Liveness: the process is up and the pipeline responds. No dependency is consulted, so a restart
+// loop cannot be caused by a database blip.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+}).AllowAnonymous();
+
+// Readiness: everything this instance needs in order to serve. Fails while the database is
+// unreachable, so a load balancer stops routing to an instance that cannot answer.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).AllowAnonymous();
 
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
+// Seeding writes roles, permission claims and an admin account on every boot. That is fine for a
+// single instance owning its database and wrong for anything else: scaled out, every instance races
+// the others through the same writes on every deploy. Enabled by default so local and Development
+// runs are unchanged; set Seed:Enabled=false on instances that must not do it.
+if (app.Configuration.GetValue("Seed:Enabled", true))
 {
+    using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
 
