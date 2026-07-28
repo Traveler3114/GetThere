@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<Purchase> Purchases { get; set; }
     public DbSet<Ticket> Tickets { get; set; }
     public DbSet<ImportedTicket> ImportedTickets { get; set; }
+    public DbSet<TicketUpload> TicketUploads { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -160,6 +161,8 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.Property(t => t.OperatorNameSnapshot).HasMaxLength(200);
             entity.Property(t => t.TicketName).HasMaxLength(200);
             entity.Property(t => t.RouteDescription).HasMaxLength(500);
+            entity.Property(t => t.OriginName).HasMaxLength(200);
+            entity.Property(t => t.DestinationName).HasMaxLength(200);
             entity.Property(t => t.Currency).HasMaxLength(3);
             entity.Property(t => t.SourceFileContentType).HasMaxLength(100);
             entity.Property(t => t.DedupeHash).HasMaxLength(64);
@@ -170,6 +173,23 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasOne(t => t.User)
                   .WithMany()
                   .HasForeignKey(t => t.UserId);
+        });
+        modelBuilder.Entity<TicketUpload>(entity =>
+        {
+            // The blob key is the credential a client presents to attach a stored file to a new
+            // ticket, so it has to resolve to exactly one row. Unique rather than merely indexed.
+            entity.HasIndex(u => u.BlobKey).IsUnique();
+
+            // Drives both the ownership lookup on create and the expiry sweep for uploads that
+            // were never turned into a ticket.
+            entity.HasIndex(u => new { u.UserId, u.ConsumedAt });
+
+            entity.Property(u => u.BlobKey).HasMaxLength(128);
+            entity.Property(u => u.ContentType).HasMaxLength(100);
+            entity.Property(u => u.FileType).HasMaxLength(32);
+            entity.HasOne(u => u.User)
+                  .WithMany()
+                  .HasForeignKey(u => u.UserId);
         });
     }
 }

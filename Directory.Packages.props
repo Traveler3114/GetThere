@@ -29,6 +29,21 @@
     <PackageVersion Include="Scalar.AspNetCore" Version="2.16.10" />
   </ItemGroup>
 
+  <ItemGroup Label="Ticket import">
+    <!--
+      Extraction runs server-side so it is unit-testable and behaves identically on every client
+      platform. ZXing decodes the barcode formats transport tickets actually use (Aztec and PDF417
+      for UIC 918-3 rail, QR for everything else); SkiaSharp turns JPEG/PNG/WebP into the pixel
+      buffer it needs. SkiaSharp is pinned to 4.148.0 to match what the MAUI Skottie/Views packages
+      already resolve — transitive pinning is on, so a newer version here would bump the app too.
+    -->
+    <PackageVersion Include="PdfPig" Version="0.1.15" />
+    <PackageVersion Include="ZXing.Net" Version="0.16.11" />
+    <PackageVersion Include="Ical.Net" Version="5.2.3" />
+    <PackageVersion Include="SkiaSharp" Version="4.148.0" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.148.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Transit data">
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="Google.Protobuf" Version="3.35.1" />

@@ -23,6 +23,13 @@
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="Microsoft.OpenApi" />
+
+    <!-- Ticket file import: barcode decode, image decode, PDF text, calendar invites. -->
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="ZXing.Net" />
+    <PackageReference Include="Ical.Net" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
   </ItemGroup>
 
   <ItemGroup>

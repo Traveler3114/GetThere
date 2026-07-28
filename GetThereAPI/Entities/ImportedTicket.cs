@@ -18,6 +18,14 @@ public class ImportedTicket
 
     public string? TicketName { get; set; }
     public string? RouteDescription { get; set; }
+
+    /// <summary>
+    /// Structured endpoints, populated by extraction where the source carries them and editable by
+    /// hand otherwise. Journey grouping chains one leg's destination to the next leg's origin,
+    /// which free-text <see cref="RouteDescription"/> cannot support.
+    /// </summary>
+    public string? OriginName { get; set; }
+    public string? DestinationName { get; set; }
     public decimal? Price { get; set; }
     public string? Currency { get; set; }
     public DateTime? ValidFrom { get; set; }

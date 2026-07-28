@@ -9,6 +9,7 @@ using GetThereAPI.Exceptions;
 using GetThereAPI.Managers;
 using GetThereAPI.Sdk;
 using GetThereAPI.Services;
+using GetThereAPI.Services.Extraction;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -68,6 +69,18 @@ builder.Services.Configure<TransitInfoApiOptions>(builder.Configuration.GetSecti
 
 builder.Services.AddSingleton<AdapterRegistry>();
 builder.Services.AddHostedService<TicketExpiryWorker>();
+
+// Ticket file import. Swapping local disk for object storage later means replacing the
+// ITicketFileStore registration; replacing the no-op scanner enforces real malware scanning.
+// Everything here is stateless, hence singleton.
+builder.Services.AddSingleton<ITicketFileStore, LocalTicketFileStore>();
+builder.Services.AddSingleton<ITicketFileScanner, NoOpTicketFileScanner>();
+builder.Services.AddSingleton<BarcodeDecoder>();
+builder.Services.AddSingleton<ITicketExtractor, PkPassTicketExtractor>();
+builder.Services.AddSingleton<ITicketExtractor, PdfTicketExtractor>();
+builder.Services.AddSingleton<ITicketExtractor, ImageTicketExtractor>();
+builder.Services.AddSingleton<ITicketExtractor, ICalTicketExtractor>();
+builder.Services.AddSingleton<TicketExtractorRegistry>();
 
 var managerTypes = typeof(Program).Assembly.GetTypes()
     .Where(t => t.Namespace == "GetThereAPI.Managers" && t is { IsClass: true, IsAbstract: false });
@@ -135,6 +148,15 @@ builder.Services.AddRateLimiter(limiter =>
             }));
 
     limiter.AddFixedWindowLimiter("Auth", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
+    // Each ticket upload can carry 10 MB and costs image decoding, barcode scanning and PDF
+    // parsing, so the global 100/minute allowance is far too loose for this endpoint.
+    limiter.AddFixedWindowLimiter("Upload", opt =>
     {
         opt.PermitLimit = 10;
         opt.Window = TimeSpan.FromMinutes(1);

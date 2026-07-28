@@ -79,12 +79,12 @@ public class ImportedTicketManager
         if (request.Source is null)
             throw new AppException("Source is required.", 400);
 
-        // Photo/Pdf/QrScan describe a file the caller cannot supply yet — there is no upload
-        // endpoint. Accepting them would write tickets claiming a provenance they do not have, and
-        // because Source feeds the dedupe hash, the same ticket sent under two sources would evade
-        // dedupe entirely. The upload endpoint lifts this guard.
-        if (request.Source.Value != ImportSource.Manual)
-            throw new AppException($"Import source '{request.Source.Value}' requires a file upload, which is not available yet. Use manual entry.", 400);
+        // Every source other than Manual asserts that a file backs this ticket, and Source feeds
+        // the dedupe hash — so without this, the same ticket sent twice under two different sources
+        // would evade dedupe while claiming a provenance it does not have.
+        var needsFile = request.Source.Value is not (ImportSource.Manual or ImportSource.Text);
+        if (needsFile && string.IsNullOrWhiteSpace(request.SourceFileBlobKey))
+            throw new AppException($"Import source '{request.Source.Value}' requires an uploaded file. Upload it first, then create the ticket with the returned blob key.", 400);
 
         var validFrom = ToUtc(request.ValidFrom);
         var validTo = ToUtc(request.ValidTo);
@@ -103,18 +103,31 @@ public class ImportedTicketManager
         if (request.Currency is not null && !request.Price.HasValue)
             throw new AppException("Price is required when a currency is supplied.", 400);
 
-        var dedupeHash = ComputeDedupeHash(request, validFrom, validTo);
+        // Resolved against this user's own unconsumed uploads, so a blob key names a file the
+        // caller demonstrably uploaded rather than an arbitrary storage path.
+        var upload = await ResolveUploadAsync(userId, request.SourceFileBlobKey, ct);
+
+        // AllowDuplicate stores no hash at all rather than skipping only the pre-check: the unique
+        // filtered index would otherwise reject the row anyway, and it is filtered on
+        // DedupeHash IS NOT NULL precisely so an accepted duplicate can coexist.
+        var dedupeHash = request.AllowDuplicate ? null : ComputeDedupeHash(request, validFrom, validTo);
 
         if (dedupeHash is not null)
         {
             var duplicate = await _db.ImportedTickets
-                .AnyAsync(t => t.UserId == userId && t.DedupeHash == dedupeHash && t.Status == ImportedTicketStatus.Active, ct);
-            if (duplicate)
-                throw new AppException("This ticket appears to be a duplicate of an existing active ticket.", 409);
+                .Where(t => t.UserId == userId && t.DedupeHash == dedupeHash && t.Status == ImportedTicketStatus.Active)
+                .Select(t => (int?)t.Id)
+                .FirstOrDefaultAsync(ct);
+            if (duplicate is not null)
+                throw new AppException($"This ticket appears to be a duplicate of active ticket {duplicate}. Resend with allowDuplicate to import it anyway.", 409);
         }
 
         var entity = new ImportedTicket
         {
+            OriginName = request.OriginName,
+            DestinationName = request.DestinationName,
+            SourceFileBlobKey = upload?.BlobKey,
+            SourceFileContentType = upload?.ContentType,
             UserId = userId,
             OperatorGlobalId = request.OperatorGlobalId,
             OperatorNameSnapshot = request.OperatorNameSnapshot,
@@ -135,6 +148,11 @@ public class ImportedTicketManager
         };
 
         _db.ImportedTickets.Add(entity);
+
+        // Spent in the same SaveChanges as the ticket, so a rejected insert does not burn the key
+        // and leave the user unable to retry with the file they just uploaded.
+        if (upload is not null)
+            upload.ConsumedAt = DateTime.UtcNow;
 
         try
         {
@@ -201,6 +219,27 @@ public class ImportedTicketManager
         if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx)
             return sqlEx.Number is 2601 or 2627;
         return false;
+    }
+
+    /// <summary>
+    /// Turns a caller-supplied blob key into the upload row it names, or throws.
+    /// <para>
+    /// This is what makes it safe to accept a blob key from a client at all: the lookup is scoped
+    /// to the calling user and to unconsumed rows, so a key belonging to someone else, a key that
+    /// was already spent, or a made-up string are all indistinguishable from not existing.
+    /// </para>
+    /// </summary>
+    private async Task<TicketUpload?> ResolveUploadAsync(string userId, string? blobKey, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(blobKey)) return null;
+
+        var upload = await _db.TicketUploads
+            .FirstOrDefaultAsync(u => u.BlobKey == blobKey && u.UserId == userId && u.ConsumedAt == null, ct);
+
+        if (upload is null)
+            throw new AppException("That uploaded file is not available — it may have already been used, expired, or belong to another account.", 400);
+
+        return upload;
     }
 
     /// <summary>

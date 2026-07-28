@@ -59,6 +59,14 @@ public class TicketExpiryWorker : BackgroundService
 
                 if (purchasedCount > 0)
                     _logger.LogInformation("Marked {Count} purchased tickets as expired", purchasedCount);
+
+                // Files uploaded but never turned into a ticket. Nothing else references them, so
+                // without this sweep every abandoned import leaves a blob on disk permanently.
+                var uploads = scope.ServiceProvider.GetRequiredService<Managers.TicketUploadManager>();
+                var purged = await uploads.PurgeAbandonedAsync(stoppingToken);
+
+                if (purged > 0)
+                    _logger.LogInformation("Purged {Count} abandoned ticket uploads", purged);
             }
             catch (OperationCanceledException)
             {
