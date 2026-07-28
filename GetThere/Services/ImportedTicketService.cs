@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -43,6 +44,12 @@ public class ImportedTicketService
         catch (Exception ex) { return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(ex.Message); }
     }
 
+    /// <summary>
+    /// A ticket the server judged a duplicate of one already imported. Resending with
+    /// <see cref="CreateImportedTicketRequest.AllowDuplicate"/> is the way through.
+    /// </summary>
+    public const string DuplicateCode = "DUPLICATE_TICKET";
+
     public async Task<OperationResult<ImportedTicketResponse>> CreateAsync(CreateImportedTicketRequest request)
     {
         try
@@ -53,7 +60,16 @@ public class ImportedTicketService
                 var data = await response.Content.ReadFromJsonAsync<ImportedTicketResponse>(JsonOptions);
                 return OperationResult<ImportedTicketResponse>.Ok(data!);
             }
+
             var problem = await TryReadProblemAsync(response);
+
+            // Taken from the status code rather than the body: the server's duplicate check answers
+            // with 409 from two places — a pre-check and the filtered unique index catching a race —
+            // and only the status is guaranteed to be the same for both.
+            if (response.StatusCode == HttpStatusCode.Conflict)
+                return OperationResult<ImportedTicketResponse>.Fail(
+                    DuplicateCode, problem ?? "You have already imported this ticket.");
+
             return OperationResult<ImportedTicketResponse>.Fail(problem ?? "Could not create imported ticket");
         }
         catch (Exception ex) { return OperationResult<ImportedTicketResponse>.Fail(ex.Message); }

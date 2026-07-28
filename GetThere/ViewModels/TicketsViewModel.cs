@@ -14,6 +14,7 @@ public partial class TicketsViewModel : BaseViewModel
 {
     private readonly AuthService _authService;
     private readonly ImportedTicketService _importedService;
+    private readonly TicketCaptureService _capture;
     private readonly IAnalyticsService _analytics;
     private ImportedTicketStatus? _activeFilter;
 
@@ -41,10 +42,15 @@ public partial class TicketsViewModel : BaseViewModel
 
     public ObservableCollection<ImportedTicketResponse> ImportedTickets { get; } = [];
 
-    public TicketsViewModel(AuthService authService, ImportedTicketService importedService, IAnalyticsService analytics)
+    public TicketsViewModel(
+        AuthService authService,
+        ImportedTicketService importedService,
+        TicketCaptureService capture,
+        IAnalyticsService analytics)
     {
         _authService = authService;
         _importedService = importedService;
+        _capture = capture;
         _analytics = analytics;
     }
 
@@ -127,10 +133,112 @@ public partial class TicketsViewModel : BaseViewModel
         await LoadTickets();
     }
 
+    private const string TakePhoto = "Take a photo";
+    private const string ChoosePhoto = "Choose from photos";
+    private const string ChooseFile = "Choose a file";
+    private const string PasteText = "Paste booking text";
+    private const string EnterManually = "Enter manually";
+
+    /// <summary>
+    /// Asks where the ticket is coming from, then captures it and hands a prefilled draft to the
+    /// import form.
+    /// <para>
+    /// Every branch ends on the same form: it is the one place a ticket is confirmed and validated,
+    /// so a scanned pass and a typed ticket take the same path to being saved. Photographing a code
+    /// is the scan option — the server decodes QR, Aztec and PDF417 out of the uploaded image, so no
+    /// on-device scanner is needed.
+    /// </para>
+    /// </summary>
     [RelayCommand]
     private async Task ImportTicket()
     {
-        await Shell.Current.GoToAsync("importticket");
+        HasError = false;
+
+        var choice = await Shell.Current.DisplayActionSheetAsync(
+            "Add a ticket", "Cancel", null,
+            TakePhoto, ChoosePhoto, ChooseFile, PasteText, EnterManually);
+
+        // Both the cancel button and a dismissed sheet, which returns null on some platforms.
+        if (string.IsNullOrEmpty(choice) || choice == "Cancel") return;
+
+        if (choice == EnterManually)
+        {
+            _analytics.TrackEvent("ticket_import_started", new() { ["method"] = "manual" });
+            await Shell.Current.GoToAsync("importticket");
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var draft = choice switch
+            {
+                TakePhoto => await CaptureAsync(() => _capture.CapturePhotoAsync(), "camera"),
+                ChoosePhoto => await CaptureAsync(() => _capture.PickPhotoAsync(), "photo"),
+                ChooseFile => await CaptureAsync(() => _capture.PickFileAsync(), "file"),
+                PasteText => await PasteAsync(),
+                _ => null
+            };
+
+            // Null means the user backed out of the picker, which is not an error.
+            if (draft is null) return;
+
+            await Shell.Current.GoToAsync("importticket",
+                new Dictionary<string, object> { [TicketImportDraft.QueryKey] = draft });
+        }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+            HasError = true;
+        }
+        finally { IsBusy = false; }
+    }
+
+    /// <summary>Picks a file, uploads it, and turns what the server read into a draft.</summary>
+    private async Task<TicketImportDraft?> CaptureAsync(Func<Task<CapturedTicketFile?>> pick, string method)
+    {
+        var file = await pick();
+        if (file is null) return null;
+
+        _analytics.TrackEvent("ticket_import_started", new() { ["method"] = method });
+
+        using var content = new MemoryStream(file.Content);
+        var result = await _importedService.UploadAsync(content, file.FileName, file.ContentType);
+
+        if (!result.Success || result.Data is null)
+        {
+            ErrorText = result.Message ?? "Could not read that file.";
+            HasError = true;
+            return null;
+        }
+
+        return TicketImportDraft.FromUpload(result.Data);
+    }
+
+    /// <summary>
+    /// Scrapes a pasted confirmation. Nothing is stored, so this draft carries no blob key.
+    /// </summary>
+    private async Task<TicketImportDraft?> PasteAsync()
+    {
+        var text = await Shell.Current.DisplayPromptAsync(
+            "Paste booking text",
+            "Paste the confirmation email or booking details.",
+            accept: "Read it", cancel: "Cancel",
+            placeholder: "Paste here", maxLength: 20000);
+
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        _analytics.TrackEvent("ticket_import_started", new() { ["method"] = "text" });
+
+        var result = await _importedService.ExtractTextAsync(text);
+        if (!result.Success || result.Data is null)
+        {
+            ErrorText = result.Message ?? "Could not read that text.";
+            HasError = true;
+            return null;
+        }
+
+        return TicketImportDraft.FromText(result.Data);
     }
 
     /// <summary>

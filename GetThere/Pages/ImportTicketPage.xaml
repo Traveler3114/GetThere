@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
     xmlns:localization="clr-namespace:GetThere.Localization"
     x:DataType="vm:ImportTicketViewModel"
@@ -11,10 +12,28 @@
     BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
     Shell.NavBarIsVisible="True">
 
+    <ContentPage.Resources>
+        <helpers:InverseBoolConverter x:Key="Invert" />
+    </ContentPage.Resources>
+
     <ScrollView>
         <VerticalStackLayout Padding="24,20" Spacing="16" MaximumWidthRequest="500" HorizontalOptions="Center">
-            <Label FontSize="24" Style="{StaticResource DsPageTitle}" Text="Add ticket manually" />
-            <Label Style="{StaticResource DsPageSubtitle}" Text="Fill in the details of your ticket." />
+            <Label FontSize="24" Style="{StaticResource DsPageTitle}" Text="Add ticket" />
+            <Label Style="{StaticResource DsPageSubtitle}" Text="Fill in the details of your ticket."
+                   IsVisible="{Binding HasDraft, Converter={StaticResource Invert}}" />
+
+            <!--
+                Shown when the ticket arrived from a file or pasted text. Extraction is best-effort,
+                so this frames the prefilled values as something to check rather than as fact — the
+                fields below stay fully editable whatever was read.
+            -->
+            <Border Style="{StaticResource DsCard}" IsVisible="{Binding HasDraft}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Style="{StaticResource DsCardSubtitle}" Text="{Binding DraftSummary}" />
+                    <Label Style="{StaticResource DsMetaCaption}" Text="{Binding WarningText}"
+                           IsVisible="{Binding HasWarning}" />
+                </VerticalStackLayout>
+            </Border>
 
             <VerticalStackLayout Spacing="6">
                 <Label Text="Ticket Name *" Style="{StaticResource DsFieldLabel}" />
@@ -29,6 +48,26 @@
                     <Entry Text="{Binding RouteDescription}" Placeholder="e.g. Zagreb Gl. Kolodvor → Rijeka" Style="{StaticResource DsEntry}" />
                 </Border>
             </VerticalStackLayout>
+
+            <!--
+                Structured endpoints, separate from the free-text route above. Journey grouping
+                chains on these, which a prose description cannot support, and a wallet pass always
+                carries them.
+            -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="From (optional)" Style="{StaticResource DsFieldLabel}" />
+                    <Border Style="{StaticResource DsField}">
+                        <Entry Text="{Binding OriginName}" Placeholder="e.g. Zagreb Gl. Kol." Style="{StaticResource DsEntry}" />
+                    </Border>
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1" Spacing="6">
+                    <Label Text="To (optional)" Style="{StaticResource DsFieldLabel}" />
+                    <Border Style="{StaticResource DsField}">
+                        <Entry Text="{Binding DestinationName}" Placeholder="e.g. Rijeka" Style="{StaticResource DsEntry}" />
+                    </Border>
+                </VerticalStackLayout>
+            </Grid>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                 <VerticalStackLayout Spacing="6">
