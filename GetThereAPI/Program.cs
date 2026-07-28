@@ -151,6 +151,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Configurable rather than compiled in, with the previous values as defaults. A deployment behind a
+// gateway that already throttles may want different numbers, and an in-process test host has every
+// request arriving on one partition, so a 10/minute auth window rejects the fixture's own logins.
+var globalPermitLimit = builder.Configuration.GetValue("RateLimits:GlobalPerMinute", 100);
+var authPermitLimit = builder.Configuration.GetValue("RateLimits:AuthPerMinute", 10);
+var uploadPermitLimit = builder.Configuration.GetValue("RateLimits:UploadPerMinute", 10);
+
 builder.Services.AddRateLimiter(limiter =>
 {
     // Partition on the authenticated user first, and only fall back to the address for anonymous
@@ -169,7 +176,7 @@ builder.Services.AddRateLimiter(limiter =>
             partitionKey,
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
+                PermitLimit = globalPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             });
@@ -177,7 +184,7 @@ builder.Services.AddRateLimiter(limiter =>
 
     limiter.AddFixedWindowLimiter("Auth", opt =>
     {
-        opt.PermitLimit = 10;
+        opt.PermitLimit = authPermitLimit;
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueLimit = 0;
     });
@@ -186,7 +193,7 @@ builder.Services.AddRateLimiter(limiter =>
     // parsing, so the global 100/minute allowance is far too loose for this endpoint.
     limiter.AddFixedWindowLimiter("Upload", opt =>
     {
-        opt.PermitLimit = 10;
+        opt.PermitLimit = uploadPermitLimit;
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueLimit = 0;
     });
