@@ -11,6 +11,8 @@ using GetThereAPI.Sdk;
 using GetThereAPI.Services;
 using GetThereAPI.Services.Extraction;
 
+using GetThereAuth;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -51,6 +53,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // whose database was unreachable still looked healthy and a load balancer kept routing to it.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
+
+// Inert unless Otel:Endpoint is configured. See GetThereAuth.TelemetryRegistration.
+builder.Services.AddGetThereTelemetry(builder.Configuration, "GetThereAPI");
 
 builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
 {

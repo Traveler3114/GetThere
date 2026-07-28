@@ -23,6 +23,18 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />
   </ItemGroup>
 
+  <ItemGroup Label="Observability">
+    <!--
+      Traces and metrics for both APIs. Inert unless Otel:Endpoint is configured, so adding these
+      changes nothing about how the services run until somewhere is set up to receive the data.
+    -->
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
+  </ItemGroup>
+
   <ItemGroup Label="API">
     <!-- Pinned: transitively resolves to a version with a known high-severity advisory (NU1903). -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />

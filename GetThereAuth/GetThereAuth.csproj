@@ -1,12 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Server-side auth building blocks shared by GetThereAPI and TransitInfoAPI.
+    Server-side building blocks shared by GetThereAPI and TransitInfoAPI: the authentication
+    invariants both were maintaining separately, and the telemetry registration both need.
 
     This is deliberately separate from GetThereShared: that project is referenced by the MAUI app,
-    and pulling ASP.NET Identity and EF Core into it would drag the whole server stack into the
-    mobile build. Nothing here touches a DbContext or an entity type — the two APIs keep their own
-    AppUser and RefreshToken tables, so their EF models are untouched by taking a dependency here.
+    and pulling ASP.NET Identity, EF Core and OpenTelemetry into it would drag the whole server
+    stack into the mobile build. Nothing here touches a DbContext or an entity type — the two APIs
+    keep their own AppUser and RefreshToken tables, so their EF models are untouched by taking a
+    dependency here.
+
+    Keep what lands here invariant. Anything that differs between the two services, or that either
+    might want to change on its own schedule, belongs in that service.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -17,6 +22,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
 
   <ItemGroup>

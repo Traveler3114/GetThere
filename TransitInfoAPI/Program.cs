@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
+using GetThereAuth;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -43,6 +45,9 @@ builder.Services.AddDbContext<TransitDbContext>(options =>
 // whose database was unreachable still looked healthy and a load balancer kept routing to it.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<TransitDbContext>("database", tags: ["ready"]);
+
+// Inert unless Otel:Endpoint is configured. See GetThereAuth.TelemetryRegistration.
+builder.Services.AddGetThereTelemetry(builder.Configuration, "TransitInfoAPI");
 
 builder.Services.AddHttpClient("gtfs", client =>
 {
