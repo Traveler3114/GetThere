@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Server-side auth building blocks shared by GetThereAPI and TransitInfoAPI.
+
+    This is deliberately separate from GetThereShared: that project is referenced by the MAUI app,
+    and pulling ASP.NET Identity and EF Core into it would drag the whole server stack into the
+    mobile build. Nothing here touches a DbContext or an entity type — the two APIs keep their own
+    AppUser and RefreshToken tables, so their EF models are untouched by taking a dependency here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

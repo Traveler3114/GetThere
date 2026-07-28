@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\GetThereAPI\GetThereAPI.csproj" />
+    <ProjectReference Include="..\..\GetThereAuth\GetThereAuth.csproj" />
     <ProjectReference Include="..\..\GetThereShared\GetThereShared.csproj" />
     <ProjectReference Include="..\..\TransitInfoAPI\TransitInfoAPI.csproj" />
   </ItemGroup>

@@ -39,6 +39,10 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\GetThereAuth\GetThereAuth.csproj" />
+  </ItemGroup>
+
   <!--
     No ProjectReference to GetThereShared, GetThereAPI or GetThere — deliberately.
     TransitInfoAPI is an independent service: it owns public transit reference data, has its own
@@ -46,6 +50,14 @@
     over HTTP as an ordinary authenticated client and maps its responses into its own types.
     A shared assembly would couple the two release cycles and let a change made for one service
     silently alter the other. Contracts live in TransitInfoAPI.Contracts.
+
+    GetThereAuth is the one carve-out, and it is narrow on purpose. The rule above was costing more
+    than it saved for authentication specifically: the login and registration endpoints here were
+    still open account-enumeration oracles months after the identical endpoints in GetThereAPI were
+    hardened, because the fix had to be remembered twice and was not. GetThereAuth therefore holds
+    only invariants — how a token is signed and hashed, and what counts as refresh-token reuse —
+    and nothing service-specific. It has no DbContext, no entity types and no knowledge of either
+    service's permission vocabulary, so this project's EF model and contracts stay entirely its own.
   -->
 
 </Project>

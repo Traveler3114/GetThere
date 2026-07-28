@@ -44,7 +44,7 @@ public class AuthManager
             // Deliberately indistinguishable from success. Answering "email already in use" turns
             // registration into an oracle for whether an address has an account here. The address
             // owner is told by mail instead — see the note below.
-            _userManager.PasswordHasher.HashPassword(new AppUser(), request.Password);
+            GetThereAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
             LogAudit(existingUser.Id, "RegisterAttemptOnExistingAccount", "User", existingUser.Id);
             await _db.SaveChangesAsync(ct);
 
@@ -79,7 +79,7 @@ public class AuthManager
         {
             // Hash the supplied password anyway so an unknown address does not answer measurably
             // faster than a known one, which would make the endpoint an account oracle.
-            _userManager.PasswordHasher.HashPassword(new AppUser(), request.Password);
+            GetThereAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
         }
 
@@ -128,13 +128,21 @@ public class AuthManager
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
-        if (existingRefreshToken is null)
+        // The rules — including why reuse must be tested before the active check — live in
+        // GetThereAuth so this API and TransitInfoAPI cannot disagree about what counts as theft.
+        var verdict = GetThereAuth.RefreshTokenEvaluator.Evaluate(
+            found: existingRefreshToken is not null,
+            hasReplacement: existingRefreshToken?.ReplacedByToken is not null,
+            isActive: existingRefreshToken?.IsActive ?? false,
+            storedIpAddress: existingRefreshToken?.IpAddress,
+            presentedIpAddress: ipAddress);
+
+        if (existingRefreshToken is null || verdict is GetThereAuth.RefreshTokenVerdict.Invalid)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
 
-        // Token reuse detection — if this token was already replaced, revoke all tokens for this user.
-        // This must run *before* the IsActive guard: rotation sets both RevokedAt and ReplacedByToken,
-        // so a replayed rotated token is already inactive and would otherwise never reach this branch.
-        if (existingRefreshToken.ReplacedByToken is not null)
+        // Reuse means the token was already rotated once and has been presented again: assume it
+        // was stolen and revoke every live token the user has.
+        if (verdict is GetThereAuth.RefreshTokenVerdict.ReuseDetected)
         {
             var revokedAt = DateTime.UtcNow;
             var userTokens = await _db.RefreshTokens
@@ -145,18 +153,6 @@ public class AuthManager
 
             LogAudit(existingRefreshToken.UserId, "RefreshTokenReuseDetected", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
             await _db.SaveChangesAsync(ct);
-            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
-        }
-
-        if (!existingRefreshToken.IsActive)
-            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
-
-        // IP binding. A caller that presents no address at all is rejected when the token was issued
-        // with one — otherwise suppressing the address is enough to skip the check entirely. A token
-        // stored without an address (issued before the address was captured) cannot be compared, so
-        // it is allowed through.
-        if (existingRefreshToken.IpAddress is not null && existingRefreshToken.IpAddress != ipAddress)
-        {
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 

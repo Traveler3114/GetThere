@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="GetThere/GetThere.csproj" />
   <Project Path="GetThereAPI/GetThereAPI.csproj" />
+  <Project Path="GetThereAuth/GetThereAuth.csproj" />
   <Project Path="GetThereShared/GetThereShared.csproj" />
   <Project Path="TransitInfoAPI/TransitInfoAPI.csproj" />
   <Project Path="tests/GetThere.Tests/GetThere.Tests.csproj" />
