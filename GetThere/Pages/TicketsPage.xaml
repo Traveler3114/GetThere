@@ -19,6 +19,7 @@
         <helpers:FilterChipConverter x:Key="Chip" />
         <helpers:TicketStatusColorConverter x:Key="StatusColor" />
         <helpers:TicketStatusOpacityConverter x:Key="StatusOpacity" />
+        <helpers:PriceCurrencyConverter x:Key="Price" />
     </ContentPage.Resources>
 
     <Grid>
@@ -135,8 +136,14 @@
                                 <shapes:RoundRectangle CornerRadius="16" />
                             </Border.StrokeShape>
                             <Border.GestureRecognizers>
+                                <!--
+                                    Offers the ticket's actions. This used to invoke Cancel
+                                    directly — tapping anywhere on a card was the only interaction
+                                    available, and it was offered on already-used and expired
+                                    tickets too.
+                                -->
                                 <TapGestureRecognizer
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=CancelTicketCommand}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=ShowTicketActionsCommand}"
                                     CommandParameter="{Binding .}" />
                             </Border.GestureRecognizers>
                             <Grid
@@ -183,10 +190,15 @@
                                         FontSize="12"
                                         Style="{StaticResource DsMetaCaption}"
                                         Text="{Binding ValidTo, StringFormat='{0:dd.MM.yyyy}'}" />
-                                    <Label
-                                        FontSize="13"
-                                        Style="{StaticResource DsMetaValue}"
-                                        Text="{Binding Price, StringFormat='{0:N2} EUR'}" />
+                                    <Label FontSize="13" Style="{StaticResource DsMetaValue}">
+                                        <Label.Text>
+                                            <!--  Price and currency together: each ticket carries its own currency.  -->
+                                            <MultiBinding Converter="{StaticResource Price}">
+                                                <Binding Path="Price" />
+                                                <Binding Path="Currency" />
+                                            </MultiBinding>
+                                        </Label.Text>
+                                    </Label>
                                 </HorizontalStackLayout>
                             </Grid>
                         </Border>

@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using GetThereShared.Common;
 using GetThereShared.Enums;
 
 namespace GetThere.Helpers;
@@ -123,6 +124,34 @@ public class InverseBoolConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is bool b ? !b : value;
+}
+
+/// <summary>
+/// Formats a ticket's price in the currency that ticket was actually saved in.
+/// <para>
+/// The ticket list previously formatted every price with a hardcoded "EUR" suffix while each
+/// ticket carries its own currency and the import form offers a picker, so a ticket saved in GBP
+/// was displayed to the user as euros. Takes price and currency as a multi-binding because neither
+/// alone is enough to render the value, and defers to <see cref="MoneyFormatter"/> so wallet
+/// balances and ticket prices format identically.
+/// </para>
+/// </summary>
+public class PriceCurrencyConverter : IMultiValueConverter
+{
+    public object? Convert(object?[]? values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (values is not { Length: >= 1 }) return string.Empty;
+
+        // A ticket with no price shows nothing rather than "0.00" — free and unrecorded are not
+        // the same thing, and the import form leaves price optional.
+        if (values[0] is not decimal price) return string.Empty;
+
+        var currency = values.Length > 1 ? values[1] as string : null;
+        return MoneyFormatter.Format(price, currency, culture);
+    }
+
+    public object?[]? ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException("Prices are display-only.");
 }
 
 /// <summary>

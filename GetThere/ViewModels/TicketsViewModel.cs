@@ -133,9 +133,49 @@ public partial class TicketsViewModel : BaseViewModel
         await Shell.Current.GoToAsync("importticket");
     }
 
+    /// <summary>
+    /// Offers the actions available on a ticket. Tapping a card used to cancel it outright — the
+    /// only interaction the list had, offered even on tickets already used or expired. Cancelling
+    /// is now one deliberate choice among several rather than the default consequence of a tap.
+    /// </summary>
+    [RelayCommand]
+    private async Task ShowTicketActions(ImportedTicketResponse ticket)
+    {
+        if (ticket.Status != ImportedTicketStatus.Active)
+        {
+            // Nothing can be done to a terminal ticket, so offering a menu would only lead to a
+            // rejection. Say why instead.
+            ErrorText = $"That ticket is {ticket.Status.ToString().ToLowerInvariant()} — no actions are available.";
+            HasError = true;
+            return;
+        }
+
+        var choice = await Shell.Current.DisplayActionSheetAsync(
+            ticket.TicketName ?? "Ticket", "Close", null, "Mark as used", "Cancel ticket");
+
+        switch (choice)
+        {
+            case "Mark as used":
+                await MarkUsed(ticket);
+                break;
+            case "Cancel ticket":
+                await CancelTicket(ticket);
+                break;
+        }
+    }
+
     [RelayCommand]
     private async Task CancelTicket(ImportedTicketResponse ticket)
     {
+        // The server rejects cancelling a terminal ticket; catching it here means the user gets
+        // told before a round trip rather than after a 400.
+        if (ticket.Status != ImportedTicketStatus.Active)
+        {
+            ErrorText = $"That ticket is already {ticket.Status.ToString().ToLowerInvariant()}.";
+            HasError = true;
+            return;
+        }
+
         var confirm = await Shell.Current.DisplayAlertAsync("Cancel Ticket", "Cancel this ticket?", "Yes", "No");
         if (!confirm) return;
         var result = await _importedService.CancelAsync(ticket.Id);
@@ -146,6 +186,33 @@ public partial class TicketsViewModel : BaseViewModel
         else
         {
             ErrorText = result.Message ?? "Could not cancel ticket.";
+            HasError = true;
+        }
+    }
+
+    /// <summary>
+    /// Marks a ticket used. Nothing in the app could reach this before, so the "Used" filter chip
+    /// could only ever show an empty list.
+    /// </summary>
+    [RelayCommand]
+    private async Task MarkUsed(ImportedTicketResponse ticket)
+    {
+        if (ticket.Status != ImportedTicketStatus.Active)
+        {
+            ErrorText = $"That ticket is already {ticket.Status.ToString().ToLowerInvariant()}.";
+            HasError = true;
+            return;
+        }
+
+        var result = await _importedService.UpdateStatusAsync(ticket.Id, ImportedTicketStatus.Used);
+        if (result.Success)
+        {
+            _analytics.TrackEvent("ticket_marked_used");
+            await LoadTickets();
+        }
+        else
+        {
+            ErrorText = result.Message ?? "Could not update ticket.";
             HasError = true;
         }
     }

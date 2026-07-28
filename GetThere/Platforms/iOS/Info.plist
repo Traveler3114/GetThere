@@ -28,5 +28,14 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<!--
+		Required before ticket import can photograph or pick a ticket. iOS terminates the app
+		outright when a usage description is missing, and App Store review rejects a build that
+		links the camera without one.
+	-->
+	<key>NSCameraUsageDescription</key>
+	<string>GetThere uses the camera to photograph a ticket or scan its QR code so it can be added to your wallet.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GetThere reads photos you choose so it can import a ticket or booking confirmation from them.</string>
 </dict>
 </plist>

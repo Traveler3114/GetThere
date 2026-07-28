@@ -28,7 +28,7 @@ public static partial class TicketTextScraper
     private static partial Regex TimeOfDay { get; }
 
     /// <summary>Amount then code (12,50 EUR) or code then amount (EUR 12.50).</summary>
-    [GeneratedRegex(@"(?:(?<amount>\d+[.,]\d{2})\s*(?<code>EUR|USD|GBP|CHF|HRK)|(?<code2>EUR|USD|GBP|CHF|HRK|€|\$|£)\s*(?<amount2>\d+[.,]\d{2}))", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?:(?<amount>\d+[.,]\d{2})\s*(?<code>EUR|USD|GBP|CHF)|(?<code2>EUR|USD|GBP|CHF|€|\$|£)\s*(?<amount2>\d+[.,]\d{2}))", RegexOptions.IgnoreCase)]
     private static partial Regex Money { get; }
 
     /// <summary>"Zagreb → Rijeka", "Zagreb - Rijeka", "Zagreb to Rijeka".</summary>
