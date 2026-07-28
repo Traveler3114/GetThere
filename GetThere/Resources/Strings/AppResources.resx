@@ -311,7 +311,6 @@
   <data name="Ticket_TicketId" xml:space="preserve"><value>TICKET ID</value></data>
   <data name="Ticket_Paid" xml:space="preserve"><value>PAID</value></data>
   <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} wallet</value></data>
-  <data name="Ticket_AddToWallet" xml:space="preserve"><value>Add to Wallet</value></data>
   <data name="Ticket_ShowJourney" xml:space="preserve"><value>Show journey</value></data>
   <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
   <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Could not load this ticket.</value></data>
@@ -330,4 +329,43 @@
   <data name="Map_Departures" xml:space="preserve"><value>Departures</value></data>
   <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vehicles live</value></data>
   <data name="Login_Tagline" xml:space="preserve"><value>One account for every operator's tickets, wallet and live journeys</value></data>
+  <data name="Common_Create" xml:space="preserve"><value>Create</value></data>
+  <data name="Common_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
+  <data name="Journeys_Title" xml:space="preserve"><value>Journeys</value></data>
+  <data name="Journeys_Suggested" xml:space="preserve"><value>SUGGESTED TRIPS</value></data>
+  <data name="Journeys_AcceptSuggestion" xml:space="preserve"><value>Create journey</value></data>
+  <data name="Journeys_NoItems" xml:space="preserve"><value>No journeys yet</value></data>
+  <data name="Journeys_NoItemsSubtitle" xml:space="preserve"><value>Group tickets that belong to the same trip, and they will show up here.</value></data>
+  <data name="Journeys_CouldNotLoad" xml:space="preserve"><value>We could not load your journeys.</value></data>
+  <data name="Journeys_CouldNotCreate" xml:space="preserve"><value>We could not create that journey.</value></data>
+  <data name="Journeys_NewTitle" xml:space="preserve"><value>New journey</value></data>
+  <data name="Journeys_NewPrompt" xml:space="preserve"><value>What should this trip be called?</value></data>
+  <data name="Journey_Legs" xml:space="preserve"><value>LEGS</value></data>
+  <data name="Journey_LegsShort" xml:space="preserve"><value>legs</value></data>
+  <data name="Journey_LegCount" xml:space="preserve"><value>{0} legs</value></data>
+  <data name="Journey_LegImported" xml:space="preserve"><value>Imported</value></data>
+  <data name="Journey_LegPurchased" xml:space="preserve"><value>Purchased</value></data>
+  <data name="Journey_UntitledLeg" xml:space="preserve"><value>Untitled ticket</value></data>
+  <data name="Journey_NoDates" xml:space="preserve"><value>No dates</value></data>
+  <data name="Journey_NoLegs" xml:space="preserve"><value>No tickets in this journey</value></data>
+  <data name="Journey_NoLegsSubtitle" xml:space="preserve"><value>Add tickets to it from your wallet.</value></data>
+  <data name="Journey_Rename" xml:space="preserve"><value>Rename journey</value></data>
+  <data name="Journey_RenameTitle" xml:space="preserve"><value>Rename journey</value></data>
+  <data name="Journey_RenamePrompt" xml:space="preserve"><value>What should this trip be called?</value></data>
+  <data name="Journey_Cancel" xml:space="preserve"><value>Cancel journey</value></data>
+  <data name="Journey_CancelTitle" xml:space="preserve"><value>Cancel this journey?</value></data>
+  <data name="Journey_CancelPrompt" xml:space="preserve"><value>The trip is marked cancelled. Your tickets stay in your wallet.</value></data>
+  <data name="Journey_CancelConfirm" xml:space="preserve"><value>Cancel journey</value></data>
+  <data name="Journey_Delete" xml:space="preserve"><value>Delete journey</value></data>
+  <data name="Journey_DeleteTitle" xml:space="preserve"><value>Delete this journey?</value></data>
+  <data name="Journey_DeletePrompt" xml:space="preserve"><value>Only the grouping is removed. Every ticket in it stays in your wallet.</value></data>
+  <data name="Journey_DeleteConfirm" xml:space="preserve"><value>Delete</value></data>
+  <data name="Journey_RemoveLeg" xml:space="preserve"><value>Remove from journey</value></data>
+  <data name="Journey_RemoveLegTitle" xml:space="preserve"><value>Remove this ticket?</value></data>
+  <data name="Journey_RemoveLegPrompt" xml:space="preserve"><value>It leaves this trip and returns to your wallet ungrouped.</value></data>
+  <data name="Journey_RemoveLegConfirm" xml:space="preserve"><value>Remove</value></data>
+  <data name="JourneyStatus_Planned" xml:space="preserve"><value>PLANNED</value></data>
+  <data name="JourneyStatus_Active" xml:space="preserve"><value>ACTIVE</value></data>
+  <data name="JourneyStatus_Completed" xml:space="preserve"><value>COMPLETED</value></data>
+  <data name="JourneyStatus_Cancelled" xml:space="preserve"><value>CANCELLED</value></data>
 </root>

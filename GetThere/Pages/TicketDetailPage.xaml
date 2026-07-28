@@ -222,17 +222,18 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!--  ── ACTIONS ──  -->
-                <Grid
-                    ColumnDefinitions="*,*"
-                    ColumnSpacing="10"
-                    IsVisible="{Binding HasTicket}">
-                    <Button Style="{StaticResource DsGhostButton}" Text="{localization:Translate Ticket_AddToWallet}" />
-                    <Button
-                        Grid.Column="1"
-                        Style="{StaticResource DsGhostButton}"
-                        Text="{localization:Translate Ticket_ShowJourney}" />
-                </Grid>
+                <!--
+                    ── ACTIONS ──
+                    "Add to Wallet" used to sit here with no Command binding at all — Apple/Google
+                    Wallet export is not built, so the button did nothing when tapped. Removed
+                    rather than left dead; re-add it when the feature exists.
+                    "Show Journey" appears only when this ticket is actually in one.
+                -->
+                <Button
+                    Command="{Binding ShowJourneyCommand}"
+                    IsVisible="{Binding HasJourney}"
+                    Style="{StaticResource DsGhostButton}"
+                    Text="{localization:Translate Ticket_ShowJourney}" />
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

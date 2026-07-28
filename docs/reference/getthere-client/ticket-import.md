@@ -317,8 +317,69 @@ the abstraction exists so wiring a real provider is one registration change. `Ap
 | `AnalyticsService` is a stub | Events go nowhere |
 | `SourceFor` duplicates server logic | Can drift; fix is to add `Source` to `TicketUploadResponse` |
 | `MapModeChip.Key` ↔ `MODE_ROUTE_TYPES` | Cross-language coupling with no compile-time check |
-| No journey UI | The API supports journeys and suggestions; no client screen consumes them yet |
+| Suggestion dismissal is not persisted | A dismissed proposal returns on the next load |
+| No "add existing ticket to a journey" flow | Tickets join a journey via a suggestion or at creation; there is no picker on an existing journey |
 
-The last one is the largest functional gap between the API and the client: `JourneysController`,
-`JourneyManager` and the full journey contract surface all exist and are documented, with nothing in
-`Pages/` or `ViewModels/` calling them.
+---
+
+## Journeys
+
+Journeys live behind a **segmented control on the Tickets screen** — `Tickets | Journeys` — rather
+than a fifth tab, because `AppShell` documents that the phone frames have no room for one.
+
+```
+TicketsViewModel
+  ├── ImportedTickets          the Tickets half
+  └── Journeys : JourneysViewModel    the Journeys half
+```
+
+`JourneysViewModel` is **composed, not merged**. Journeys and tickets are two views of one wallet, but
+their loads, busy flags and error states are independent — a failing journeys call must not blank the
+ticket list. It is registered by the same namespace convention as every other view model and injected
+into `TicketsViewModel`.
+
+Journeys load **the first time the segment is opened**, gated on `HasLoadedOnce`, rather than on every
+page appearance: most sessions never open it. The flag is set even when the load fails, so a failure
+shows its error instead of silently retrying on each switch.
+
+### Suggestions
+
+`GET /journeys/suggestions` proposals render as outlined cards above the list, each showing the
+server's `Reason` verbatim — it is written to be shown directly. Accepting one is a **single create**
+carrying the suggested ticket ids, not a create plus N adds.
+
+`LoadSuggestions` runs after the list and outside its `try`, and swallows its own failures. There is
+no user-visible feature to degrade: the card simply does not appear. Dismissing is session-only and
+nothing is persisted.
+
+### `JourneyDetailPage`
+
+Reached as `journeydetail?journeyId=N`. Shows the trip, its legs ordered in time, and rename / cancel /
+delete.
+
+Two details carry real risk:
+
+**`JourneyLegItem` always carries `IsImported`.** A leg's `Id` alone does not identify it — imported
+and purchased tickets share an id space only by accident — so removal puts the id in
+`ImportedTicketIds` or `TicketIds` accordingly. Getting that wrong removes a different ticket.
+
+**The total is hidden when legs disagree on currency.** There is no conversion anywhere in the system,
+so summing across currencies would produce a number that is simply wrong — the same reasoning that
+makes the API reject a cross-currency purchase.
+
+Only `Cancelled` is offered as a status. `Planned`/`Active`/`Completed` are recomputed server-side from
+the legs by the expiry sweep, so offering them would produce a value that silently reverts.
+
+Delete and remove-leg are both phrased around what actually happens: the grouping goes, the tickets
+stay in the wallet.
+
+### `Show journey` on a ticket
+
+`TicketDetailPage`'s button is bound to `ShowJourneyCommand` and visible only when the ticket is in a
+journey. This required adding **`JourneyId` to `TicketResponse`** (and to `TicketMapper`), mirroring
+`ImportedTicketResponse` — a purchased ticket is a journey leg just as an imported one is, and the
+contract had no way to say so.
+
+The adjacent `Add to Wallet` button was **removed**: it had no `Command` binding at all, and
+Apple/Google Wallet export is not built. Its `Ticket_AddToWallet` string was deleted from both resource
+files.

@@ -157,6 +157,11 @@ public class PriceCurrencyConverter : IMultiValueConverter
 /// <summary>
 /// Ticket status → badge colour, per the imported design system. Pass "surface" as the
 /// converter parameter for the pill background, anything else for the label colour.
+/// <para>
+/// Also serves <c>JourneyStatus</c>, whose <c>Active</c> and <c>Cancelled</c> members coincide with
+/// a ticket's and whose <c>Planned</c>/<c>Completed</c> are listed below. The switch is over the
+/// string form, so the two enums cannot collide — no ticket status is named Planned or Completed.
+/// </para>
 /// </summary>
 public class TicketStatusColorConverter : IValueConverter
 {
@@ -170,6 +175,12 @@ public class TicketStatusColorConverter : IValueConverter
             "Used" => surface ? "#374151" : "#D1D5DB",
             "Expired" => surface ? "#3B1214" : "#F87171",
             "Cancelled" => surface ? "#3B2A08" : "#FBBF24",
+
+            // Journeys: an upcoming trip reads as informational rather than live, and a finished one
+            // is spent in the same way a used ticket is.
+            "Planned" => surface ? "#1E3A5F" : "#60A5FA",
+            "Completed" => surface ? "#374151" : "#D1D5DB",
+
             _ => surface ? "#374151" : "#D1D5DB"
         };
 

@@ -98,6 +98,12 @@ public static class MauiProgram
             return new ImportedTicketService(clientFactory.CreateClient("GetThereAPI"));
         });
 
+        builder.Services.AddTransient(sp =>
+        {
+            var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            return new JourneyService(clientFactory.CreateClient("GetThereAPI"));
+        });
+
         // Stateless: it wraps the platform pickers and a Skia re-encode, holding nothing between
         // calls, so one instance serves every import.
         builder.Services.AddSingleton<TicketCaptureService>();

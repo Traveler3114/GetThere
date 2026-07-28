@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--  One trip and its legs. Reached as journeydetail?journeyId=N.  -->
+<ContentPage
+    x:Class="GetThere.Pages.JourneyDetailPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    x:DataType="vm:JourneyDetailViewModel"
+    Title="{Binding Name}"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
+    Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <helpers:TicketStatusColorConverter x:Key="StatusColor" />
+    </ContentPage.Resources>
+
+    <Grid>
+        <components:AnimatedBackground />
+
+        <ScrollView>
+            <VerticalStackLayout
+                Padding="20,32,20,40"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="720"
+                Spacing="16">
+
+                <!--  ── BACK ──  -->
+                <Button
+                    Command="{Binding BackCommand}"
+                    HorizontalOptions="Start"
+                    Style="{StaticResource DsGhostButton}"
+                    Text="{localization:Translate App_Back}" />
+
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                <!--  ── HEADER ──  -->
+                <Border
+                    Padding="20"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                    IsVisible="{Binding HasJourney}"
+                    StrokeThickness="0">
+                    <Border.StrokeShape>
+                        <shapes:RoundRectangle CornerRadius="20" />
+                    </Border.StrokeShape>
+                    <VerticalStackLayout Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <Label
+                                Grid.Column="0"
+                                Style="{StaticResource DsPageTitle}"
+                                Text="{Binding Name}" />
+                            <Border
+                                Grid.Column="1"
+                                BackgroundColor="{Binding StatusText, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                Style="{StaticResource DsBadge}"
+                                VerticalOptions="Start">
+                                <Label
+                                    Style="{StaticResource DsBadgeLabel}"
+                                    Text="{Binding StatusText}"
+                                    TextColor="{Binding StatusText, Converter={StaticResource StatusColor}}" />
+                            </Border>
+                        </Grid>
+
+                        <Label Style="{StaticResource DsCardSubtitle}" Text="{Binding DateRangeText}" />
+
+                        <HorizontalStackLayout Spacing="12">
+                            <Label Style="{StaticResource DsMetaCaption}" Text="{Binding LegCountText}" />
+                            <Label
+                                IsVisible="{Binding HasTotal}"
+                                Style="{StaticResource DsMetaValue}"
+                                Text="{Binding TotalText}" />
+                        </HorizontalStackLayout>
+
+                        <Label
+                            IsVisible="{Binding HasNotes}"
+                            Style="{StaticResource DsCardSubtitle}"
+                            Text="{Binding Notes}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!--  ── LEGS ──  -->
+                <Label
+                    IsVisible="{Binding HasLegs}"
+                    Style="{StaticResource DsMetaCaption}"
+                    Text="{localization:Translate Journey_Legs}" />
+
+                <VerticalStackLayout
+                    BindableLayout.ItemsSource="{Binding Legs}"
+                    IsVisible="{Binding HasLegs}"
+                    Spacing="0">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="vm:JourneyLegItem">
+                            <Border
+                                Margin="0,6"
+                                Padding="16"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                                StrokeThickness="0">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="16" />
+                                </Border.StrokeShape>
+                                <Grid
+                                    ColumnDefinitions="*,Auto"
+                                    ColumnSpacing="12"
+                                    RowDefinitions="Auto,Auto,Auto,Auto"
+                                    RowSpacing="4">
+                                    <Label
+                                        Grid.Row="0"
+                                        Grid.Column="0"
+                                        Style="{StaticResource DsCardTitle}"
+                                        Text="{Binding Title}" />
+                                    <Border
+                                        Grid.Row="0"
+                                        Grid.Column="1"
+                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                        Style="{StaticResource DsBadge}">
+                                        <Label
+                                            Style="{StaticResource DsBadgeLabel}"
+                                            Text="{Binding Status}"
+                                            TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
+                                    </Border>
+
+                                    <Label
+                                        Grid.Row="1"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="2"
+                                        IsVisible="{Binding HasRoute}"
+                                        Style="{StaticResource DsCardSubtitle}"
+                                        Text="{Binding Route}" />
+
+                                    <HorizontalStackLayout
+                                        Grid.Row="2"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="2"
+                                        Spacing="12">
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding When}" />
+                                        <Label
+                                            FontSize="12"
+                                            IsVisible="{Binding HasOperator}"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding Operator}" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding SourceLabel}" />
+                                        <Label
+                                            FontSize="13"
+                                            IsVisible="{Binding HasPrice}"
+                                            Style="{StaticResource DsMetaValue}"
+                                            Text="{Binding PriceText}" />
+                                    </HorizontalStackLayout>
+
+                                    <Button
+                                        Grid.Row="3"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="2"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:JourneyDetailViewModel}}, Path=RemoveLegCommand}"
+                                        CommandParameter="{Binding .}"
+                                        HorizontalOptions="Start"
+                                        Style="{StaticResource DsGhostButton}"
+                                        Text="{localization:Translate Journey_RemoveLeg}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!--  ── EMPTY ──  -->
+                <VerticalStackLayout
+                    IsVisible="{Binding HasLegs, Converter={StaticResource InverseBoolConverter}}"
+                    Spacing="8">
+                    <Label
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Style="{StaticResource DsCardTitle}"
+                        Text="{localization:Translate Journey_NoLegs}" />
+                    <Label
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Style="{StaticResource DsCardSubtitle}"
+                        Text="{localization:Translate Journey_NoLegsSubtitle}" />
+                </VerticalStackLayout>
+
+                <!--  ── ACTIONS ──  -->
+                <VerticalStackLayout
+                    IsVisible="{Binding HasJourney}"
+                    Spacing="8">
+                    <Button
+                        Command="{Binding RenameCommand}"
+                        Style="{StaticResource DsGhostButton}"
+                        Text="{localization:Translate Journey_Rename}" />
+                    <Button
+                        Command="{Binding CancelCommand}"
+                        IsVisible="{Binding CanCancel}"
+                        Style="{StaticResource DsGhostButton}"
+                        Text="{localization:Translate Journey_Cancel}" />
+                    <!--  Deleting a journey releases its tickets; it never deletes them.  -->
+                    <Button
+                        Command="{Binding DeleteCommand}"
+                        Style="{StaticResource DsGhostButton}"
+                        Text="{localization:Translate Journey_Delete}" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

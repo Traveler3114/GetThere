@@ -373,7 +373,7 @@ Collected here because they are easy to mistake for oversights when reading the 
 | No payment provider | `/wallet/topup` mints balance, so it is admin-gated via `wallets.topup` |
 | `NoOpTicketFileScanner` | Uploaded files stored and served back unscanned |
 | No OCR | A photo with no barcode yields nothing |
-| No journey UI | The API and contracts are complete; no client screen consumes them |
+| No "add existing ticket to a journey" picker | Tickets join via a suggestion or at creation only |
 | Client API URL is compile-time | A released build cannot be repointed |
 | `ApiMessageMapper` covers auth codes only | Money-path errors display in English |
 | `AnalyticsService` is a stub | Call sites exist; events go nowhere |

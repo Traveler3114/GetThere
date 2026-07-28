@@ -31,6 +31,7 @@ public static class TicketMapper
         ValidFrom = t.ValidFrom,
         ValidTo = t.ValidTo,
         Status = t.Status,
+        JourneyId = t.JourneyId,
         Option = new TicketOptionResponse
         {
             Id = t.Purchase.TicketOption.Id,

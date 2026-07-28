@@ -5,6 +5,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:contracts="clr-namespace:GetThereShared.Contracts;assembly=GetThereShared"
     xmlns:helpers="clr-namespace:GetThere.Helpers"
     xmlns:components="clr-namespace:GetThere.Components"
     xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
@@ -29,18 +30,50 @@
             Padding="20,32,20,96"
             HorizontalOptions="Center"
             MaximumWidthRequest="720"
-            RowDefinitions="Auto,Auto,Auto,*">
+            RowDefinitions="Auto,Auto,Auto,Auto,*">
 
             <VerticalStackLayout Grid.Row="0" Spacing="4">
                 <Label Style="{StaticResource DsPageTitle}" Text="{localization:Translate Tickets_Title}" />
                 <Label Style="{StaticResource DsPageSubtitle}" Text="{localization:Translate Tickets_Subtitle}" />
             </VerticalStackLayout>
 
-            <!--  ── FILTER CHIPS ──  -->
-            <ScrollView
+            <!--  ── TICKETS / JOURNEYS SEGMENT ──  -->
+            <HorizontalStackLayout
                 Grid.Row="1"
                 Margin="0,16,0,0"
+                Spacing="8">
+                <Border
+                    BackgroundColor="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Tickets:bg'}"
+                    Stroke="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Tickets:stroke'}"
+                    Style="{StaticResource DsChip}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowSegmentCommand}" CommandParameter="Tickets" />
+                    </Border.GestureRecognizers>
+                    <Label
+                        Style="{StaticResource DsChipLabel}"
+                        Text="{localization:Translate Tickets_Title}"
+                        TextColor="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Tickets:text'}" />
+                </Border>
+                <Border
+                    BackgroundColor="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Journeys:bg'}"
+                    Stroke="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Journeys:stroke'}"
+                    Style="{StaticResource DsChip}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowSegmentCommand}" CommandParameter="Journeys" />
+                    </Border.GestureRecognizers>
+                    <Label
+                        Style="{StaticResource DsChipLabel}"
+                        Text="{localization:Translate Journeys_Title}"
+                        TextColor="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Journeys:text'}" />
+                </Border>
+            </HorizontalStackLayout>
+
+            <!--  ── FILTER CHIPS (tickets only)  ──  -->
+            <ScrollView
+                Grid.Row="2"
+                Margin="0,16,0,0"
                 HorizontalScrollBarVisibility="Never"
+                IsVisible="{Binding ShowTickets}"
                 Orientation="Horizontal">
                 <HorizontalStackLayout Spacing="8">
                     <Border
@@ -95,7 +128,7 @@
             </ScrollView>
 
             <Label
-                Grid.Row="2"
+                Grid.Row="3"
                 Margin="0,8,0,0"
                 IsVisible="{Binding HasError}"
                 Style="{StaticResource DsErrorLabel}"
@@ -104,8 +137,9 @@
             <!--  ── TICKET LIST ──  -->
             <CollectionView
                 x:Name="TicketList"
-                Grid.Row="3"
+                Grid.Row="4"
                 Margin="0,12,0,0"
+                IsVisible="{Binding ShowTickets}"
                 ItemsSource="{Binding ImportedTickets}">
                 <CollectionView.EmptyView>
                     <VerticalStackLayout
@@ -205,13 +239,184 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
+
+            <!--  ── JOURNEYS ──  -->
+            <Grid
+                Grid.Row="4"
+                Margin="0,12,0,0"
+                IsVisible="{Binding ShowJourneys}"
+                RowDefinitions="Auto,Auto,*"
+                RowSpacing="12">
+
+                <Label
+                    Grid.Row="0"
+                    IsVisible="{Binding Journeys.HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding Journeys.ErrorText}" />
+
+                <!--
+                    Suggested groupings. Proposals only — the server never applies one, because a
+                    wrong guess would silently reshuffle the user's wallet.
+                -->
+                <VerticalStackLayout
+                    Grid.Row="1"
+                    IsVisible="{Binding Journeys.HasSuggestions}"
+                    Spacing="8">
+                    <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Journeys_Suggested}" />
+                    <CollectionView ItemsSource="{Binding Journeys.Suggestions}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="contracts:JourneySuggestionResponse">
+                                <Border
+                                    Margin="0,4"
+                                    Padding="16"
+                                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                                    Stroke="{StaticResource Primary}"
+                                    StrokeThickness="1">
+                                    <Border.StrokeShape>
+                                        <shapes:RoundRectangle CornerRadius="16" />
+                                    </Border.StrokeShape>
+                                    <VerticalStackLayout Spacing="6">
+                                        <Label Style="{StaticResource DsCardTitle}" Text="{Binding SuggestedName}" />
+                                        <Label Style="{StaticResource DsCardSubtitle}" Text="{Binding Reason}" />
+                                        <HorizontalStackLayout Margin="0,6,0,0" Spacing="8">
+                                            <Button
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=Journeys.AcceptSuggestionCommand}"
+                                                CommandParameter="{Binding .}"
+                                                Style="{StaticResource DsVioletButton}"
+                                                Text="{localization:Translate Journeys_AcceptSuggestion}" />
+                                            <Button
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=Journeys.DismissSuggestionCommand}"
+                                                CommandParameter="{Binding .}"
+                                                Style="{StaticResource DsGhostButton}"
+                                                Text="{localization:Translate Common_Dismiss}" />
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <CollectionView
+                    Grid.Row="2"
+                    ItemsSource="{Binding Journeys.Journeys}">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout
+                            HorizontalOptions="Center"
+                            Spacing="8"
+                            VerticalOptions="Center">
+                            <Label
+                                FontSize="20"
+                                HorizontalOptions="Center"
+                                Style="{StaticResource DsCardTitle}"
+                                Text="{localization:Translate Journeys_NoItems}" />
+                            <Label
+                                HorizontalOptions="Center"
+                                HorizontalTextAlignment="Center"
+                                Style="{StaticResource DsCardSubtitle}"
+                                Text="{localization:Translate Journeys_NoItemsSubtitle}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="contracts:JourneyResponse">
+                            <Border
+                                Margin="0,6"
+                                Padding="16"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                                StrokeThickness="0">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="16" />
+                                </Border.StrokeShape>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=Journeys.OpenCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <Grid
+                                    ColumnDefinitions="*,Auto"
+                                    ColumnSpacing="12"
+                                    RowDefinitions="Auto,Auto"
+                                    RowSpacing="6">
+                                    <Label
+                                        Grid.Row="0"
+                                        Grid.Column="0"
+                                        Style="{StaticResource DsCardTitle}"
+                                        Text="{Binding Name}" />
+                                    <Border
+                                        Grid.Row="0"
+                                        Grid.Column="1"
+                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                        Style="{StaticResource DsBadge}">
+                                        <Label
+                                            Style="{StaticResource DsBadgeLabel}"
+                                            Text="{Binding Status}"
+                                            TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
+                                    </Border>
+                                    <HorizontalStackLayout
+                                        Grid.Row="1"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="2"
+                                        Spacing="12">
+                                        <!--  Number and noun split so the noun stays translatable.  -->
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding LegCount}" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{localization:Translate Journey_LegsShort}" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding StartsAt, StringFormat='{0:dd.MM.yyyy}'}" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="→" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding EndsAt, StringFormat='{0:dd.MM.yyyy}'}" />
+                                    </HorizontalStackLayout>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Grid>
         </Grid>
+
+        <!--  ── NEW JOURNEY FAB ──  -->
+        <Button
+            Margin="0,0,24,120"
+            BackgroundColor="{StaticResource Primary}"
+            Command="{Binding Journeys.CreateJourneyCommand}"
+            CornerRadius="32"
+            FontAttributes="Bold"
+            FontSize="28"
+            HeightRequest="64"
+            HorizontalOptions="End"
+            IsVisible="{Binding ShowJourneys}"
+            Text="+"
+            TextColor="White"
+            VerticalOptions="End"
+            WidthRequest="64">
+            <Button.Shadow>
+                <Shadow
+                    Brush="{StaticResource PrimaryBrush}"
+                    Opacity="0.45"
+                    Radius="24"
+                    Offset="0,10" />
+            </Button.Shadow>
+        </Button>
 
         <!--  ── IMPORT FAB ──  -->
         <Button
             Margin="0,0,24,120"
             BackgroundColor="{StaticResource Primary}"
             Command="{Binding ImportTicketCommand}"
+            IsVisible="{Binding ShowTickets}"
             CornerRadius="32"
             FontAttributes="Bold"
             FontSize="28"

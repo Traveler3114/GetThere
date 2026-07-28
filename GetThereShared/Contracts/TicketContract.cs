@@ -31,6 +31,14 @@ public class TicketResponse
     public DateTime? ValidFrom { get; set; }
     public DateTime? ValidTo { get; set; }
     public TicketStatus Status { get; set; }
+
+    /// <summary>
+    /// The trip this ticket belongs to, or null when it is not grouped into one. Mirrors
+    /// <see cref="ImportedTicketResponse.JourneyId"/> — a purchased ticket and an imported one are
+    /// both legs of a journey, so the ticket screen needs the same handle to link through to it.
+    /// </summary>
+    public int? JourneyId { get; set; }
+
     public TicketOptionResponse Option { get; set; } = null!;
 }
 

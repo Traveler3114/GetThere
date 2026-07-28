@@ -42,16 +42,57 @@ public partial class TicketsViewModel : BaseViewModel
 
     public ObservableCollection<ImportedTicketResponse> ImportedTickets { get; } = [];
 
+    /// <summary>
+    /// The Journeys half of this screen. Composed rather than merged: journeys and tickets are two
+    /// views of the same wallet behind one segmented control, but their loads, busy flags and error
+    /// states are independent — a failing journeys call must not blank the ticket list.
+    /// </summary>
+    public JourneysViewModel Journeys { get; }
+
+    /// <summary>Which half of the segmented control is showing. False = Tickets.</summary>
+    [ObservableProperty]
+    private bool _showJourneys;
+
+    /// <summary>Inverse of <see cref="ShowJourneys"/>, so the Tickets side can bind without a converter.</summary>
+    public bool ShowTickets => !ShowJourneys;
+
+    /// <summary>Drives chip styling on the segmented control, which compares against a key string.</summary>
+    public string SegmentKey => ShowJourneys ? "Journeys" : "Tickets";
+
+    partial void OnShowJourneysChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowTickets));
+        OnPropertyChanged(nameof(SegmentKey));
+    }
+
     public TicketsViewModel(
         AuthService authService,
         ImportedTicketService importedService,
         TicketCaptureService capture,
-        IAnalyticsService analytics)
+        IAnalyticsService analytics,
+        JourneysViewModel journeys)
     {
         _authService = authService;
         _importedService = importedService;
         _capture = capture;
         _analytics = analytics;
+        Journeys = journeys;
+    }
+
+    /// <summary>
+    /// Switches between the two halves, loading journeys the first time they are shown rather than
+    /// on every page appearance — most sessions never open the tab.
+    /// </summary>
+    [RelayCommand]
+    private async Task ShowSegment(string? segment)
+    {
+        var journeys = string.Equals(segment, "Journeys", StringComparison.OrdinalIgnoreCase);
+        if (journeys == ShowJourneys) return;
+
+        ShowJourneys = journeys;
+
+        if (journeys && !Journeys.HasLoadedOnce)
+            await Journeys.LoadCommand.ExecuteAsync(null);
     }
 
     [RelayCommand]

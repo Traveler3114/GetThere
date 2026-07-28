@@ -43,6 +43,10 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("importticket", typeof(ImportTicketPage));
         Routing.RegisterRoute("ticketpurchase", typeof(TicketPurchasePage));
         Routing.RegisterRoute("ticketdetail", typeof(TicketDetailPage));
+
+        // Journeys have no destination of their own: the design puts them behind a segmented
+        // control on Tickets rather than a fifth tab, which the phone frames have no room for.
+        Routing.RegisterRoute("journeydetail", typeof(JourneyDetailPage));
     }
 
     private void BuildNavigation()

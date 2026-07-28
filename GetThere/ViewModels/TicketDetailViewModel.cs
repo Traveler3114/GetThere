@@ -73,6 +73,15 @@ public partial class TicketDetailViewModel : BaseViewModel
     [ObservableProperty]
     private bool _isActive;
 
+    /// <summary>
+    /// True when this ticket has been grouped into a trip, which is what shows the "Show journey"
+    /// action. A purchased ticket is a journey leg just as an imported one is.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasJourney;
+
+    private int? _journeyId;
+
     public TicketDetailViewModel(TicketService ticketService)
     {
         _ticketService = ticketService;
@@ -139,6 +148,9 @@ public partial class TicketDetailViewModel : BaseViewModel
             LocalizationService.Instance["Ticket_PaidWallet"],
             MoneyFormatter.Format(option.Price, option.Currency));
 
+        _journeyId = ticket.JourneyId;
+        HasJourney = _journeyId.HasValue;
+
         HasTicket = true;
     }
 
@@ -147,6 +159,15 @@ public partial class TicketDetailViewModel : BaseViewModel
         ErrorText = message ?? LocalizationService.Instance["Ticket_CouldNotLoad"];
         HasError = true;
         HasTicket = false;
+        HasJourney = false;
+    }
+
+    /// <summary>Opens the trip this ticket belongs to. Hidden when it belongs to none.</summary>
+    [RelayCommand]
+    private async Task ShowJourney()
+    {
+        if (_journeyId is not { } journeyId) return;
+        await Shell.Current.GoToAsync($"journeydetail?journeyId={journeyId}");
     }
 
     [RelayCommand]

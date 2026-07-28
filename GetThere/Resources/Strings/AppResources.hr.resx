@@ -311,7 +311,6 @@
   <data name="Ticket_TicketId" xml:space="preserve"><value>BROJ KARTE</value></data>
   <data name="Ticket_Paid" xml:space="preserve"><value>PLAĆENO</value></data>
   <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} novčanik</value></data>
-  <data name="Ticket_AddToWallet" xml:space="preserve"><value>Dodaj u novčanik</value></data>
   <data name="Ticket_ShowJourney" xml:space="preserve"><value>Prikaži putovanje</value></data>
   <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
   <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Nije moguće učitati ovu kartu.</value></data>
@@ -330,4 +329,43 @@
   <data name="Map_Departures" xml:space="preserve"><value>Polasci</value></data>
   <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vozila uživo</value></data>
   <data name="Login_Tagline" xml:space="preserve"><value>Jedan račun za karte, novčanik i putovanja svih operatera</value></data>
+  <data name="Common_Create" xml:space="preserve"><value>Stvori</value></data>
+  <data name="Common_Dismiss" xml:space="preserve"><value>Odbaci</value></data>
+  <data name="Journeys_Title" xml:space="preserve"><value>Putovanja</value></data>
+  <data name="Journeys_Suggested" xml:space="preserve"><value>PREDLOŽENA PUTOVANJA</value></data>
+  <data name="Journeys_AcceptSuggestion" xml:space="preserve"><value>Stvori putovanje</value></data>
+  <data name="Journeys_NoItems" xml:space="preserve"><value>Još nema putovanja</value></data>
+  <data name="Journeys_NoItemsSubtitle" xml:space="preserve"><value>Grupirajte karte koje pripadaju istom putovanju i pojavit će se ovdje.</value></data>
+  <data name="Journeys_CouldNotLoad" xml:space="preserve"><value>Nismo mogli učitati vaša putovanja.</value></data>
+  <data name="Journeys_CouldNotCreate" xml:space="preserve"><value>Nismo mogli stvoriti to putovanje.</value></data>
+  <data name="Journeys_NewTitle" xml:space="preserve"><value>Novo putovanje</value></data>
+  <data name="Journeys_NewPrompt" xml:space="preserve"><value>Kako se zove ovo putovanje?</value></data>
+  <data name="Journey_Legs" xml:space="preserve"><value>DIONICE</value></data>
+  <data name="Journey_LegsShort" xml:space="preserve"><value>dionica</value></data>
+  <data name="Journey_LegCount" xml:space="preserve"><value>{0} dionica</value></data>
+  <data name="Journey_LegImported" xml:space="preserve"><value>Uvezena</value></data>
+  <data name="Journey_LegPurchased" xml:space="preserve"><value>Kupljena</value></data>
+  <data name="Journey_UntitledLeg" xml:space="preserve"><value>Karta bez naziva</value></data>
+  <data name="Journey_NoDates" xml:space="preserve"><value>Bez datuma</value></data>
+  <data name="Journey_NoLegs" xml:space="preserve"><value>Nema karata u ovom putovanju</value></data>
+  <data name="Journey_NoLegsSubtitle" xml:space="preserve"><value>Dodajte karte iz svog novčanika.</value></data>
+  <data name="Journey_Rename" xml:space="preserve"><value>Preimenuj putovanje</value></data>
+  <data name="Journey_RenameTitle" xml:space="preserve"><value>Preimenuj putovanje</value></data>
+  <data name="Journey_RenamePrompt" xml:space="preserve"><value>Kako se zove ovo putovanje?</value></data>
+  <data name="Journey_Cancel" xml:space="preserve"><value>Otkaži putovanje</value></data>
+  <data name="Journey_CancelTitle" xml:space="preserve"><value>Otkazati ovo putovanje?</value></data>
+  <data name="Journey_CancelPrompt" xml:space="preserve"><value>Putovanje se označava otkazanim. Vaše karte ostaju u novčaniku.</value></data>
+  <data name="Journey_CancelConfirm" xml:space="preserve"><value>Otkaži putovanje</value></data>
+  <data name="Journey_Delete" xml:space="preserve"><value>Obriši putovanje</value></data>
+  <data name="Journey_DeleteTitle" xml:space="preserve"><value>Obrisati ovo putovanje?</value></data>
+  <data name="Journey_DeletePrompt" xml:space="preserve"><value>Briše se samo grupiranje. Sve karte ostaju u vašem novčaniku.</value></data>
+  <data name="Journey_DeleteConfirm" xml:space="preserve"><value>Obriši</value></data>
+  <data name="Journey_RemoveLeg" xml:space="preserve"><value>Ukloni iz putovanja</value></data>
+  <data name="Journey_RemoveLegTitle" xml:space="preserve"><value>Ukloniti ovu kartu?</value></data>
+  <data name="Journey_RemoveLegPrompt" xml:space="preserve"><value>Napušta ovo putovanje i vraća se u novčanik negrupirana.</value></data>
+  <data name="Journey_RemoveLegConfirm" xml:space="preserve"><value>Ukloni</value></data>
+  <data name="JourneyStatus_Planned" xml:space="preserve"><value>PLANIRANO</value></data>
+  <data name="JourneyStatus_Active" xml:space="preserve"><value>U TIJEKU</value></data>
+  <data name="JourneyStatus_Completed" xml:space="preserve"><value>ZAVRŠENO</value></data>
+  <data name="JourneyStatus_Cancelled" xml:space="preserve"><value>OTKAZANO</value></data>
 </root>
