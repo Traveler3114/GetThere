@@ -70,6 +70,10 @@ builder.Services.Configure<TransitInfoApiOptions>(builder.Configuration.GetSecti
 builder.Services.AddSingleton<AdapterRegistry>();
 builder.Services.AddHostedService<TicketExpiryWorker>();
 
+// Settles purchases that were debited but never resolved. See PurchaseReconciliationWorker for why
+// that state exists at all: the wallet debit is committed before the operator is called.
+builder.Services.AddHostedService<PurchaseReconciliationWorker>();
+
 // Ticket file import. Swapping local disk for object storage later means replacing the
 // ITicketFileStore registration; replacing the no-op scanner enforces real malware scanning.
 // Everything here is stateless, hence singleton.

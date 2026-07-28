@@ -67,7 +67,17 @@ public sealed class FakeTicketingAdapter : ITicketingAdapter
         }
     };
 
+    /// <summary>
+    /// What the operator says when asked about a purchase reference during recovery. The default
+    /// is "no record", which is the answer that makes the sweep refund.
+    /// </summary>
+    public Func<string, PurchaseResult?> OnFind { get; set; } = _ => null;
+
     public int PurchaseCallCount { get; private set; }
+    public int FindCallCount { get; private set; }
+
+    /// <summary>References passed to <see cref="PurchaseAsync"/>, so a test can assert what we sent.</summary>
+    public List<string?> SeenPaymentReferences { get; } = [];
 
     public string Name => "Fake";
     public string AdapterType => Type;
@@ -76,11 +86,18 @@ public sealed class FakeTicketingAdapter : ITicketingAdapter
     public Task<PurchaseResult> PurchaseAsync(PurchaseRequest request, CancellationToken ct = default)
     {
         PurchaseCallCount++;
+        SeenPaymentReferences.Add(request.PaymentReference);
         return Task.FromResult(OnPurchase(request));
     }
 
     public Task<TicketPayload?> ValidateAsync(string externalTicketId, CancellationToken ct = default) =>
         Task.FromResult<TicketPayload?>(null);
+
+    public Task<PurchaseResult?> FindPurchaseAsync(string purchaseReference, CancellationToken ct = default)
+    {
+        FindCallCount++;
+        return Task.FromResult(OnFind(purchaseReference));
+    }
 }
 
 /// <summary>Builds the rows a purchase needs: a user, a wallet, an adapter and an option.</summary>
@@ -143,6 +160,53 @@ public sealed class MoneyPathScenario
 
     public static TicketingManager ManagerFor(AppDbContext db, AdapterRegistry registry) =>
         new(db, registry, NullLogger<TicketingManager>.Instance);
+
+    /// <summary>
+    /// Reproduces the state a crash leaves behind: the wallet debit and its ledger row are
+    /// committed, the purchase exists and is <see cref="PaymentStatus.Pending"/>, and the operator
+    /// was either never called or never answered. This is stage 2 of
+    /// <c>PurchaseTicketAsync</c> having completed with stage 3 never running.
+    /// </summary>
+    /// <param name="age">How long ago the purchase was made, so a test can age it past the sweep's cutoff.</param>
+    public static async Task<int> StrandPendingPurchaseAsync(
+        AppDbContext db, MoneyPathScenario scenario, TimeSpan age)
+    {
+        var purchasedAt = DateTime.UtcNow - age;
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Wallets SET Balance = Balance - {scenario.Price}, UpdatedAt = {purchasedAt} WHERE Id = {scenario.WalletId}");
+
+        var balanceAfter = await BalanceAsync(db, scenario.WalletId);
+
+        var debit = new WalletTransaction
+        {
+            WalletId = scenario.WalletId,
+            Amount = -scenario.Price,
+            BalanceBefore = balanceAfter + scenario.Price,
+            BalanceAfter = balanceAfter,
+            Type = WalletTransactionType.TicketPurchase,
+            Description = "Purchase: Single ride",
+            CreatedAt = purchasedAt
+        };
+        db.WalletTransactions.Add(debit);
+        await db.SaveChangesAsync();
+
+        var purchase = new Purchase
+        {
+            UserId = scenario.UserId,
+            TicketingAdapterId = scenario.AdapterId,
+            TicketOptionId = scenario.OptionId,
+            WalletTransactionId = debit.Id,
+            Amount = scenario.Price,
+            Currency = "EUR",
+            Status = PaymentStatus.Pending,
+            PurchasedAt = purchasedAt
+        };
+        db.Purchases.Add(purchase);
+        await db.SaveChangesAsync();
+
+        return purchase.Id;
+    }
 
     public static async Task<decimal> BalanceAsync(AppDbContext db, int walletId) =>
         await db.Wallets.AsNoTracking().Where(w => w.Id == walletId).Select(w => w.Balance).FirstAsync();

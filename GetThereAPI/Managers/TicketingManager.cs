@@ -188,7 +188,10 @@ public class TicketingManager
             {
                 TicketingAdapterId = adapterId,
                 TicketOptionId = optionId,
-                UserId = userId
+                UserId = userId,
+                // Our own handle on this attempt. If the answer never comes back, this is what
+                // ReconcilePendingPurchasesAsync asks the operator about later.
+                PaymentReference = purchase.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)
             }, ct);
         }
         catch (Exception ex)
@@ -206,22 +209,7 @@ public class TicketingManager
             throw new AppException($"{reason} Your balance has been restored.", 400, "PURCHASE_FAILED");
         }
 
-        purchase.ExternalPurchaseId = purchaseResult.ExternalPurchaseId;
-        purchase.Status = PaymentStatus.Completed;
-        purchase.CompletedAt = DateTime.UtcNow;
-
-        var ticket = new Ticket
-        {
-            PurchaseId = purchase.Id,
-            ExternalTicketId = purchaseResult.ExternalPurchaseId,
-            Format = purchaseResult.Ticket.Format,
-            Data = purchaseResult.Ticket.Data,
-            ValidFrom = purchaseResult.Ticket.ValidFrom,
-            ValidTo = purchaseResult.Ticket.ValidTo,
-            Status = TicketStatus.Active
-        };
-        _db.Tickets.Add(ticket);
-        await _db.SaveChangesAsync(ct);
+        var ticket = await CompletePurchaseAsync(purchase, purchaseResult, ct);
 
         _logger.LogInformation("User {UserId} successfully purchased ticket {TicketId} for option {OptionId}", userId, ticket.Id, optionId);
 
@@ -229,6 +217,128 @@ public class TicketingManager
         // change-tracker fixup to have populated Purchase.TicketOption, which it cannot do here —
         // the option is read AsNoTracking — so the mapper would dereference null.
         return await LoadTicketResponseAsync(ticket.Id, ct);
+    }
+
+    /// <summary>
+    /// Records the ticket an operator issued and closes the purchase out. Shared by the live
+    /// purchase path and by <see cref="ReconcilePendingPurchasesAsync"/>, so a purchase recovered
+    /// hours later ends up in exactly the same state as one that completed inline.
+    /// </summary>
+    private async Task<Ticket> CompletePurchaseAsync(Purchase purchase, PurchaseResult result, CancellationToken ct)
+    {
+        purchase.ExternalPurchaseId = result.ExternalPurchaseId;
+        purchase.Status = PaymentStatus.Completed;
+        purchase.CompletedAt = DateTime.UtcNow;
+
+        var ticket = new Ticket
+        {
+            PurchaseId = purchase.Id,
+            ExternalTicketId = result.ExternalPurchaseId,
+            Format = result.Ticket!.Format,
+            Data = result.Ticket.Data,
+            ValidFrom = result.Ticket.ValidFrom,
+            ValidTo = result.Ticket.ValidTo,
+            Status = TicketStatus.Active
+        };
+        _db.Tickets.Add(ticket);
+        await _db.SaveChangesAsync(ct);
+
+        return ticket;
+    }
+
+    /// <summary>
+    /// Finishes purchases that were debited but never resolved, and returns how many were settled.
+    /// <para>
+    /// <see cref="PurchaseTicketAsync"/> commits the wallet debit before calling the operator, so a
+    /// crash, a pod eviction or a deploy in that window leaves a <see cref="PaymentStatus.Pending"/>
+    /// purchase: the user's money is gone and no ticket exists. Nothing used to resolve those — the
+    /// row sat there until a human noticed it in the admin console.
+    /// </para>
+    /// <para>
+    /// Each stale purchase is put back to the operator through
+    /// <see cref="ITicketingAdapter.FindPurchaseAsync"/>. A ticket the operator did issue is
+    /// recorded and the purchase completes; a purchase the operator never saw is refunded. If the
+    /// operator cannot be asked — unreachable, or no implementation registered — the purchase is
+    /// left exactly as it is and logged, because refunding a ticket that was in fact issued is a
+    /// worse outcome than waiting for the next sweep.
+    /// </para>
+    /// </summary>
+    /// <param name="minimumAge">
+    /// How long a purchase must have been pending before it is considered stranded. This must stay
+    /// comfortably longer than a normal adapter call, or the sweep will race a purchase that is
+    /// still legitimately in flight and refund it out from under the caller.
+    /// </param>
+    public async Task<int> ReconcilePendingPurchasesAsync(TimeSpan minimumAge, CancellationToken ct = default)
+    {
+        var cutoff = DateTime.UtcNow - minimumAge;
+
+        var stranded = await _db.Purchases
+            .Include(p => p.Adapter)
+            .Where(p => p.Status == PaymentStatus.Pending && p.PurchasedAt < cutoff)
+            .OrderBy(p => p.PurchasedAt)
+            .ToListAsync(ct);
+
+        if (stranded.Count == 0) return 0;
+
+        _logger.LogWarning("Found {Count} purchase(s) pending since before {Cutoff}", stranded.Count, cutoff);
+
+        var settled = 0;
+
+        foreach (var purchase in stranded)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var wallet = await _db.Wallets.AsNoTracking()
+                .FirstOrDefaultAsync(w => w.UserId == purchase.UserId, ct);
+
+            if (wallet is null)
+            {
+                // Nothing to refund into and nothing sensible to do. Loud, because a purchase whose
+                // wallet vanished is a data-integrity problem, not a transient failure.
+                _logger.LogError("Pending purchase {PurchaseId} has no wallet for user {UserId}", purchase.Id, purchase.UserId);
+                continue;
+            }
+
+            var adapterInstance = _registry.Get(purchase.Adapter.AdapterType);
+            if (adapterInstance is null)
+            {
+                _logger.LogError(
+                    "Cannot reconcile purchase {PurchaseId}: no ITicketingAdapter registered for {AdapterType}. " +
+                    "The debit stands until one is registered.",
+                    purchase.Id, purchase.Adapter.AdapterType);
+                continue;
+            }
+
+            var reference = purchase.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            PurchaseResult? outcome;
+            try
+            {
+                outcome = await adapterInstance.FindPurchaseAsync(reference, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Adapter {AdapterType} could not be asked about purchase {PurchaseId}; leaving it pending",
+                    purchase.Adapter.AdapterType, purchase.Id);
+                continue;
+            }
+
+            if (outcome is { Success: true, Ticket: not null })
+            {
+                await CompletePurchaseAsync(purchase, outcome, ct);
+                _logger.LogInformation("Recovered purchase {PurchaseId}: the operator had issued a ticket after all", purchase.Id);
+            }
+            else
+            {
+                var reason = outcome?.ErrorMessage ?? "No ticket was issued for this purchase.";
+                await RefundAsync(purchase, wallet.Id, purchase.Amount, reason, ct);
+                _logger.LogInformation("Refunded stranded purchase {PurchaseId}: {Reason}", purchase.Id, reason);
+            }
+
+            settled++;
+        }
+
+        return settled;
     }
 
     /// <summary>Loads a ticket with the purchase, option and adapter that <see cref="TicketMapper"/> reads.</summary>
@@ -250,6 +360,29 @@ public class TicketingManager
     private async Task RefundAsync(Purchase purchase, int walletId, decimal amount, string reason, CancellationToken ct)
     {
         var refundedAt = DateTime.UtcNow;
+        var reference = purchase.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // A refund can be attempted more than once for the same purchase: the live path may fail
+        // partway and leave the purchase Pending, and the reconciliation sweep then picks it up.
+        // Without this guard the second attempt credits the wallet again and hands out money that
+        // was never taken. The ledger row written below is what makes the check possible.
+        var alreadyRefunded = await _db.WalletTransactions
+            .AsNoTracking()
+            .AnyAsync(wt => wt.Type == WalletTransactionType.Refund && wt.ReferenceId == reference, ct);
+
+        if (alreadyRefunded)
+        {
+            _logger.LogInformation("Purchase {PurchaseId} was already refunded; skipping duplicate credit", purchase.Id);
+
+            if (purchase.Status != PaymentStatus.Refunded)
+            {
+                purchase.Status = PaymentStatus.Refunded;
+                purchase.FailureReason ??= reason;
+                await _db.SaveChangesAsync(ct);
+            }
+
+            return;
+        }
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
@@ -266,7 +399,7 @@ public class TicketingManager
             BalanceAfter = balanceAfter,
             Type = WalletTransactionType.Refund,
             Description = $"Refund: {reason}",
-            ReferenceId = purchase.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ReferenceId = reference,
             CreatedAt = refundedAt
         });
 
