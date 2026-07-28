@@ -39,11 +39,21 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            // Inert while the DSN is blank, which is how it ships: the committed appsettings.json
+            // carries an empty value, so crash reporting does nothing until a real DSN is supplied.
+            // Set one before any build reaches a tester, or field reports arrive with nothing
+            // attached.
             .UseSentry(options =>
             {
                 options.Dsn = LoadSentryDsn() ?? "";
                 options.Debug = false;
                 options.TracesSampleRate = 0.0;
+
+                // Warnings and above become breadcrumbs on whatever crash or captured exception
+                // follows, which is the part that makes a report actionable. Errors are captured as
+                // events in their own right.
+                options.MinimumBreadcrumbLevel = LogLevel.Warning;
+                options.MinimumEventLevel = LogLevel.Error;
             })
             .UseSkiaSharp()
             .UseMauiCommunityToolkit()
@@ -130,6 +140,9 @@ public static class MauiProgram
         foreach (var vmType in viewModelTypes)
             builder.Services.AddTransient(vmType);
 
+        // Debug-only, and deliberately: outside a debugger this sink goes nowhere. Release logging
+        // reaches Sentry instead — UseSentry above registers the ILogger integration itself, so
+        // adding a second provider here would only duplicate every breadcrumb.
 #if DEBUG
         builder.Logging.AddDebug();
 #endif

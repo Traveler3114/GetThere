@@ -275,7 +275,7 @@ public partial class JourneyDetailViewModel : BaseViewModel
     {
         if (Shell.Current is null || IsBusy) return;
 
-        var confirmed = await Shell.Current.DisplayAlert(
+        var confirmed = await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Journey_CancelTitle"],
             LocalizationService.Instance["Journey_CancelPrompt"],
             LocalizationService.Instance["Journey_CancelConfirm"],
@@ -296,7 +296,7 @@ public partial class JourneyDetailViewModel : BaseViewModel
     {
         if (item is null || Shell.Current is null || IsBusy) return;
 
-        var confirmed = await Shell.Current.DisplayAlert(
+        var confirmed = await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Journey_RemoveLegTitle"],
             LocalizationService.Instance["Journey_RemoveLegPrompt"],
             LocalizationService.Instance["Journey_RemoveLegConfirm"],
@@ -319,7 +319,7 @@ public partial class JourneyDetailViewModel : BaseViewModel
     {
         if (Shell.Current is null || IsBusy) return;
 
-        var confirmed = await Shell.Current.DisplayAlert(
+        var confirmed = await Shell.Current.DisplayAlertAsync(
             LocalizationService.Instance["Journey_DeleteTitle"],
             LocalizationService.Instance["Journey_DeletePrompt"],
             LocalizationService.Instance["Journey_DeleteConfirm"],

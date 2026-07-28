@@ -29,11 +29,18 @@
 		<!-- Display name -->
 		<ApplicationTitle>GetThere</ApplicationTitle>
 
-		<!-- App Identifier -->
-		<ApplicationId>com.companyname.getthere</ApplicationId>
+		<!--
+		  App Identifier. This was still the template's com.companyname.getthere, which cannot be
+		  submitted to either store and, once a build is installed under it, cannot be changed
+		  without users uninstalling first.
+		-->
+		<ApplicationId>hr.getthere.app</ApplicationId>
 
-		<!-- Versions -->
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<!--
+		  ApplicationDisplayVersion is the version users see; ApplicationVersion is the build number
+		  and must increase with every upload to either store.
+		-->
+		<ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
@@ -67,7 +74,6 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Maui" />
 		<PackageReference Include="CommunityToolkit.Mvvm" />
-		<PackageReference Include="Google.Protobuf" />
 		<PackageReference Include="Microsoft.Extensions.Http" />
 		<PackageReference Include="Microsoft.Maui.Controls" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
