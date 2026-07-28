@@ -21,6 +21,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<Ticket> Tickets { get; set; }
     public DbSet<ImportedTicket> ImportedTickets { get; set; }
     public DbSet<TicketUpload> TicketUploads { get; set; }
+    public DbSet<Journey> Journeys { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -173,6 +174,34 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasOne(t => t.User)
                   .WithMany()
                   .HasForeignKey(t => t.UserId);
+        });
+        modelBuilder.Entity<Journey>(entity =>
+        {
+            // Drives the list view: a user's journeys, newest trip first.
+            entity.HasIndex(j => new { j.UserId, j.StartsAt });
+            entity.HasIndex(j => new { j.UserId, j.Status });
+
+            entity.Property(j => j.Name).HasMaxLength(200);
+            entity.Property(j => j.Notes).HasMaxLength(2000);
+            entity.Property(j => j.Status).HasMaxLength(32);
+
+            entity.HasOne(j => j.User)
+                  .WithMany()
+                  .HasForeignKey(j => j.UserId);
+
+            // Deleting a journey releases its tickets rather than being blocked by them or taking
+            // them down with it — the tickets are the valuable thing, the grouping is not. This
+            // deliberately overrides the Restrict that the convention loop above applies to every
+            // foreign key.
+            entity.HasMany(j => j.ImportedTickets)
+                  .WithOne(t => t.Journey)
+                  .HasForeignKey(t => t.JourneyId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(j => j.Tickets)
+                  .WithOne(t => t.Journey)
+                  .HasForeignKey(t => t.JourneyId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<TicketUpload>(entity =>
         {

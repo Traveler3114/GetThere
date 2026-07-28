@@ -18,6 +18,11 @@ public static class PermissionKeys
     public const string ImportedTicketsCreate = "importedtickets.create";
     public const string ImportedTicketsManage = "importedtickets.manage";
 
+    // Journeys — grouping tickets into a trip
+    public const string JourneysView = "journeys.view";
+    public const string JourneysCreate = "journeys.create";
+    public const string JourneysManage = "journeys.manage";
+
     // Wallets
     public const string WalletsView = "wallets.view";
     public const string WalletsManage = "wallets.manage";
@@ -57,6 +62,7 @@ public static class PermissionKeys
         UsersView, UsersManage, RolesView, RolesManage,
         TicketsView, TicketsCreate, TicketsManage,
         ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage,
+        JourneysView, JourneysCreate, JourneysManage,
         WalletsView, WalletsManage, WalletsTopUp,
         ProfileView, ProfileManage,
         SettingsView, SettingsManage,
@@ -78,7 +84,8 @@ public static class PermissionKeys
         ProfileView, ProfileManage,
         SettingsView,
         MapView,
-        ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage
+        ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage,
+        JourneysView, JourneysCreate, JourneysManage
     ];
 
     public static readonly Dictionary<string, (string DisplayName, string Description, string Category)> Meta = new()
@@ -93,6 +100,9 @@ public static class PermissionKeys
         [ImportedTicketsView] = ("View Imported Tickets", "List and view imported tickets", "Tickets"),
         [ImportedTicketsCreate] = ("Import Tickets", "Import tickets via manual entry, photo, PDF, or scan", "Tickets"),
         [ImportedTicketsManage] = ("Manage Imported Tickets", "Update status, cancel imported tickets", "Tickets"),
+        [JourneysView] = ("View Journeys", "List and view journeys", "Tickets"),
+        [JourneysCreate] = ("Create Journeys", "Group tickets into a journey", "Tickets"),
+        [JourneysManage] = ("Manage Journeys", "Rename, add and remove tickets, delete journeys", "Tickets"),
         [WalletsView] = ("View Wallet", "View wallet balance and transactions", "Wallet"),
         [WalletsManage] = ("Manage Wallet", "Manage own wallet", "Wallet"),
         [WalletsTopUp] = ("Top Up Wallet", "Credit a wallet balance — no payment provider is wired up yet", "Wallet"),

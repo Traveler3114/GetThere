@@ -39,7 +39,9 @@ public class ImportedTicket
 
     public string? DedupeHash { get; set; }
 
+    /// <summary>The trip this ticket belongs to, if the user has grouped it into one.</summary>
     public int? JourneyId { get; set; }
+    public Journey? Journey { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

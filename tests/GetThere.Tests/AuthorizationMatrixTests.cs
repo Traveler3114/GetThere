@@ -85,4 +85,56 @@ public class AuthorizationMatrixTests
         var missing = PermissionKeys.All.Where(p => !PermissionKeys.Meta.ContainsKey(p)).ToList();
         Assert.True(missing.Count == 0, "Permissions missing from Meta: " + string.Join(", ", missing));
     }
+
+    /// <summary>
+    /// Every action on a user-scoped controller must carry a policy. These endpoints return one
+    /// account's tickets and trips, so an action that forgot its policy would be reachable by any
+    /// authenticated caller.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(ImportedTicketsController))]
+    [InlineData(typeof(JourneysController))]
+    public void Every_user_scoped_action_declares_an_authorization_policy(Type controller)
+    {
+        var unguarded = controller
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(m => !m.IsSpecialName)
+            .Where(a => a.GetCustomAttributes<HttpMethodAttribute>().Any())
+            .Where(a => !PoliciesOn(a).Any())
+            .Select(a => a.Name)
+            .ToList();
+
+        Assert.True(unguarded.Count == 0, $"{controller.Name} actions without a policy: " + string.Join(", ", unguarded));
+    }
+
+    /// <summary>
+    /// Both features are useless to an ordinary account without these, and the grant has been
+    /// forgotten before — WalletsManage and ImportedTicketsManage both shipped missing from the
+    /// User role, leaving the endpoints reachable only by an admin.
+    /// </summary>
+    [Fact]
+    public void Ticket_and_journey_permissions_are_granted_to_the_user_role()
+    {
+        Assert.Contains(PermissionKeys.ImportedTicketsView, PermissionKeys.UserRoleDefaults);
+        Assert.Contains(PermissionKeys.ImportedTicketsCreate, PermissionKeys.UserRoleDefaults);
+        Assert.Contains(PermissionKeys.ImportedTicketsManage, PermissionKeys.UserRoleDefaults);
+        Assert.Contains(PermissionKeys.JourneysView, PermissionKeys.UserRoleDefaults);
+        Assert.Contains(PermissionKeys.JourneysCreate, PermissionKeys.UserRoleDefaults);
+        Assert.Contains(PermissionKeys.JourneysManage, PermissionKeys.UserRoleDefaults);
+    }
+
+    /// <summary>
+    /// The upload endpoint accepts a 10 MB file and runs image, archive and PDF parsing on it, so
+    /// it must not sit on the global limiter alone.
+    /// </summary>
+    [Fact]
+    public void The_upload_endpoint_has_its_own_rate_limit()
+    {
+        var upload = typeof(ImportedTicketsController).GetMethod(nameof(ImportedTicketsController.Upload));
+        Assert.NotNull(upload);
+
+        var limiter = upload!.GetCustomAttribute<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>();
+        Assert.NotNull(limiter);
+        Assert.Equal("Upload", limiter!.PolicyName);
+    }
 }

@@ -67,6 +67,14 @@ public class TicketExpiryWorker : BackgroundService
 
                 if (purged > 0)
                     _logger.LogInformation("Purged {Count} abandoned ticket uploads", purged);
+
+                // Journey status is a function of its legs' dates, so it is rolled forward here
+                // rather than set by hand — otherwise it drifts from the tickets it describes.
+                var journeys = scope.ServiceProvider.GetRequiredService<Managers.JourneyManager>();
+                var rolled = await journeys.RollUpStatusesAsync(stoppingToken);
+
+                if (rolled > 0)
+                    _logger.LogInformation("Rolled {Count} journeys to a new status", rolled);
             }
             catch (OperationCanceledException)
             {
