@@ -60,11 +60,20 @@ Builds value before ticket purchasing is live.
 - ✅ Status lifecycle enforced — `Active→Used|Expired|Cancelled` only; invalid transitions return 400. `TicketExpiryWorker` sweeps `Active`→`Expired` hourly on `ValidTo`, so `Expired` is reachable.
 - ✅ Length limits & validation — `[MaxLength]` on the request DTO, `HasMaxLength` in the EF model, manager-level validation of date ranges and currency against the shared allow-list
 - ✅ Paginated + filterable list — `GET /importedtickets` returns `PagedResult<T>`; filters by status, source, operator, and validity-date range; sorts by `createdAt` / `validFrom` / `validTo` / `ticketName`
-- ✅ Image/document storage **strategy decided** — blob storage (Azure/S3), max 10MB, allowed types image/jpeg/png + pdf; DB stores only blob key + content type; malware-scanning extension point reserved. Decision only — see Remaining for the enforcement work.
+- ✅ Image/document storage **implemented** — `ITicketFileStore` with a local-disk implementation (this deployment has no Azure/S3 of any kind); 10MB cap enforced twice; server-minted GUID blob keys; path containment mirroring `FeedManager.GetFeedStorageDirectory`; `ITicketFileScanner` no-op wired in as the reserved malware-scanning hook.
+- ✅ Import via **file upload** — `POST /importedtickets/upload` accepts PDF, JPEG/PNG/WebP/HEIC, Apple Wallet `.pkpass`, and iCalendar, plus `POST /importedtickets/extract-text` for pasted confirmations. Type is decided by **sniffing magic bytes**, never the declared `Content-Type` or filename, and the sniff also routes to the extractor. `.pkpass` archives are bounded against zip bombs. Uploads have their own rate-limit policy.
+- ✅ **QR/barcode decoding** — server-side via ZXing: QR, **Aztec and PDF417** (the formats UIC 918-3 rail tickets use), Data Matrix, Code128/39, EAN, ITF. PDFs are scanned for barcodes on embedded images as well as read for text.
+- ✅ Extraction returns a **draft the user confirms**, never an auto-created ticket — what a file yields ranges from near-complete (a wallet pass) to nothing (a photo with no code), and a silent guess would put wrong data in a wallet.
+- ✅ `SourceFileBlobKey` is back on the create DTO, deliberately and safely: it is a server-minted GUID recorded in `TicketUploads` and resolved against the caller's own **unconsumed** uploads, so a client cannot name a file it did not upload. Still never accept a client-chosen path here.
+- ✅ `OriginName` / `DestinationName` on `ImportedTicket`, populated by extraction — free-text `RouteDescription` could not support journey grouping.
+- ✅ Duplicate override — `allowDuplicate` on create, and the 409 now names the ticket it collided with.
 
 ### Remaining
 
-- ⏳ Import via **photo/PDF upload** and **QR/barcode scan** — needs a server-side upload endpoint that enforces the storage strategy above (10MB cap, content-type allow-list, server-issued blob keys), plus MAUI capture UI. `SourceFileBlobKey` / `SourceFileContentType` were deliberately removed from the create DTO so the only way to set them is that future endpoint — do not re-expose them to clients.
+- ⏳ **MAUI capture UI** — the server side is done; the app still needs the import chooser (photo / file / scan / paste), a SkiaSharp JPEG re-encode of camera captures (which is what handles HEIC and cuts upload size), and the upload → prefilled-form flow. Camera and photo permissions are already declared on both platforms.
+- ⏳ Live camera **preview** scanning — deliberately deferred. The server decodes Aztec/QR/PDF417 from a still, so a photo capture covers the capability; a preview scanner is a UX upgrade, not a gate.
+- ⏳ **OCR of paper tickets** — ZXing reads codes, not prose. A photo bearing no code yields an image and little else until an OCR engine is added.
+- ⏳ **Email forwarding / `.eml` ingestion** — the lowest-friction UX, but it needs an inbound mail route, address verification so strangers cannot fill an account, and its own abuse story.
 - ⏳ Replace stub Tickets/Shop pages with a real wallet UI — `ShopViewModel` is still a "Coming Soon" string swap
 - ⏳ Filtering by **transport type** — blocked, not a scope item until decided: `ImportedTicket` has no transport-type field. Needs a call on whether it derives from the operator, from a matched route, or becomes a user-entered field. Do not add a column before deciding.
 - ⏳ **GDPR account deletion + data export** — pulled forward from Phase 7 to sit beside the beta below, because the beta means real user data. Blocked by `FK_ImportedTickets_AspNetUsers_UserId` using `onDelete: Restrict`: deletion will fail outright until the imported-ticket path is handled. Choosing between cascade, anonymise, and soft-delete is a design decision needing human review.
@@ -94,7 +103,9 @@ Currently missing entirely — `ScheduleManager` only does single-station depart
 
 Retrospective: grouping tickets a user already owns (distinct from prospective trip planning in Phase 3).
 
-- Group multiple imported/purchased tickets into a "Journey" (manual + auto-suggested by time/location proximity)
+- ✅ Group multiple imported/purchased tickets into a "Journey" — `Journey` entity, `JourneyManager`, `JourneysController`, and `journeys.view/create/manage` granted to the User role. Membership is a nullable `JourneyId` FK on **both** ticket tables, which finally gives the long-orphaned `ImportedTicket.JourneyId` column the foreign key it was named for. Deleting a journey **releases** its tickets (`DeleteBehavior.SetNull`, deliberately overriding the global `Restrict`) rather than deleting them.
+- ✅ Auto-suggestion — `GET /journeys/suggestions` groups by time proximity and by chaining one leg's destination to the next's origin, which only works because import extraction now populates structured endpoints. Suggestions are proposals; nothing is applied automatically. Journey status rolls forward from its legs in `TicketExpiryWorker`.
+- ⏳ Journeys **UI** — `JourneysPage` / `JourneyDetailPage`, an "add to journey" action, and a suggestions surface. Note `TicketDetailPage.xaml` renders "Show Journey" and "Add to Wallet" buttons with **no `Command` binding at all** — bind them or remove them.
 - "Upcoming journeys" home view
 - Disruption-to-journey subscriptions (tie GTFS-RT alerts to a user's saved journeys)
 - Push notification infrastructure (FCM/APNs, device token storage) — deferred here from Phase 0; the notifications below depend on it
