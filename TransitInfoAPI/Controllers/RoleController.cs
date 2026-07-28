@@ -1,9 +1,8 @@
-using GetThereShared.Contracts;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Managers;
 
 namespace TransitInfoAPI.Controllers;
@@ -76,7 +75,3 @@ public class RoleController : ControllerBase
         return Ok(new { message = $"User role set to '{request.RoleName}'." });
     }
 }
-
-public record CreateRoleRequest(string Name, List<string> Permissions);
-public record UpdateRolePermissionsRequest(List<string> Permissions);
-public record SetRoleRequest(string RoleName);

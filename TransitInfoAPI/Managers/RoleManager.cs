@@ -1,11 +1,10 @@
 using System.Security.Claims;
 
-using GetThereShared.Contracts;
-
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Common;
+using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Exceptions;

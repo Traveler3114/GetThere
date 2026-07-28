@@ -39,8 +39,13 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\GetThereShared\GetThereShared.csproj" />
-  </ItemGroup>
+  <!--
+    No ProjectReference to GetThereShared, GetThereAPI or GetThere — deliberately.
+    TransitInfoAPI is an independent service: it owns public transit reference data, has its own
+    user store, its own permission vocabulary and its own release cycle. GetThereAPI talks to it
+    over HTTP as an ordinary authenticated client and maps its responses into its own types.
+    A shared assembly would couple the two release cycles and let a change made for one service
+    silently alter the other. Contracts live in TransitInfoAPI.Contracts.
+  -->
 
 </Project>
