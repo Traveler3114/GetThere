@@ -55,6 +55,13 @@ public static class MauiProgram
 
     public static MauiApp CreateMauiApp()
     {
+#if WINDOWS
+        // Strips the WinUI border/background the design system draws itself. See
+        // Platforms/Windows/WindowsControlStyling.cs — without it every field renders a square
+        // TextBox inside the rounded DsField border.
+        WindowsControlStyling.Apply();
+#endif
+
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()

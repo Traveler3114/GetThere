@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <!--
     Frames 3i (iPhone · Login) and 3k (Windows · Login) of "GetThere App.dc.html".
 
@@ -87,7 +87,7 @@
                             x:Name="LogoImage"
                             Margin="10"
                             Aspect="AspectFit"
-                            Source="logo.svg" />
+                            Source="logo.png" />
                     </Border>
 
                     <!--  desktop-only strapline (frame 3k)  -->
@@ -136,6 +136,31 @@
                             x:Name="SheetHandle"
                             Margin="0,0,0,15"
                             Style="{StaticResource DsSheetHandle}" />
+
+                        <!--
+                            Desktop only. On a phone the gradient band sits directly above this card
+                            and the sheet handle reads as "this is the form", so 3i needs no heading.
+                            In the split layout that context is in the other half of the window and
+                            the card opened straight onto a bare "Email" label, which Registration —
+                            with its "Join GetThere" title — did not.
+                        -->
+                        <VerticalStackLayout
+                            x:Name="LoginHeading"
+                            Margin="0,0,0,4"
+                            IsVisible="False"
+                            Spacing="2">
+                            <Label
+                                FontSize="24"
+                                HorizontalOptions="Center"
+                                Style="{StaticResource DsPageTitle}"
+                                Text="{localization:Translate Login_Title}" />
+                            <Label
+                                FontSize="13"
+                                HorizontalOptions="Center"
+                                HorizontalTextAlignment="Center"
+                                Style="{StaticResource DsPageSubtitle}"
+                                Text="{localization:Translate Login_Subtitle}" />
+                        </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="8">
                             <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Login_EmailLabel}" />
@@ -278,11 +303,24 @@
                                     TextColor="#93C5FD"
                                     VerticalOptions="Center" />
                             </Border>
+                            <!--
+                                Apple platforms only. The glyph is U+F8FF, which exists in Apple's
+                                system fonts and nowhere else — on Windows it rendered as an empty
+                                grey circle next to the Google one, which looked like a failed
+                                image rather than a button. Sign in with Apple is an Apple-platform
+                                affordance anyway.
+                            -->
                             <Border
                                 BackgroundColor="{AppThemeBinding Light={StaticResource DarkSurfaceAlt}, Dark={StaticResource TextFaint}}"
                                 HeightRequest="44"
                                 StrokeThickness="0"
                                 WidthRequest="44">
+                                <Border.IsVisible>
+                                    <OnPlatform x:TypeArguments="x:Boolean">
+                                        <On Platform="iOS,MacCatalyst" Value="True" />
+                                        <On Platform="Android,WinUI" Value="False" />
+                                    </OnPlatform>
+                                </Border.IsVisible>
                                 <Border.StrokeShape>
                                     <shapes:RoundRectangle CornerRadius="22" />
                                 </Border.StrokeShape>
@@ -290,7 +328,7 @@
                                     FontAttributes="Bold"
                                     FontSize="16"
                                     HorizontalOptions="Center"
-                                    Text=""
+                                    Text="&#xF8FF;"
                                     TextColor="White"
                                     VerticalOptions="Center" />
                             </Border>

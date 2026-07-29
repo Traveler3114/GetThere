@@ -36,7 +36,7 @@ public partial class LoginPage : ContentPage
     private void ApplyThemeImages()
     {
         var isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
-        LogoImage.Source = isDark ? "logo_white.svg" : "logo.svg";
+        LogoImage.Source = isDark ? "logo_white.png" : "logo.png";
     }
 
     private void OnPageSizeChanged(object? sender, EventArgs e)
@@ -85,11 +85,18 @@ public partial class LoginPage : ContentPage
             Grid.SetColumn(FormHost, 1);
             FormHost.Margin = new Thickness(0);
 
+            // Centred on the ScrollView, not on the card. A ScrollView arranges its content at the
+            // content's own height starting from the top, so VerticalOptions on the card inside it
+            // did nothing and the form sat high in its half of the window. Centring the ScrollView
+            // itself keeps the scroll behaviour when the form is taller than the window.
+            FormHost.VerticalOptions = LayoutOptions.Center;
+
             LoginCard.VerticalOptions = LayoutOptions.Center;
             LoginCard.StrokeShape = new RoundRectangle { CornerRadius = 20 };
             LoginCard.Margin = new Thickness(40);
             LoginCard.WidthRequest = 340;
             SheetHandle.IsVisible = false;
+            LoginHeading.IsVisible = true;
             return;
         }
 
@@ -108,10 +115,15 @@ public partial class LoginPage : ContentPage
         Grid.SetRow(FormHost, 1);
         Grid.SetColumn(FormHost, 0);
         FormHost.Margin = new Thickness(0, -60, 0, 0);
+        FormHost.VerticalOptions = LayoutOptions.Fill;
 
+        // Reset explicitly: the split branch pins the card to the design's 340px, and without this
+        // a window dragged from desktop width down to phone width kept that fixed width.
+        LoginCard.WidthRequest = -1;
         LoginCard.VerticalOptions = LayoutOptions.Start;
         LoginCard.StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(22, 22, 0, 0) };
         LoginCard.Margin = new Thickness(1);
         SheetHandle.IsVisible = true;
+        LoginHeading.IsVisible = false;
     }
 }

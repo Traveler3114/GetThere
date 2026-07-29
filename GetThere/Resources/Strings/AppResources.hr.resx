@@ -81,6 +81,9 @@
 
   <!-- Stranica za prijavu -->
   <data name="Login_Title" xml:space="preserve"><value>Prijava</value></data>
+  <data name="Login_Subtitle" xml:space="preserve">
+    <value>Dobro došli natrag</value>
+  </data>
   <data name="Login_EmailLabel" xml:space="preserve"><value>E-pošta</value></data>
   <data name="Login_EmailPlaceholder" xml:space="preserve"><value>E-pošta</value></data>
   <data name="Login_PasswordLabel" xml:space="preserve"><value>Lozinka</value></data>

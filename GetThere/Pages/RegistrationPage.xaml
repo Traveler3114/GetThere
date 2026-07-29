@@ -1,5 +1,14 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<!--  Frame 3j (iPhone · Registration) of "GetThere App.dc.html".  -->
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Frame 3j (iPhone · Registration) of "GetThere App.dc.html", plus a desktop arrangement that
+    matches Login's frame 3k.
+
+    The phone layout is unchanged: a single card on the animated background. At or above
+    SplitLayoutMinWidth the code-behind reveals the same gradient brand panel Login uses and moves
+    the card beside it, so the two auth screens stop disagreeing about what the app looks like on a
+    desktop. The panel is collapsed rather than absent on phones, so there is still one copy of the
+    form.
+-->
 <ContentPage
     x:Class="GetThere.Pages.RegistrationPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -21,143 +30,222 @@
     <Grid>
         <components:AnimatedBackground />
 
-        <ScrollView>
+        <Grid x:Name="RegistrationRoot" ColumnDefinitions="*" RowDefinitions="*">
+
+            <!--  ── BRAND PANEL — desktop only, revealed by ApplyLayout ──  -->
             <Border
-                x:Name="RegistrationCard"
-                Margin="24,80,24,24"
-                Padding="30,26"
-                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
-                HorizontalOptions="Center"
-                MaximumWidthRequest="400"
+                x:Name="BrandPanel"
+                Grid.Row="0"
+                Grid.Column="0"
+                Background="{StaticResource DsHeroGradient}"
+                IsVisible="False"
                 StrokeThickness="0"
-                VerticalOptions="Start">
+                VerticalOptions="Fill">
                 <Border.Shadow>
                     <Shadow
                         Brush="Black"
-                        Opacity="0.35"
-                        Radius="26"
-                        Offset="0,10" />
+                        Opacity="0.3"
+                        Radius="10"
+                        Offset="0,5" />
                 </Border.Shadow>
-                <Border.StrokeShape>
-                    <shapes:RoundRectangle CornerRadius="24" />
-                </Border.StrokeShape>
 
-                <VerticalStackLayout MaximumWidthRequest="400" Spacing="14">
-                    <Label
-                        FontSize="24"
-                        HorizontalOptions="Center"
-                        Style="{StaticResource DsPageTitle}"
-                        Text="{localization:Translate Register_Title}" />
-                    <Label
-                        Margin="0,-8,0,0"
-                        FontSize="13"
-                        HorizontalOptions="Center"
-                        HorizontalTextAlignment="Center"
-                        Style="{StaticResource DsPageSubtitle}"
-                        Text="{localization:Translate Register_Subtitle}" />
-
-                    <VerticalStackLayout Spacing="6">
-                        <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_FullNameLabel}" />
-                        <Border Style="{StaticResource DsField}">
-                            <Entry
-                                Placeholder="{localization:Translate Register_FullNamePlaceholder}"
-                                Style="{StaticResource DsEntry}"
-                                Text="{Binding FullName}" />
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <VerticalStackLayout Spacing="6">
-                        <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_EmailLabel}" />
-                        <Border Style="{StaticResource DsField}">
-                            <Entry
-                                Keyboard="Email"
-                                Placeholder="{localization:Translate Register_EmailPlaceholder}"
-                                Style="{StaticResource DsEntry}"
-                                Text="{Binding Email}" />
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <VerticalStackLayout Spacing="6">
-                        <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_PasswordLabel}" />
-                        <Border Style="{StaticResource DsField}">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Entry
-                                    IsPassword="{Binding IsPasswordVisible, Converter={StaticResource InverseBoolConverter}}"
-                                    Placeholder="{localization:Translate Register_PasswordPlaceholder}"
-                                    Style="{StaticResource DsEntry}"
-                                    Text="{Binding Password}" />
-                                <Label
-                                    Grid.Column="1"
-                                    Style="{StaticResource DsFieldAction}"
-                                    Text="{Binding PasswordToggleText}">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding TogglePasswordCommand}" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                            </Grid>
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <VerticalStackLayout Spacing="6">
-                        <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_ConfirmPasswordLabel}" />
-                        <Border Style="{StaticResource DsField}">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Entry
-                                    IsPassword="{Binding IsConfirmPasswordVisible, Converter={StaticResource InverseBoolConverter}}"
-                                    Placeholder="{localization:Translate Register_ConfirmPasswordPlaceholder}"
-                                    Style="{StaticResource DsEntry}"
-                                    Text="{Binding ConfirmPassword}" />
-                                <Label
-                                    Grid.Column="1"
-                                    Style="{StaticResource DsFieldAction}"
-                                    Text="{Binding ConfirmToggleText}">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding ToggleConfirmCommand}" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                            </Grid>
-                        </Border>
-                    </VerticalStackLayout>
-
-                    <Label
-                        HorizontalOptions="Center"
-                        HorizontalTextAlignment="Center"
-                        IsVisible="{Binding HasError}"
-                        Style="{StaticResource DsErrorLabel}"
-                        Text="{Binding ErrorText}" />
-
-                    <Button
-                        Margin="0,6,0,0"
-                        Command="{Binding RegisterCommand}"
-                        Style="{StaticResource DsVioletButton}"
-                        Text="{localization:Translate Register_Button}">
-                        <Button.Shadow>
-                            <Shadow
-                                Brush="{StaticResource PrimaryBrush}"
-                                Opacity="0.35"
-                                Radius="14"
-                                Offset="0,6" />
-                        </Button.Shadow>
-                    </Button>
-
-                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="5">
+                <VerticalStackLayout Spacing="15" VerticalOptions="Center">
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="10">
+                        <BoxView
+                            CornerRadius="9"
+                            HeightRequest="18"
+                            VerticalOptions="Center"
+                            WidthRequest="18"
+                            Color="{StaticResource StatusOk}" />
                         <Label
-                            FontSize="13.5"
-                            Style="{StaticResource DsPageSubtitle}"
-                            Text="{localization:Translate Register_AlreadyHaveAccount}"
+                            FontAttributes="Bold"
+                            FontSize="22"
+                            Text="GetThere"
+                            TextColor="White"
                             VerticalOptions="Center" />
-                        <Label
-                            FontSize="13.5"
-                            Style="{StaticResource DsLinkLabel}"
-                            Text="{localization:Translate Register_SignIn}"
-                            VerticalOptions="Center">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding GoToLoginCommand}" />
-                            </Label.GestureRecognizers>
-                        </Label>
                     </HorizontalStackLayout>
+
+                    <Border
+                        BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark={StaticResource PrimaryDark}}"
+                        HeightRequest="160"
+                        HorizontalOptions="Center"
+                        StrokeThickness="0"
+                        WidthRequest="160">
+                        <Border.StrokeShape>
+                            <shapes:RoundRectangle CornerRadius="80" />
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow
+                                Brush="Black"
+                                Opacity="0.2"
+                                Radius="10"
+                                Offset="3,3" />
+                        </Border.Shadow>
+                        <Image
+                            x:Name="LogoImage"
+                            Margin="10"
+                            Aspect="AspectFit"
+                            Source="logo.png" />
+                    </Border>
+
+                    <!--  Shared with Login: this is the product strapline, not a per-page one.  -->
+                    <Label
+                        Margin="0,10,0,0"
+                        FontSize="14"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        MaximumWidthRequest="320"
+                        Opacity="0.75"
+                        Text="{localization:Translate Login_Tagline}"
+                        TextColor="White" />
                 </VerticalStackLayout>
             </Border>
-        </ScrollView>
+
+            <!--
+                Width is set entirely from code-behind. This carried MaximumWidthRequest="400" while
+                ApplyTicketsStyleResponsive was setting WidthRequest to 80% of the window, so the two
+                fought and the helper achieved nothing.
+            -->
+            <ScrollView
+                x:Name="FormHost"
+                Grid.Row="0"
+                Grid.Column="0">
+                <Border
+                    x:Name="RegistrationCard"
+                    Margin="24,80,24,24"
+                    Padding="30,26"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+                    HorizontalOptions="Center"
+                    StrokeThickness="0"
+                    VerticalOptions="Start">
+                    <Border.Shadow>
+                        <Shadow
+                            Brush="Black"
+                            Opacity="0.35"
+                            Radius="26"
+                            Offset="0,10" />
+                    </Border.Shadow>
+                    <Border.StrokeShape>
+                        <shapes:RoundRectangle CornerRadius="24" />
+                    </Border.StrokeShape>
+
+                    <VerticalStackLayout Spacing="14">
+                        <Label
+                            FontSize="24"
+                            HorizontalOptions="Center"
+                            Style="{StaticResource DsPageTitle}"
+                            Text="{localization:Translate Register_Title}" />
+                        <Label
+                            Margin="0,-8,0,0"
+                            FontSize="13"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            Style="{StaticResource DsPageSubtitle}"
+                            Text="{localization:Translate Register_Subtitle}" />
+
+                        <VerticalStackLayout Spacing="6">
+                            <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_FullNameLabel}" />
+                            <Border Style="{StaticResource DsField}">
+                                <Entry
+                                    Placeholder="{localization:Translate Register_FullNamePlaceholder}"
+                                    Style="{StaticResource DsEntry}"
+                                    Text="{Binding FullName}" />
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="6">
+                            <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_EmailLabel}" />
+                            <Border Style="{StaticResource DsField}">
+                                <Entry
+                                    Keyboard="Email"
+                                    Placeholder="{localization:Translate Register_EmailPlaceholder}"
+                                    Style="{StaticResource DsEntry}"
+                                    Text="{Binding Email}" />
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="6">
+                            <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_PasswordLabel}" />
+                            <Border Style="{StaticResource DsField}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry
+                                        IsPassword="{Binding IsPasswordVisible, Converter={StaticResource InverseBoolConverter}}"
+                                        Placeholder="{localization:Translate Register_PasswordPlaceholder}"
+                                        Style="{StaticResource DsEntry}"
+                                        Text="{Binding Password}" />
+                                    <Label
+                                        Grid.Column="1"
+                                        Style="{StaticResource DsFieldAction}"
+                                        Text="{Binding PasswordToggleText}">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding TogglePasswordCommand}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="6">
+                            <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate Register_ConfirmPasswordLabel}" />
+                            <Border Style="{StaticResource DsField}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry
+                                        IsPassword="{Binding IsConfirmPasswordVisible, Converter={StaticResource InverseBoolConverter}}"
+                                        Placeholder="{localization:Translate Register_ConfirmPasswordPlaceholder}"
+                                        Style="{StaticResource DsEntry}"
+                                        Text="{Binding ConfirmPassword}" />
+                                    <Label
+                                        Grid.Column="1"
+                                        Style="{StaticResource DsFieldAction}"
+                                        Text="{Binding ConfirmToggleText}">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ToggleConfirmCommand}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <Label
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            IsVisible="{Binding HasError}"
+                            Style="{StaticResource DsErrorLabel}"
+                            Text="{Binding ErrorText}" />
+
+                        <Button
+                            Margin="0,6,0,0"
+                            Command="{Binding RegisterCommand}"
+                            Style="{StaticResource DsVioletButton}"
+                            Text="{localization:Translate Register_Button}">
+                            <Button.Shadow>
+                                <Shadow
+                                    Brush="{StaticResource PrimaryBrush}"
+                                    Opacity="0.35"
+                                    Radius="14"
+                                    Offset="0,6" />
+                            </Button.Shadow>
+                        </Button>
+
+                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="5">
+                            <Label
+                                FontSize="13.5"
+                                Style="{StaticResource DsPageSubtitle}"
+                                Text="{localization:Translate Register_AlreadyHaveAccount}"
+                                VerticalOptions="Center" />
+                            <Label
+                                FontSize="13.5"
+                                Style="{StaticResource DsLinkLabel}"
+                                Text="{localization:Translate Register_SignIn}"
+                                VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding GoToLoginCommand}" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+            </ScrollView>
+        </Grid>
     </Grid>
 </ContentPage>
