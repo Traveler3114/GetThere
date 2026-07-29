@@ -1,4 +1,4 @@
-namespace GetThereAuth;
+namespace SharedAuth;
 
 /// <summary>What a presented refresh token entitles the caller to.</summary>
 public enum RefreshTokenVerdict

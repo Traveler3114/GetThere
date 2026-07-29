@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace GetThereAPI.Entities;
 
-public class AppUser : IdentityUser, GetThereAuth.IAuthUser
+public class AppUser : IdentityUser, SharedAuth.IAuthUser
 {
     public string FullName { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

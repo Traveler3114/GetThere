@@ -44,7 +44,7 @@ public class AuthManager
             // Deliberately indistinguishable from success. Answering "email already in use" turns
             // registration into an oracle for whether an address has an account here. The address
             // owner is told by mail instead — see the note below.
-            GetThereAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
+            SharedAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
             LogAudit(existingUser.Id, "RegisterAttemptOnExistingAccount", "User", existingUser.Id);
             await _db.SaveChangesAsync(ct);
 
@@ -85,7 +85,7 @@ public class AuthManager
         {
             // Hash the supplied password anyway so an unknown address does not answer measurably
             // faster than a known one, which would make the endpoint an account oracle.
-            GetThereAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
+            SharedAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
         }
 
@@ -141,20 +141,20 @@ public class AuthManager
             .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
         // The rules — including why reuse must be tested before the active check — live in
-        // GetThereAuth so this API and TransitInfoAPI cannot disagree about what counts as theft.
-        var verdict = GetThereAuth.RefreshTokenEvaluator.Evaluate(
+        // SharedAuth so this API and TransitInfoAPI cannot disagree about what counts as theft.
+        var verdict = SharedAuth.RefreshTokenEvaluator.Evaluate(
             found: existingRefreshToken is not null,
             hasReplacement: existingRefreshToken?.ReplacedByToken is not null,
             isActive: existingRefreshToken?.IsActive ?? false,
             storedIpAddress: existingRefreshToken?.IpAddress,
             presentedIpAddress: ipAddress);
 
-        if (existingRefreshToken is null || verdict is GetThereAuth.RefreshTokenVerdict.Invalid)
+        if (existingRefreshToken is null || verdict is SharedAuth.RefreshTokenVerdict.Invalid)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
 
         // Reuse means the token was already rotated once and has been presented again: assume it
         // was stolen and revoke every live token the user has.
-        if (verdict is GetThereAuth.RefreshTokenVerdict.ReuseDetected)
+        if (verdict is SharedAuth.RefreshTokenVerdict.ReuseDetected)
         {
             var revokedAt = DateTime.UtcNow;
             var userTokens = await _db.RefreshTokens
@@ -165,6 +165,22 @@ public class AuthManager
 
             LogAudit(existingRefreshToken.UserId, "RefreshTokenReuseDetected", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
             await _db.SaveChangesAsync(ct);
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
+
+        // The token itself is good, but the account behind it may have changed since it was issued.
+        // Nothing rechecked that, so an account locked out by the failed-attempt policy kept minting
+        // fresh access tokens for the whole life of its refresh token — the lockout only ever
+        // applied to the password path.
+        var account = existingRefreshToken.User;
+        if (account is null || await _userManager.IsLockedOutAsync(account))
+        {
+            LogAudit(existingRefreshToken.UserId, "RefreshRejectedForLockedAccount", "RefreshToken",
+                existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
+            await _db.SaveChangesAsync(ct);
+
+            // Deliberately the same answer as an expired token: whether an account exists and is
+            // locked is not something an unauthenticated caller should be able to tell apart.
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 

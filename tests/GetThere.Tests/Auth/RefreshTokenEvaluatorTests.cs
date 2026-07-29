@@ -1,4 +1,4 @@
-using GetThereAuth;
+using SharedAuth;
 
 namespace GetThere.Tests.Auth;
 

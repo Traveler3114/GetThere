@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace GetThereAuth;
+namespace SharedAuth;
 
 /// <summary>
 /// Issues access tokens and the raw/hashed refresh-token pairs that go with them.

@@ -5,7 +5,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace GetThereAuth;
+namespace SharedAuth;
 
 /// <summary>
 /// Traces and metrics for both APIs.
@@ -22,7 +22,7 @@ namespace GetThereAuth;
 /// </summary>
 public static class TelemetryRegistration
 {
-    public static IServiceCollection AddGetThereTelemetry(
+    public static IServiceCollection AddSharedTelemetry(
         this IServiceCollection services, IConfiguration configuration, string serviceName)
     {
         var endpoint = configuration["Otel:Endpoint"];

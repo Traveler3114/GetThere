@@ -11,8 +11,6 @@ using GetThereAPI.Sdk;
 using GetThereAPI.Services;
 using GetThereAPI.Services.Extraction;
 
-using GetThereAuth;
-
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -25,6 +23,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 using Scalar.AspNetCore;
+
+using SharedAuth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,8 +54,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
 
-// Inert unless Otel:Endpoint is configured. See GetThereAuth.TelemetryRegistration.
-builder.Services.AddGetThereTelemetry(builder.Configuration, "GetThereAPI");
+// Inert unless Otel:Endpoint is configured. See SharedAuth.TelemetryRegistration.
+builder.Services.AddSharedTelemetry(builder.Configuration, "GetThereAPI");
 
 builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
 {

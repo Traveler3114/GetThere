@@ -50,7 +50,7 @@ public class AuthManager
         {
             // Spend the same time a real password check would, so an unknown address does not
             // answer measurably faster than a known one and turn this into an account oracle.
-            GetThereAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
+            SharedAuth.AccountEnumerationGuard.SpendPasswordHashingTime(_userManager, request.Password);
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
         }
 
@@ -103,20 +103,20 @@ public class AuthManager
             .FirstOrDefaultAsync(rt => rt.Token == incomingTokenHash, ct);
 
         // The rules — including why reuse must be tested before the active check — live in
-        // GetThereAuth so this API and GetThereAPI cannot disagree about what counts as theft.
-        var verdict = GetThereAuth.RefreshTokenEvaluator.Evaluate(
+        // SharedAuth so this API and GetThereAPI cannot disagree about what counts as theft.
+        var verdict = SharedAuth.RefreshTokenEvaluator.Evaluate(
             found: existingRefreshToken is not null,
             hasReplacement: existingRefreshToken?.ReplacedByToken is not null,
             isActive: existingRefreshToken?.IsActive ?? false,
             storedIpAddress: existingRefreshToken?.IpAddress,
             presentedIpAddress: ipAddress);
 
-        if (existingRefreshToken is null || verdict is GetThereAuth.RefreshTokenVerdict.Invalid)
+        if (existingRefreshToken is null || verdict is SharedAuth.RefreshTokenVerdict.Invalid)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
 
         // Reuse means the token was already rotated once and has been presented again: assume it
         // was stolen and revoke every live token the user has.
-        if (verdict is GetThereAuth.RefreshTokenVerdict.ReuseDetected)
+        if (verdict is SharedAuth.RefreshTokenVerdict.ReuseDetected)
         {
             var revokedAt = DateTime.UtcNow;
             var userTokens = await _db.RefreshTokens

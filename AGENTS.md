@@ -8,7 +8,7 @@
 - `GetThere` (MAUI client) → calls only GetThereAPI
 - `GetThereShared` → shared DTOs/contracts, no runtime. Referenced by the MAUI app, so nothing
   server-side belongs in it
-- `GetThereAuth` → server-side invariants shared by both APIs: token signing/hashing, refresh-token
+- `SharedAuth` → server-side invariants shared by both APIs: token signing/hashing, refresh-token
   reuse rules, the account-enumeration guard, telemetry registration. No DbContext, no entities.
   Keep it invariant — anything either service might want to change on its own schedule does not
   belong here

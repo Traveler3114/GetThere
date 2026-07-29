@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace GetThereAuth;
+namespace SharedAuth;
 
 /// <summary>
 /// Keeps "no such account" from being measurably faster than "wrong password".

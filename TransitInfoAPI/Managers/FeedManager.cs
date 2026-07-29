@@ -282,7 +282,18 @@ public class FeedManager
             }
             catch (FileNotFoundException)
             {
+                // No existing archive to replace — first fetch for this feed.
                 File.Move(tmpPath, zipPath);
+            }
+            catch (IOException ex)
+            {
+                // File.Replace needs to delete the destination, which fails while anything still
+                // holds a handle on it — an import reading the previous archive, a virus scanner, or
+                // an editor. Observed live as "Unable to remove the file to be replaced" and "the
+                // process cannot access the file", which failed the whole poll for that feed.
+                // Move with overwrite does not have the same delete-then-rename requirement.
+                _logger.LogWarning(ex, "Could not replace {ZipPath} in place for feed {FeedId}; overwriting instead", zipPath, feed.FeedId);
+                File.Move(tmpPath, zipPath, overwrite: true);
             }
 
             var sha1 = source.ComputeHash(feed, result.Data);
@@ -1066,15 +1077,20 @@ public class FeedManager
             BulkCopyTimeout = 180
         };
 
-        bulkCopy.ColumnMappings.Add("TripId", "TripId");
-        bulkCopy.ColumnMappings.Add("RawStopId", "RawStopId");
-        bulkCopy.ColumnMappings.Add("ArrivalTime", "ArrivalTime");
-        bulkCopy.ColumnMappings.Add("DepartureTime", "DepartureTime");
-        bulkCopy.ColumnMappings.Add("StopSequence", "StopSequence");
-        bulkCopy.ColumnMappings.Add("StopHeadsign", "StopHeadsign");
-        bulkCopy.ColumnMappings.Add("PickupType", "PickupType");
-        bulkCopy.ColumnMappings.Add("DropOffType", "DropOffType");
-        bulkCopy.ColumnMappings.Add("Timepoint", "Timepoint");
+        // Mapped by source *ordinal*, not by source name. ObjectArrayReader below is positional —
+        // it has no column names and throws NotSupportedException from GetOrdinal/GetName. Naming
+        // the source column makes SqlBulkCopy resolve it through GetOrdinal, so every call to
+        // WriteToServerAsync threw and no GTFS static feed could complete phase 3 at all.
+        // The order here must match the row array built below.
+        bulkCopy.ColumnMappings.Add(0, "TripId");
+        bulkCopy.ColumnMappings.Add(1, "RawStopId");
+        bulkCopy.ColumnMappings.Add(2, "ArrivalTime");
+        bulkCopy.ColumnMappings.Add(3, "DepartureTime");
+        bulkCopy.ColumnMappings.Add(4, "StopSequence");
+        bulkCopy.ColumnMappings.Add(5, "StopHeadsign");
+        bulkCopy.ColumnMappings.Add(6, "PickupType");
+        bulkCopy.ColumnMappings.Add(7, "DropOffType");
+        bulkCopy.ColumnMappings.Add(8, "Timepoint");
 
         await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000))
         {

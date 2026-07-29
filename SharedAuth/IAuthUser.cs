@@ -1,4 +1,4 @@
-namespace GetThereAuth;
+namespace SharedAuth;
 
 /// <summary>
 /// The one thing the shared auth code needs from a user beyond what <c>IdentityUser</c> already

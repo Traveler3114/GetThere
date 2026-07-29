@@ -4,8 +4,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
-using GetThereAuth;
-
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +11,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+
+using SharedAuth;
 
 using TransitInfoAPI.Common;
 using TransitInfoAPI.Data;
@@ -46,8 +46,8 @@ builder.Services.AddDbContext<TransitDbContext>(options =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<TransitDbContext>("database", tags: ["ready"]);
 
-// Inert unless Otel:Endpoint is configured. See GetThereAuth.TelemetryRegistration.
-builder.Services.AddGetThereTelemetry(builder.Configuration, "TransitInfoAPI");
+// Inert unless Otel:Endpoint is configured. See SharedAuth.TelemetryRegistration.
+builder.Services.AddSharedTelemetry(builder.Configuration, "TransitInfoAPI");
 
 builder.Services.AddHttpClient("gtfs", client =>
 {

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -261,11 +262,35 @@ public partial class TicketsViewModel : BaseViewModel
     /// </summary>
     private async Task<TicketImportDraft?> PasteAsync()
     {
-        var text = await Shell.Current.DisplayPromptAsync(
-            "Paste booking text",
-            "Paste the confirmation email or booking details.",
-            accept: "Read it", cancel: "Cancel",
-            placeholder: "Paste here", maxLength: 20000);
+        // Read from the clipboard rather than through DisplayPromptAsync, which renders a
+        // single-line Entry: a pasted confirmation email arrived truncated at its first newline, so
+        // the scraper only ever saw one line. It reads route, endpoints, price, currency and the
+        // validity window out of the full text and could find none of that in a single heading —
+        // which is why this path appeared to extract almost nothing.
+        //
+        // The prompt stays as the fallback for an empty clipboard, so there is still a way to type
+        // a line by hand. Either way the user reviews everything on the import form before saving.
+        string? text = null;
+
+        try
+        {
+            if (Clipboard.Default.HasText)
+                text = await Clipboard.Default.GetTextAsync();
+        }
+        catch (Exception ex)
+        {
+            // Clipboard access can be denied by the platform; fall through to the prompt.
+            Trace.WriteLine($"[TicketsViewModel] Could not read the clipboard: {ex.Message}");
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            text = await Shell.Current.DisplayPromptAsync(
+                "Paste booking text",
+                "Copy the confirmation email first, or type the booking details here.",
+                accept: "Read it", cancel: "Cancel",
+                placeholder: "Paste here", maxLength: 20000);
+        }
 
         if (string.IsNullOrWhiteSpace(text)) return null;
 

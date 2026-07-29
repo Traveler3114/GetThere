@@ -1,4 +1,4 @@
-using GetThereAuth;
+using SharedAuth;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,7 +25,7 @@ public class TelemetryRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddGetThereTelemetry(ConfigurationWith(null), "TestService");
+        services.AddSharedTelemetry(ConfigurationWith(null), "TestService");
 
         Assert.Empty(services);
     }
@@ -37,7 +37,7 @@ public class TelemetryRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddGetThereTelemetry(ConfigurationWith(endpoint), "TestService");
+        services.AddSharedTelemetry(ConfigurationWith(endpoint), "TestService");
 
         Assert.Empty(services);
     }
@@ -47,7 +47,7 @@ public class TelemetryRegistrationTests
     {
         var services = new ServiceCollection();
 
-        services.AddGetThereTelemetry(ConfigurationWith("http://localhost:4317"), "TestService");
+        services.AddSharedTelemetry(ConfigurationWith("http://localhost:4317"), "TestService");
 
         Assert.NotEmpty(services);
     }
@@ -65,7 +65,7 @@ public class TelemetryRegistrationTests
         var services = new ServiceCollection();
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
-            services.AddGetThereTelemetry(ConfigurationWith(endpoint), "TestService"));
+            services.AddSharedTelemetry(ConfigurationWith(endpoint), "TestService"));
 
         Assert.Contains("http or https", ex.Message, StringComparison.Ordinal);
     }

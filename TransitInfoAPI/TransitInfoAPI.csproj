@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GetThereAuth\GetThereAuth.csproj" />
+    <ProjectReference Include="..\SharedAuth\SharedAuth.csproj" />
   </ItemGroup>
 
   <!--
@@ -52,10 +52,10 @@
     A shared assembly would couple the two release cycles and let a change made for one service
     silently alter the other. Contracts live in TransitInfoAPI.Contracts.
 
-    GetThereAuth is the one carve-out, and it is narrow on purpose. The rule above was costing more
+    SharedAuth is the one carve-out, and it is narrow on purpose. The rule above was costing more
     than it saved for authentication specifically: the login and registration endpoints here were
     still open account-enumeration oracles months after the identical endpoints in GetThereAPI were
-    hardened, because the fix had to be remembered twice and was not. GetThereAuth therefore holds
+    hardened, because the fix had to be remembered twice and was not. SharedAuth therefore holds
     only invariants — how a token is signed and hashed, and what counts as refresh-token reuse —
     and nothing service-specific. It has no DbContext, no entity types and no knowledge of either
     service's permission vocabulary, so this project's EF model and contracts stay entirely its own.

@@ -15,7 +15,7 @@ namespace GetThere.Tests.Auth;
 /// </summary>
 public sealed class AuthFixture : IDisposable
 {
-    private static readonly string ConnectionString = TestDatabase.ConnectionStringFor("GetThereAuthTests");
+    private static readonly string ConnectionString = TestDatabase.ConnectionStringFor("SharedAuthTests");
 
     private readonly ServiceProvider _provider;
 

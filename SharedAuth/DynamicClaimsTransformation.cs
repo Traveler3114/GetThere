@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace GetThereAuth;
+namespace SharedAuth;
 
 /// <summary>
 /// Replaces the role and permission claims carried in the token with what the database says right
@@ -84,14 +84,21 @@ public class DynamicClaimsTransformation<TUser> : IClaimsTransformation
             return new CachedClaims(roles, perms);
         });
 
-        if (cached is not null)
+        if (cached is null)
         {
-            foreach (var role in cached.Roles)
-                identity.AddClaim(new Claim("role", role));
-
-            foreach (var perm in cached.Permissions)
-                identity.AddClaim(new Claim("permission", perm));
+            // The token is validly signed but names a user the store no longer has. Stripping only
+            // the role and permission claims — which is all this did — left the principal
+            // authenticated, so a deleted account still satisfied a bare [Authorize] and could reach
+            // /auth/logout and /auth/change-password until its access token expired. Returning an
+            // unauthenticated principal makes those answer 401.
+            return new ClaimsPrincipal(new ClaimsIdentity());
         }
+
+        foreach (var role in cached.Roles)
+            identity.AddClaim(new Claim("role", role));
+
+        foreach (var perm in cached.Permissions)
+            identity.AddClaim(new Claim("permission", perm));
 
         return principal;
     }

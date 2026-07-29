@@ -133,6 +133,10 @@ public class MapManager
 
     private static readonly JsonSerializerOptions UpstreamJson = new() { PropertyNameCaseInsensitive = true };
 
+    /// <summary>Upstream path serving the transport-type list. Named once so the passthrough
+    /// allow-list below and the typed call above cannot drift apart again.</summary>
+    private const string TransportTypesUpstreamPath = "/operators/types";
+
     public async Task<List<MapDepartureResponse>> GetDeparturesAsync(string stationId, CancellationToken ct = default)
     {
         var (body, _) = await _transitClient.GetRawAsync($"/stations/{Uri.EscapeDataString(stationId)}/departures", ct);
@@ -145,9 +149,17 @@ public class MapManager
         return JsonSerializer.Deserialize<List<MapOperatorResponse>>(body, UpstreamJson) ?? [];
     }
 
+    /// <summary>
+    /// Transport types and their icons, read from TransitInfoAPI's operators endpoint.
+    /// <para>
+    /// This asked for <c>/map/transport-types</c>, which does not exist upstream — TransitInfoAPI has
+    /// no map controller at all — so every call answered 404 and this API turned that into a 502.
+    /// The data lives on <c>/operators/types</c>.
+    /// </para>
+    /// </summary>
     public async Task<JsonElement> GetTransportTypesAsync(CancellationToken ct = default)
     {
-        var (body, _) = await _transitClient.GetRawAsync("/map/transport-types", ct);
+        var (body, _) = await _transitClient.GetRawAsync(TransportTypesUpstreamPath, ct);
         using var doc = JsonDocument.Parse(body);
         return doc.RootElement.Clone();
     }
@@ -169,7 +181,7 @@ public class MapManager
         new(@"^realtime/alerts$", RegexOptions.Compiled),
         new(@"^stations/\d+/departures$", RegexOptions.Compiled),
         new(@"^stations/\d+/operators$", RegexOptions.Compiled),
-        new(@"^map/transport-types$", RegexOptions.Compiled)
+        new(@"^operators/types$", RegexOptions.Compiled)
     ];
 
     public static bool IsAllowedUpstreamPath(string path) =>

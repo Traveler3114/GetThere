@@ -58,8 +58,8 @@ jobs:
       - name: Restore GetThereShared
         run: dotnet restore GetThereShared/GetThereShared.csproj
 
-      - name: Restore GetThereAuth
-        run: dotnet restore GetThereAuth/GetThereAuth.csproj
+      - name: Restore SharedAuth
+        run: dotnet restore SharedAuth/SharedAuth.csproj
 
       - name: Restore GetThereAPI
         run: dotnet restore GetThereAPI/GetThereAPI.csproj
@@ -73,8 +73,8 @@ jobs:
       - name: Build GetThereShared
         run: dotnet build GetThereShared/GetThereShared.csproj --no-restore -warnaserror
 
-      - name: Build GetThereAuth
-        run: dotnet build GetThereAuth/GetThereAuth.csproj --no-restore -warnaserror
+      - name: Build SharedAuth
+        run: dotnet build SharedAuth/SharedAuth.csproj --no-restore -warnaserror
 
       - name: Build GetThereAPI
         run: dotnet build GetThereAPI/GetThereAPI.csproj --no-restore -warnaserror
@@ -106,8 +106,8 @@ jobs:
       - name: Lint GetThereShared
         run: dotnet format GetThereShared/GetThereShared.csproj --verify-no-changes --no-restore
 
-      - name: Lint GetThereAuth
-        run: dotnet format GetThereAuth/GetThereAuth.csproj --verify-no-changes --no-restore
+      - name: Lint SharedAuth
+        run: dotnet format SharedAuth/SharedAuth.csproj --verify-no-changes --no-restore
 
       - name: Lint GetThereAPI
         run: dotnet format GetThereAPI/GetThereAPI.csproj --verify-no-changes --no-restore
@@ -131,13 +131,13 @@ jobs:
       - name: Restore
         run: |
           dotnet restore GetThereShared/GetThereShared.csproj
-          dotnet restore GetThereAuth/GetThereAuth.csproj
+          dotnet restore SharedAuth/SharedAuth.csproj
           dotnet restore GetThereAPI/GetThereAPI.csproj
           dotnet restore TransitInfoAPI/TransitInfoAPI.csproj
 
       - name: Check for vulnerable packages
         run: |
-          for project in GetThereShared GetThereAuth GetThereAPI TransitInfoAPI; do
+          for project in GetThereShared SharedAuth GetThereAPI TransitInfoAPI; do
             echo "== $project"
             dotnet list "$project/$project.csproj" package --vulnerable --include-transitive \
               | tee "/tmp/$project-vulnerable.txt"
@@ -150,7 +150,7 @@ jobs:
       - name: Check for deprecated packages
         continue-on-error: true
         run: |
-          for project in GetThereShared GetThereAuth GetThereAPI TransitInfoAPI; do
+          for project in GetThereShared SharedAuth GetThereAPI TransitInfoAPI; do
             dotnet list "$project/$project.csproj" package --deprecated --include-transitive
           done
 

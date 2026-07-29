@@ -102,9 +102,11 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
         if (SupportedCurrencies.Selectable.Contains(extraction.Currency, StringComparer.OrdinalIgnoreCase))
             SelectedCurrency = extraction.Currency!.ToUpperInvariant();
 
-        // Extraction dates are UTC; the pickers below are local calendar days.
-        if (extraction.ValidFrom is { } from) ValidFrom = from.ToLocalTime().Date;
-        if (extraction.ValidTo is { } to) ValidTo = to.ToLocalTime().Date;
+        // Taken as the calendar day the extractor read off the ticket, not converted through the
+        // machine's timezone. ToLocalTime shifted a date scraped as 15.08 to 14.08 for any user west
+        // of UTC, because the extractor emits midnight UTC for a date it found written as "15.08.2026".
+        if (extraction.ValidFrom is { } from) ValidFrom = from.Date;
+        if (extraction.ValidTo is { } to) ValidTo = to.Date;
 
         if (ValidTo < ValidFrom) ValidTo = ValidFrom;
 
@@ -132,9 +134,15 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
         {
             ErrorText = "Ticket name is required."; HasError = true; return;
         }
-        var validFromUtc = DateTime.SpecifyKind(ValidFrom, DateTimeKind.Local).ToUniversalTime();
-        var validToUtc = DateTime.SpecifyKind(ValidTo.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
-        if (validToUtc <= validFromUtc)
+        // Sent as the calendar days the pickers show, with no timezone conversion. A ticket's
+        // validity is a date printed on the ticket, not an instant: marking the picked day Local and
+        // converting to UTC moved it back by the machine's offset, so choosing 29.07 in Zagreb stored
+        // 2026-07-28T22:00:00Z and every list then rendered "28.07". The API takes an offset-less
+        // value at face value (see ImportedTicketManager.ToUtc), so an unshifted day round-trips
+        // unchanged. ValidTo still spans to the end of its day.
+        var validFrom = ValidFrom.Date;
+        var validTo = ValidTo.Date.AddDays(1).AddTicks(-1);
+        if (validTo <= validFrom)
         {
             ErrorText = "Valid To must be after Valid From."; HasError = true; return;
         }
@@ -168,8 +176,8 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
                 DestinationName = string.IsNullOrWhiteSpace(DestinationName) ? null : DestinationName.Trim(),
                 Price = price,
                 Currency = price.HasValue ? SelectedCurrency : null,
-                ValidFrom = validFromUtc,
-                ValidTo = validToUtc,
+                ValidFrom = validFrom,
+                ValidTo = validTo,
                 OperatorNameSnapshot = string.IsNullOrWhiteSpace(OperatorName) ? null : OperatorName.Trim(),
                 RawPayload = _rawPayload,
                 PayloadFormat = _payloadFormat

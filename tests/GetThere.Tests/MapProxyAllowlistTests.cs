@@ -16,7 +16,11 @@ public class MapProxyAllowlistTests
     [InlineData("mobility/stations")]
     [InlineData("realtime/vehicles")]
     [InlineData("realtime/alerts")]
-    [InlineData("map/transport-types")]
+    // Was "map/transport-types", which TransitInfoAPI does not serve — it has no map controller at
+    // all, so that path 404'd upstream and the proxy turned it into a 502 on every call. The
+    // transport-type list lives on /operators/types. Note the bare "operators" stays blocked below:
+    // this pattern is anchored to the one sub-path the map page needs.
+    [InlineData("operators/types")]
     [InlineData("stations/1/departures")]
     [InlineData("stations/4821/operators")]
     public void Allows_the_paths_the_map_page_needs(string path)
