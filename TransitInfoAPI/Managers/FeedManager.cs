@@ -423,10 +423,16 @@ public class FeedManager
 
                     archive.Dispose();
 
-                    _logStore.AddEntry(feedVersionId, "Reconciling stations...");
-                    await ReconcileAndBackfillAsync(feedVersionId, version, ct);
-                    _logStore.AddEntry(feedVersionId, "Reconciliation complete");
-
+                    // Reconciliation deliberately does NOT run here. It used to, which meant the
+                    // import transaction — holding write locks on Trips, StopTimes, Shapes,
+                    // Calendars, RawStops and Agencies, escalated to table locks at this row count —
+                    // stayed open across the whole matching pass and a backfill UPDATE budgeted at
+                    // 600 seconds. Three feeds import in parallel and reconciliation writes the
+                    // *shared* CanonicalStations and CanonicalStationOperators tables, so that was a
+                    // blocking and deadlock risk between imports.
+                    //
+                    // It now runs after the commit below. See ReconcileImportedVersionAsync for what
+                    // happens when it fails.
                     await FinalizeVersionPhaseAsync(feedVersionId, version, parsed.OperatorId, parsed.Routes, parsed.RawStops, parsed.Trips, parsed.Calendar, parsed.CalendarDates, parsed.Agencies, tempZipPath, sqlTx, ct);
                 }
                 finally
@@ -446,6 +452,11 @@ public class FeedManager
                 // parse both commit and return without reaching the end of the block.
                 EndImportTransaction(sqlTx, ownsTransaction, feedVersionId);
             }
+
+            // Everything past this point runs against committed data, outside any transaction. A
+            // failure here leaves the imported version in place rather than discarding it.
+            if (!await ReconcileImportedVersionAsync(feedVersionId, ct))
+                return;
 
             try
             {
@@ -681,14 +692,20 @@ public class FeedManager
 
         _logStore.AddEntry(feedVersionId, "No shapes.txt found — generating from stop_times...");
 
-        var stopTimes = _gtfs.ParseStopTimes(archive);
-
+        // Streamed in batches rather than read whole. This called the unbatched ParseStopTimes,
+        // which does .ToList() over the largest file in a GTFS archive — ZET's is around a million
+        // rows — while ParseStopTimesBatchedAsync already existed and is what the import phase uses.
+        // The grouping below still holds one entry per row, but the parser no longer materialises a
+        // second full copy alongside it.
         var byTrip = new Dictionary<string, List<RawStopTimeRecord>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var st in stopTimes)
+        await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000).WithCancellation(ct))
         {
-            if (!byTrip.TryGetValue(st.TripId, out var list))
-                byTrip[st.TripId] = list = [];
-            list.Add(st);
+            foreach (var st in batch)
+            {
+                if (!byTrip.TryGetValue(st.TripId, out var list))
+                    byTrip[st.TripId] = list = [];
+                list.Add(st);
+            }
         }
 
         foreach (var list in byTrip.Values)
@@ -1201,6 +1218,69 @@ public class FeedManager
         _logStore.AddEntry(feedVersionId, "Phase 4: agencies and stops saved");
     }
 
+    /// <summary>
+    /// Reconciles an already-committed feed version, and records the outcome on the version itself.
+    /// Returns false when reconciliation did not complete.
+    /// <para>
+    /// This is the half of the import that runs outside the transaction. The trade-off it makes is
+    /// deliberate: a failure here can no longer roll the import back, so instead of losing the data
+    /// the version is parked in <see cref="FeedImportStatus.ReconciliationPending"/> — its trips and
+    /// stop times are intact, but its raw stops are not yet linked to canonical stations, so nothing
+    /// resolves through it on the map. That state is visible in the admin console and repaired by
+    /// calling this again through <c>POST /feeds/versions/{id}/reconcile</c>.
+    /// </para>
+    /// <para>
+    /// It is idempotent: reconciliation matches raw stops by OnestopId and re-links rather than
+    /// duplicating, so re-running a partially completed pass converges rather than double-writing.
+    /// </para>
+    /// </summary>
+    public async Task<bool> ReconcileImportedVersionAsync(int feedVersionId, CancellationToken ct = default)
+    {
+        var version = await _db.FeedVersions
+            .Include(fv => fv.Feed)
+            .FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct);
+
+        if (version is null)
+            throw new Exceptions.AppException($"FeedVersion {feedVersionId} not found.", 404, "FeedVersionNotFound");
+
+        try
+        {
+            _logStore.AddEntry(feedVersionId, "Reconciling stations...");
+            await ReconcileAndBackfillAsync(feedVersionId, version, ct);
+            _logStore.AddEntry(feedVersionId, "Reconciliation complete");
+
+            // Only now is the version genuinely usable. Finalize already set Success; this reasserts
+            // it so a repaired version leaves ReconciliationPending behind.
+            version.ImportStatus = FeedImportStatus.Success;
+            version.ImportError = null;
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Reconciliation failed for FeedVersion {VersionId}; the imported data is kept and the version is marked {Status}",
+                feedVersionId, nameof(FeedImportStatus.ReconciliationPending));
+            _logStore.AddEntry(feedVersionId, $"Reconciliation failed: {ex.Message}. The imported data was kept — re-run reconciliation to repair it.");
+
+            // Written through a separate context so it survives whatever state the failure left the
+            // tracked entities in.
+            try
+            {
+                await _db.FeedVersions
+                    .Where(fv => fv.Id == feedVersionId)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(fv => fv.ImportStatus, FeedImportStatus.ReconciliationPending)
+                        .SetProperty(fv => fv.ImportError, ex.InnerException?.Message ?? ex.Message), ct);
+            }
+            catch (Exception markEx)
+            {
+                _logger.LogError(markEx, "Could not mark FeedVersion {VersionId} as {Status}", feedVersionId, nameof(FeedImportStatus.ReconciliationPending));
+            }
+
+            return false;
+        }
+    }
+
     private async Task ReconcileAndBackfillAsync(int feedVersionId, FeedVersion version, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, "Reconciling stations...");
@@ -1224,10 +1304,11 @@ public class FeedManager
         }
         catch (Exception backfillEx)
         {
-            version.ImportStatus = FeedImportStatus.Failed;
-            version.ImportError = backfillEx.InnerException?.Message ?? backfillEx.Message;
-            await _db.SaveChangesAsync(ct);
-            _logStore.AddEntry(feedVersionId, $"Backfill failed: {version.ImportError}");
+            // Deliberately does not set a status here any more. This runs after the import has
+            // committed, so marking the version Failed would condemn data that is present and
+            // correct. ReconcileImportedVersionAsync owns the outcome and parks it in
+            // ReconciliationPending instead.
+            _logStore.AddEntry(feedVersionId, $"Backfill failed: {backfillEx.InnerException?.Message ?? backfillEx.Message}");
             throw;
         }
     }
@@ -1341,6 +1422,11 @@ public class FeedManager
         }
         try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception deleteEx) { _logger.LogWarning(deleteEx, "Failed to delete temp file {Path}", tempZipPath); }
         _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
+
+        // Released here as well as on the success path. Clear() was only called by
+        // FinalizeVersionPhaseAsync, so every failed import kept its log list in memory for the
+        // lifetime of the process. The entries have already been written to the logger above.
+        _logStore.Clear(feedVersionId);
     }
 
     private sealed class ObjectArrayReader(IEnumerable<object?[]> rows, int fieldCount) : IDataReader

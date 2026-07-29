@@ -12,6 +12,9 @@ public class PlaceManager
 
     public PlaceManager(TransitDbContext db) { _db = db; }
 
+    /// <summary>Ceiling on the un-paged association lists below, matching OperatorManager.</summary>
+    private const int MaxAssociatedRecords = 500;
+
     public async Task<List<PlaceResponse>> GetAllAsync(string? countryCode, int page, int perPage, CancellationToken ct = default)
     {
         var query = _db.Places.OrderBy(p => p.Id).AsQueryable();
@@ -55,14 +58,18 @@ public class PlaceManager
 
         return await _db.Operators
             .Where(o => operatorIds.Contains(o.Id))
+            .Take(MaxAssociatedRecords)
             .Select(OperatorMapper.ToResponseExpression)
             .ToListAsync(ct);
     }
 
     public async Task<List<StationResponse>> GetStationsAsync(int placeId, CancellationToken ct = default)
     {
+        // A large city returned every station in it, unbounded.
         return await _db.CanonicalStations
             .Where(cs => cs.PlaceId == placeId)
+            .OrderBy(cs => cs.Id)
+            .Take(MaxAssociatedRecords)
             .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
     }

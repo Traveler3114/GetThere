@@ -77,7 +77,11 @@ public static class GeoCountryDetector
             new(38.80, 41.30, 43.50, 46.70, "AM"),  // Armenia
             new(38.80, 41.70, 44.70, 50.80, "AZ"),  // Azerbaijan
             new(41.50, 43.30, 27.50, 30.00, "TR"),  // Turkey (European)
-            new(43.00, 46.80, 27.00, 30.00, "TR"),  // Turkey (east)
+
+            // Removed: a second "Turkey (east)" box covering 43.00-46.80N / 27.00-30.00E. Turkey
+            // does not extend north of about 42N — that rectangle is eastern Romania, Moldova and
+            // southern Ukraine, so stations there were attributed to Turkey. RO, MD and UA above
+            // already cover the area they actually occupy.
         ];
     }
 

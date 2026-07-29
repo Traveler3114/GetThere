@@ -89,7 +89,12 @@ public class ReconciliationManager
         var feedOperatorId = feedVersion.Feed.OperatorId;
 
         // Phase 1: build deduplicated station lookup by OnestopId
-        var onestopToStation = existingStations.ToDictionary(s => s.OnestopId, s => s);
+        // Both keyed on OnestopId, so both use the same comparer. The dictionary was ordinal while
+        // the set was OrdinalIgnoreCase: harmless only because ToNameSlug lowercases and geohashes
+        // are lowercase, so the two can never disagree today — but if that changed, a value "seen"
+        // by the set and missing from the dictionary reaches onestopToStation[onestopId] below and
+        // throws.
+        var onestopToStation = existingStations.ToDictionary(s => s.OnestopId, s => s, StringComparer.OrdinalIgnoreCase);
         var onestopSeen = new HashSet<string>(existingStations.Select(s => s.OnestopId), StringComparer.OrdinalIgnoreCase);
         List<CanonicalStation> newStationList = [];
 
@@ -439,6 +444,23 @@ public class ReconciliationManager
         }
     }
 
+    /// <summary>
+    /// Repoints a raw stop's schedule rows at a canonical station (or detaches them).
+    /// <para>
+    /// Departures resolve through <c>StopTimes.CanonicalStationId</c>, not through
+    /// <c>RawStop.CanonicalStationId</c> — the import backfills one from the other and they then have
+    /// to be kept in step. <see cref="MergeStationsAsync"/> already did this; approve, reject and
+    /// reassign changed only the raw stop, so an admin moving a stop in the console left every
+    /// departure resolving to the station it came from until the next import re-ran the backfill.
+    /// </para>
+    /// </summary>
+    private async Task RepointStopTimesAsync(int rawStopEntityId, int? canonicalStationId, CancellationToken ct)
+    {
+        await _db.StopTimes
+            .Where(st => st.RawStopEntityId == rawStopEntityId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(st => st.CanonicalStationId, canonicalStationId), ct);
+    }
+
     public async Task ApproveCandidateAsync(int id, CancellationToken ct)
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -464,6 +486,7 @@ public class ReconciliationManager
 
                 rawStop.CanonicalStationId = candidate.SuggestedCanonicalStationId;
                 rawStop.ReconciliationStatus = ReconciliationStatus.ManuallyApproved;
+                await RepointStopTimesAsync(rawStop.Id, candidate.SuggestedCanonicalStationId, ct);
             }
 
             await LinkOperatorToStationAsync(candidate.SuggestedCanonicalStationId.Value, candidate.Feed.OperatorId, ct);
@@ -492,6 +515,7 @@ public class ReconciliationManager
                 candidate.SuggestedCanonicalStationId = newStation.Id;
                 rawStop.CanonicalStationId = newStation.Id;
                 rawStop.ReconciliationStatus = ReconciliationStatus.NewStation;
+                await RepointStopTimesAsync(rawStop.Id, newStation.Id, ct);
             }
         }
         else
@@ -501,6 +525,7 @@ public class ReconciliationManager
             {
                 rawStop.CanonicalStationId = null;
                 rawStop.ReconciliationStatus = ReconciliationStatus.Rejected;
+                await RepointStopTimesAsync(rawStop.Id, null, ct);
             }
         }
 
@@ -512,6 +537,12 @@ public class ReconciliationManager
 
     public async Task<string?> ReassignCandidateAsync(int id, int canonicalStationId, bool force = false, CancellationToken ct = default)
     {
+        // Transactional like its Approve/Reject siblings, which it was not. It now writes in two
+        // steps — an ExecuteUpdate against StopTimes, which applies immediately, and a SaveChanges
+        // for the candidate and raw stop — so without this a failure between them would leave the
+        // schedule rows moved and the raw stop pointing somewhere else.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         var candidate = await _db.ReconciliationCandidates.FindAsync([id], ct);
         if (candidate is null)
             throw new AppException("Candidate not found", 404);
@@ -546,9 +577,11 @@ public class ReconciliationManager
         {
             rawStop.CanonicalStationId = canonicalStationId;
             rawStop.ReconciliationStatus = ReconciliationStatus.ManuallyApproved;
+            await RepointStopTimesAsync(rawStop.Id, canonicalStationId, ct);
         }
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return warning;
     }
 
@@ -941,8 +974,12 @@ public class ReconciliationManager
         Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
         Dictionary<int, List<string>> stationToRawStopIds)
     {
-        var incomingRoutes = routeLookup[rawStopId];
-        var linkedRawStopIds = stationToRawStopIds[stationId];
+        // TryGetValue, matching the sibling HasRouteOverlap. Both keys are guaranteed present at
+        // today's two call sites only because each is guarded by a prior HasRouteOverlap — an
+        // ordering dependency nothing states, and a KeyNotFoundException if it is ever reordered.
+        if (!routeLookup.TryGetValue(rawStopId, out var incomingRoutes)
+            || !stationToRawStopIds.TryGetValue(stationId, out var linkedRawStopIds))
+            return false;
 
         var incomingByLine = GroupByLineIdentity(incomingRoutes);
         Dictionary<string, HashSet<int?>> stationByLine = [];
@@ -984,22 +1021,26 @@ public class ReconciliationManager
             if (aDirs.Count == 0 || bDirs.Count == 0)
                 return true;
 
-            if (aDirs.Any(d => d is null) || bDirs.Any(d => d is null))
+            // A null direction means the feed did not state one — direction_id is optional in GTFS.
+            // This used to treat that as a conflict, so for any feed omitting the field *every* trip
+            // had a null direction, *every* shared line "conflicted", and every stop was written to
+            // StationSplitLogs as a DirectionMismatch. Absence of evidence is not a contradiction:
+            // an unknown direction cannot disagree with anything, so it is skipped.
+            var aKnown = aDirs.Where(d => d is not null).Select(d => d!.Value).ToHashSet();
+            var bKnown = bDirs.Where(d => d is not null).Select(d => d!.Value).ToHashSet();
+
+            if (aKnown.Count == 0 || bKnown.Count == 0)
+                continue;
+
+            // A stop served in both directions cannot disagree with anything.
+            if (aKnown.Contains(0) && aKnown.Contains(1))
+                continue;
+
+            if (bKnown.Contains(0) && bKnown.Contains(1))
+                continue;
+
+            if (aKnown.Count == 1 && bKnown.Count == 1 && aKnown.Single() != bKnown.Single())
                 return true;
-
-            if (aDirs.Contains(0) && aDirs.Contains(1))
-                continue;
-
-            if (bDirs.Contains(0) && bDirs.Contains(1))
-                continue;
-
-            if (aDirs.Count == 1 && bDirs.Count == 1)
-            {
-                var aDir = aDirs.Single()!.Value;
-                var bDir = bDirs.Single()!.Value;
-                if (aDir != bDir)
-                    return true;
-            }
         }
 
         return false;
@@ -1061,8 +1102,9 @@ public class ReconciliationManager
         Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,
         Dictionary<int, List<string>> stationToRawStopIds)
     {
-        var incomingRoutes = routeLookup[rawStopId];
-        var linkedRawStopIds = stationToRawStopIds[stationId];
+        if (!routeLookup.TryGetValue(rawStopId, out var incomingRoutes)
+            || !stationToRawStopIds.TryGetValue(stationId, out var linkedRawStopIds))
+            return "Direction mismatch detected";
 
         var incomingByLine = GroupByLineIdentity(incomingRoutes);
         Dictionary<string, HashSet<int?>> stationByLine = [];

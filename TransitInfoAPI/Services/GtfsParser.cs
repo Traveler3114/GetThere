@@ -117,10 +117,28 @@ public class GtfsParser
 
     public List<RawRouteRecord> ParseRoutes(ZipArchive archive)
     {
-        return ParseCsv<RawRouteRecord>(archive, "routes.txt", cfg =>
+        var routes = ParseCsv<RawRouteRecord>(archive, "routes.txt", cfg =>
         {
             cfg.RegisterClassMap(new RouteMap());
         });
+
+        // Reported once per distinct unmapped value rather than per route: the mapper defaults these
+        // to Bus, and until now it did so without a trace, so a feed of unmapped extended types
+        // looked like a bus operator.
+        var unknown = routes
+            .Select(r => r.RouteType)
+            .Where(t => !GtfsRouteTypeMapper.IsKnownGtfsRouteType(t))
+            .Distinct()
+            .ToList();
+
+        foreach (var type in unknown)
+        {
+            _logger.LogWarning(
+                "routes.txt uses GTFS route_type {RouteType}, which has no mapping — those routes are being treated as Bus. Affected: {Count}",
+                type, routes.Count(r => r.RouteType == type));
+        }
+
+        return routes;
     }
 
     public List<RawTripRecord> ParseTrips(ZipArchive archive)
@@ -154,24 +172,55 @@ public class GtfsParser
         if (entry is null) return [];
 
         using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, _csvConfig);
+        using var csv = new CsvReader(reader, BuildCsvConfig("shapes.txt"));
         csv.Context.RegisterClassMap(new ShapePointMap());
 
         var pointsByShape = new Dictionary<string, List<ShapePointRecord>>(StringComparer.OrdinalIgnoreCase);
+        var droppedPoints = 0;
+
         foreach (var record in csv.GetRecords<ShapePointRecord>())
         {
-            if (!pointsByShape.ContainsKey(record.ShapeId))
-                pointsByShape[record.ShapeId] = [];
-            pointsByShape[record.ShapeId].Add(record);
+            // Range-checked exactly as ParseStops checks stops. This accepted anything, so a (0,0)
+            // or out-of-range point drew a route line across the world — and the geometry is what the
+            // map renders.
+            if (record.ShapePtLat is < -90 or > 90 || record.ShapePtLon is < -180 or > 180
+                || (record.ShapePtLat == 0.0 && record.ShapePtLon == 0.0))
+            {
+                droppedPoints++;
+                continue;
+            }
+
+            if (!pointsByShape.TryGetValue(record.ShapeId, out var points))
+                pointsByShape[record.ShapeId] = points = [];
+            points.Add(record);
         }
 
+        if (droppedPoints > 0)
+            _logger.LogWarning("Dropped {Count} shape point(s) with invalid coordinates", droppedPoints);
+
         Dictionary<string, LineString> result = [];
+        var droppedShapes = 0;
+
         foreach (var kvp in pointsByShape)
         {
             var ordered = kvp.Value.OrderBy(s => s.ShapePtSequence).ToList();
             var coords = ordered.Select(s => new Coordinate(s.ShapePtLon, s.ShapePtLat)).ToArray();
+
+            // NetTopologySuite requires 0 or >=2 coordinates, so a shape_id with a single usable
+            // point threw ArgumentException and failed the import for the whole feed.
+            // AutoGenerateShapesIfMissing guards this same case; this path did not.
+            if (coords.Length < 2)
+            {
+                droppedShapes++;
+                continue;
+            }
+
             result[kvp.Key] = _geometryFactory.CreateLineString(coords);
         }
+
+        if (droppedShapes > 0)
+            _logger.LogWarning("Dropped {Count} shape(s) with fewer than two usable points", droppedShapes);
+
         return result;
     }
 
@@ -203,19 +252,19 @@ public class GtfsParser
         return hull;
     }
 
-    private static List<T> ParseCsv<T>(ZipArchive archive, string fileName, Action<CsvContext>? configure = null)
+    private List<T> ParseCsv<T>(ZipArchive archive, string fileName, Action<CsvContext>? configure = null)
     {
         var entry = archive.Entries.FirstOrDefault(e =>
             e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
         if (entry is null) return [];
 
         using var csvReader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(csvReader, _csvConfig);
+        using var csv = new CsvReader(csvReader, BuildCsvConfig(fileName));
         configure?.Invoke(csv.Context);
         return csv.GetRecords<T>().ToList();
     }
 
-    private static async IAsyncEnumerable<List<T>> ParseCsvBatchedAsync<T>(
+    private async IAsyncEnumerable<List<T>> ParseCsvBatchedAsync<T>(
         ZipArchive archive, string fileName, int batchSize, Action<CsvContext>? configure = null)
     {
         var entry = archive.Entries.FirstOrDefault(e =>
@@ -223,7 +272,7 @@ public class GtfsParser
         if (entry is null) yield break;
 
         using var reader = new StreamReader(entry.Open());
-        using var csv = new CsvReader(reader, _csvConfig);
+        using var csv = new CsvReader(reader, BuildCsvConfig(fileName));
         configure?.Invoke(csv.Context);
 
         var batch = new List<T>(batchSize);
@@ -240,16 +289,62 @@ public class GtfsParser
             yield return batch;
     }
 
-    private static readonly CsvConfiguration _csvConfig = new(CultureInfo.InvariantCulture)
+    /// <summary>
+    /// CSV settings for every GTFS file.
+    /// <para>
+    /// <c>MissingFieldFound</c> and <c>HeaderValidated</c> stay off deliberately: most columns the
+    /// class maps name are optional in the GTFS spec, and a feed omitting <c>stop_desc</c> or
+    /// <c>bikes_allowed</c> is correct, not broken. Reporting those would be pure noise.
+    /// </para>
+    /// <para>
+    /// <c>BadDataFound</c> and <c>ReadingExceptionOccurred</c> are different — they fire on genuinely
+    /// malformed input (unbalanced quotes, a value that will not convert). Both were also null, so
+    /// bad rows were absorbed in complete silence while <c>FeedManager.ImportFeedVersionAsync</c>
+    /// claimed "single bad record fails the entire import". Neither half of that was true. They now
+    /// log and continue, which is the behaviour the import actually wants — but a visible one.
+    /// </para>
+    /// </summary>
+    private CsvConfiguration BuildCsvConfig(string fileName)
     {
-        HasHeaderRecord = true,
-        MissingFieldFound = null,
-        HeaderValidated = null,
-        BadDataFound = null,
-        ReadingExceptionOccurred = null,
-        TrimOptions = TrimOptions.Trim,
-        AllowComments = false
-    };
+        var badData = 0;
+        var readErrors = 0;
+
+        return new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            HeaderValidated = null,
+            TrimOptions = TrimOptions.Trim,
+            AllowComments = false,
+
+            BadDataFound = context =>
+            {
+                // Capped so one pathological file cannot flood the log with a line per row.
+                if (++badData <= MaxParseWarningsPerFile)
+                    _logger.LogWarning("Malformed CSV in {File} at row {Row}: {RawRecord}",
+                        fileName, context.Context.Parser?.Row, Truncate(context.RawRecord));
+                else if (badData == MaxParseWarningsPerFile + 1)
+                    _logger.LogWarning("Further malformed-CSV warnings for {File} suppressed", fileName);
+            },
+
+            ReadingExceptionOccurred = args =>
+            {
+                if (++readErrors <= MaxParseWarningsPerFile)
+                    _logger.LogWarning(args.Exception, "Skipping unreadable row {Row} in {File}",
+                        args.Exception.Context?.Parser?.Row, fileName);
+                else if (readErrors == MaxParseWarningsPerFile + 1)
+                    _logger.LogWarning("Further unreadable-row warnings for {File} suppressed", fileName);
+
+                // false = skip this record and carry on, which is what the previous null did silently.
+                return false;
+            }
+        };
+    }
+
+    private const int MaxParseWarningsPerFile = 20;
+
+    private static string Truncate(string? value) =>
+        value is null ? "" : value.Length <= 200 ? value : value[..200] + "…";
     public static int? ParseGtfsTimeToSeconds(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
@@ -542,4 +637,21 @@ public static class GtfsRouteTypeMapper
         203 => RouteType.Bus,
         _ => RouteType.Bus
     };
+
+    /// <summary>
+    /// Whether <paramref name="gtfsType"/> is a value this mapper actually recognises.
+    /// <para>
+    /// <see cref="MapGtfsRouteType"/> falls back to <c>Bus</c> for anything unknown, which is a
+    /// reasonable default but was completely silent — a feed using an unmapped extended route type
+    /// had every one of its routes classified as a bus with nothing recorded anywhere. Callers use
+    /// this to log the fallback once per distinct value.
+    /// </para>
+    /// </summary>
+    public static bool IsKnownGtfsRouteType(int gtfsType) => gtfsType is
+        0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 11 or 12
+        or (>= 100 and <= 109)
+        or 200 or 201 or 202 or 203 or 204
+        or (>= 400 and <= 405)
+        or (>= 700 and <= 705) or 715
+        or 800 or 900 or 1000 or 1100 or 1200 or 1300 or 1400 or 1500 or 1700;
 }

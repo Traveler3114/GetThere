@@ -9,6 +9,7 @@ using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
+using TransitInfoAPI.Exceptions;
 using TransitInfoAPI.Mapping;
 
 namespace TransitInfoAPI.Managers;
@@ -125,15 +126,20 @@ public class RouteManager
 
     public async Task<RouteResponse?> UpdateShapeAsync(int id, GeoJsonLineStringGeometry body, CancellationToken ct)
     {
-        var route = await _db.CanonicalRoutes.FindAsync([id], ct);
-        if (route is null) return null;
+        // Distinguishable failures. All three used to return null, which the controller renders as
+        // 404 — so "this route has no editable shape" and "your geometry has one point" both came
+        // back as "route not found", and the caller had no way to tell which it was.
+        var route = await _db.CanonicalRoutes.FindAsync([id], ct)
+            ?? throw new AppException($"Route {id} not found.", 404, "ROUTE_NOT_FOUND");
 
-        var shape = await GetActiveShapeForRouteAsync(id, ct);
-        if (shape is null) return null;
+        var shape = await GetActiveShapeForRouteAsync(id, ct)
+            ?? throw new AppException(
+                $"Route {id} has no shape on an active feed version, so there is nothing to edit.",
+                409, "ROUTE_HAS_NO_SHAPE");
 
         var coords = body.Coordinates.Select(c => new Coordinate(c[0], c[1])).ToArray();
         if (coords.Length < 2)
-            return null;
+            throw new AppException("A route shape needs at least two coordinates.", 400, "SHAPE_TOO_SHORT");
 
         shape.Geometry = GeometryFactory.CreateLineString(coords);
         shape.IsManuallyEdited = true;

@@ -48,23 +48,14 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         modelBuilder.Entity<IdentityRoleClaim<string>>(b => b.ToTable("AspNetRoleClaims"));
         modelBuilder.Entity<IdentityUserToken<string>>(b => b.ToTable("AspNetUserTokens"));
 
-        modelBuilder.Entity<RefreshToken>(b =>
-        {
-            b.ToTable("RefreshTokens");
-            b.HasKey(rt => rt.Id);
-            b.HasIndex(rt => rt.Token).IsUnique();
-            b.HasOne(rt => rt.User).WithMany().HasForeignKey(rt => rt.UserId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.HasIndex(al => al.CreatedAt);
-            entity.HasOne(al => al.User)
-                  .WithMany()
-                  .HasForeignKey(al => al.UserId)
-                  .OnDelete(DeleteBehavior.Restrict);
-        });
-
+        // ── Conventions first, per-entity overrides after ──────────────────────────────────────
+        //
+        // This loop used to sit *below* the RefreshToken and AuditLog blocks, which meant it
+        // overwrote them: RefreshToken declared OnDelete(Cascade) and silently got Restrict, so
+        // deleting a user was blocked by their tokens rather than cascading. GetThereAPI's
+        // AppDbContext has always run these in this order, which is why its overrides survive.
+        //
+        // Anything configured after this point wins, which is the intent.
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             foreach (var property in entityType.GetProperties())
@@ -85,6 +76,25 @@ public class TransitDbContext : IdentityDbContext<AppUser>
             foreach (var fk in entityType.GetForeignKeys())
                 fk.DeleteBehavior = DeleteBehavior.Restrict;
         }
+
+        modelBuilder.Entity<RefreshToken>(b =>
+        {
+            b.ToTable("RefreshTokens");
+            b.HasKey(rt => rt.Id);
+            b.HasIndex(rt => rt.Token).IsUnique();
+            // Now actually takes effect: a user's tokens go with the user rather than blocking the
+            // delete. This is the single deliberate cascade in the model.
+            b.HasOne(rt => rt.User).WithMany().HasForeignKey(rt => rt.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasIndex(al => al.CreatedAt);
+            entity.HasOne(al => al.User)
+                  .WithMany()
+                  .HasForeignKey(al => al.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
 
         // CanonicalStationOperator composite key
         modelBuilder.Entity<CanonicalStationOperator>()
@@ -206,6 +216,21 @@ public class TransitDbContext : IdentityDbContext<AppUser>
             .HasIndex(rc => rc.SuggestedCanonicalStationId);
         modelBuilder.Entity<MobilityStation>()
             .HasIndex(ms => ms.OperatorId);
+
+        // A station id is unique within an operator — that is the key the GBFS upsert matches on.
+        // Without this nothing stopped duplicates existing, and the upsert's ToDictionary threw on
+        // them, taking down the poll for that operator.
+        //
+        // The length is explicit because the column was nvarchar(max), which cannot be indexed at
+        // all; left implicit EF widens it to the 450-char key limit, which is far more than a GBFS
+        // station_id needs and puts ~900 bytes per row into the index.
+        modelBuilder.Entity<MobilityStation>()
+            .Property(ms => ms.StationId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<MobilityStation>()
+            .HasIndex(ms => new { ms.OperatorId, ms.StationId })
+            .IsUnique();
         modelBuilder.Entity<City>()
             .HasIndex(c => c.CountryId);
     }

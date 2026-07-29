@@ -50,7 +50,18 @@ public class CountryManager
             Continent = request.Continent
         };
         _db.Countries.Add(country);
-        await _db.SaveChangesAsync(ct);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
+        {
+            // The AnyAsync above is a pre-check, not a guarantee — another caller can insert between
+            // the two. Without this the unique index surfaced as a 500 rather than the 409 the
+            // pre-check already decided this case deserves.
+            throw new AppException($"Country with ISO code '{request.IsoCode}' already exists.", 409);
+        }
 
         return CountryMapper.ToResponse(country);
     }

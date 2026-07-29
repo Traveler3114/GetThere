@@ -76,6 +76,26 @@ public class FeedsController : ControllerBase
         return Ok(new { message = $"Import succeeded: {version.RouteCount} routes, {version.StopCount} stops, {version.TripCount} trips." });
     }
 
+    /// <summary>
+    /// Re-runs station reconciliation for an already-imported version.
+    /// <para>
+    /// Reconciliation runs after the import transaction commits, so a failure there leaves the
+    /// version's data intact but its stops unlinked from canonical stations — recorded as
+    /// <c>ReconciliationPending</c>. This is the repair: it is idempotent, so it is also safe to run
+    /// against a version that already reconciled cleanly.
+    /// </para>
+    /// </summary>
+    [HttpPost("versions/{versionId}/reconcile")]
+    [Authorize(Policy = PermissionKeys.FeedsManage)]
+    public async Task<ActionResult> ReconcileVersion(int versionId, CancellationToken ct = default)
+    {
+        var reconciled = await _feedService.ReconcileImportedVersionAsync(versionId, ct);
+
+        return reconciled
+            ? Ok(new { message = "Reconciliation complete." })
+            : StatusCode(500, new { message = "Reconciliation failed — the imported data was kept. See the version's import log." });
+    }
+
     [HttpGet("{id}/versions")]
     [Authorize(Policy = PermissionKeys.FeedVersionsView)]
     public async Task<ActionResult<List<FeedVersionResponse>>> GetVersions(int id, CancellationToken ct = default)

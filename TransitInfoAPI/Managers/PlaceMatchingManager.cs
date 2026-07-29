@@ -74,7 +74,17 @@ public class PlaceMatchingManager
     private List<Place>? _placeCache;
     private Dictionary<string, List<Place>>? _placeGrid;
     private readonly Dictionary<string, int> _countryIdCache = new(StringComparer.OrdinalIgnoreCase);
-    private DateTime _lastMatchRun = DateTime.MinValue;
+    /// <summary>
+    /// When the last full match ran, shared across scopes.
+    /// <para>
+    /// This was an instance field on a service registered as <b>scoped</b>, so every request and
+    /// every import got a fresh <c>DateTime.MinValue</c> and the cooldown below could never be true —
+    /// <c>PlaceMatching:CooldownHours</c> was dead configuration and the full match ran after every
+    /// import. Static so the window actually spans instances; interlocked because feed imports run
+    /// three at a time.
+    /// </para>
+    /// </summary>
+    private static long _lastMatchRunTicks;
     private const double GridCellSizeDeg = 0.5;
 
     public PlaceMatchingManager(TransitDbContext db, IServiceScopeFactory scopeFactory, ILogger<PlaceMatchingManager> logger, IOptions<PlaceMatchingOptions> options)
@@ -126,14 +136,20 @@ public class PlaceMatchingManager
         Place? nearest = null;
         var minDist = double.MaxValue;
 
-        var centerKey = GetGridCellKey(lat, lon);
-        var parts = centerKey.Split(':');
-        var centerLat = double.TryParse(parts[0], out var cl) ? cl : 0;
-        var centerLon = double.TryParse(parts[1], out var cn) ? cn : 0;
+        var centerLat = Math.Round(lat / GridCellSizeDeg) * GridCellSizeDeg;
+        var centerLon = Math.Round(lon / GridCellSizeDeg) * GridCellSizeDeg;
 
-        for (var dLat = -1; dLat <= 1; dLat++)
+        // The window has to cover MaxDistanceMeters in both axes. A fixed 3x3 spans one cell either
+        // side — 0.5 degrees, about 55 km of latitude but only ~39 km of longitude at Croatian
+        // latitudes and less further north — so a place 40-50 km due east fell outside the cells
+        // searched and was never considered. Widened by however many cells the threshold needs.
+        var latCells = (int)Math.Ceiling(_maxDistanceMeters / 111_320.0 / GridCellSizeDeg);
+        var lonMetresPerDegree = Math.Max(111_320.0 * Math.Cos(lat * Math.PI / 180), 1);
+        var lonCells = (int)Math.Ceiling(_maxDistanceMeters / lonMetresPerDegree / GridCellSizeDeg);
+
+        for (var dLat = -latCells; dLat <= latCells; dLat++)
         {
-            for (var dLon = -1; dLon <= 1; dLon++)
+            for (var dLon = -lonCells; dLon <= lonCells; dLon++)
             {
                 var key = $"{(centerLat + dLat * GridCellSizeDeg):F1}:{(centerLon + dLon * GridCellSizeDeg):F1}";
                 if (_placeGrid!.TryGetValue(key, out var places))
@@ -156,24 +172,43 @@ public class PlaceMatchingManager
 
     public async Task MatchStationsToPlacesAsync(CancellationToken ct)
     {
-        if (_cooldownHours > 0 && (DateTime.UtcNow - _lastMatchRun).TotalHours < _cooldownHours)
+        if (_cooldownHours > 0)
         {
-            _logger.LogDebug("Skipping place matching — last run was less than {Cooldown}h ago", _cooldownHours);
-            return;
+            var last = new DateTime(Interlocked.Read(ref _lastMatchRunTicks), DateTimeKind.Utc);
+            if ((DateTime.UtcNow - last).TotalHours < _cooldownHours)
+            {
+                _logger.LogDebug("Skipping place matching — last run was less than {Cooldown}h ago", _cooldownHours);
+                return;
+            }
         }
-        _lastMatchRun = DateTime.UtcNow;
+        Interlocked.Exchange(ref _lastMatchRunTicks, DateTime.UtcNow.Ticks);
 
         var stations = await _db.CanonicalStations
             .Where(cs => cs.PlaceId == null)
             .ToListAsync(ct);
 
-        var stale = await _db.CanonicalStations
-            .Include(cs => cs.Place)
+        // Narrowed in SQL before the exact test runs in C#. This loaded *every* station that had a
+        // place, each with its Place, and then filtered the whole set in memory — a full-table read
+        // after every import, with T8 removing the only brake on how often that happened.
+        //
+        // The bounding box is a cheap superset of "further than 500 m": anything outside it is
+        // certainly beyond the threshold, so only the handful inside it needs the precise
+        // great-circle check below.
+        const double StalePlaceDistanceMeters = 500;
+        var degreeBuffer = StalePlaceDistanceMeters / 111_320.0;
+
+        var candidates = await _db.CanonicalStations
             .Where(cs => cs.PlaceId != null && cs.Place != null)
+            .Where(cs => cs.Latitude > cs.Place!.Lat + degreeBuffer
+                      || cs.Latitude < cs.Place!.Lat - degreeBuffer
+                      || cs.Longitude > cs.Place!.Lon + degreeBuffer
+                      || cs.Longitude < cs.Place!.Lon - degreeBuffer)
             .ToListAsync(ct);
-        stale = stale.Where(cs =>
-            GeoUtils.CalculateDistanceMeters(
-                cs.Latitude, cs.Longitude, cs.Place!.Lat, cs.Place!.Lon) > 500).ToList();
+
+        var stale = candidates
+            .Where(cs => GeoUtils.CalculateDistanceMeters(
+                cs.Latitude, cs.Longitude, cs.Place!.Lat, cs.Place!.Lon) > StalePlaceDistanceMeters)
+            .ToList();
         stations.AddRange(stale);
 
         var matched = 0;
@@ -253,8 +288,19 @@ public class PlaceMatchingManager
             using (var scope = _scopeFactory.CreateScope())
             {
                 var scopedDb = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
-                scopedDb.Countries.Add(country);
-                await scopedDb.SaveChangesAsync(ct);
+                try
+                {
+                    scopedDb.Countries.Add(country);
+                    await scopedDb.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+                {
+                    // Another import created it first — the poller runs three feeds in parallel and
+                    // they routinely meet the same new country. The row we wanted now exists, so read
+                    // it back rather than surfacing the constraint as a 500.
+                    scopedDb.Entry(country).State = EntityState.Detached;
+                    country = await scopedDb.Countries.FirstAsync(c => c.IsoCode == iso, ct);
+                }
             }
             _countryIdCache[iso] = country.Id;
             return country.Id;
@@ -272,6 +318,9 @@ public class PlaceMatchingManager
     /// country happened to occupy that row.
     /// </para>
     /// </summary>
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
+
     private async Task<int> ResolveFallbackCountryIdAsync(CancellationToken ct)
     {
         var iso = _options.Value.DefaultCountryIsoCode;

@@ -20,6 +20,9 @@ public class OperatorManager
 
     public OperatorManager(TransitDbContext db, OnestopIdManager onestopId) { _db = db; _onestopId = onestopId; }
 
+    /// <summary>Ceiling on the un-paged association lists below.</summary>
+    private const int MaxAssociatedRecords = 500;
+
     public async Task<List<OperatorResponse>> GetAllAsync(string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.Operators.AsQueryable().AsNoTracking();
@@ -131,14 +134,16 @@ public class OperatorManager
             geom = computed;
         }
 
+        // Built through the shared converter rather than by hand. This projected
+        // `geom.Coordinates.Select(...)`, which flattens *any* geometry to a bare point list — but a
+        // convex hull is a Polygon, whose GeoJSON coordinates must be an array of linear rings. The
+        // endpoint therefore emitted {"type":"Polygon","coordinates":[[x,y],…]}: one nesting level
+        // short, invalid, and unrenderable by any client. FromNtsGeometry handles every geometry
+        // type this can produce.
         return new
         {
             type = "Feature",
-            geometry = new
-            {
-                type = geom.GeometryType,
-                coordinates = geom.Coordinates.Select(c => new[] { c.X, c.Y })
-            },
+            geometry = GeoJsonGeometry.FromNtsGeometry(geom),
             properties = new { }
         };
     }
@@ -221,7 +226,17 @@ public class OperatorManager
         };
 
         _db.Operators.Add(op);
-        await _db.SaveChangesAsync(ct);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
+        {
+            // Both AnyAsync checks above are pre-checks. Feed imports run three at a time and create
+            // operators, so the window between check and insert is genuinely reachable.
+            throw new AppException($"Operator '{globalId}' already exists.", 409);
+        }
 
         return OperatorMapper.ToResponse(op);
     }
@@ -280,10 +295,12 @@ public class OperatorManager
         var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
         if (op is null) return [];
 
+        // Capped like the sibling GetRoutesAsync. A large operator returned every station it serves
+        // in one unbounded response.
         return await _db.CanonicalStationOperators
-            .Include(cso => cso.CanonicalStation).ThenInclude(cs => cs.Country)
             .Where(cso => cso.OperatorId == op.Id)
             .Select(cso => cso.CanonicalStation)
+            .Take(MaxAssociatedRecords)
             .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
     }
@@ -295,7 +312,7 @@ public class OperatorManager
 
         return await _db.CanonicalRoutes
             .Where(r => r.OperatorId == op.Id && r.IsActive)
-            .Take(500)
+            .Take(MaxAssociatedRecords)
             .Select(RouteMapper.ToResponseExpression)
             .ToListAsync(ct);
     }

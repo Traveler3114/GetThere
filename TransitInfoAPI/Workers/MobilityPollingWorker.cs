@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -20,6 +22,13 @@ public class MobilityPollingWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<MobilityPollingOptions> _options;
     private readonly ExternalFeedSource _externalFeedSource;
+
+    /// <summary>
+    /// Consecutive failures per feed. MaxConsecutiveFailuresBeforeDeactivate was declared and bound
+    /// but never read here — unlike FeedPollingWorker and RealtimeManager, which both count and
+    /// deactivate — so a permanently broken GBFS feed was retried every cycle forever.
+    /// </summary>
+    private readonly ConcurrentDictionary<int, int> _consecutiveFailures = new();
 
     public MobilityPollingWorker(ILogger<MobilityPollingWorker> logger, IServiceScopeFactory scopeFactory, IOptionsMonitor<MobilityPollingOptions> options, ExternalFeedSource externalFeedSource) { _logger = logger; _scopeFactory = scopeFactory; _options = options; _externalFeedSource = externalFeedSource; }
 
@@ -77,10 +86,38 @@ public class MobilityPollingWorker : BackgroundService
                         var mobility = scope.ServiceProvider.GetRequiredService<MobilityManager>();
                         await mobility.UpsertStationsFromGbfsBytesAsync(entry.OperatorId, result.Data, ct);
                     }
+
+                    _consecutiveFailures.TryRemove(entry.Feed!.Id, out _);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogWarning(ex, "Failed to poll GBFS feed {FeedId}", entry.Feed?.FeedId);
+                    var feedId = entry.Feed!.Id;
+                    var count = _consecutiveFailures.AddOrUpdate(feedId, 1, (_, c) => c + 1);
+                    _logger.LogWarning(ex, "Failed to poll GBFS feed {FeedId} ({FailCount} consecutive failures)",
+                        entry.Feed?.FeedId, count);
+
+                    var threshold = _options.CurrentValue.MaxConsecutiveFailuresBeforeDeactivate;
+                    if (threshold > 0 && count >= threshold)
+                    {
+                        _logger.LogWarning("Auto-deactivating GBFS feed {FeedId} after {Count} consecutive failures",
+                            entry.Feed?.FeedId, count);
+                        try
+                        {
+                            using var scope = _scopeFactory.CreateScope();
+                            var db = scope.ServiceProvider.GetRequiredService<Data.TransitDbContext>();
+                            var dbFeed = await db.Feeds.FindAsync([feedId], ct);
+                            if (dbFeed is not null)
+                            {
+                                dbFeed.IsActive = false;
+                                await db.SaveChangesAsync(ct);
+                            }
+                        }
+                        catch (Exception inner) when (inner is not OperationCanceledException)
+                        {
+                            _logger.LogError(inner, "Failed to deactivate GBFS feed {FeedId}", entry.Feed?.FeedId);
+                        }
+                        _consecutiveFailures.TryRemove(feedId, out _);
+                    }
                 }
             }
         }

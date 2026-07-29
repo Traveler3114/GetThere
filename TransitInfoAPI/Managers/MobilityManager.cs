@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
@@ -153,27 +154,51 @@ public class MobilityManager
         if (!root.TryGetProperty("stations", out var stationsElement))
             return 0;
 
-        var existingByStationId = await _db.MobilityStations
-            .Where(ms => ms.OperatorId == operatorId)
-            .ToDictionaryAsync(ms => ms.StationId, ct);
+        // Grouped rather than ToDictionary: a duplicate station_id for one operator threw and killed
+        // the whole poll, and nothing prevents duplicates — there is no unique index on
+        // (OperatorId, StationId). Last row wins, which matches the upsert semantics below.
+        var existingByStationId = (await _db.MobilityStations
+                .Where(ms => ms.OperatorId == operatorId)
+                .ToListAsync(ct))
+            .GroupBy(ms => ms.StationId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Last(), StringComparer.Ordinal);
 
         int upserted = 0;
+        int skipped = 0;
         foreach (var station in stationsElement.EnumerateArray())
         {
-            var stationId = station.GetProperty("station_id").GetString();
-            var name = station.GetProperty("name").GetString();
-            if (stationId is null || name is null) continue;
+            // Every field is read defensively. station_id and name already were; lat, lon and the
+            // counts were not, so a station missing "lat" threw KeyNotFoundException and a "capacity"
+            // that was null or a string threw InvalidOperationException — both legal GBFS, and either
+            // one aborted the upsert for the entire feed.
+            var stationId = station.TryGetProperty("station_id", out var idEl) ? idEl.GetString() : null;
+            var name = station.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+            var lat = ReadDouble(station, "lat");
+            var lon = ReadDouble(station, "lon");
 
-            var lat = station.GetProperty("lat").GetDouble();
-            var lon = station.GetProperty("lon").GetDouble();
-            var capacity = station.TryGetProperty("capacity", out var cap) ? cap.GetInt32() : 0;
-            var numBikes = station.TryGetProperty("num_bikes_available", out var bikes) ? bikes.GetInt32() : 0;
+            if (string.IsNullOrWhiteSpace(stationId) || string.IsNullOrWhiteSpace(name) || lat is null || lon is null)
+            {
+                skipped++;
+                continue;
+            }
+
+            // Same range check ParseStops applies to GTFS stops. A (0,0) dock is a missing coordinate,
+            // not a dock in the Gulf of Guinea.
+            if (lat is < -90 or > 90 || lon is < -180 or > 180 || (lat == 0.0 && lon == 0.0))
+            {
+                _logger.LogWarning("Skipping mobility station {StationId} with invalid coordinates ({Lat}, {Lon})", stationId, lat, lon);
+                skipped++;
+                continue;
+            }
+
+            var capacity = ReadInt(station, "capacity") ?? 0;
+            var numBikes = ReadInt(station, "num_bikes_available") ?? 0;
 
             if (existingByStationId.TryGetValue(stationId, out var existing))
             {
                 existing.Name = name;
-                existing.Latitude = lat;
-                existing.Longitude = lon;
+                existing.Latitude = lat.Value;
+                existing.Longitude = lon.Value;
                 existing.Capacity = capacity > 0 ? capacity : null;
                 existing.AvailableVehicles = numBikes;
                 existing.LastUpdated = DateTime.UtcNow;
@@ -185,11 +210,11 @@ public class MobilityManager
                     OperatorId = operatorId,
                     StationId = stationId,
                     Name = name,
-                    Latitude = lat,
-                    Longitude = lon,
+                    Latitude = lat.Value,
+                    Longitude = lon.Value,
                     Capacity = capacity > 0 ? capacity : null,
                     AvailableVehicles = numBikes,
-                    CountryId = await _placeMatching.DeriveCountryIdAsync(lat, lon, ct),
+                    CountryId = await _placeMatching.DeriveCountryIdAsync(lat.Value, lon.Value, ct),
                     LastUpdated = DateTime.UtcNow
                 });
             }
@@ -198,17 +223,52 @@ public class MobilityManager
         }
 
         await _db.SaveChangesAsync(ct);
+
+        if (skipped > 0)
+            _logger.LogWarning("Skipped {Skipped} GBFS station(s) for operator {OperatorId} with missing or invalid fields", skipped, operatorId);
+
         _logger.LogInformation("Upserted {Count} stations from GBFS data for operator {OperatorId}", upserted, operatorId);
         return upserted;
+    }
+
+    /// <summary>Reads a JSON number that a provider may have encoded as a string, or omitted.</summary>
+    private static double? ReadDouble(JsonElement obj, string property)
+    {
+        if (!obj.TryGetProperty(property, out var el)) return null;
+
+        return el.ValueKind switch
+        {
+            JsonValueKind.Number when el.TryGetDouble(out var d) => d,
+            JsonValueKind.String when double.TryParse(el.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var s) => s,
+            _ => null
+        };
+    }
+
+    /// <summary>As <see cref="ReadDouble"/>. GBFS permits null counts, and some providers send strings.</summary>
+    private static int? ReadInt(JsonElement obj, string property)
+    {
+        if (!obj.TryGetProperty(property, out var el)) return null;
+
+        return el.ValueKind switch
+        {
+            JsonValueKind.Number when el.TryGetInt32(out var i) => i,
+            // A provider reporting 12.0 for a capacity is still telling us 12.
+            JsonValueKind.Number when el.TryGetDouble(out var d) => (int)d,
+            JsonValueKind.String when int.TryParse(el.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) => s,
+            _ => null
+        };
     }
 
     public async Task<int> UpsertStationsFromRecordsAsync(int operatorId, List<Dictionary<string, object?>> records, CancellationToken ct = default)
     {
         if (records.Count == 0) return 0;
 
-        var existingByStationId = await _db.MobilityStations
-            .Where(ms => ms.OperatorId == operatorId)
-            .ToDictionaryAsync(ms => ms.StationId, ct);
+        // Grouped for the same reason as the GBFS path: a duplicate station id must not throw.
+        var existingByStationId = (await _db.MobilityStations
+                .Where(ms => ms.OperatorId == operatorId)
+                .ToListAsync(ct))
+            .GroupBy(ms => ms.StationId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Last(), StringComparer.Ordinal);
 
         int upserted = 0;
         foreach (var record in records)
