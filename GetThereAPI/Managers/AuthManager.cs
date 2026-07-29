@@ -68,6 +68,12 @@ public class AuthManager
 
         await _userManager.AddToRoleAsync(user, RoleNames.User);
 
+        // Created with the account rather than on first read. Registration used to leave the user
+        // without one, so anything reaching the wallet before the client happened to call
+        // POST /wallet/ensure answered 404 — including a purchase, which fails with
+        // WALLET_NOT_FOUND. The endpoint stays as it is for accounts that predate this.
+        _db.Wallets.Add(new Wallet { UserId = user.Id });
+
         LogAudit(user.Id, "Register", "User", user.Id);
         await _db.SaveChangesAsync(ct);
     }
@@ -90,6 +96,12 @@ public class AuthManager
             await _db.SaveChangesAsync(ct);
             throw new AppException("Invalid credentials.", 401, "INVALID_CREDENTIALS");
         }
+
+        // Recorded here rather than left unset: the admin console renders this column
+        // (AdminManager.GetUsersAsync, RolePermissionManager) and it was blank for every user in
+        // this service, because only TransitInfoAPI's AuthManager ever wrote it.
+        user.LastLogin = DateTime.UtcNow;
+        await _userManager.UpdateAsync(user);
 
         var accessToken = await _tokenManager.CreateTokenAsync(user);
         var rawRefreshToken = _tokenManager.GenerateRefreshToken();

@@ -281,15 +281,30 @@ app.UseWhen(
 // cannot send an Authorization header — a gate on these paths 401s the login page itself and
 // makes the console unreachable. The console holds no secrets; every byte of data it renders
 // comes from API endpoints that are authorized per-endpoint (see AdminController).
+// Map tiles, glyphs and sprites all come from this one external origin (see wwwroot/map/style.json).
+// Named once so the CSP below and any future change to the tile provider stay in step.
+const string MapTileOrigin = "https://tiles.openfreemap.org";
+
+// MapLibre is loaded from a CDN. Pinning it here at least bounds which external origin may execute
+// script on the map page; vendoring the file into wwwroot would remove the dependency outright and
+// is the better end state.
+const string MapScriptCdn = "https://unpkg.com";
+
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
-        if (!ctx.Context.Request.Path.StartsWithSegments("/admin")) return;
+        var path = ctx.Context.Request.Path;
+        var isAdmin = path.StartsWithSegments("/admin");
+        var isMap = path.StartsWithSegments("/map");
+
+        if (!isAdmin && !isMap) return;
 
         var headers = ctx.Context.Response.Headers;
         headers["X-Robots-Tag"] = "noindex, nofollow";
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["Referrer-Policy"] = "no-referrer";
 
         // The console renders operator-supplied text; a CSP is the backstop if an escaping bug slips
         // through. script-src no longer allows 'unsafe-inline': every page's script now lives in its
@@ -299,11 +314,24 @@ app.UseStaticFiles(new StaticFileOptions
         //
         // style-src keeps 'unsafe-inline' for the handful of style attributes still in the markup.
         // An injected style is a defacement risk, not a token-theft one.
-        headers["Content-Security-Policy"] =
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
-            "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
-        headers["X-Content-Type-Options"] = "nosniff";
-        headers["Referrer-Policy"] = "no-referrer";
+        headers["Content-Security-Policy"] = isAdmin
+            ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+              "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+            // The map page had no policy at all until now, which mattered more than the console's:
+            // MapPage hands it a live access token through window.setAuthToken, so any script that
+            // executes here can read a bearer credential. Its own script now lives in map/*.js with
+            // no inline handler, so script-src carries no 'unsafe-inline' either — only this page's
+            // own origin and the CDN serving MapLibre may execute.
+            //
+            // style-src keeps 'unsafe-inline' for the page's <style> block, and worker/blob is
+            // required because MapLibre builds its tile workers from blob URLs.
+            : $"default-src 'self'; script-src 'self' {MapScriptCdn}; " +
+              $"style-src 'self' 'unsafe-inline' {MapScriptCdn}; " +
+              $"img-src 'self' data: blob: {MapTileOrigin}; " +
+              $"connect-src 'self' {MapTileOrigin}; " +
+              "worker-src 'self' blob:; child-src 'self' blob:; " +
+              "frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
     }
 });
 
@@ -384,20 +412,40 @@ if (app.Configuration.GetValue("Seed:Enabled", true))
         {
             var pwd = configuredPassword ?? GenerateSecurePassword(24);
             admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
-            await userManager.CreateAsync(admin, pwd);
-            await userManager.AddToRoleAsync(admin, RoleNames.Admin);
 
-            if (configuredPassword is null)
+            // Checked, because a Seed:AdminPassword that misses the 12-character/digit/upper/symbol
+            // policy fails here silently: the account is never created, AddToRoleAsync then runs
+            // against an unpersisted user, and the credentials file below advertises a login that
+            // does not exist.
+            var createResult = await userManager.CreateAsync(admin, pwd);
+            if (!createResult.Succeeded)
             {
-                // Development only — the generated password has to reach the developer somehow.
-                var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
-                await File.WriteAllTextAsync(credFile,
-                    $"Email: admin@getthere.local\nPassword: {pwd}\n");
-                Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+                startupLogger.LogError(
+                    "Could not create the seed admin account: {Errors}. Check that Seed:AdminPassword meets the password policy.",
+                    string.Join("; ", createResult.Errors.Select(e => e.Description)));
             }
             else
             {
-                startupLogger.LogInformation("Admin account created from Seed:AdminPassword.");
+                var roleResult = await userManager.AddToRoleAsync(admin, RoleNames.Admin);
+                if (!roleResult.Succeeded)
+                {
+                    startupLogger.LogError(
+                        "Seed admin account was created but could not be given the {Role} role: {Errors}",
+                        RoleNames.Admin, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+                }
+
+                if (configuredPassword is null)
+                {
+                    // Development only — the generated password has to reach the developer somehow.
+                    var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
+                    await File.WriteAllTextAsync(credFile,
+                        $"Email: admin@getthere.local\nPassword: {pwd}\n");
+                    Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+                }
+                else
+                {
+                    startupLogger.LogInformation("Admin account created from Seed:AdminPassword.");
+                }
             }
         }
     }

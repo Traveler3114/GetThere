@@ -52,7 +52,21 @@ public class AuthenticatedHttpHandler : DelegatingHandler
 
         byte[]? requestBodyBytes = null;
         if (request.Content is not null)
-            requestBodyBytes = await request.Content.ReadAsByteArrayAsync(cancellationToken);
+        {
+            try
+            {
+                requestBodyBytes = await request.Content.ReadAsByteArrayAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or NotSupportedException)
+            {
+                // The body was a one-shot stream and the first send consumed it, so there is nothing
+                // to replay. Returning the 401 is the honest outcome — retrying with an empty or
+                // truncated body would look like a successful upload of the wrong bytes. Callers
+                // should buffer content they need to be retryable, as ImportedTicketService does.
+                Trace.WriteLine($"[AuthenticatedHttpHandler] Request body cannot be replayed, not retrying after 401: {ex.Message}");
+                return response;
+            }
+        }
 
         var clonedRequest = new HttpRequestMessage(request.Method, request.RequestUri)
         {

@@ -18,6 +18,14 @@ public static class MauiProgram
 {
     private static string GetApiBaseUrl() => Helpers.ApiEndpoints.GetThereApiBase;
 
+    /// <summary>
+    /// Reads the crash-reporting DSN out of the packaged settings file.
+    /// <para>
+    /// Blocking on the async read is forced: <see cref="CreateMauiApp"/> is synchronous by contract
+    /// and the DSN has to be known before <c>UseSentry</c> is configured. It runs once, at startup,
+    /// before there is a message loop to deadlock against.
+    /// </para>
+    /// </summary>
     private static string? LoadSentryDsn()
     {
         try
@@ -26,10 +34,21 @@ public static class MauiProgram
             using var reader = new StreamReader(stream);
             var json = reader.ReadToEnd();
             using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("Sentry").GetProperty("Dsn").GetString();
+
+            // TryGetProperty rather than GetProperty: a settings file without a Sentry section is a
+            // legitimate configuration, not an error, and this used to reach the catch below and be
+            // indistinguishable from a genuinely unreadable file.
+            return doc.RootElement.TryGetProperty("Sentry", out var sentry)
+                && sentry.TryGetProperty("Dsn", out var dsn)
+                    ? dsn.GetString()
+                    : null;
         }
-        catch
+        catch (Exception ex) when (ex is IOException or JsonException or FileNotFoundException)
         {
+            // Narrowed from a bare catch. Crash reporting staying off because the settings file
+            // could not be read is survivable; swallowing every exception type here hid unrelated
+            // startup faults behind "no DSN".
+            System.Diagnostics.Trace.WriteLine($"[MauiProgram] Could not read Sentry:Dsn, crash reporting stays off: {ex.Message}");
             return null;
         }
     }

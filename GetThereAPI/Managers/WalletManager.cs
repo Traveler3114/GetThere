@@ -103,6 +103,13 @@ public class WalletManager
         return await GetWalletAsync(userId, ct) ?? throw new AppException("Wallet not found", 404);
     }
 
+    /// <summary>
+    /// Returns the caller's wallet, creating one if the account predates wallet-on-registration.
+    /// <para>
+    /// <c>AuthManager.RegisterAsync</c> now creates the wallet with the account, so this is a
+    /// backstop for existing users rather than the normal path it used to be.
+    /// </para>
+    /// </summary>
     public async Task<Wallet> EnsureWalletAsync(string userId, CancellationToken ct = default)
     {
         var wallet = await _db.Wallets

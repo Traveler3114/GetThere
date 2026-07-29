@@ -52,10 +52,17 @@ public class TransitInfoApiClient
         _httpClient.BaseAddress = new Uri(_options.BaseUrl);
     }
 
-    /// <summary>Clears the shared token under the same lock that writes it.</summary>
-    private static void InvalidateCachedToken()
+    /// <summary>
+    /// Clears the shared token under the same lock that writes it.
+    /// <para>
+    /// Asynchronous because the lock is held across a login round trip to TransitInfoAPI: a
+    /// blocking <c>Wait()</c> here parked a thread-pool thread for the duration of that request,
+    /// and a burst of 401s — which is exactly when this is called — parked one per request.
+    /// </para>
+    /// </summary>
+    private static async Task InvalidateCachedTokenAsync(CancellationToken ct)
     {
-        _tokenSemaphore.Wait();
+        await _tokenSemaphore.WaitAsync(ct);
         try
         {
             _cachedAccessToken = null;
@@ -161,7 +168,7 @@ public class TransitInfoApiClient
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
             _logger.LogWarning("TransitInfoAPI returned 401 for {Path}, refreshing token and retrying", pathAndQuery);
-            InvalidateCachedToken();
+            await InvalidateCachedTokenAsync(ct);
             token = await GetAccessTokenAsync(ct);
 
             using var retry = new HttpRequestMessage(HttpMethod.Get, pathAndQuery);
@@ -184,34 +191,68 @@ public class TransitInfoApiClient
         }
     }
 
-    private async Task<T> SendWithAuthAsync<T>(HttpRequestMessage request, CancellationToken ct)
+    /// <summary>
+    /// Issues an authenticated GET and deserialises the body, retrying once after refreshing the
+    /// service-account token on a 401.
+    /// <para>
+    /// Takes the path rather than a prepared <see cref="HttpRequestMessage"/> so the retry can build
+    /// a fresh one. It previously re-sent the same instance, which is not reusable once sent —
+    /// <see cref="GetRawAsync"/> had always constructed a second message for its own retry, so the
+    /// two paths disagreed. Every response is disposed, including the discarded 401 and each page of
+    /// <see cref="FetchAllPagesAsync{T}"/>, none of which used to be.
+    /// </para>
+    /// </summary>
+    private async Task<T> SendWithAuthAsync<T>(string pathAndQuery, CancellationToken ct)
+    {
+        var response = await SendOnceAsync(pathAndQuery, ct);
+
+        try
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("TransitInfoAPI returned 401, refreshing token and retrying GET {Path}", pathAndQuery);
+                await InvalidateCachedTokenAsync(ct);
+
+                response.Dispose();
+                response = await SendOnceAsync(pathAndQuery, ct);
+            }
+
+            // An upstream failure is not this API's fault — surface it as 502 rather than letting
+            // HttpRequestException bubble to the handler and become a bare 500.
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("TransitInfoAPI returned {Status} for GET {Path}",
+                    (int)response.StatusCode, pathAndQuery);
+                throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            return JsonSerializer.Deserialize<T>(json, JsonOptions)
+                ?? throw new AppException("Transit information service returned an unreadable response.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
+        }
+        finally
+        {
+            response.Dispose();
+        }
+    }
+
+    /// <summary>One authenticated GET. The caller owns the returned response.</summary>
+    private async Task<HttpResponseMessage> SendOnceAsync(string pathAndQuery, CancellationToken ct)
     {
         var token = await GetAccessTokenAsync(ct);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, pathAndQuery);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await _httpClient.SendAsync(request, ct);
-
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        try
         {
-            _logger.LogWarning("TransitInfoAPI returned 401, refreshing token and retrying {Method} {Path}", request.Method, request.RequestUri?.PathAndQuery);
-            InvalidateCachedToken();
-            token = await GetAccessTokenAsync(ct);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            response = await _httpClient.SendAsync(request, ct);
+            return await _httpClient.SendAsync(request, ct);
         }
-
-        // An upstream failure is not this API's fault — surface it as 502 rather than letting
-        // HttpRequestException bubble to the handler and become a bare 500.
-        if (!response.IsSuccessStatusCode)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            _logger.LogError("TransitInfoAPI returned {Status} for {Method} {Path}",
-                (int)response.StatusCode, request.Method, request.RequestUri?.PathAndQuery);
+            _logger.LogError(ex, "Could not reach TransitInfoAPI for {Path}", pathAndQuery);
             throw new AppException("Transit information service is unavailable.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
         }
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        return JsonSerializer.Deserialize<T>(json, JsonOptions)
-            ?? throw new AppException("Transit information service returned an unreadable response.", 502, "TRANSIT_UPSTREAM_UNAVAILABLE");
     }
 
     /// <summary>
@@ -231,8 +272,7 @@ public class TransitInfoApiClient
         while (true)
         {
             var paged = new List<string>(query) { Invariant($"page={page}") };
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{path}?{string.Join("&", paged)}");
-            var result = await SendWithAuthAsync<PaginatedResponse<T>>(request, ct);
+            var result = await SendWithAuthAsync<PaginatedResponse<T>>($"{path}?{string.Join("&", paged)}", ct);
 
             if (result.Data.Count == 0) break;
 
@@ -292,8 +332,8 @@ public class TransitInfoApiClient
             }
         }
 
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/realtime/vehicles?{string.Join("&", query)}");
-        return await SendWithAuthAsync<List<TransitVehicleResponse>>(request, ct);
+        return await SendWithAuthAsync<List<TransitVehicleResponse>>(
+            $"/realtime/vehicles?{string.Join("&", query)}", ct);
     }
 
     public async Task<List<TransitAlertResponse>> GetAlertsAsync(string? stopOnestopId, string? routeOnestopId, CancellationToken ct = default)
@@ -302,8 +342,8 @@ public class TransitInfoApiClient
         if (!string.IsNullOrEmpty(stopOnestopId)) query.Add($"stopOnestopId={Uri.EscapeDataString(stopOnestopId)}");
         if (!string.IsNullOrEmpty(routeOnestopId)) query.Add($"routeOnestopId={Uri.EscapeDataString(routeOnestopId)}");
 
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/realtime/alerts?{string.Join("&", query)}");
-        return await SendWithAuthAsync<List<TransitAlertResponse>>(request, ct);
+        return await SendWithAuthAsync<List<TransitAlertResponse>>(
+            $"/realtime/alerts?{string.Join("&", query)}", ct);
     }
 
     public async Task<List<TransitMobilityStationResponse>> GetMobilityStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)

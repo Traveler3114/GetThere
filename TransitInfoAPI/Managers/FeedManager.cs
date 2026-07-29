@@ -72,8 +72,9 @@ public class FeedManager
 
     public async Task<(List<FeedResponse> Feeds, int Total)> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
     {
+        // Projected through FeedMapper.ToResponseExpression, so an Include would be discarded.
         var query = _db.Feeds
-            .Include(f => f.Operator)
+            .AsNoTracking()
             .OrderBy(f => f.Id)
             .AsQueryable();
 
@@ -93,7 +94,7 @@ public class FeedManager
     public async Task<FeedResponse?> GetByIdAsync(int id, CancellationToken ct)
     {
         return await _db.Feeds
-            .Include(f => f.Operator)
+            .AsNoTracking()
             .Where(f => f.Id == id)
             .Select(FeedMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
@@ -379,7 +380,7 @@ public class FeedManager
                 return;
             }
 
-            var (sqlConn, sqlTx) = await BeginImportTransactionAsync(ct);
+            var (sqlConn, sqlTx, ownsTransaction) = await BeginImportTransactionAsync(ct);
             try
             {
                 _db.Database.SetCommandTimeout(_bulkCommandTimeoutSeconds);
@@ -427,6 +428,12 @@ public class FeedManager
             {
                 await HandleImportErrorAsync(feedVersionId, sqlConn, sqlTx, ex, tempZipPath, ct);
                 throw;
+            }
+            finally
+            {
+                // Covers the early returns inside the try as well — validation failure and a null
+                // parse both commit and return without reaching the end of the block.
+                EndImportTransaction(sqlTx, ownsTransaction, feedVersionId);
             }
 
             try
@@ -566,24 +573,62 @@ public class FeedManager
         return tempZipPath;
     }
 
-    private async Task<(Microsoft.Data.SqlClient.SqlConnection SqlConn, Microsoft.Data.SqlClient.SqlTransaction SqlTx)> BeginImportTransactionAsync(CancellationToken ct)
+    /// <summary>
+    /// Opens the import transaction, or adopts one already in flight on this context.
+    /// </summary>
+    /// <returns>
+    /// <c>Owned</c> is false when an existing transaction was adopted — the caller must not dispose
+    /// or detach one it did not start.
+    /// </returns>
+    private async Task<(Microsoft.Data.SqlClient.SqlConnection SqlConn, Microsoft.Data.SqlClient.SqlTransaction SqlTx, bool Owned)> BeginImportTransactionAsync(CancellationToken ct)
     {
         var conn = _db.Database.GetDbConnection();
         if (conn.State != ConnectionState.Open)
             await conn.OpenAsync(ct);
         var sqlConn = (Microsoft.Data.SqlClient.SqlConnection)conn;
         var existingTx = _db.Database.CurrentTransaction;
-        Microsoft.Data.SqlClient.SqlTransaction sqlTx;
         if (existingTx is not null)
+            return (sqlConn, (Microsoft.Data.SqlClient.SqlTransaction)existingTx.GetDbTransaction(), false);
+
+        var sqlTx = sqlConn.BeginTransaction();
+        _db.Database.UseTransaction(sqlTx);
+        return (sqlConn, sqlTx, true);
+    }
+
+    /// <summary>
+    /// Detaches the import transaction from the context and disposes it.
+    /// <para>
+    /// This has to happen on every exit from <see cref="ImportFeedVersionAsync"/>, not just the
+    /// happy path. The transaction is committed by <see cref="FinalizeVersionPhaseAsync"/> — or by
+    /// the validation/parse failure paths, which commit and return early — but committing the raw
+    /// <c>SqlTransaction</c> does not tell EF anything, so <c>Database.CurrentTransaction</c> went on
+    /// pointing at a completed transaction. The statements Finalize runs after its own commit then
+    /// carried a stale transaction on the command, and the next import through the same scoped
+    /// context would adopt it via the branch above rather than starting a fresh one.
+    /// </para>
+    /// </summary>
+    private void EndImportTransaction(Microsoft.Data.SqlClient.SqlTransaction sqlTx, bool owned, int feedVersionId)
+    {
+        if (!owned) return;
+
+        try
         {
-            sqlTx = (Microsoft.Data.SqlClient.SqlTransaction)existingTx.GetDbTransaction();
+            _db.Database.UseTransaction(null);
         }
-        else
+        catch (Exception ex)
         {
-            sqlTx = sqlConn.BeginTransaction();
-            _db.Database.UseTransaction(sqlTx);
+            // Never let cleanup replace the failure that brought us here.
+            _logger.LogWarning(ex, "Could not detach the import transaction for FeedVersion {VersionId}", feedVersionId);
         }
-        return (sqlConn, sqlTx);
+
+        try
+        {
+            sqlTx.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not dispose the import transaction for FeedVersion {VersionId}", feedVersionId);
+        }
     }
 
     private async Task ValidateAndCleanupAsync(int feedVersionId, FeedVersion version, ZipArchive archive, string tempZipPath, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)

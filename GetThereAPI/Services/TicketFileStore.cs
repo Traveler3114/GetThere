@@ -46,10 +46,21 @@ public class LocalTicketFileStore : ITicketFileStore
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
         // Write to a temp name and move, so a failed or cancelled write cannot leave a truncated
-        // file sitting under a key the database already believes in.
+        // file sitting under a key the database already believes in. The temp file is cleaned up on
+        // failure — without this a cancelled upload left a .tmp behind that nothing ever swept,
+        // since the abandoned-upload purge only knows about blob keys it handed out.
         var tmp = path + ".tmp";
-        await File.WriteAllBytesAsync(tmp, content, ct);
-        File.Move(tmp, path, overwrite: true);
+        try
+        {
+            await File.WriteAllBytesAsync(tmp, content, ct);
+            File.Move(tmp, path, overwrite: true);
+        }
+        catch
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); }
+            catch (Exception cleanupEx) { _logger.LogWarning(cleanupEx, "Could not remove the partial ticket file {Path}", tmp); }
+            throw;
+        }
 
         _logger.LogInformation("Stored ticket file {BlobKey} ({Bytes} bytes) for user {UserId}", blobKey, content.Length, userId);
         return blobKey;

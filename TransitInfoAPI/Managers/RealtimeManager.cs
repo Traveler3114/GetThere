@@ -230,9 +230,17 @@ public class RealtimeManager
                     var routeId = tripDesc?.RouteId;
                     var directionId = tripDesc?.HasDirectionId == true ? (int?)tripDesc.DirectionId : null;
                     var startTime = tripDesc?.StartTime;
-                    _logger.LogInformation("RT PARSE: feed={FeedId} trip_id={TripId} routeId={RouteId} directionId={DirectionId} startTime={StartTime} seqCount={SeqCount} stopIdCount={StopIdCount} hasNonZeroDelay={HasDelay} sampleDelays={Delays}",
-                        feed.FeedId, tripId, routeId, directionId, startTime, bySequence.Count, byStopId.Count, hasNonZeroDelay,
-                        string.Join(",", bySequence.Values.Concat(byStopId.Values).Where(v => v.DelaySeconds != 0).Take(5).Select(v => v.DelaySeconds)));
+
+                    // Debug, not Information: this is one line per trip update, per feed, per poll —
+                    // a city feed emits thousands every cycle, which buried everything else in the
+                    // log. The IsEnabled guard keeps the string.Join from running when the level is
+                    // off, which is the whole cost of the line.
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("RT PARSE: feed={FeedId} trip_id={TripId} routeId={RouteId} directionId={DirectionId} startTime={StartTime} seqCount={SeqCount} stopIdCount={StopIdCount} hasNonZeroDelay={HasDelay} sampleDelays={Delays}",
+                            feed.FeedId, tripId, routeId, directionId, startTime, bySequence.Count, byStopId.Count, hasNonZeroDelay,
+                            string.Join(",", bySequence.Values.Concat(byStopId.Values).Where(v => v.DelaySeconds != 0).Take(5).Select(v => v.DelaySeconds)));
+                    }
                     tripUpdates[tripId] = new TripUpdateBundle(bySequence, byStopId, routeId, directionId, startTime);
                 }
                 else
@@ -243,12 +251,13 @@ public class RealtimeManager
                 alerts.Add(entity);
         }
 
-        _logger.LogInformation("Feed {FeedId}: {TripUpdateCount} trip_update entities, {MatchedCount} with stop_time_update data, {DelayCount} with non-zero delays. Sample delay trips: {SampleDelayTrips}",
+        // One summary line per feed per poll. The two lines that used to follow it were debugging
+        // scaffolding — a sample of trip ids, and a membership test against a trip id hardcoded from
+        // someone's investigation ("0_2_201_2_21154") that was evaluated and logged on every poll of
+        // every feed. The per-trip detail they were reaching for is the LogDebug above.
+        _logger.LogInformation(
+            "Feed {FeedId}: {TripUpdateCount} trip_update entities, {MatchedCount} with stop_time_update data, {DelayCount} with non-zero delays. Sample delay trips: {SampleDelayTrips}",
             feed.FeedId, tripUpdateCount, tripUpdateWithStopTimeUpdates, tripUpdateWithDelays, string.Join(", ", sampleTripIdsWithDelays));
-        _logger.LogInformation("RT feed {FeedId}: {Count} trip updates parsed, sample trip_ids: {Sample}",
-            feed.FeedId, tripUpdates.Count, string.Join(", ", tripUpdates.Keys.Take(5)));
-        _logger.LogInformation("RT feed {FeedId}: {Count} trip_ids. Contains 0_2_201_2_21154? {Has}",
-            feed.FeedId, tripUpdates.Count, tripUpdates.ContainsKey("0_2_201_2_21154"));
 
         // Alerts persisted because they carry reference value across restarts (active disruptions).
         // Vehicle positions are ephemeral and remain in-memory only.
@@ -314,9 +323,15 @@ public class RealtimeManager
             }
             await db.SaveChangesAsync(ct);
 
+            // Two ways an alert becomes stale, and only the first used to be swept: it ended more
+            // than a week ago, or it has no end at all and simply stopped appearing in the feed.
+            // GTFS-RT alerts routinely carry no ActivePeriod end, so those rows accumulated forever
+            // — and every poll re-read the whole set to dedupe against them. FetchedAt is refreshed
+            // on each poll that still carries the alert, so it is the "still live" signal.
             var cutoff = DateTime.UtcNow.AddDays(-7);
             await db.Alerts
-                .Where(a => a.ActivePeriodEnd != null && a.ActivePeriodEnd < cutoff)
+                .Where(a => a.FeedId == feed.Id
+                         && (a.ActivePeriodEnd != null ? a.ActivePeriodEnd < cutoff : a.FetchedAt < cutoff))
                 .ExecuteDeleteAsync(ct);
         }
         catch (Exception ex)
@@ -395,11 +410,20 @@ public class RealtimeManager
 
         var query = db.Alerts.AsQueryable();
 
+        // The affected-id columns are comma-joined lists, so a bare Contains matched on any
+        // substring: an alert affecting stop "1234" was returned for a query about stop "123".
+        // Padding both sides with the delimiter pins the match to a whole element.
         if (!string.IsNullOrEmpty(stopOnestopId))
-            query = query.Where(a => a.AffectedStopIds != null && a.AffectedStopIds.Contains(stopOnestopId));
+        {
+            var needle = "," + stopOnestopId + ",";
+            query = query.Where(a => a.AffectedStopIds != null && ("," + a.AffectedStopIds + ",").Contains(needle));
+        }
 
         if (!string.IsNullOrEmpty(routeOnestopId))
-            query = query.Where(a => a.AffectedRouteIds != null && a.AffectedRouteIds.Contains(routeOnestopId));
+        {
+            var needle = "," + routeOnestopId + ",";
+            query = query.Where(a => a.AffectedRouteIds != null && ("," + a.AffectedRouteIds + ",").Contains(needle));
+        }
 
         return await query
             .OrderByDescending(a => a.FetchedAt)

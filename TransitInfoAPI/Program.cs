@@ -155,21 +155,41 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Configurable rather than compiled in, matching GetThereAPI. An in-process test host has every
+// request arriving on one partition, so a fixed 10/minute auth window rejects the fixture's own
+// logins.
+var globalPermitLimit = builder.Configuration.GetValue("RateLimits:GlobalPerMinute", 100);
+var authPermitLimit = builder.Configuration.GetValue("RateLimits:AuthPerMinute", 10);
+
 builder.Services.AddRateLimiter(limiter =>
 {
+    // Partition on the authenticated caller first, falling back to the address only for anonymous
+    // requests. Keying purely on the address put GetThereAPI's entire user base into a single
+    // 100/minute bucket, because every map-proxy request reaches this service from one host: a
+    // handful of people panning a map exhausted the window, and TransitInfoApiClient turns the
+    // resulting 429 into "Transit information service is unavailable". This mirrors the
+    // partitioning GetThereAPI already applies for the same reason.
     limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+    {
+        var userId = context.User.FindFirst("sub")?.Value;
+
+        var partitionKey = userId is not null
+            ? $"user:{userId}"
+            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
+                PermitLimit = globalPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     limiter.AddFixedWindowLimiter("Auth", opt =>
     {
-        opt.PermitLimit = 10;
+        opt.PermitLimit = authPermitLimit;
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueLimit = 0;
     });
@@ -214,8 +234,14 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-app.UseRateLimiter();
 app.UseAuthentication();
+
+// After authentication, deliberately: the limiter partitions on the caller's user id when there is
+// one, and context.User is not populated until the authentication middleware has run. Ordered the
+// other way the claim is always absent and every authenticated caller silently falls back to being
+// bucketed by IP address, which is the behaviour this partitioning exists to avoid.
+app.UseRateLimiter();
+
 app.UseAuthorization();
 
 // The /admin console is served as plain static files. It deliberately carries no authorization
@@ -239,6 +265,27 @@ app.UseStaticFiles(new StaticFileOptions
         if (ctx.File.Name.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
         {
             ctx.Context.Response.Headers.CacheControl = "no-cache, no-store";
+        }
+
+        // The map pages here are the same pages GetThereAPI serves, and until now neither project
+        // sent them any policy. They read an operator's session token out of sessionStorage, so an
+        // escaping bug in the feed-supplied text they render reaches a credential. Their script now
+        // lives in map/*.js with no inline handler, so script-src needs no 'unsafe-inline'.
+        if (ctx.Context.Request.Path.StartsWithSegments("/map"))
+        {
+            var mapHeaders = ctx.Context.Response.Headers;
+            mapHeaders["X-Robots-Tag"] = "noindex, nofollow";
+            mapHeaders["X-Content-Type-Options"] = "nosniff";
+            mapHeaders["Referrer-Policy"] = "no-referrer";
+            mapHeaders["Content-Security-Policy"] =
+                "default-src 'self'; script-src 'self' https://unpkg.com; " +
+                "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
+                "img-src 'self' data: blob: https://tiles.openfreemap.org; " +
+                "connect-src 'self' https://tiles.openfreemap.org; " +
+                // MapLibre builds its tile workers from blob URLs.
+                "worker-src 'self' blob:; child-src 'self' blob:; " +
+                "frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
+            return;
         }
 
         if (!ctx.Context.Request.Path.StartsWithSegments("/admin")) return;
@@ -375,20 +422,38 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
         {
             var pwd = configuredPassword ?? GenerateSecurePassword(24);
             admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
-            await userManager.CreateAsync(admin, pwd);
-            await userManager.AddToRoleAsync(admin, RoleNames.Admin);
 
-            if (configuredPassword is null)
+            // Checked, because a configured password that misses the policy fails here silently:
+            // no account is created, AddToRoleAsync runs against an unpersisted user, and the
+            // credentials file below advertises a login that does not exist.
+            var createResult = await userManager.CreateAsync(admin, pwd);
+            if (!createResult.Succeeded)
             {
-                // Development only — the generated password has to reach the developer somehow.
-                var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
-                await File.WriteAllTextAsync(credFile,
-                    $"Email: admin@transit.local\nPassword: {pwd}\n");
-                Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+                app.Logger.LogError(
+                    "Could not create the seed admin account: {Errors}. Check that Seed:AdminPassword meets the password policy.",
+                    string.Join("; ", createResult.Errors.Select(e => e.Description)));
             }
             else
             {
-                app.Logger.LogInformation("Admin account created from Seed:AdminPassword.");
+                var roleResult = await userManager.AddToRoleAsync(admin, RoleNames.Admin);
+                if (!roleResult.Succeeded)
+                {
+                    app.Logger.LogError("Seed admin account could not be given the {Role} role: {Errors}",
+                        RoleNames.Admin, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+                }
+
+                if (configuredPassword is null)
+                {
+                    // Development only — the generated password has to reach the developer somehow.
+                    var credFile = Path.Combine(AppContext.BaseDirectory, ".admin-credentials");
+                    await File.WriteAllTextAsync(credFile,
+                        $"Email: admin@transit.local\nPassword: {pwd}\n");
+                    Console.WriteLine($"Admin account created. Credentials saved to: {credFile}");
+                }
+                else
+                {
+                    app.Logger.LogInformation("Admin account created from Seed:AdminPassword.");
+                }
             }
         }
     }
@@ -411,19 +476,37 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
         {
             var pwd = configuredSecret ?? GenerateSecurePassword(32);
             client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
-            await userManager.CreateAsync(client, pwd);
-            await userManager.AddToRoleAsync(client, RoleNames.Client);
 
-            if (configuredSecret is null)
+            // A silent failure here is the worst of the three: GetThereAPI cannot authenticate at
+            // all, and every map read it proxies answers 502 with nothing in this service's log to
+            // say why.
+            var createResult = await userManager.CreateAsync(client, pwd);
+            if (!createResult.Succeeded)
             {
-                var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
-                await File.WriteAllTextAsync(svcCredFile,
-                    $"Username: getthere-api\nPassword: {pwd}\n");
-                Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
+                app.Logger.LogError(
+                    "Could not create the getthere-api service account: {Errors}. GetThereAPI will not be able to authenticate.",
+                    string.Join("; ", createResult.Errors.Select(e => e.Description)));
             }
             else
             {
-                app.Logger.LogInformation("Service account created from Seed:ServiceAccountPassword.");
+                var roleResult = await userManager.AddToRoleAsync(client, RoleNames.Client);
+                if (!roleResult.Succeeded)
+                {
+                    app.Logger.LogError("Service account could not be given the {Role} role: {Errors}",
+                        RoleNames.Client, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+                }
+
+                if (configuredSecret is null)
+                {
+                    var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
+                    await File.WriteAllTextAsync(svcCredFile,
+                        $"Username: getthere-api\nPassword: {pwd}\n");
+                    Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
+                }
+                else
+                {
+                    app.Logger.LogInformation("Service account created from Seed:ServiceAccountPassword.");
+                }
             }
         }
     }

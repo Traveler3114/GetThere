@@ -28,6 +28,9 @@ public class JourneyManager
     /// <summary>How far apart two legs can sit and still be suggested as one trip.</summary>
     public static readonly TimeSpan SuggestionWindow = TimeSpan.FromHours(24);
 
+    /// <summary>How many journeys one pass of the status sweep reads at a time.</summary>
+    private const int RollUpBatchSize = 500;
+
     public async Task<PagedResult<JourneyResponse>> ListAsync(string userId, int page, int perPage, JourneyStatus? status = null, CancellationToken ct = default)
     {
         var query = _db.Journeys.Where(j => j.UserId == userId);
@@ -278,31 +281,65 @@ public class JourneyManager
     {
         var now = DateTime.UtcNow;
 
+        // Only the journeys whose stored status disagrees with their dates are read, and in batches.
+        // This used to materialise every non-cancelled journey in the database — every user's, with
+        // no paging — on an hourly sweep, only to change the handful whose window had moved.
+        //
+        // The filter is a predicate rather than an ExecuteUpdate per target status: ExecuteUpdate
+        // would push the whole thing into SQL, but the in-memory provider the journey tests run on
+        // does not implement it. Narrowing the read gets the same result on both providers, and the
+        // decision itself stays in the switch below so there is one definition of it.
+        //
         // Cancelled is a user decision and is never rolled over.
-        var journeys = await _db.Journeys
-            .Where(j => j.Status != JourneyStatus.Cancelled)
-            .ToListAsync(ct);
-
         var changed = 0;
-        foreach (var journey in journeys)
+
+        while (true)
         {
-            var target = journey switch
+            ct.ThrowIfCancellationRequested();
+
+            var stale = await _db.Journeys
+                .Where(j => j.Status != JourneyStatus.Cancelled)
+                .Where(j =>
+                    // window closed, but not marked Completed
+                    (j.StartsAt != null && j.EndsAt != null && j.EndsAt < now && j.Status != JourneyStatus.Completed)
+                    // under way, but not marked Active
+                    || (j.StartsAt != null && j.StartsAt <= now && (j.EndsAt == null || j.EndsAt >= now)
+                        && j.Status != JourneyStatus.Active)
+                    // undated or still ahead, but not marked Planned
+                    || ((j.StartsAt == null || (j.StartsAt > now && (j.EndsAt == null || j.EndsAt >= now)))
+                        && j.Status != JourneyStatus.Planned))
+                .OrderBy(j => j.Id)
+                .Take(RollUpBatchSize)
+                .ToListAsync(ct);
+
+            if (stale.Count == 0) break;
+
+            foreach (var journey in stale)
             {
-                { StartsAt: null } => JourneyStatus.Planned,
-                { EndsAt: not null } when journey.EndsAt < now => JourneyStatus.Completed,
-                _ when journey.StartsAt <= now => JourneyStatus.Active,
-                _ => JourneyStatus.Planned
-            };
+                var target = journey switch
+                {
+                    { StartsAt: null } => JourneyStatus.Planned,
+                    { EndsAt: not null } when journey.EndsAt < now => JourneyStatus.Completed,
+                    _ when journey.StartsAt <= now => JourneyStatus.Active,
+                    _ => JourneyStatus.Planned
+                };
 
-            if (journey.Status == target) continue;
+                if (journey.Status == target) continue;
 
-            journey.Status = target;
-            journey.UpdatedAt = now;
-            changed++;
-        }
+                journey.Status = target;
+                journey.UpdatedAt = now;
+                changed++;
+            }
 
-        if (changed > 0)
             await _db.SaveChangesAsync(ct);
+
+            // A short page means the backlog is drained. Guarding on this rather than looping
+            // unconditionally matters because the predicate re-evaluates against rows just written:
+            // if one somehow did not converge, an unconditional loop would spin forever.
+            if (stale.Count < RollUpBatchSize) break;
+
+            _db.ChangeTracker.Clear();
+        }
 
         return changed;
     }

@@ -50,7 +50,7 @@ public class WalletController : ControllerBase
         var userId = User.FindFirst(JwtClaimTypes.UserId)?.Value;
         if (userId is null) return Unauthorized();
 
-        var wallet = await _walletManager.EnsureWalletAsync(userId, ct);
+        await _walletManager.EnsureWalletAsync(userId, ct);
         var response = await _walletManager.GetWalletAsync(userId, ct);
         return CreatedAtAction(nameof(GetWallet), new { }, response);
     }

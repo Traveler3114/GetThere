@@ -155,8 +155,12 @@ jobs:
           done
 
   # Blocking as of 2026-07-27: the 76 CS0618 warnings (obsolete DisplayAlert/DisplayActionSheet)
-  # that made this job permanently red were cleared, and both net10.0-android and
-  # net10.0-windows now build warning-free.
+  # that made this job permanently red were cleared and net10.0-android builds warning-free.
+  #
+  # Only the Android head is built. net10.0-windows needs a windows runner with the maui workload,
+  # which roughly doubles this job's wall time, and net10.0-ios needs a Mac runner — so a defect in
+  # a platform-specific file under Platforms/Windows or Platforms/iOS reaches main unbuilt. There is
+  # also no `dotnet format` step for this project, unlike the four above.
   maui:
     runs-on: windows-latest
 

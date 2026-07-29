@@ -144,23 +144,30 @@ public class TicketUploadManager
             .Where(u => u.ConsumedAt == null && u.CreatedAt < cutoff)
             .ToListAsync(ct);
 
+        // Only rows whose blob actually went away are removed. Dropping the row regardless — which
+        // is what this did — left the file on disk with nothing left in the database pointing at it,
+        // so it could never be found or retried: the opposite of what the sweep is for. A row whose
+        // delete failed stays put and is picked up by the next pass.
+        List<Entities.TicketUpload> deleted = [];
+
         foreach (var upload in abandoned)
         {
             try
             {
                 await _store.DeleteAsync(upload.UserId, upload.BlobKey, ct);
+                deleted.Add(upload);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // A blob that will not delete must not strand the row, or the sweep retries it
-                // forever and never reaches the rest of the backlog.
-                _logger.LogWarning(ex, "Could not delete abandoned ticket file {BlobKey}", upload.BlobKey);
+                // Logged and left for the next sweep rather than retried here, so one unhappy blob
+                // does not stall the rest of the backlog.
+                _logger.LogWarning(ex, "Could not delete abandoned ticket file {BlobKey}; leaving the row for the next sweep", upload.BlobKey);
             }
         }
 
-        _db.TicketUploads.RemoveRange(abandoned);
+        _db.TicketUploads.RemoveRange(deleted);
         await _db.SaveChangesAsync(ct);
-        return abandoned.Count;
+        return deleted.Count;
     }
 
     /// <summary>

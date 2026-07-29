@@ -122,8 +122,19 @@ public class ImportedTicketService
     {
         try
         {
+            // Buffered before sending rather than wrapped as a StreamContent over the picker's
+            // stream. AuthenticatedHttpHandler rebuilds and re-sends the request after refreshing an
+            // expired token, and it does that by re-reading request.Content — which a one-shot
+            // stream has already given up. The upload then failed with a generic error at exactly
+            // the moment the retry existed to cover. A ByteArrayContent can be read twice.
+            //
+            // The server caps an upload at 10 MB (TicketUploadManager.MaxFileBytes), so this is a
+            // bounded buffer, not an open-ended one.
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, ct);
+
             using var form = new MultipartFormDataContent();
-            using var file = new StreamContent(content);
+            using var file = new ByteArrayContent(buffer.ToArray());
             file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
             form.Add(file, "file", fileName);
 

@@ -173,8 +173,42 @@ public class AuthService : IDisposable
         return _cachedRefreshToken;
     }
 
-    public async Task<bool> IsLoggedInAsync() =>
-        await GetTokenAsync() is not null;
+    /// <summary>
+    /// Whether the app currently holds usable credentials.
+    /// <para>
+    /// This used to answer "is there a token", which is true of an expired one too — so a user
+    /// returning after their session lapsed was treated as signed in, and found out only when the
+    /// next request came back 401. An expired access token with a live refresh token is a recoverable
+    /// state rather than a signed-out one, so it is refreshed here instead of being reported as
+    /// either.
+    /// </para>
+    /// </summary>
+    public async Task<bool> IsLoggedInAsync()
+    {
+        var token = await GetTokenAsync();
+        if (string.IsNullOrWhiteSpace(token)) return false;
+
+        if (!IsExpired(token)) return true;
+
+        return await TryRefreshTokenAsync();
+    }
+
+    /// <summary>
+    /// Whether the token's own <c>exp</c> claim has passed. A token whose expiry cannot be read is
+    /// treated as still valid: the 401 path in <c>AuthenticatedHttpHandler</c> is the backstop, and
+    /// signing someone out over an unparseable claim is the worse error.
+    /// </summary>
+    private static bool IsExpired(string token)
+    {
+        try
+        {
+            return new JwtPayloadReader(token).GetExpiry() is { } expiry && expiry <= DateTimeOffset.UtcNow;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public static bool IsGuest() => Preferences.Default.Get("is_guest", false);
 
@@ -215,5 +249,13 @@ public class AuthService : IDisposable
 
         public string? GetEmail() =>
             _payload.TryGetProperty("email", out var email) ? email.GetString() : null;
+
+        /// <summary>The token's expiry, or null when it carries no readable <c>exp</c> claim.</summary>
+        public DateTimeOffset? GetExpiry() =>
+            _payload.ValueKind == JsonValueKind.Object
+            && _payload.TryGetProperty("exp", out var exp)
+            && exp.TryGetInt64(out var seconds)
+                ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+                : null;
     }
 }

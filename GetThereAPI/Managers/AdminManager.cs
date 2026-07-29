@@ -106,6 +106,14 @@ public class AdminManager
 
         return new AdminStats
         {
+            // Assigned rather than left to the contract's default, which is what it relied on
+            // before. The money figures below are plain SUMs over Amount/Balance with no conversion,
+            // so they are only meaningful while every wallet and price shares one currency — which
+            // TicketingManager enforces per purchase (CURRENCY_MISMATCH) but nothing enforces
+            // across accounts. A deployment that genuinely mixes currencies needs these bucketed per
+            // currency; this at least stops the console labelling every total "EUR" by accident.
+            Currency = SupportedCurrencies.Default,
+
             TicketsSold = sold,
             TicketsSoldChangePercent = PercentChange(sold, soldPrevious),
             TicketsSoldDaily = [.. Enumerable.Range(0, 7)

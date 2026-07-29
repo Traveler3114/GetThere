@@ -25,8 +25,11 @@ public class StationManager
     public async Task<List<StationResponse>> GetAllAsync(
         double? lat, double? lon, double? radiusKm, int? countryId, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
+        // No Include here: the query projects through StationMapper.ToResponseExpression, and EF
+        // drops an Include on a projecting query — the expression pulls the country columns it needs
+        // itself. The Include was silently doing nothing.
         var query = _db.CanonicalStations
-            .Include(cs => cs.Country)
+            .AsNoTracking()
             .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
             .AsQueryable();
 
@@ -56,10 +59,9 @@ public class StationManager
         double? lat, double? lon, double? radiusKm, int? countryId, int limit, CancellationToken ct)
     {
         var query = _db.CanonicalStations
-            .Include(cs => cs.Country)
+            .AsNoTracking()
             .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
-            .AsQueryable()
-            .AsNoTracking();
+            .AsQueryable();
 
         if (countryId.HasValue)
             query = query.Where(cs => cs.CountryId == countryId.Value);
@@ -99,8 +101,7 @@ public class StationManager
     public async Task<StationResponse?> GetByOnestopIdAsync(string onestopId, CancellationToken ct)
     {
         return await _db.CanonicalStations
-            .Include(cs => cs.Country)
-            .Include(cs => cs.City)
+            .AsNoTracking()
             .Where(cs => cs.OnestopId == onestopId && cs.IsActive && cs.StationType == StationType.Stop)
             .Select(StationMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
@@ -109,8 +110,7 @@ public class StationManager
     public async Task<StationResponse?> GetByIdAsync(int id, CancellationToken ct)
     {
         return await _db.CanonicalStations
-            .Include(cs => cs.Country)
-            .Include(cs => cs.City)
+            .AsNoTracking()
             .Where(cs => cs.Id == id && cs.IsActive && cs.StationType == StationType.Stop)
             .Select(StationMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
@@ -119,7 +119,7 @@ public class StationManager
     public async Task<List<StationResponse>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalStations
-            .Include(cs => cs.Country)
+            .AsNoTracking()
             .AsQueryable();
 
         StationType parsedStationType = default;
@@ -273,6 +273,9 @@ public class StationManager
                 .ToListAsync(ct);
             var stationLineIds = stationRoutes.Select(r => r.Display).ToHashSet();
 
+            // Filled on first use inside the loop below and reused for the rest of the request.
+            Dictionary<string, HashSet<int>>? stationByLine = null;
+
             foreach (var candidate in candidates)
             {
                 var explanation = ReconciliationManager.ComputeMatchExplanation(
@@ -328,22 +331,26 @@ public class StationManager
                             .Distinct()
                             .ToListAsync(ct);
 
-                        var stationDirections = await _db.StopTimes
-                            .Where(st => st.CanonicalStationId == id
-                                && st.Trip.CanonicalRoute != null
-                                && st.Trip.DirectionId.HasValue)
-                            .Select(st => new
-                            {
-                                Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
-                                    ? st.Trip.CanonicalRoute!.ShortName
-                                    : st.Trip.CanonicalRoute!.LongName,
-                                st.Trip.DirectionId
-                            })
-                            .Distinct()
-                            .ToListAsync(ct);
+                        // Loaded once for the whole request rather than per candidate: this query
+                        // depends only on the station id, so it returned identical rows on every
+                        // iteration of the loop.
+                        stationByLine ??= (await _db.StopTimes
+                                .Where(st => st.CanonicalStationId == id
+                                    && st.Trip.CanonicalRoute != null
+                                    && st.Trip.DirectionId.HasValue)
+                                .Select(st => new
+                                {
+                                    Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
+                                        ? st.Trip.CanonicalRoute!.ShortName
+                                        : st.Trip.CanonicalRoute!.LongName,
+                                    st.Trip.DirectionId
+                                })
+                                .Distinct()
+                                .ToListAsync(ct))
+                            .GroupBy(d => d.Line)
+                            .ToDictionary(g => g.Key, g => g.Select(d => d.DirectionId!.Value).ToHashSet());
 
                         var rawByLine = rawDirections.GroupBy(d => d.Line).ToDictionary(g => g.Key, g => g.Select(d => d.DirectionId!.Value).ToHashSet());
-                        var stationByLine = stationDirections.GroupBy(d => d.Line).ToDictionary(g => g.Key, g => g.Select(d => d.DirectionId!.Value).ToHashSet());
 
                         foreach (var line in matchedLines)
                         {

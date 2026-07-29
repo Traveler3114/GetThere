@@ -30,21 +30,31 @@ public partial class ProfilePage : ContentPage
         // Icons use AppThemeBinding — no manual updates needed
     }
 
+    // async void is forced by the Tapped event signature. The try/catch is what keeps a failure here
+    // from becoming an unhandled exception on the UI thread — every other handler in the app has one
+    // and this was the exception.
     private async void OnAvatarClicked(object? sender, TappedEventArgs e)
     {
-        var action = await DisplayActionSheetAsync(
-            Localization.LocalizationService.Instance["Profile_PhotoTitle"],
-            Localization.LocalizationService.Instance["App_Cancel"], null,
-            Localization.LocalizationService.Instance["Profile_PhotoTake"],
-            Localization.LocalizationService.Instance["Profile_PhotoUpload"]);
-
-        if (action == Localization.LocalizationService.Instance["Profile_PhotoTake"]
-            || action == Localization.LocalizationService.Instance["Profile_PhotoUpload"])
+        try
         {
-            await DisplayAlertAsync(
+            var action = await DisplayActionSheetAsync(
                 Localization.LocalizationService.Instance["Profile_PhotoTitle"],
-                Localization.LocalizationService.Instance["Profile_PhotoResult"],
-                Localization.LocalizationService.Instance["App_Ok"]);
+                Localization.LocalizationService.Instance["App_Cancel"], null,
+                Localization.LocalizationService.Instance["Profile_PhotoTake"],
+                Localization.LocalizationService.Instance["Profile_PhotoUpload"]);
+
+            if (action == Localization.LocalizationService.Instance["Profile_PhotoTake"]
+                || action == Localization.LocalizationService.Instance["Profile_PhotoUpload"])
+            {
+                await DisplayAlertAsync(
+                    Localization.LocalizationService.Instance["Profile_PhotoTitle"],
+                    Localization.LocalizationService.Instance["Profile_PhotoResult"],
+                    Localization.LocalizationService.Instance["App_Ok"]);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"[ProfilePage] Avatar picker failed: {ex.Message}");
         }
     }
 }
