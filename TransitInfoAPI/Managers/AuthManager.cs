@@ -130,6 +130,27 @@ public class AuthManager
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
         }
 
+        // The token itself is good, but the account behind it may have changed since it was issued.
+        // Nothing rechecked that, so an account locked out by the failed-attempt policy kept minting
+        // fresh access tokens for the whole life of its refresh token — the lockout only ever applied
+        // to the password path.
+        //
+        // This is the same check GetThereAPI's AuthManager makes. The two services keep separate
+        // AuthManagers by design, so the *rules* they share live in SharedAuth
+        // (RefreshTokenEvaluator) while each owns its own database writes — which is exactly why this
+        // one had to be applied twice, and why it went missing here for a while.
+        var account = existingRefreshToken.User;
+        if (account is null || await _userManager.IsLockedOutAsync(account))
+        {
+            LogAudit(existingRefreshToken.UserId, "RefreshRejectedForLockedAccount", "RefreshToken",
+                existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
+            await _db.SaveChangesAsync(ct);
+
+            // Deliberately the same answer as an expired token: whether an account exists and is
+            // locked is not something an unauthenticated caller should be able to tell apart.
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
+
         existingRefreshToken.RevokedAt = DateTime.UtcNow;
 
         var newRawRefreshToken = _tokenManager.GenerateRefreshToken();

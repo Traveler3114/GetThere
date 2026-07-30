@@ -63,18 +63,36 @@ function renderOperators(list) {
     return;
   }
   const rows = list.map(o => `<tr>
-    <td><a href="#" class="text-decoration-none" onclick="event.preventDefault();showDetail('${o.globalId}')">${esc(o.name)}</a></td>
+    <td><a href="#" class="text-decoration-none" data-detail="${esc(o.globalId)}">${esc(o.name)}</a></td>
     <td>${esc(o.shortName)}</td>
     <td><code class="small">${esc(o.onestopId||'-')}</code></td>
     <td><span class="badge bg-secondary">${esc(o.operatorType)}</span></td>
     <td>
-      <button class="btn btn-sm btn-outline-info" onclick="showDetail('${o.globalId}')" title="View details"><i class="bi bi-eye"></i></button>
-      <button class="btn btn-sm btn-outline-primary" onclick="showEditModal('${o.globalId}')" title="Edit"><i class="bi bi-pencil"></i></button>
-      <button class="btn btn-sm btn-outline-danger" onclick="deleteOperator('${o.globalId}', '${esc(o.name)}')" title="Delete"><i class="bi bi-trash"></i></button>
+      <button class="btn btn-sm btn-outline-info" data-detail="${esc(o.globalId)}" title="View details"><i class="bi bi-eye"></i></button>
+      <button class="btn btn-sm btn-outline-primary" data-edit="${esc(o.globalId)}" title="Edit"><i class="bi bi-pencil"></i></button>
+      <button class="btn btn-sm btn-outline-danger" data-delete="${esc(o.globalId)}" data-delete-name="${esc(o.name)}" title="Delete"><i class="bi bi-trash"></i></button>
       ${o.website ? `<a href="${esc(safeUrl(o.website))}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary" title="Visit website"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
     </td>
   </tr>`).join('');
   document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Short Name</th><th>Onestop ID</th><th>Type</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} operator(s)</small>`;
+
+  // Bound from data attributes rather than inline onclick. The id was previously interpolated raw
+  // into a JS string literal inside an HTML attribute — an operator created with a quote in its
+  // globalId broke out of it, and HTML-escaping alone would not have helped there because the
+  // browser decodes entities in an attribute before the JS is parsed. Data attributes sidestep the
+  // nested-context problem entirely, and move this page a step closer to dropping 'unsafe-inline'.
+  const content = document.getElementById('content');
+  content.querySelectorAll('[data-detail]').forEach(function (el) {
+    el.addEventListener('click', function (e) { e.preventDefault(); showDetail(el.getAttribute('data-detail')); });
+  });
+  content.querySelectorAll('[data-edit]').forEach(function (el) {
+    el.addEventListener('click', function () { showEditModal(el.getAttribute('data-edit')); });
+  });
+  content.querySelectorAll('[data-delete]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      deleteOperator(el.getAttribute('data-delete'), el.getAttribute('data-delete-name'));
+    });
+  });
 }
 
 async function showDetail(globalId) {
@@ -117,7 +135,13 @@ async function showDetail(globalId) {
   document.getElementById('detailModal').addEventListener('hidden.bs.modal', () => document.getElementById('detailModal').remove());
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
 
@@ -201,12 +225,16 @@ async function showEditModal(globalId) {
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button type="button" class="btn btn-primary" onclick="editOperator('${globalId}')">Save</button>
+      <button type="button" class="btn btn-primary" id="editOperatorSave">Save</button>
     </div>
   </div></div></div>`;
   const existing = document.getElementById('editModal');
   if (existing) existing.remove();
   document.body.insertAdjacentHTML('beforeend', html);
+  // Same reason as the row actions: the id was interpolated into a JS string inside an attribute.
+  // Captured in the closure instead, so it never passes through markup at all.
+  document.getElementById('editOperatorSave').addEventListener('click', function () { editOperator(globalId); });
+
   const modal = new bootstrap.Modal(document.getElementById('editModal'));
   modal.show();
   document.getElementById('editModal').addEventListener('hidden.bs.modal', () => document.getElementById('editModal').remove());

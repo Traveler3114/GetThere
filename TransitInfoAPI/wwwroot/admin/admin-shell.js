@@ -106,13 +106,26 @@
 
     _refreshInFlight: null,
 
+    /**
+     * Builds fetch init with the auth headers merged in rather than replaced. The previous form —
+     * Object.assign({ headers: Shell.headers() }, options) — let a caller's own `headers` overwrite
+     * the whole object, dropping Authorization and turning an ordinary POST into a 401 and a forced
+     * sign-out. No caller passes headers today; this is so none has to know not to.
+     */
+    _init: function (options) {
+      var init = Object.assign({}, options || {});
+      init.headers = Object.assign(Shell.headers(), init.headers || {});
+      return init;
+    },
+
     api: async function (path, options) {
-      var res = await fetch(path, Object.assign({ headers: Shell.headers() }, options || {}));
+      var res = await fetch(path, Shell._init(options));
 
       if (res.status === 401) {
         var refreshed = await Shell.refresh();
         if (refreshed) {
-          res = await fetch(path, Object.assign({ headers: Shell.headers() }, options || {}));
+          // Rebuilt, not reused: Shell.headers() has to read the token refresh just stored.
+          res = await fetch(path, Shell._init(options));
         }
       }
 

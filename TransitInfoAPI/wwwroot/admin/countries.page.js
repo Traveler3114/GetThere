@@ -1,4 +1,8 @@
 const BASE = '';
+// The page paginates client-side, so it needs the whole list in one request. Asking without
+// perPage took the server's default of 50 — fine at today's 42 countries, silently dropping the
+// rest (and reporting a wrong total) the moment a 51st is added. 500 is the endpoint's ceiling.
+const COUNTRY_FETCH_LIMIT = 500;
 let allCountries = [];
 
 async function loadCountries() {
@@ -6,7 +10,7 @@ async function loadCountries() {
   document.getElementById('error').classList.add('d-none');
   document.getElementById('content').classList.add('d-none');
   try {
-    const r = await fetch(BASE + '/countries');
+    const r = await fetch(BASE + '/countries?perPage=' + COUNTRY_FETCH_LIMIT);
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allCountries = j.data || [];
@@ -116,7 +120,13 @@ async function addCountry() {
   btn.disabled = false;
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
 loadCountries();

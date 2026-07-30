@@ -89,10 +89,11 @@ function renderSidebar(data) {
         <div><strong>Matched station</strong><br>
           <span style="font-size:0.85rem">${esc(data.suggestedStationName)}</span>
           ${data.canonicalRouteType ? `<span class="route-type-badge" style="background:${ctColor}">${data.canonicalRouteType}</span>` : ''}<br>
-          <span style="font-size:0.8rem;color:#888">${data.suggestedStationLat.toFixed(5)}, ${data.suggestedStationLon.toFixed(5)}</span>
+          <span style="font-size:0.8rem;color:#888">${data.suggestedStationLat != null && data.suggestedStationLon != null
+            ? data.suggestedStationLat.toFixed(5) + ', ' + data.suggestedStationLon.toFixed(5) : '-'}</span>
           ${data.suggestedStationId ? `<br><span style="font-size:0.8rem;color:#888">ID: <code>${data.suggestedStationId}</code></span>` : ''}
         </div>
-      </div>` : '<p class="small text-muted mt-2">No matched station â€” this was created as a new station.</p>'}
+      </div>` : '<p class="small text-muted mt-2">No matched station — this was created as a new station.</p>'}
     </div>
 
     <div class="sidebar-section">
@@ -119,9 +120,9 @@ function renderSidebar(data) {
     const namePct = (data.nameSimilarityScore * 100).toFixed(0);
     html += `<div class="part"><strong>Name:</strong> ${namePct}% match`;
     if (data.autoMergeNameThreshold && data.nameSimilarityScore >= data.autoMergeNameThreshold * 0.99) {
-      html += ` (â‰¥${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge threshold)`;
+      html += ` (≥${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge threshold)`;
     } else if (data.manualReviewNameThreshold && data.nameSimilarityScore >= data.manualReviewNameThreshold * 0.99) {
-      html += ` (â‰¥${(data.manualReviewNameThreshold * 100).toFixed(0)}% manual-review threshold, <${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge)`;
+      html += ` (≥${(data.manualReviewNameThreshold * 100).toFixed(0)}% manual-review threshold, <${(data.autoMergeNameThreshold * 100).toFixed(0)}% auto-merge)`;
     } else {
       html += ` (<${(data.manualReviewNameThreshold * 100).toFixed(0)}% review threshold)`;
     }
@@ -131,9 +132,9 @@ function renderSidebar(data) {
   if (data.distanceMeters != null) {
     html += `<div class="part"><strong>Distance:</strong> ${fmtDist(data.distanceMeters)}`;
     if (data.autoMergeDistanceMeters && data.distanceMeters <= data.autoMergeDistanceMeters) {
-      html += ` (â‰¤${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge threshold)`;
+      html += ` (≤${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge threshold)`;
     } else if (data.manualReviewDistanceMeters && data.distanceMeters <= data.manualReviewDistanceMeters * 0.99) {
-      html += ` (â‰¤${data.manualReviewDistanceMeters.toFixed(0)}m manual-review threshold, >${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge)`;
+      html += ` (≤${data.manualReviewDistanceMeters.toFixed(0)}m manual-review threshold, >${data.autoMergeDistanceMeters.toFixed(0)}m auto-merge)`;
     } else {
       html += ` (>${data.manualReviewDistanceMeters.toFixed(0)}m review threshold)`;
     }
@@ -156,7 +157,7 @@ function renderSidebar(data) {
       <div class="d-flex flex-wrap gap-1">`;
     data.rawStopDetail.routes.forEach(r => {
       const color = getRouteColor(r.routeType);
-      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
     });
     html += `</div></div>`;
   }
@@ -177,7 +178,7 @@ function renderSidebar(data) {
       <div class="d-flex flex-wrap gap-1">`;
     data.suggestedStationDetail.routes.forEach(r => {
       const color = getRouteColor(r.routeType);
-      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+      html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
     });
     html += `</div></div>`;
   }
@@ -311,6 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function showStationRoutes(stationId, stationName, lat, lon) {
+  // One request, two consumers. This used to fire /stations/{id}/routes twice — once to build the
+  // sidebar and once to draw the shapes — on every marker click.
   fetch('/stations/' + stationId + '/routes')
     .then(r => { if (!r.ok) throw new Error('Failed to load routes'); return r.json(); })
     .then(routes => {
@@ -321,45 +324,47 @@ function showStationRoutes(stationId, stationName, lat, lon) {
           <div style="display:flex;flex-wrap:wrap;gap:4px">`;
       routes.forEach(r => {
         const color = getRouteColor(r.routeType || 'default');
-        html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} â€” ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
+        html += `<span class="route-type-badge" style="background:${color}" title="${esc(r.name || '')} — ${esc(r.operatorName || '')}">${esc(r.shortName || r.name || '?')}</span>`;
       });
       html += `</div></div>`;
       document.getElementById('sidebar-content').innerHTML = html;
       document.getElementById('sidebar').classList.add('open');
+      drawRouteShapes(routes);
     })
     .catch(err => {
       document.getElementById('sidebar-content').innerHTML = '<p class="error">' + esc(err.message) + '</p>';
       document.getElementById('sidebar').classList.add('open');
     });
+}
 
-  fetch('/stations/' + stationId + '/routes')
-    .then(r => r.json())
-    .then(routes => {
-      routes.forEach(route => {
-        fetch('/routes/' + route.id + '/shape')
-          .then(r => r.json())
-          .then(shapeData => {
-            if (!shapeData || !shapeData.features || shapeData.features.length === 0) return;
-            const layerId = 'route-shape-' + route.id;
-            const sourceId = 'route-source-' + route.id;
-            if (map.getSource(sourceId)) return;
-            map.addSource(sourceId, { type: 'geojson', data: shapeData });
-            map.addLayer({
-              id: layerId,
-              type: 'line',
-              source: sourceId,
-              paint: {
-                'line-color': getRouteColor(route.routeType || 'default'),
-                'line-width': 2.5,
-                'line-opacity': 0.7
-              }
-            });
-            stationModeLayers.push(sourceId, layerId);
-          })
-          .catch(() => {});
-      });
-    })
-    .catch(() => {});
+function drawRouteShapes(routes) {
+  routes.forEach(route => {
+    fetch('/routes/' + route.id + '/shape')
+      .then(r => r.json())
+      .then(shapeData => {
+        // GET /routes/{id}/shape returns a single GeoJSON Feature, not a FeatureCollection. The
+        // guard here tested `.features`, which that response never has, so it returned every time
+        // and no route line was ever drawn on this map.
+        if (!shapeData || !shapeData.geometry || !shapeData.geometry.coordinates ||
+            shapeData.geometry.coordinates.length < 2) return;
+        const layerId = 'route-shape-' + route.id;
+        const sourceId = 'route-source-' + route.id;
+        if (map.getSource(sourceId)) return;
+        map.addSource(sourceId, { type: 'geojson', data: shapeData });
+        map.addLayer({
+          id: layerId,
+          type: 'line',
+          source: sourceId,
+          paint: {
+            'line-color': getRouteColor(route.routeType || 'default'),
+            'line-width': 2.5,
+            'line-opacity': 0.7
+          }
+        });
+        stationModeLayers.push(sourceId, layerId);
+      })
+      .catch(() => {});
+  });
 }
 
 let currentCandidateData = null;
@@ -602,7 +607,7 @@ map.on('load', () => {
         bounds.extend([data.suggestedStationLon, data.suggestedStationLat]);
         map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
       } else {
-        // Only raw stop â€” center on it
+        // Only raw stop — center on it
         map.flyTo({ center: [data.rawStopLon, data.rawStopLat], zoom: 14 });
       }
 

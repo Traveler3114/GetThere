@@ -43,7 +43,8 @@ function cancelEdit() {
 
 function addStopMarkers(stops) {
   stops.forEach(s => {
-    if (!s.latitude || !s.longitude) return;
+    // != null, not truthiness: longitude 0 is the Greenwich meridian, not a missing coordinate.
+    if (s.latitude == null || s.longitude == null) return;
     const el = document.createElement('div');
     el.style.cssText = 'width:14px;height:14px;background:#27ae60;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);cursor:pointer;';
     const popup = new maplibregl.Popup({ offset: 10, closeButton: false })

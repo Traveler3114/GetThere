@@ -44,7 +44,8 @@ function renderVehicles(list) {
     <td><code>${esc(v.vehicleId)}</code></td>
     <td>${esc(v.routeId||'-')}</td>
     <td>${esc(v.tripId||'-')}</td>
-    <td class="small">${v.latitude.toFixed(4)}, ${v.longitude.toFixed(4)}</td>
+    <td class="small">${typeof v.latitude === 'number' && typeof v.longitude === 'number'
+      ? v.latitude.toFixed(4) + ', ' + v.longitude.toFixed(4) : '-'}</td>
     <td>${v.bearing != null ? v.bearing.toFixed(0) + '&deg;' : '-'}</td>
     <td class="small">${v.lastUpdated ? new Date(v.lastUpdated).toLocaleTimeString() : '-'}</td>
   </tr>`).join('');
@@ -59,7 +60,10 @@ function togglePause() {
 }
 
 function updateInterval() {
-  intervalSec = parseInt(document.getElementById('refreshInterval').value);
+  // Radix and a floor: a NaN interval makes setInterval fire as fast as the browser allows, which
+  // on this page means hammering /realtime/vehicles.
+  const parsed = parseInt(document.getElementById('refreshInterval').value, 10);
+  intervalSec = Number.isFinite(parsed) && parsed > 0 ? parsed : 15;
   startTimer();
 }
 
@@ -69,9 +73,9 @@ function startTimer() {
 }
 
 function showError(msg) {
-  if (!document.getElementById('content').classList.contains('d-none')) {
-    // append to existing content
-  }
+  // Hides the spinner too. The loader bails out of its `if (!r.ok) ... return` path before reaching
+  // its own hide, so a failed request used to leave the page showing a spinner and an error at once.
+  document.getElementById('loading')?.classList.add('d-none');
   const e = document.getElementById('error');
   if (e) { e.textContent = msg; e.classList.remove('d-none'); }
 }

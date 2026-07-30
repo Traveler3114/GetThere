@@ -12,7 +12,11 @@ async function loadAlerts(stopOnestopId, routeOnestopId) {
     if (routeOnestopId) params.set('routeOnestopId', routeOnestopId);
     const url = BASE + '/realtime/alerts' + (params.toString() ? '?' + params.toString() : '');
     const r = await fetch(url);
-    allAlerts = await r.json();
+    // Without this a failed request parsed the problem+json body into an object, whose .length is
+    // undefined, and the page reported "No active alerts" — a server error shown as good news.
+    if (!r.ok) { showError('Failed to load alerts: ' + (r.statusText || 'Unknown error')); return; }
+    const body = await r.json();
+    allAlerts = Array.isArray(body) ? body : [];
     renderAlerts();
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
@@ -86,7 +90,13 @@ function effectBadge(effect) {
   return `<span class="badge ${map[effect] || 'bg-secondary'}">${effect}</span>`;
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
 

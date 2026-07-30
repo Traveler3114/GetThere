@@ -23,11 +23,18 @@ async function loadAll() {
   await loadMergedPage(1);
 }
 
+// Both loaders share one spinner and one content pane, but loadAll() calls them back to back to
+// prime the other tab's total. Whichever ran second used to raise the spinner and hide the content
+// it was not going to re-render — so a first load finished with the pending rows built and the page
+// showing "Loading..." over them, forever. The chrome is only touched for the tab on screen.
 async function loadPendingPage(page) {
   pendingPage = page;
-  document.getElementById('loading').classList.remove('d-none');
-  document.getElementById('error').classList.add('d-none');
-  document.getElementById('content').classList.add('d-none');
+  const isVisible = currentTab === 'pending';
+  if (isVisible) {
+    document.getElementById('loading').classList.remove('d-none');
+    document.getElementById('error').classList.add('d-none');
+    document.getElementById('content').classList.add('d-none');
+  }
   try {
     const params = new URLSearchParams({ page: page, perPage: recPageSize });
     const q = getSearchQ();
@@ -37,16 +44,20 @@ async function loadPendingPage(page) {
     if (routeType) params.set('routeType', routeType);
     if (statusFilter) params.set('status', statusFilter);
     const r = await fetch(BASE + '/reconciliation/pending?' + params.toString());
-    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    if (!r.ok) {
+      if (isVisible) showError('Failed to load: ' + (r.statusText || 'Unknown error'));
+      return;
+    }
     const j = await r.json();
     pendingTotal = j.total || 0;
-    if (currentTab === 'pending') {
+    if (isVisible) {
       renderPending(j.data || []);
       renderRecPagination('pending');
       document.getElementById('loading').classList.add('d-none');
       document.getElementById('content').classList.remove('d-none');
     }
   } catch(e) {
+    if (!isVisible) return;
     document.getElementById('loading').classList.add('d-none');
     showError('Failed to load: ' + e.message);
   }
@@ -54,9 +65,12 @@ async function loadPendingPage(page) {
 
 async function loadMergedPage(page) {
   mergedPage = page;
-  document.getElementById('loading').classList.remove('d-none');
-  document.getElementById('error').classList.add('d-none');
-  document.getElementById('content').classList.add('d-none');
+  const isVisible = currentTab === 'merged';
+  if (isVisible) {
+    document.getElementById('loading').classList.remove('d-none');
+    document.getElementById('error').classList.add('d-none');
+    document.getElementById('content').classList.add('d-none');
+  }
   try {
     const params = new URLSearchParams({ page: page, perPage: recPageSize });
     const q = getSearchQ();
@@ -64,16 +78,20 @@ async function loadMergedPage(page) {
     if (q) params.set('q', q);
     if (routeType) params.set('routeType', routeType);
     const r = await fetch(BASE + '/reconciliation/auto-merged?' + params.toString());
-    if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
+    if (!r.ok) {
+      if (isVisible) showError('Failed to load: ' + (r.statusText || 'Unknown error'));
+      return;
+    }
     const j = await r.json();
     mergedTotal = j.total || 0;
-    if (currentTab === 'merged') {
+    if (isVisible) {
       renderMerged(j.data || []);
       renderRecPagination('merged');
       document.getElementById('loading').classList.add('d-none');
       document.getElementById('content').classList.remove('d-none');
     }
   } catch(e) {
+    if (!isVisible) return;
     document.getElementById('loading').classList.add('d-none');
     showError('Failed to load: ' + e.message);
   }
@@ -187,9 +205,6 @@ function renderMatchExplanation(item) {
     </div>`;
   }
 
-  const s = item.confidenceScore;
-  const sClass = s >= 0.8 ? 'bg-success' : s >= 0.5 ? 'bg-warning text-dark' : 'bg-danger';
-
   if (item.nameSimilarityScore != null) {
     const ns = item.nameSimilarityScore;
     const nsClass = ns >= 0.9 ? 'text-success' : ns >= 0.7 ? 'text-warning' : 'text-danger';
@@ -215,7 +230,7 @@ function renderMatchExplanation(item) {
   if (item.rawStopDetail && item.rawStopDetail.routes && item.rawStopDetail.routes.length > 0) {
     html += '<div class="mt-2"><span class="text-danger small fw-bold">Raw stop routes: </span>';
     html += item.rawStopDetail.routes.map(r =>
-      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} â€” ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
     ).join(' ');
     html += '</div>';
   }
@@ -229,7 +244,7 @@ function renderMatchExplanation(item) {
   if (item.suggestedStationDetail && item.suggestedStationDetail.routes && item.suggestedStationDetail.routes.length > 0) {
     html += '<div class="mt-2"><span class="text-success small fw-bold">Matched station routes: </span>';
     html += item.suggestedStationDetail.routes.map(r =>
-      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} â€” ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
     ).join(' ');
     html += '</div>';
   }
@@ -281,7 +296,7 @@ function renderPending(filtered) {
           <div class="col-sm-6">
             <small class="text-muted">Matched to:</small>
             <span class="small">${hasStation ? esc(item.suggestedStationName) : '<em class="text-muted">New station</em>'}</span>
-            ${item.suggestedStationLat ? `<br><span class="small text-muted">${item.suggestedStationLat.toFixed(4)}, ${item.suggestedStationLon.toFixed(4)}</span>` : ''}
+            ${item.suggestedStationLat != null && item.suggestedStationLon != null ? `<br><span class="small text-muted">${item.suggestedStationLat.toFixed(4)}, ${item.suggestedStationLon.toFixed(4)}</span>` : ''}
             ${item.canonicalRouteType ? `<div class="mt-1"><small class="text-muted">Canonical RouteType:</small> ${rtBadge(item.canonicalRouteType)}</div>` : ''}
           </div>
         </div>
@@ -365,8 +380,10 @@ async function batchApprove() {
   ));
   const ok = results.filter(Boolean).length;
   const fail = results.length - ok;
+  // Reported after the reload, not before: loadAll() clears the error pane on its way in, so a
+  // partial failure used to flash the only notice the operator gets and then erase it.
+  await loadAll();
   if (fail > 0) showError(`${ok} of ${ids.length} approved, ${fail} failed`);
-  loadAll();
 }
 
 async function approve(id) {
@@ -415,7 +432,13 @@ async function doReject(id) {
   } catch(e) { showError('Error: ' + e.message); }
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
 loadAll();

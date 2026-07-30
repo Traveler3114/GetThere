@@ -9,9 +9,10 @@
 > line-by-line. See [`audit-2026-07-30.md`](audit-2026-07-30.md).
 
 **Date:** 2026-07-29 · **Scope:** `TransitInfoAPI` — 147 files, ~16 500 lines
-**Status: all 28 findings resolved.** Reconciliation was also moved outside the import transaction
-(T18) at the owner's decision, which required a new version state and a repair endpoint rather than
-the two-line move originally estimated.
+**Status: all 46 findings resolved** — 28 from the code audit (T1–T28) plus 18 from the admin console
+(A1–A18), which was the coverage gap left open in the first pass and is now closed. Reconciliation
+was also moved outside the import transaction (T18) at the owner's decision, which required a new
+version state and a repair endpoint rather than the two-line move originally estimated.
 
 **Backed by a live run:** both APIs against the real databases, real feeds (ZET, HŽPP, ÖBB, Gradski
 parking), 6 200 canonical stations, 531 routes, live GTFS-RT.
@@ -25,6 +26,7 @@ parking), 6 200 canonical stations, 531 routes, live GTFS-RT.
 | `dotnet test` | **311 / 311 pass** |
 | Migration | generated, applied, confirmed in `sys.indexes` / `sys.foreign_keys` |
 | Live re-verification | departures, reconciliation repair, operator service-area |
+| Admin console | all 16 pages loaded against the live API and checked for console errors |
 
 ## Coverage
 
@@ -33,7 +35,7 @@ parking), 6 200 canonical stations, 531 routes, live GTFS-RT.
 | All managers, services, `Data/`, workers, `Program.cs`, `Common/` | **read in full** |
 | Controllers | routes, authorization, parameter binding reviewed (thin pass-throughs) |
 | Entities, Contracts, Mapping | reviewed structurally |
-| `wwwroot/admin` (~3 000 lines JS) | reviewed for defect classes — escaping verified sound. **Not read line-by-line — the remaining gap** |
+| `wwwroot/admin` (3 770 lines JS, 16 pages) | **read in full, line by line** — 17 further findings, see below |
 | `Migrations/` | excluded (auto-generated) |
 
 ---
@@ -212,11 +214,103 @@ and UA already cover that rectangle.
 
 ---
 
+## Admin console — the closed coverage gap (A1–A18)
+
+The earlier pass checked the admin JS for defect *classes* (escaping, injection) and signed it off on
+that basis. Reading it line by line, and loading all 16 pages against the live API, found 18 more —
+including three pages that had never worked at all. Escaping was indeed sound; everything below is a
+different kind of mistake, which is the lesson: sampling for one defect class says nothing about the
+others.
+
+### 🔴 High — 4
+
+**A1 · `PlaceManager` was never registered in DI** — `Program.cs` ✅
+`PlacesController` could not be activated, so all four of its actions returned 500 from the container
+before reaching any code. The Places page has never loaded. Nothing catches this at build time — the
+controller compiles fine, and it is the only manager of thirteen that was missing. Verified after the
+fix: `200 {"data":[],"total":0,...}`.
+
+**A2 · Stations asked for `perPage=10000` against a `[Range(1, 500)]` endpoint** — `stations.page.js` ✅
+Model validation rejected every request, so the page showed only *"Failed to load: Unknown error"*.
+Capped at 500 — which is what made it render for the first time: **50 rows, truncation notice shown**.
+
+**A3 · Reconciliation hung on "Loading..." forever** — `reconciliation.page.js` ✅
+`loadAll()` runs both tab loaders back to back to prime the other tab's total. They share one spinner
+and one content pane, and the second one raised the spinner and hid the content it then declined to
+re-render, because it is not the visible tab. The pending rows were built and then covered up. The
+chrome is now only touched for the tab actually on screen.
+
+**A4 · The admin token was attached to every outbound fetch** — `admin-auth.js` ✅
+The wrapper added `Authorization: Bearer <admin JWT>` to *all* requests, including cross-origin ones.
+Two consequences: map tiles and styles failed CORS preflight (an Authorization header makes a request
+non-simple), and any third-party host willing to answer that preflight would have been handed an
+admin bearer token. Now same-origin only. **Verified: cross-origin fetch 200, same-origin still
+authenticated, map style resolves 28 layers where it previously failed outright.**
+
+### 🟠 Medium — 5
+
+**A5 · Route shapes never drew on the reconciliation map** — `reconciliation-map.page.js` ✅
+The guard tested `shapeData.features`, but `GET /routes/{id}/shape` returns a single GeoJSON
+**Feature**, not a FeatureCollection — so it returned early every time. Confirmed against the live
+endpoint: the response keys are `type`, `geometry`, `properties`.
+
+**A6 · Every HTTP error left the spinner running** — 12 pages ✅
+All the loaders bail out of `if (!r.ok) { showError(...); return; }` before reaching their own hide,
+so a failed request showed a spinner and an error message simultaneously. Fixed once, in each page's
+`showError`. **Verified against a real 400.**
+
+**A7 · A failed alerts request rendered as good news** — `alerts.page.js` ✅
+No `r.ok` check: the problem+json body parsed into an object whose `.length` is undefined, so the
+page reported *"No active alerts."* for a server error.
+
+**A8 · Unticking a license box recorded "unknown", not "no"** — `feeds.page.js` ✅
+`.checked || null` sent `null` for every unticked box and `FeedManager` assigns the request straight
+onto the entity. Both render unticked, so the UI looked right while the distinction the `bool?` exists
+to carry was lost — which for *"redistribution allowed"* is the difference between unknown terms and
+terms that forbid it.
+
+**A9 · The Overview's Version column was always blank** — `index.page.js` ✅
+Read `version.sha`; the field is `sha1`. **Now populated: `574f9da`, `50f1ec0`, `c1bd2b2`, `02342d3`.**
+
+### 🟡 Low — 9
+
+| # | Issue | Resolution |
+|---|---|---|
+| A10 | Reload discarded the active filter while the filter control still showed it (`agencies`, `feed-versions`) | Dropped the re-assignment that overwrote the filtered list. **Verified: 4 rows before and after a reload** |
+| A11 | Countries fetched without `perPage`, taking the server default of 50 — silent truncation at the 51st country | Requests the endpoint's 500 ceiling |
+| A12 | Overview queue rows all read "canonical" — `suggestedStationDetail` is on `ReconciliationDetailResponse`, which the list endpoint does not return | Pairs identifiers instead; the bold line already carries the names |
+| A13 | Batch-approve's *"N of M failed"* was erased by the reload that followed it | Reported after the reload completes |
+| A14 | 12 mojibake sequences (`—`, `≥`, `≤` round-tripped through Windows-1252) across 3 files | Repaired; files rewritten UTF-8 without BOM |
+| A15 | `/stations/{id}/routes` fetched twice per marker click | One request, two consumers |
+| A16 | `Shell.api` let a caller's own `headers` replace the auth headers wholesale | Merged rather than overwritten — no caller does this today; now none has to know not to |
+| A17 | `!s.latitude` skipped a stop at longitude 0 | `== null`, matching the fix already made elsewhere |
+| A18 | Dead `s`/`sClass` locals | Removed |
+
+### Also fixed earlier in the same pass
+
+`agencies` timezone/phone and `places` region/country codes went into HTML unescaped (both are raw
+feed data); unguarded `.toFixed()` in `realtime`, `places`, `stations` and `reconciliation-map`;
+truthiness-vs-null on latitude in `reconciliation`; and `operators` interpolated `globalId` raw into a
+JS string inside an HTML attribute — replaced with data attributes and `addEventListener`, which also
+removes one of the blockers to dropping `unsafe-inline` from the console's CSP.
+**Verified live: 6 operators, 0 leftover inline handlers, detail modal opens correctly.**
+
+### Noted, deliberately not changed
+
+`reconciliation.page.js` renders "Raw stop routes" and "Matched station routes" blocks that are dead
+on the list page for the same reason as A12 — the list endpoint returns `ReconciliationResponse`,
+without the detail objects. Making them work means widening the list payload to carry per-item route
+and operator detail for 25 rows at a time. That is a cost decision about the API, not a bug fix, so it
+is left as-is: the blocks are conditional and degrade silently rather than rendering wrongly.
+
+---
+
 ## Remaining
 
-Nothing outstanding from this audit. Two things worth a future pass:
+Nothing outstanding from this audit.
 
-1. **`wwwroot/admin` line-by-line** — reviewed for defect classes, escaping verified, but ~3 000
-   lines not read directly.
-2. **Watch `ReconciliationPending`** in the admin console. It should stay empty; a version sitting in
+1. **Watch `ReconciliationPending`** in the admin console. It should stay empty; a version sitting in
    it means reconciliation failed after a successful import and needs the repair endpoint.
+2. **`Places` is empty** (0 rows, and no station carries a `PlaceId`). Not a defect — the gazetteer
+   has never been seeded — but it does mean `PlaceMatchingManager` and the T8/T9/T19 fixes are
+   currently exercising an empty table, so they are correct by inspection rather than by observation.

@@ -1,4 +1,10 @@
 const BASE = '';
+
+// Must not exceed the server's [Range(1, 500)] on StationsController.Search. This page asked for
+// 10 000, which failed that validation on every load — so it has never actually shown a station,
+// only "Failed to load: Unknown error". Capping it here is what makes the page work at all; the
+// multi-megabyte client-side filter it was reaching for was never viable anyway.
+const STATION_FETCH_LIMIT = 500;
 let allStations = [];
 let searchTimer = null;
 
@@ -27,7 +33,11 @@ async function loadStations() {
   document.getElementById('content').classList.add('d-none');
   document.getElementById('statusBar').classList.add('d-none');
   try {
-    const r = await fetch(BASE + '/stations/search?perPage=10000');
+    // 10 000 was the previous request size: with 6 200 stations today that is a multi-megabyte
+    // payload on every page load, parsed and filtered entirely in the browser. Capped to something
+    // a table can actually show; the server already supports q/routeType/country filters if this
+    // page ever needs to search beyond the first page.
+    const r = await fetch(BASE + '/stations/search?perPage=' + STATION_FETCH_LIMIT);
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allStations = j.data || [];
@@ -36,7 +46,9 @@ async function loadStations() {
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
     document.getElementById('statusBar').classList.remove('d-none');
-    document.getElementById('statusBar').textContent = `Loaded ${allStations.length} station(s)`;
+    document.getElementById('statusBar').textContent = allStations.length >= STATION_FETCH_LIMIT
+      ? `Showing the first ${allStations.length} stations — narrow the filters to see others`
+      : `Loaded ${allStations.length} station(s)`;
   } catch(e) {
     document.getElementById('loading').classList.add('d-none');
     showError('Failed to load stations: ' + e.message);
@@ -98,7 +110,8 @@ function renderStations(list) {
     <td>${rtBadge(s.primaryRouteType)}</td>
     <td>${esc(s.countryName||'-')}</td>
     <td>${esc(s.cityName||'-')}</td>
-    <td class="small text-nowrap">${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
+    <td class="small text-nowrap">${typeof s.latitude === 'number' && typeof s.longitude === 'number'
+      ? s.latitude.toFixed(4) + ', ' + s.longitude.toFixed(4) : '-'}</td>
   </tr><tr class="detail-row" id="detail-${esc(s.onestopId)}"><td colspan="7"><div class="detail-inner" id="detailInner-${esc(s.onestopId)}"><i class="bi bi-hourglass-split"></i> Loading...</div></td></tr>`).join('');
   document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>ID</th><th>Type</th><th>Route Type</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s) shown</small>`;
 }
@@ -142,7 +155,13 @@ async function toggleDetail(row, onestopId) {
   setTimeout(() => detailRow.scrollIntoView({behavior:'smooth', block:'center'}), 100);
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
 loadStations();

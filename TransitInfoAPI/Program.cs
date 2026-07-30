@@ -74,6 +74,10 @@ builder.Services.AddScoped<RouteManager>();
 builder.Services.AddScoped<OperatorManager>();
 builder.Services.AddScoped<FeedManager>();
 builder.Services.AddScoped<CountryManager>();
+// Missing here meant PlacesController could not be activated at all: every one of its four actions
+// answered 500 from the DI container before reaching any code, so the admin Places page has never
+// loaded. Nothing catches this at build time — the controller compiles fine.
+builder.Services.AddScoped<PlaceManager>();
 builder.Services.AddSingleton<TransitInfoAPI.Services.ImportLogStore>();
 builder.Services.AddSingleton<RealtimeManager>();
 

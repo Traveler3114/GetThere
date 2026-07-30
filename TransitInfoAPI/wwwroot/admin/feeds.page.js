@@ -57,6 +57,9 @@ async function checkFeedHealth() {
         const latest = versions[0];
         if (feed.feedType !== 'GTFSStatic') return null;
         if (!latest) return feed;
+        // Only a clean, recent Success is healthy. ReconciliationPending falls through to
+        // "needs attention" on purpose — it is the quiet failure mode introduced by moving
+        // reconciliation outside the import transaction.
         if (latest.importStatus === 'Success' && latest.importedAt && new Date(latest.importedAt) >= sevenDaysAgo) return null;
         return feed;
       } catch { return feed; }
@@ -146,7 +149,11 @@ function feedTypeBadge(type) {
 }
 
 function statusBadge(status) {
-  const map = { Success: 'badge-success', Importing: 'badge-importing', Failed: 'badge-failed', Pending: 'badge-pending', Skipped: 'badge-skipped' };
+  const map = { Success: 'badge-success', Importing: 'badge-importing', Failed: 'badge-failed', Pending: 'badge-pending', Skipped: 'badge-skipped', ReconciliationPending: 'badge-failed' };
+  // Spelled out: the raw enum name reads like a routine queue state, when it actually means
+  // the feed imported but resolves to no stations until reconciliation is re-run.
+  const label = { ReconciliationPending: 'NEEDS RECONCILE' };
+  if (label[status]) return `<span class="badge ${map[status]}" title="Imported, but its stops are not linked to stations. Re-run reconciliation to repair.">${label[status]}</span>`;
   return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
 }
 
@@ -396,9 +403,13 @@ async function saveEditFeed(id) {
     externalUrl: document.getElementById('editExternalUrl').value.trim() || null,
     licenseName: document.getElementById('editLicenseName').value.trim() || null,
     licenseUrl: document.getElementById('editLicenseUrl').value.trim() || null,
-    licenseCommercialUseAllowed: document.getElementById('editLicenseCommercialUseAllowed').checked || null,
-    licenseShareAlikeOptional: document.getElementById('editLicenseShareAlikeOptional').checked || null,
-    licenseRedistributionAllowed: document.getElementById('editLicenseRedistributionAllowed').checked || null
+    // `.checked || null` sent null for every unticked box, and FeedManager assigns the request
+    // straight onto the entity — so unticking "Redistribution Allowed" recorded "unknown" rather
+    // than "not allowed". Both render unticked, so the UI looked right while the distinction the
+    // bool? was there to carry was quietly lost. A checkbox has two states; send the two states.
+    licenseCommercialUseAllowed: document.getElementById('editLicenseCommercialUseAllowed').checked,
+    licenseShareAlikeOptional: document.getElementById('editLicenseShareAlikeOptional').checked,
+    licenseRedistributionAllowed: document.getElementById('editLicenseRedistributionAllowed').checked
   };
   try {
     const r = await fetch(BASE + '/feeds/' + id, {
@@ -518,7 +529,7 @@ function updateFeedIdFromOperator() {
   feedIdInput.value = candidate;
   const hint = document.getElementById('feedIdHint');
   if (base !== candidate)
-    hint.textContent = '"' + base + '" already in use â€” using "' + candidate + '"';
+    hint.textContent = '"' + base + '" already in use — using "' + candidate + '"';
   else
     hint.textContent = '';
 }
@@ -543,7 +554,13 @@ async function addFeed() {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
 

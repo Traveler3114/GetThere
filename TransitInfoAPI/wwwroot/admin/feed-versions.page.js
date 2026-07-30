@@ -4,7 +4,11 @@ const feedIdParam = urlParams.get('feedId');
 let allVersions = [];
 
 function statusBadge(status) {
-  const map = { Success: 'badge-success', Importing: 'badge-importing', Failed: 'badge-failed', Pending: 'badge-pending', Skipped: 'badge-skipped' };
+  const map = { Success: 'badge-success', Importing: 'badge-importing', Failed: 'badge-failed', Pending: 'badge-pending', Skipped: 'badge-skipped', ReconciliationPending: 'badge-failed' };
+  // Spelled out: the raw enum name reads like a routine queue state, when it actually means
+  // the feed imported but resolves to no stations until reconciliation is re-run.
+  const label = { ReconciliationPending: 'NEEDS RECONCILE' };
+  if (label[status]) return `<span class="badge ${map[status]}" title="Imported, but its stops are not linked to stations. Re-run reconciliation to repair.">${label[status]}</span>`;
   return `<span class="badge ${map[status] || 'bg-secondary'}">${status}</span>`;
 }
 
@@ -19,9 +23,10 @@ async function loadVersions() {
     if (!r.ok) { showError('Failed to load: ' + (r.statusText || 'Unknown error')); return; }
     const j = await r.json();
     allVersions = j.data || [];
+    // filterVersions() already applies the feed/status filters and renders; re-assigning
+    // paginatedItems afterwards discarded that, so a reload silently showed every version while
+    // the filter controls still displayed a selection.
     filterVersions();
-    paginatedItems = allVersions;
-    showPage(1);
     document.getElementById('loading').classList.add('d-none');
     document.getElementById('content').classList.remove('d-none');
   } catch(e) {
@@ -83,11 +88,57 @@ function renderVersions(list) {
     <td class="small text-muted">${v.serviceLevelStart || '-'} &ndash; ${v.serviceLevelEnd || '-'}</td>
     <td class="small text-muted">${v.stopCount || 0} / ${v.routeCount || 0} / ${v.tripCount || 0}</td>
     <td>${v.importError ? '<span class="text-danger small" title="'+esc(v.importError)+'">Error</span>' : '-'}</td>
+    <td>${v.importStatus === 'ReconciliationPending'
+      ? `<button class="btn btn-sm btn-warning" data-reconcile="${v.id}">Reconcile</button>`
+      : ''}</td>
   </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Feed</th><th>SHA1</th><th>Status</th><th>Active</th><th>Fetched</th><th>Imported</th><th>Service Period</th><th>S/R/T</th><th>Error</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} version(s)</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Feed</th><th>SHA1</th><th>Status</th><th>Active</th><th>Fetched</th><th>Imported</th><th>Service Period</th><th>S/R/T</th><th>Error</th><th>Repair</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} version(s)</small>`;
+
+  // Bound after render rather than as an inline onclick — these buttons are created from data, and
+  // an inline handler would be the one thing standing between this console and dropping
+  // 'unsafe-inline' from its script-src.
+  document.querySelectorAll('[data-reconcile]').forEach(function (btn) {
+    btn.addEventListener('click', function () { reconcileVersion(btn.getAttribute('data-reconcile'), btn); });
+  });
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+/**
+ * Re-runs reconciliation for a version that imported but never linked its stops to stations.
+ * Idempotent, so a mis-click on an already-healthy version is harmless.
+ */
+async function reconcileVersion(versionId, btn) {
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Reconciling...';
+
+  try {
+    // No Authorization header here on purpose: admin-auth.js wraps window.fetch and attaches the
+    // bearer token to every request from this console. This page does not load admin-shell.js, so
+    // Shell.headers() is not available to it.
+    const r = await fetch(BASE + '/feeds/versions/' + encodeURIComponent(versionId) + '/reconcile', {
+      method: 'POST'
+    });
+
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      throw new Error(body.message || ('Reconcile failed (' + r.status + ')'));
+    }
+
+    await loadVersions();
+  } catch (e) {
+    showError(e.message);
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
 loadVersions();

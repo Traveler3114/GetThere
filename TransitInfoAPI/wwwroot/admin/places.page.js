@@ -67,8 +67,9 @@ function renderPlaces(list) {
   const rows = list.map(p => `<tr>
     <td><a href="#" class="text-decoration-none" onclick="event.preventDefault();showDetail(${p.id})">${esc(p.name)}</a></td>
     <td><code>${esc(p.admCountryCode)}</code></td>
-    <td>${p.admRegionCode || '-'}</td>
-    <td class="small text-muted">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</td>
+    <td>${esc(p.admRegionCode) || '-'}</td>
+    <td class="small text-muted">${typeof p.lat === 'number' && typeof p.lon === 'number'
+      ? p.lat.toFixed(4) + ', ' + p.lon.toFixed(4) : '-'}</td>
     <td class="small text-muted">${p.population != null ? p.population.toLocaleString() : '-'}</td>
     <td><button class="btn btn-sm btn-outline-info" onclick="showDetail(${p.id})"><i class="bi bi-eye"></i></button></td>
   </tr>`).join('');
@@ -94,9 +95,10 @@ async function showDetail(id) {
     <div class="modal-header"><h5 class="modal-title">${esc(p.name)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
       <dl class="row mb-3">
-        <dt class="col-sm-3">Country</dt><dd class="col-sm-9">${p.admCountryCode}</dd>
-        <dt class="col-sm-3">Region</dt><dd class="col-sm-9">${p.admRegionCode || '-'}</dd>
-        <dt class="col-sm-3">Location</dt><dd class="col-sm-9">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</dd>
+        <dt class="col-sm-3">Country</dt><dd class="col-sm-9">${esc(p.admCountryCode)}</dd>
+        <dt class="col-sm-3">Region</dt><dd class="col-sm-9">${esc(p.admRegionCode) || '-'}</dd>
+        <dt class="col-sm-3">Location</dt><dd class="col-sm-9">${typeof p.lat === 'number' && typeof p.lon === 'number'
+          ? p.lat.toFixed(4) + ', ' + p.lon.toFixed(4) : '-'}</dd>
         <dt class="col-sm-3">Population</dt><dd class="col-sm-9">${p.population != null ? p.population.toLocaleString() : '-'}</dd>
       </dl>
       ${opsHtml}
@@ -112,7 +114,13 @@ async function showDetail(id) {
   document.getElementById('detailModal').addEventListener('hidden.bs.modal', () => document.getElementById('detailModal').remove());
 }
 
-function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none'); }
+function showError(msg) {
+  // Hides the spinner too. Every loader bails out of its if (!r.ok) ... return path before
+  // reaching its own hide, so a failed request used to leave the page showing a spinner and an
+  // error message at the same time.
+  document.getElementById('loading')?.classList.add('d-none');
+  const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
+}
 function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
 loadPlaces();

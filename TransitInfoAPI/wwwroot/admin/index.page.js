@@ -162,6 +162,10 @@ function feedStatus(f) {
   switch (String(version.importStatus)) {
     case 'Success': return { text: 'SUCCESS', tone: 'ok', badge: 'is-ok' };
     case 'Failed': return { text: 'FAILED', tone: 'danger', badge: 'is-danger' };
+    // The data imported but its stops were never linked to canonical stations, so nothing on this
+    // feed resolves on the map. Repairable via POST /feeds/versions/{id}/reconcile — surfaced
+    // loudly because it is otherwise a completely silent half-working state.
+    case 'ReconciliationPending': return { text: 'NEEDS RECONCILE', tone: 'danger', badge: 'is-danger' };
     case 'Importing':
     case 'Pending': return { text: 'IMPORTING', tone: 'warn', badge: 'is-info' };
     default: return { text: String(version.importStatus || 'UNKNOWN').toUpperCase(), tone: 'warn', badge: 'is-neutral' };
@@ -214,7 +218,9 @@ function renderFeeds() {
         '<div>' + Shell.esc(f.operatorName || '—') +
           (f.isInternal ? ' <span class="dim">— internal</span>' : '') + '</div>' +
         '<div class="muted">' + Shell.esc(feedTypeLabel(f.feedType)) + '</div>' +
-        '<div class="sub">' + Shell.esc(version && version.sha ? String(version.sha).slice(0, 7) : '—') + '</div>' +
+        // FeedVersionResponse serialises this as `sha1`; reading `.sha` meant the Version column
+        // rendered an em dash for every feed, including the healthy ones.
+        '<div class="sub">' + Shell.esc(version && version.sha1 ? String(version.sha1).slice(0, 7) : '—') + '</div>' +
         '<div class="muted">' + (version ? Shell.ago(version.importedAt || version.fetchedAt) :
           Shell.num(f.refreshIntervalSeconds) + 's cycle') + '</div>' +
         '<div><span class="badge ' + status.badge + '">' + status.text + '</span></div>' +
@@ -253,9 +259,13 @@ function renderQueue(pending) {
     host.innerHTML = '<div class="list">' + items.map(function (item) {
       var tone = Shell.scoreTone(item.confidenceScore);
       return '<a class="row" href="/admin/reconciliation.html#' + item.id + '">' +
+        // suggestedStationDetail lives on ReconciliationDetailResponse, which /reconciliation/pending
+        // does not return — so this side of the ↔ was undefined and every row read "canonical".
+        // Pairs identifiers with identifiers now; the bold line above carries the names.
         '<div class="grow"><b>' + Shell.esc(item.suggestedStationName || item.rawStopName) + '</b>' +
           '<span>' + Shell.esc(item.rawStopGtfsId || '') + ' ↔ ' +
-            Shell.esc(item.suggestedStationDetail || 'canonical') + '</span></div>' +
+            (item.suggestedStationId ? '#' + Shell.esc(item.suggestedStationId) : 'new station') +
+          '</span></div>' +
         '<span style="font-size:11px;font-weight:700;color:var(--' + tone + '-text)">' +
           Number(item.confidenceScore).toFixed(2) + '</span>' +
       '</a>';
