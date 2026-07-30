@@ -39,13 +39,26 @@ public class BarcodeDecoder
         BarcodeFormat.ITF
     ];
 
+    /// <summary>
+    /// Ceiling on the decoded surface, in pixels.
+    /// <para>
+    /// The upload limit bounds the <em>compressed</em> bytes, which says nothing about what they
+    /// expand to: a few KB of PNG can declare 20000x20000 and allocate 1.6 GB. That is why the
+    /// dimensions are read from the header and checked <b>before</b> any pixel buffer is allocated.
+    /// 40 megapixels is far above any ticket photograph — a 108 MP phone camera at full resolution
+    /// is 12000x9000 — and far below a size that threatens the process.
+    /// </para>
+    /// </summary>
+    private const long MaxDecodedPixels = 40_000_000;
+
     /// <summary>Decodes the first barcode in an encoded image, or null if there is none.</summary>
     public DecodedBarcode? Decode(byte[] imageBytes)
     {
         try
         {
-            using var bitmap = SKBitmap.Decode(imageBytes);
-            if (bitmap is null)
+            using var codecStream = new MemoryStream(imageBytes, writable: false);
+            using var codec = SKCodec.Create(codecStream);
+            if (codec is null)
             {
                 // HEIC in particular is not decodable by every SkiaSharp native build. The client
                 // re-encodes camera captures to JPEG for this reason; a picked-from-disk HEIC that
@@ -54,9 +67,29 @@ public class BarcodeDecoder
                 return null;
             }
 
+            // Header only — no pixels have been allocated at this point.
+            var info = codec.Info;
+            var pixels = (long)info.Width * info.Height;
+            if (pixels > MaxDecodedPixels)
+            {
+                _logger.LogWarning(
+                    "Refusing to decode a {Width}x{Height} image ({Pixels} px) for barcode scanning; the ceiling is {Max} px",
+                    info.Width, info.Height, pixels, MaxDecodedPixels);
+                return null;
+            }
+
+            using var bitmap = SKBitmap.Decode(codec);
+            if (bitmap is null)
+            {
+                _logger.LogInformation("Image could not be decoded for barcode scanning");
+                return null;
+            }
+
             return Decode(bitmap);
         }
-        catch (Exception ex)
+        // Deliberately not a bare `catch`: an OutOfMemoryException means the process is already in
+        // trouble, and swallowing it here reported "no barcode found" while leaving it unrecoverable.
+        catch (Exception ex) when (ex is not (OutOfMemoryException or StackOverflowException))
         {
             _logger.LogWarning(ex, "Barcode decoding failed");
             return null;

@@ -28,7 +28,9 @@ public class AdminController : ControllerBase
     [HttpGet("users")]
     [Authorize(Policy = PermissionKeys.UsersView)]
     public async Task<ActionResult<PagedResult<UserListItem>>> GetUsers(
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, Range(1, 500)] int pageSize = 20,
+        CancellationToken ct = default)
     {
         var result = await _adminManager.GetUsersAsync(page, pageSize, ct);
         return Ok(result);
@@ -87,7 +89,9 @@ public class AdminController : ControllerBase
     [HttpGet("audit")]
     [Authorize(Policy = PermissionKeys.AuditView)]
     public async Task<ActionResult<PagedResult<AuditLogEntry>>> GetAuditLogs(
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, Range(1, 500)] int pageSize = 50,
+        CancellationToken ct = default)
     {
         var result = await _adminManager.GetAuditLogsAsync(page, pageSize, ct);
         return Ok(result);

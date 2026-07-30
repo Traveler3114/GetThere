@@ -19,8 +19,9 @@ public class AuthManager
     private readonly SignInManager<AppUser> _signInManager;
     private readonly TokenManager _tokenManager;
     private readonly AppDbContext _db;
+    private readonly ILogger<AuthManager> _logger;
 
-    public AuthManager(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, TokenManager tokenManager, AppDbContext db) { _userManager = userManager; _signInManager = signInManager; _tokenManager = tokenManager; _db = db; }
+    public AuthManager(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, TokenManager tokenManager, AppDbContext db, ILogger<AuthManager> logger) { _userManager = userManager; _signInManager = signInManager; _tokenManager = tokenManager; _db = db; _logger = logger; }
 
     private void LogAudit(string userId, string action, string entityType = "User", string entityId = "", string? oldValues = null, string? newValues = null)
     {
@@ -66,7 +67,11 @@ public class AuthManager
             throw new AppException(string.Join(", ", result.Errors.Select(e => e.Description)));
         }
 
-        await _userManager.AddToRoleAsync(user, RoleNames.User);
+        // Checked, not discarded. An account that exists with no role holds no permissions at all,
+        // so every subsequent request from it is a 403 the user cannot explain or recover from.
+        var roleResult = await _userManager.AddToRoleAsync(user, RoleNames.User);
+        if (!roleResult.Succeeded)
+            throw new AppException(string.Join(", ", roleResult.Errors.Select(e => e.Description)));
 
         // Created with the account rather than on first read. Registration used to leave the user
         // without one, so anything reaching the wallet before the client happened to call
@@ -101,7 +106,16 @@ public class AuthManager
         // (AdminManager.GetUsersAsync, RolePermissionManager) and it was blank for every user in
         // this service, because only TransitInfoAPI's AuthManager ever wrote it.
         user.LastLogin = DateTime.UtcNow;
-        await _userManager.UpdateAsync(user);
+
+        // Not fatal to the login if it fails — the credentials were already accepted — but silently
+        // discarding the result is how this column ends up stale again, which is the defect the
+        // write was added to fix.
+        var lastLoginResult = await _userManager.UpdateAsync(user);
+        if (!lastLoginResult.Succeeded)
+        {
+            _logger.LogWarning("Could not record LastLogin for user {UserId}: {Errors}",
+                user.Id, string.Join("; ", lastLoginResult.Errors.Select(e => e.Description)));
+        }
 
         var accessToken = await _tokenManager.CreateTokenAsync(user);
         var rawRefreshToken = _tokenManager.GenerateRefreshToken();

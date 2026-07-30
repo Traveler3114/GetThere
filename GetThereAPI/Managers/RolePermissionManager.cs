@@ -96,13 +96,29 @@ public class RolePermissionManager
             CreatedAt = DateTime.UtcNow
         });
 
+        // Wrapped, because this is a remove-all-then-add-all with a save behind every step. A
+        // failure between the two loops previously left the role stripped of every permission —
+        // applied to Admin, that is a lockout of every permission-gated endpoint, and
+        // DynamicClaimsTransformation re-reads role claims per request, so it takes hold within the
+        // 30-second cache window rather than at next sign-in.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         foreach (var claim in existingClaims.Where(c => c.Type == "permission"))
-            await _roleManager.RemoveClaimAsync(role, claim);
+        {
+            var removeResult = await _roleManager.RemoveClaimAsync(role, claim);
+            if (!removeResult.Succeeded)
+                throw new AppException(string.Join(", ", removeResult.Errors.Select(e => e.Description)), 400);
+        }
 
         foreach (var perm in permissions)
-            await _roleManager.AddClaimAsync(role, new Claim("permission", perm));
+        {
+            var addResult = await _roleManager.AddClaimAsync(role, new Claim("permission", perm));
+            if (!addResult.Succeeded)
+                throw new AppException(string.Join(", ", addResult.Errors.Select(e => e.Description)), 400);
+        }
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task DeleteRoleAsync(string name, CancellationToken ct = default)
@@ -122,7 +138,13 @@ public class RolePermissionManager
             CreatedAt = DateTime.UtcNow
         });
 
-        await _roleManager.DeleteAsync(role);
+        // Checked rather than discarded: every foreign key in this model is Restrict
+        // (AppDbContext.cs:45-46), so deleting a role that users still hold fails at the database
+        // and the caller was told nothing — the console reported a deletion that never happened.
+        var deleteResult = await _roleManager.DeleteAsync(role);
+        if (!deleteResult.Succeeded)
+            throw new AppException(string.Join(", ", deleteResult.Errors.Select(e => e.Description)), 400);
+
         await _db.SaveChangesAsync(ct);
     }
 
@@ -159,6 +181,13 @@ public class RolePermissionManager
         var user = await _userManager.FindByIdAsync(userId);
         if (user is null) return null;
 
+        // Checked before anything is removed. This used to strip every existing role and only then
+        // call AddToRoleAsync, which throws on a role that does not exist — so a mistyped name left
+        // the target account with no roles at all and answered 500. Doing it to your own account
+        // locked you out of the console.
+        if (!await _roleManager.RoleExistsAsync(roleName))
+            throw new AppException($"Role '{roleName}' does not exist.", 400, "ROLE_NOT_FOUND");
+
         var currentRoles = await _userManager.GetRolesAsync(user);
 
         _db.Set<AuditLog>().Add(new AuditLog
@@ -173,9 +202,19 @@ public class RolePermissionManager
         });
 
         if (currentRoles.Count > 0)
-            await _userManager.RemoveFromRolesAsync(user, currentRoles);
+        {
+            var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            if (!removeResult.Succeeded)
+                throw new AppException(string.Join(", ", removeResult.Errors.Select(e => e.Description)), 400);
+        }
 
-        await _userManager.AddToRoleAsync(user, roleName);
+        var addResult = await _userManager.AddToRoleAsync(user, roleName);
+        if (!addResult.Succeeded)
+            throw new AppException(string.Join(", ", addResult.Errors.Select(e => e.Description)), 400);
+
+        // Explicit rather than relying on Identity to flush the shared DbContext on its own write,
+        // which is what persisted the audit row before.
+        await _db.SaveChangesAsync(ct);
         return user;
     }
 }

@@ -23,7 +23,27 @@ public class UserSettingsManager
         {
             settings = new UserSettings { UserId = userId };
             _db.UserSettings.Add(settings);
-            await _db.SaveChangesAsync(ct);
+
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // UserId is uniquely indexed, so two first-time reads racing each other — trivially
+                // produced by a client that loads settings on two screens at startup — made one of
+                // them throw and answer 500. The loser of the race just reads what the winner wrote.
+                _db.Entry(settings).State = EntityState.Detached;
+
+                var existing = await _db.UserSettings
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(us => us.UserId == userId, ct);
+
+                // Nothing there either, so the insert failed for some other reason: let it surface.
+                if (existing is null) throw;
+
+                settings = existing;
+            }
         }
 
         return MapResponse(settings);

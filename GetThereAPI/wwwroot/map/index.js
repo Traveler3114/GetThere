@@ -390,11 +390,11 @@ function showStationDetails(id, props) {
   const color = getRouteColor(rt);
 
   let html = `
-    <h2>${props.name || 'Unknown'}</h2>
+    <h2>${esc(props.name || 'Unknown')}</h2>
     <div class="info-row"><strong>Type</strong> ${formatEnumName(type)}</div>
-    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div class="info-row"><strong>Onestop ID</strong> ${esc(props.onestopId || '-')}</div>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${esc(rt) || '-'}</span></div>
-    <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>
+    <div class="info-row"><strong>Country</strong> ${esc(props.countryName || '-')}</div>
     <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
   `;
 
@@ -402,7 +402,10 @@ function showStationDetails(id, props) {
   sidebarOpen = true;
   content.innerHTML = html;
 
-  fetch(`/stations/${id}/departures?count=5`).then(r => r.json()).then(resp => {
+  // Routed through GetThereAPI's own map proxy. This file was copied verbatim from TransitInfoAPI,
+  // where /stations exists; GetThereAPI serves no such route, so the departures panel on this page
+  // failed on every stop tap. The proxy allow-list accepts stations/{int}/departures.
+  fetch(`/api/map/upstream/stations/${id}/departures?count=5`).then(r => r.json()).then(resp => {
     const deps = resp || [];
     if (deps.length === 0) {
       document.querySelector('.departures .loading').textContent = 'No upcoming departures';
@@ -447,10 +450,7 @@ function showRouteDetails(props) {
   let html = `
     <h2>${esc(name)}${edited}</h2>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${esc(props.routeType) || '-'}</span></div>
-    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
-    <div style="margin-top:16px;display:flex;gap:8px">
-      <a href="/admin/shape-editor.html?routeId=${props.id}" style="display:inline-block;padding:8px 16px;background:#1f78b4;color:#fff;border-radius:6px;text-decoration:none;font-size:0.85rem;font-weight:600">Edit Shape</a>
-    </div>
+    <div class="info-row"><strong>Onestop ID</strong> ${esc(props.onestopId || '-')}</div>
   `;
 
   document.getElementById('sidebar').classList.add('open');

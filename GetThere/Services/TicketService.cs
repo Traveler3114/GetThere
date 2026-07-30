@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -36,7 +37,8 @@ public class TicketService
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TicketOptionResponse>>.Fail(ex.Message);
+            Trace.WriteLine($"[TicketService] {ex}");
+            return OperationResult<List<TicketOptionResponse>>.Fail("Something went wrong. Check your connection and try again.");
         }
     }
 
@@ -76,7 +78,8 @@ public class TicketService
         }
         catch (Exception ex)
         {
-            return OperationResult<TicketResponse>.Fail(ex.Message);
+            Trace.WriteLine($"[TicketService] {ex}");
+            return OperationResult<TicketResponse>.Fail("Something went wrong. Check your connection and try again.");
         }
     }
 
@@ -99,7 +102,8 @@ public class TicketService
         }
         catch (Exception ex)
         {
-            return OperationResult<List<TicketResponse>>.Fail(ex.Message);
+            Trace.WriteLine($"[TicketService] {ex}");
+            return OperationResult<List<TicketResponse>>.Fail("Something went wrong. Check your connection and try again.");
         }
     }
 

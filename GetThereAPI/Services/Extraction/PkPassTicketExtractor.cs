@@ -54,7 +54,21 @@ public class PkPassTicketExtractor : ITicketExtractor
             throw new AppException("That file is not an Apple Wallet pass — no pass.json inside.", 400);
         }
 
-        using var document = JsonDocument.Parse(passJson);
+        // Guarded like every other parse in this pipeline. Unhandled, a pass.json that is malformed
+        // — or merely nested deeper than JsonDocument's default 64-level ceiling — escaped as a
+        // JsonException and became a 500, on input the caller chooses.
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(passJson);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogInformation(ex, "Wallet pass contained an unreadable pass.json");
+            throw new AppException("That wallet pass contains a pass.json we could not read.", 400);
+        }
+
+        using var _ = document;
         var root = document.RootElement;
 
         ReadTopLevel(root, result);

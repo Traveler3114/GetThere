@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -41,7 +42,7 @@ public class ImportedTicketService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(problem ?? "Could not load imported tickets");
         }
-        catch (Exception ex) { return OperationResult<PagedResult<ImportedTicketResponse>>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult<PagedResult<ImportedTicketResponse>>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -72,7 +73,7 @@ public class ImportedTicketService
 
             return OperationResult<ImportedTicketResponse>.Fail(problem ?? "Could not create imported ticket");
         }
-        catch (Exception ex) { return OperationResult<ImportedTicketResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult<ImportedTicketResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     public async Task<OperationResult<ImportedTicketResponse>> GetByIdAsync(int id, CancellationToken ct = default)
@@ -88,7 +89,7 @@ public class ImportedTicketService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<ImportedTicketResponse>.Fail(problem ?? "Could not load ticket");
         }
-        catch (Exception ex) { return OperationResult<ImportedTicketResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult<ImportedTicketResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -111,7 +112,7 @@ public class ImportedTicketService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<ImportedTicketResponse>.Fail(problem ?? "Could not update ticket");
         }
-        catch (Exception ex) { return OperationResult<ImportedTicketResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult<ImportedTicketResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -147,7 +148,7 @@ public class ImportedTicketService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<TicketUploadResponse>.Fail(problem ?? "Could not read that file");
         }
-        catch (Exception ex) { return OperationResult<TicketUploadResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult<TicketUploadResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>Scrapes pasted confirmation text. No file, so nothing is stored.</summary>
@@ -166,7 +167,7 @@ public class ImportedTicketService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<TicketExtractionResult>.Fail(problem ?? "Could not read that text");
         }
-        catch (Exception ex) { return OperationResult<TicketExtractionResult>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult<TicketExtractionResult>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     public async Task<OperationResult> CancelAsync(int id)
@@ -179,6 +180,6 @@ public class ImportedTicketService
             var problem = await TryReadProblemAsync(response);
             return OperationResult.Fail(problem ?? "Could not cancel ticket");
         }
-        catch (Exception ex) { return OperationResult.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[ImportedTicketService] {ex}"); return OperationResult.Fail("Something went wrong. Check your connection and try again."); }
     }
 }

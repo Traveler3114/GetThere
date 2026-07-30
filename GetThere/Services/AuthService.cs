@@ -92,7 +92,16 @@ public class AuthService : IDisposable
 
             if (response.IsSuccessStatusCode)
             {
-                var data = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(JsonOptions);
+                RefreshTokenResponse? data = null;
+                try
+                {
+                    data = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(JsonOptions);
+                }
+                catch (Exception ex) when (ex is JsonException or HttpRequestException)
+                {
+                    Trace.WriteLine($"[AuthService] Refresh succeeded but the response could not be read: {ex.Message}");
+                }
+
                 if (data is not null)
                 {
                     _cachedToken = data.AccessToken;
@@ -101,6 +110,13 @@ public class AuthService : IDisposable
                     await SecureStorage.Default.SetAsync(RefreshTokenKey, data.RefreshToken);
                     return true;
                 }
+
+                // The server rotated the token — it revoked the old one and recorded a successor —
+                // but the reply was unreadable, so the replacement is lost. Keeping the old token
+                // would mean presenting a replaced token on the next attempt, which the server is
+                // right to read as theft: reuse detection then revokes every session the user has,
+                // on every device. Dropping it here costs one sign-in instead.
+                await ClearStoredTokensAsync();
             }
 
             return false;
@@ -123,12 +139,19 @@ public class AuthService : IDisposable
             catch (Exception ex) { Trace.WriteLine($"[AuthService] Logout server call failed: {ex.Message}"); }
         }
 
+        await ClearStoredTokensAsync();
+        ClearGuest();
+        await StoreRememberMeAsync(false);
+    }
+
+    /// <summary>Drops both tokens from the cache and from secure storage.</summary>
+    private Task ClearStoredTokensAsync()
+    {
         _cachedToken = null;
         _cachedRefreshToken = null;
         SecureStorage.Default.Remove(TokenKey);
         SecureStorage.Default.Remove(RefreshTokenKey);
-        ClearGuest();
-        await StoreRememberMeAsync(false);
+        return Task.CompletedTask;
     }
 
     public async Task<string?> GetTokenAsync()
@@ -244,11 +267,16 @@ public class AuthService : IDisposable
             return JsonSerializer.Deserialize<JsonElement>(json);
         }
 
+        // All three guard the ValueKind first. ParsePayload returns default(JsonElement) for a token
+        // that is not a JWT at all, and TryGetProperty on that throws rather than returning false —
+        // so without the check these two threw where GetExpiry, written later, did not.
         public string? GetGivenName() =>
-            _payload.TryGetProperty("given_name", out var name) ? name.GetString() : null;
+            _payload.ValueKind == JsonValueKind.Object
+            && _payload.TryGetProperty("given_name", out var name) ? name.GetString() : null;
 
         public string? GetEmail() =>
-            _payload.TryGetProperty("email", out var email) ? email.GetString() : null;
+            _payload.ValueKind == JsonValueKind.Object
+            && _payload.TryGetProperty("email", out var email) ? email.GetString() : null;
 
         /// <summary>The token's expiry, or null when it carries no readable <c>exp</c> claim.</summary>
         public DateTimeOffset? GetExpiry() =>

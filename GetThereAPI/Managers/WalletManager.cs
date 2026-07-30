@@ -90,7 +90,9 @@ public class WalletManager
             Action = "WalletTopUp",
             EntityType = nameof(Wallet),
             EntityId = wallet.Id.ToString(CultureInfo.InvariantCulture),
-            NewValues = $"{{\"amount\":{amount.ToString(CultureInfo.InvariantCulture)},\"method\":\"{paymentMethod}\"}}",
+            // Serialised rather than concatenated: paymentMethod is caller-supplied, and a quote in
+            // it produced an audit row containing malformed JSON that nothing could later parse.
+            NewValues = System.Text.Json.JsonSerializer.Serialize(new { amount, method = paymentMethod }),
             CreatedAt = creditedAt
         });
 

@@ -268,14 +268,24 @@ public class TicketingManager
     /// comfortably longer than a normal adapter call, or the sweep will race a purchase that is
     /// still legitimately in flight and refund it out from under the caller.
     /// </param>
+    /// <summary>
+    /// Most stranded purchases the sweep will ever see in one tick. Each one costs an outbound call
+    /// to an operator, so the ceiling bounds both the memory and the time a single sweep can take.
+    /// </summary>
+    private const int ReconcileBatchSize = 200;
+
     public async Task<int> ReconcilePendingPurchasesAsync(TimeSpan minimumAge, CancellationToken ct = default)
     {
         var cutoff = DateTime.UtcNow - minimumAge;
 
+        // Bounded. This read every pending row in the table, and a backlog only grows when something
+        // is already wrong — which is exactly when this runs. The remainder is picked up by the next
+        // sweep rather than held in memory now.
         var stranded = await _db.Purchases
             .Include(p => p.Adapter)
             .Where(p => p.Status == PaymentStatus.Pending && p.PurchasedAt < cutoff)
             .OrderBy(p => p.PurchasedAt)
+            .Take(ReconcileBatchSize)
             .ToListAsync(ct);
 
         if (stranded.Count == 0) return 0;
@@ -364,14 +374,31 @@ public class TicketingManager
 
         // A refund can be attempted more than once for the same purchase: the live path may fail
         // partway and leave the purchase Pending, and the reconciliation sweep then picks it up.
-        // Without this guard the second attempt credits the wallet again and hands out money that
-        // was never taken. The ledger row written below is what makes the check possible.
-        var alreadyRefunded = await _db.WalletTransactions
-            .AsNoTracking()
-            .AnyAsync(wt => wt.Type == WalletTransactionType.Refund && wt.ReferenceId == reference, ct);
+        // Without a guard the second attempt credits the wallet again and hands out money that was
+        // never taken.
+        //
+        // The guard has to be atomic with the credit, not a read taken before it. It used to be an
+        // AnyAsync outside the transaction below, which two writers could both pass before either
+        // inserted — and the two writers are a designed-in pair (the live path and the sweep), not a
+        // hypothetical.
+        //
+        // The durable fix is a filtered unique index on (Type, ReferenceId), which needs a migration.
+        // Until that exists, the check is moved inside the transaction and made lock-taking:
+        // UPDLOCK + HOLDLOCK takes a range lock on the key being tested, so a second writer asking
+        // the same question blocks here until the first commits, and then sees the row it wrote.
+        // That is the part an EF `AnyAsync` cannot express, which is why it is raw SQL.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        var refundMarker = WalletTransactionType.Refund.ToString();
+        var existingRefunds = await _db.Database
+            .SqlQuery<int>($"""
+                SELECT TOP 1 1 AS Value FROM WalletTransactions WITH (UPDLOCK, HOLDLOCK)
+                WHERE Type = {refundMarker} AND ReferenceId = {reference}
+                """)
+            .ToListAsync(ct);
 
-        if (alreadyRefunded)
+        if (existingRefunds.Count > 0)
         {
+            await tx.RollbackAsync(ct);
             _logger.LogInformation("Purchase {PurchaseId} was already refunded; skipping duplicate credit", purchase.Id);
 
             if (purchase.Status != PaymentStatus.Refunded)
@@ -383,8 +410,6 @@ public class TicketingManager
 
             return;
         }
-
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         await _db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE Wallets SET Balance = Balance + {amount}, UpdatedAt = {refundedAt} WHERE Id = {walletId}", ct);
