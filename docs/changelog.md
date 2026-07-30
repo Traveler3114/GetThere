@@ -231,3 +231,21 @@ vehicles 200 (114 KB), mobility 200 (23 KB); `operators`, `feeds`, `users`,
 `/wallet/ensure` → 201 then `/wallet` → 200; `/tickets`, `/tickets/options`, `/admin/stats`,
 `/admin/purchases`, `/admin/adapters`, `/admin/users` all 200; `/wallet/topup` → 403 for a plain user.
 
+
+---
+
+## Session — July 30, 2026
+
+### Audit pass — GetThereAPI, MAUI client, SharedAuth, both `wwwroot` front-ends
+
+Report: [`audit-2026-07-30.md`](../audit-2026-07-30.md). **No code changed** — report-only by
+decision, because nothing in this container can be compiled or run.
+
+| Area | What |
+|------|------|
+| **Why report-only** | No .NET SDK, and installing one is blocked by egress policy: `builds.dotnet.microsoft.com:443` answers 403 to CONNECT at the agent proxy. No SQL Server either, so no migration and no live feed. The two previous audits both had a build behind them; this one is a static read and says so at the top |
+| **Scope** | Full read of `SharedAuth`, of everything `GetThereAPI` does with money/identity/uploads/the cross-API boundary, and of both map front-ends. Admin JS and the MAUI ViewModels were swept for defect classes rather than read line-by-line — the report's *Coverage* table states exactly which is which |
+| **Found** | 1 High (the refund path's double-credit guard is a read-then-write race with no unique index behind it, and the reconciliation worker has no leader election), 8 Medium, 9 Low, 3 documentation |
+| **Carried-forward** | Every `H*`/`M*`/`L*` from `audit-2026-07-28.md` re-derived: 11 fixed, 3 half-fixed, 4 still open. Its "Still open" section was stale in the direction that causes rework, so both older audits now carry status banners |
+| **No regression** | The 28 findings in `audit-transitinfo-2026-07-29.md` were checked against the current tree; none has regressed on the surfaces this pass read |
+| **Still never audited** | `tests/GetThere.Tests` — excluded on 07-28 and again here. 3 748 lines and CI's only correctness gate |

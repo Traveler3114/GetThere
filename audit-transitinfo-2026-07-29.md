@@ -1,5 +1,13 @@
 # TransitInfoAPI — Full Audit
 
+> ## Still current — one item to note
+>
+> All 28 findings here were re-checked against the tree on 2026-07-30 and **none has regressed** on the
+> surfaces that pass read. Two things this file does not cover:
+> `AuthManager.RefreshAsync` still lacks the account recheck that GetThereAPI's equivalent gained
+> (M12), and the admin JS this file names as its "remaining gap" was swept but still not read
+> line-by-line. See [`audit-2026-07-30.md`](audit-2026-07-30.md).
+
 **Date:** 2026-07-29 · **Scope:** `TransitInfoAPI` — 147 files, ~16 500 lines
 **Status: all 28 findings resolved.** Reconciliation was also moved outside the import transaction
 (T18) at the owner's decision, which required a new version state and a repair endpoint rather than
