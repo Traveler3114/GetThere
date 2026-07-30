@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -36,7 +37,8 @@ public class WalletService
         }
         catch (Exception ex)
         {
-            return OperationResult<WalletResponse>.Fail(ex.Message);
+            Trace.WriteLine($"[WalletService] {ex}");
+            return OperationResult<WalletResponse>.Fail("Something went wrong. Check your connection and try again.");
         }
     }
 
@@ -57,7 +59,8 @@ public class WalletService
         }
         catch (Exception ex)
         {
-            return OperationResult<WalletResponse>.Fail(ex.Message);
+            Trace.WriteLine($"[WalletService] {ex}");
+            return OperationResult<WalletResponse>.Fail("Something went wrong. Check your connection and try again.");
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -50,7 +51,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<PagedResult<JourneyResponse>>.Fail(problem ?? "Could not load journeys");
         }
-        catch (Exception ex) { return OperationResult<PagedResult<JourneyResponse>>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<PagedResult<JourneyResponse>>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -71,7 +72,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<JourneyResponse>.Fail(problem ?? "Could not load journey");
         }
-        catch (Exception ex) { return OperationResult<JourneyResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -92,7 +93,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<List<JourneySuggestionResponse>>.Fail(problem ?? "Could not load suggestions");
         }
-        catch (Exception ex) { return OperationResult<List<JourneySuggestionResponse>>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<List<JourneySuggestionResponse>>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     public async Task<OperationResult<JourneyResponse>> CreateAsync(CreateJourneyRequest request, CancellationToken ct = default)
@@ -109,7 +110,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<JourneyResponse>.Fail(problem ?? "Could not create journey");
         }
-        catch (Exception ex) { return OperationResult<JourneyResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -131,7 +132,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<JourneyResponse>.Fail(problem ?? "Could not update journey");
         }
-        catch (Exception ex) { return OperationResult<JourneyResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     public async Task<OperationResult<JourneyResponse>> AddTicketsAsync(int id, JourneyMembershipRequest request, CancellationToken ct = default)
@@ -148,7 +149,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<JourneyResponse>.Fail(problem ?? "Could not add tickets to the journey");
         }
-        catch (Exception ex) { return OperationResult<JourneyResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -177,7 +178,7 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult<JourneyResponse>.Fail(problem ?? "Could not remove tickets from the journey");
         }
-        catch (Exception ex) { return OperationResult<JourneyResponse>.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyResponse>.Fail("Something went wrong. Check your connection and try again."); }
     }
 
     /// <summary>
@@ -196,6 +197,6 @@ public class JourneyService
             var problem = await TryReadProblemAsync(response, ct);
             return OperationResult.Fail(problem ?? "Could not delete journey");
         }
-        catch (Exception ex) { return OperationResult.Fail(ex.Message); }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult.Fail("Something went wrong. Check your connection and try again."); }
     }
 }

@@ -390,11 +390,11 @@ function showStationDetails(id, props) {
   const color = getRouteColor(rt);
 
   let html = `
-    <h2>${props.name || 'Unknown'}</h2>
+    <h2>${esc(props.name || 'Unknown')}</h2>
     <div class="info-row"><strong>Type</strong> ${formatEnumName(type)}</div>
-    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div class="info-row"><strong>Onestop ID</strong> ${esc(props.onestopId || '-')}</div>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${esc(rt) || '-'}</span></div>
-    <div class="info-row"><strong>Country</strong> ${props.countryName || '-'}</div>
+    <div class="info-row"><strong>Country</strong> ${esc(props.countryName || '-')}</div>
     <div class="departures"><h3>Next departures</h3><p class="loading">Loading...</p></div>
   `;
 
@@ -447,7 +447,7 @@ function showRouteDetails(props) {
   let html = `
     <h2>${esc(name)}${edited}</h2>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${esc(props.routeType) || '-'}</span></div>
-    <div class="info-row"><strong>Onestop ID</strong> ${props.onestopId || '-'}</div>
+    <div class="info-row"><strong>Onestop ID</strong> ${esc(props.onestopId || '-')}</div>
     <div style="margin-top:16px;display:flex;gap:8px">
       <a href="/admin/shape-editor.html?routeId=${props.id}" style="display:inline-block;padding:8px 16px;background:#1f78b4;color:#fff;border-radius:6px;text-decoration:none;font-size:0.85rem;font-weight:600">Edit Shape</a>
     </div>

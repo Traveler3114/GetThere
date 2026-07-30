@@ -1,17 +1,105 @@
 (function () {
-  var token = sessionStorage.getItem('auth_token');
-  if (!token && !window.location.pathname.endsWith('/login.html')) {
+  'use strict';
+
+  // Attaches the operator's bearer token to same-origin API calls, and renews it when it expires.
+  //
+  // This used to read the token once at load and bake it into the fetch wrapper. Access tokens live
+  // 15 minutes, so every page using this stopped working after 15 minutes: requests 401'd, nothing
+  // refreshed, and nothing sent the operator back to the login page either — the redirect below
+  // only fires when there is no token *at load*. The refresh token sat unused in sessionStorage the
+  // whole time.
+  //
+  // admin-shell.js already implements this correctly, but it is loaded only by index.html. The same
+  // rules are applied here: read the token per request, share one in-flight refresh, retry once.
+
+  var TOKEN_KEY = 'auth_token';
+  var REFRESH_KEY = 'refresh_token';
+
+  var origFetch = window.fetch.bind(window);
+
+  function token() { return sessionStorage.getItem(TOKEN_KEY) || ''; }
+
+  function toLogin() {
     sessionStorage.setItem('redirect_after_login', window.location.href);
     window.location.href = '/admin/login.html';
+  }
+
+  if (!token() && !window.location.pathname.endsWith('/login.html')) {
+    toLogin();
     return;
   }
-  if (token) {
-    var origFetch = window.fetch;
-    window.fetch = function (url, opts) {
-      opts = opts || {};
-      opts.headers = opts.headers || {};
-      opts.headers['Authorization'] = 'Bearer ' + token;
-      return origFetch.call(this, url, opts);
-    };
+
+  var refreshInFlight = null;
+
+  // Concurrent callers share one request: the server rotates the refresh token and revokes the old
+  // one, so a second parallel refresh would present a replayed token and trip reuse detection,
+  // which revokes every session the operator has.
+  function refresh() {
+    if (refreshInFlight) return refreshInFlight;
+
+    var stored = sessionStorage.getItem(REFRESH_KEY);
+    if (!stored) return Promise.resolve(false);
+
+    refreshInFlight = origFetch('/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: stored })
+    }).then(function (res) {
+      if (!res.ok) return false;
+      return res.json().then(function (data) {
+        if (!data || !data.accessToken) return false;
+        sessionStorage.setItem(TOKEN_KEY, data.accessToken);
+        if (data.refreshToken) sessionStorage.setItem(REFRESH_KEY, data.refreshToken);
+        return true;
+      });
+    }).catch(function () {
+      return false;
+    }).finally(function () {
+      refreshInFlight = null;
+    });
+
+    return refreshInFlight;
   }
+
+  /** True for requests this console makes to its own API — the only ones the token belongs on. */
+  function isSameOrigin(url) {
+    try {
+      return new URL(url, window.location.origin).origin === window.location.origin;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function withAuth(opts) {
+    // Copied rather than mutated: callers reuse their options object, and writing the header back
+    // into it leaks one request's credentials into the next. The old version also assigned into
+    // opts.headers directly, which silently did nothing when a caller passed a Headers instance.
+    var next = Object.assign({}, opts || {});
+    var headers = new Headers(next.headers || {});
+    var t = token();
+    if (t) headers.set('Authorization', 'Bearer ' + t);
+    next.headers = headers;
+    return next;
+  }
+
+  window.fetch = function (url, opts) {
+    // Never attach the token to a third-party URL. Nothing here does that today, but the wrapper is
+    // global and the cost of being wrong is handing an admin credential to another origin.
+    if (!isSameOrigin(url)) return origFetch(url, opts);
+
+    return origFetch(url, withAuth(opts)).then(function (res) {
+      if (res.status !== 401) return res;
+
+      return refresh().then(function (renewed) {
+        if (!renewed) {
+          sessionStorage.removeItem(TOKEN_KEY);
+          sessionStorage.removeItem(REFRESH_KEY);
+          toLogin();
+          return res;
+        }
+        // withAuth re-reads the token, so the retry carries the new one.
+        return origFetch(url, withAuth(opts));
+      });
+    });
+  };
 })();

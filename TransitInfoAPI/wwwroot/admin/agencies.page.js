@@ -68,8 +68,8 @@ function renderAgencies(list) {
     <td>${esc(a.name)}</td>
     <td><code>${esc(a.agencyId)}</code></td>
     <td>${a.operatorName ? '<span class="badge bg-info text-dark">' + esc(a.operatorName) + '</span>' : '<span class="text-muted">Unmatched</span>'}</td>
-    <td>${a.timezone || '-'}</td>
-    <td>${a.phone || '-'}</td>
+    <td>${esc(a.timezone) || '-'}</td>
+    <td>${esc(a.phone) || '-'}</td>
     <td class="small text-muted">v${a.feedVersionId}</td>
   </tr>`).join('');
   document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-dark"><tr><th>Name</th><th>Agency ID</th><th>Operator</th><th>Timezone</th><th>Phone</th><th>Version</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} agency(ies)</small>`;
