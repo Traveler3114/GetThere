@@ -178,15 +178,34 @@ The ordering here is load-bearing, and the code says so:
 
 Check reuse first, *then* check active. Reversed, reuse detection would be dead code.
 
-### IP binding, with a deliberate hole
+### The address is recorded, not enforced
 
-A refresh is rejected if the token was issued with an IP address and the current request presents a
-different one — **including presenting none at all**, because otherwise suppressing the header would
-skip the check entirely. A token stored *without* an address (issued before the field was captured)
-cannot be compared and is allowed through, which is the intentional compatibility hole.
+A refresh used to be **rejected** when the token was issued with an IP address and the request
+presented a different one. That was removed on 2026-07-31; the address is now audited as
+`RefreshAddressChanged` and nothing more.
 
-This only works if `RemoteIpAddress` is real. Behind a reverse proxy it is the proxy's address, which
-is why `ForwardedHeaders` is configured — see [Rate limiting](#rate-limiting-and-the-proxy-problem).
+The cost was not theoretical. `Invalid` becomes a 401, and the MAUI client answers a failed refresh by
+clearing its credentials and returning to the login screen — so the check fired on every
+wifi-to-cellular handover, cell handover, CGNAT rebinding and IPv6 privacy-extension rotation. For a
+travel app whose users are by definition moving, that is a sign-out several times a day, and it takes
+any offline-cached ticket with it.
+
+What it bought in exchange was small:
+
+- **Rotation and reuse detection already catch a stolen token** regardless of where it is presented
+  from. That is the primary control and it is untouched.
+- **It was bypassable by the adversary it targeted.** `UseForwardedHeaders()` runs with
+  `KnownIPNetworks` and `KnownProxies` cleared, so `X-Forwarded-For` is honoured from any immediate
+  peer — someone holding a stolen token could simply assert the address the check wanted.
+- **It could not tell "user moved" from "thief"**, so there was no stricter or looser version that
+  would have been better.
+
+The control that would earn its place is a binding to the **device** rather than the network: a
+client-generated identifier that survives a change of network but not a change of hardware. Note
+`DeviceInfo` is *not* that — it is the raw `User-Agent`, caller-supplied and not unique.
+
+`RefreshTokenEvaluator.IsAddressChange` still exists, deliberately separate from `Evaluate`, so the
+split between "decides the verdict" and "worth recording" is visible in the type.
 
 ### Registration does not confirm whether an address exists
 
@@ -346,5 +365,5 @@ on their next refresh, which is the known cost of inferring rather than storing.
 - [endpoints.md](endpoints.md) — every route, its policy, and why it is gated that way
 - [domain-logic.md](domain-logic.md) — the money path, imports, journeys
 - [ticket-import.md](ticket-import.md) — the file upload and extraction pipeline
-- [transit-integration.md](transit-integration.md) — the TransitInfoAPI client and map proxy
+- [transit-integration.md](transit-integration.md) — the TransitInfoAPI client and the service-account hop
 - [../shared/contracts.md](../shared/contracts.md) — the DTOs crossing the wire

@@ -111,7 +111,12 @@ Retrospective: grouping tickets a user already owns (distinct from prospective t
 - Disruption-to-journey subscriptions (tie GTFS-RT alerts to a user's saved journeys)
 - Push notification infrastructure (FCM/APNs, device token storage) — deferred here from Phase 0; the notifications below depend on it
 - Notifications: ticket expiry, journey-starting-soon, disruption alerts
-- Offline ticket access (cached QR/barcode images — core "wallet" expectation)
+- ⏳ Offline ticket access (cached QR/barcode images — core "wallet" expectation) — **code landed,
+  not yet exercised.** The client now renders real scannable codes (there were none before: the
+  ticket screen printed the payload as text), caches tickets encrypted on the device, and imports
+  without an account or a connection. Status marks here mean "exercised end-to-end", so this stays
+  ⏳ until someone scans a rendered code with a real phone and runs the guest-import path — see
+  `VERIFY.md`
 
 ---
 

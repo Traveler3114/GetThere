@@ -115,26 +115,79 @@ public class RefreshTokenTests
         await Assert.ThrowsAsync<AppException>(() => RefreshAsync(token));
     }
 
+    // ── The address no longer decides the verdict ────────────────────────────────
+    // The first two used to assert the opposite: a refresh from a new address threw, which surfaces as a
+    // 401, which the MAUI client answers by clearing its credentials. That fired on every
+    // wifi-to-cellular handover — a silent sign-out for a travel app whose users are, by definition,
+    // moving — and as deployed it was bypassable anyway, because UseForwardedHeaders() runs with
+    // KnownProxies cleared and so honours X-Forwarded-For from any peer. Rotation plus reuse
+    // detection is the control that actually catches a stolen token; the tests below it prove that
+    // still bites. Inverted rather than deleted, because a silently removed test is how a control
+    // comes back by accident.
+
     [Fact]
-    public async Task A_caller_presenting_no_address_cannot_use_an_ip_bound_token()
+    public async Task A_caller_presenting_no_address_still_refreshes()
     {
-        // Origin: the check was skipped when *either* side was null, so suppressing the address was
-        // enough to bypass the binding entirely.
         var email = NewEmail();
         await _fixture.CreateUserAsync(email, Password);
         var login = await LoginAsync(email, ip: "203.0.113.10");
 
-        await Assert.ThrowsAsync<AppException>(() => RefreshAsync(login.RefreshToken, ip: null));
+        var refreshed = await RefreshAsync(login.RefreshToken, ip: null);
+
+        Assert.NotEqual(login.RefreshToken, refreshed.RefreshToken);
     }
 
     [Fact]
-    public async Task A_caller_from_a_different_address_is_rejected()
+    public async Task A_caller_from_a_different_address_still_refreshes_and_is_audited()
     {
         var email = NewEmail();
-        await _fixture.CreateUserAsync(email, Password);
+        var userId = await _fixture.CreateUserAsync(email, Password);
         var login = await LoginAsync(email, ip: "203.0.113.10");
 
-        await Assert.ThrowsAsync<AppException>(() => RefreshAsync(login.RefreshToken, ip: "198.51.100.7"));
+        // The wifi-to-cellular case: the session has to survive it.
+        var refreshed = await RefreshAsync(login.RefreshToken, ip: "198.51.100.7");
+        Assert.NotEqual(login.RefreshToken, refreshed.RefreshToken);
+
+        // The address is still recorded, just as forensics rather than as a verdict.
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var actions = await db.AuditLogs.AsNoTracking()
+            .Where(a => a.UserId == userId).Select(a => a.Action).ToListAsync();
+
+        Assert.Contains("RefreshAddressChanged", actions);
+    }
+
+    [Fact]
+    public async Task A_refresh_from_the_same_address_is_not_audited_as_a_change()
+    {
+        // The other half: the audit line only means something if it is not written every time.
+        var email = NewEmail();
+        var userId = await _fixture.CreateUserAsync(email, Password);
+        var login = await LoginAsync(email, ip: "203.0.113.10");
+
+        await RefreshAsync(login.RefreshToken, ip: "203.0.113.10");
+
+        using var scope = _fixture.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var actions = await db.AuditLogs.AsNoTracking()
+            .Where(a => a.UserId == userId).Select(a => a.Action).ToListAsync();
+
+        Assert.DoesNotContain("RefreshAddressChanged", actions);
+    }
+
+    [Fact]
+    public async Task Theft_is_still_caught_when_the_replay_comes_from_the_issuing_address()
+    {
+        // The regression that matters most after relaxing the address check: an attacker who has
+        // both the token and the original address must still trip reuse detection.
+        var email = NewEmail();
+        var userId = await _fixture.CreateUserAsync(email, Password);
+        var login = await LoginAsync(email, ip: "203.0.113.10");
+
+        await RefreshAsync(login.RefreshToken, ip: "203.0.113.10");
+        await Assert.ThrowsAsync<AppException>(() => RefreshAsync(login.RefreshToken, ip: "203.0.113.10"));
+
+        Assert.Equal(0, await ActiveTokenCountAsync(userId));
     }
 
     [Fact]

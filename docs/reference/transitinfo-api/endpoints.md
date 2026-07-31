@@ -59,7 +59,8 @@ accounts are created by an admin, never self-served. This is the main structural
 GetThereAPI's auth surface.
 
 Token mechanics are otherwise identical: JWT access tokens, hashed rotating refresh tokens with reuse
-detection and IP binding. See
+detection. The address a token was issued to is audited on refresh, not enforced — the rules live in
+`SharedAuth` so neither service can drift from the other. See
 [../getthere-api/architecture.md](../getthere-api/architecture.md#authentication-why-refresh-tokens-are-shaped-the-way-they-are).
 
 `POST /auth/login` is the endpoint GetThereAPI's `TransitInfoApiClient` calls with the
@@ -82,7 +83,7 @@ detection and IP binding. See
 | GET | `/stations/{id}/reconciliation-detail` | `stations.manage` |
 
 `GET /stations` supports geographic filtering (`lat`, `lon`, `radiusKm`) plus pagination. This is what
-GetThereAPI's `/api/map/stations` proxies, paging to exhaustion at 500 per page.
+The map page reads this directly, anonymously and same-origin.
 
 `GET /stations/{id}/departures` is the schedule query described in
 [realtime.md](realtime.md#departures-schedulemanager) — GTFS times resolved through the configured

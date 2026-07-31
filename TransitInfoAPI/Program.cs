@@ -281,9 +281,12 @@ app.UseStaticFiles(new StaticFileOptions
             mapHeaders["X-Robots-Tag"] = "noindex, nofollow";
             mapHeaders["X-Content-Type-Options"] = "nosniff";
             mapHeaders["Referrer-Policy"] = "no-referrer";
+            // MapLibre is served from wwwroot/vendor now, so no external origin may execute script
+            // here at all — the CDN that used to appear in script-src and style-src is gone. The
+            // tile origin stays in img-src/connect-src: the basemap is still fetched from it.
             mapHeaders["Content-Security-Policy"] =
-                "default-src 'self'; script-src 'self' https://unpkg.com; " +
-                "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
+                "default-src 'self'; script-src 'self'; " +
+                "style-src 'self' 'unsafe-inline'; " +
                 "img-src 'self' data: blob: https://tiles.openfreemap.org; " +
                 "connect-src 'self' https://tiles.openfreemap.org; " +
                 // MapLibre builds its tile workers from blob URLs.
@@ -308,10 +311,16 @@ app.UseStaticFiles(new StaticFileOptions
         // all 111 are converted to addEventListener would leave buttons that silently do nothing.
         // That conversion is the remaining work; it needs the pages exercised against a populated
         // database, since a missed handler is invisible until someone clicks it.
+        // unpkg is no longer listed: it served MapLibre to the two admin map pages, which now load it
+        // from wwwroot/vendor like everything else. jsdelivr stays for Bootstrap.
+        //
+        // Note that shape-editor.html also pulls mapbox-gl-draw from https://api.mapbox.com, an
+        // origin this policy has never allowed — so that plugin is already blocked and its drawing
+        // toolbar cannot be working. Vendoring it or allowing the origin is a separate decision.
         headers["Content-Security-Policy"] =
             "default-src 'self'; " +
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " +
-            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " +
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
             "img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:; " +
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         headers["X-Content-Type-Options"] = "nosniff";

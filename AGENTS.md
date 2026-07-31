@@ -3,9 +3,10 @@
 ## Architecture
 
 **Two platforms, one-way dependency:**
-- `TransitInfoAPI` (map: GTFS feeds, stations, reconciliation, mobility) → port 5000, DB: `TransitInfoDB`
+- `TransitInfoAPI` (map: GTFS feeds, stations, reconciliation, mobility) → port 5000 (`http`) / 5001 (`https`), DB: `TransitInfoDB`
 - `GetThereAPI` (business: users, wallets, ticketing) → port 7230, DB: `GetThereDB`
-- `GetThere` (MAUI client) → calls only GetThereAPI
+- `GetThere` (MAUI client) → calls GetThereAPI for all business data, and reads TransitInfoAPI
+  directly **for the map only**
 - `GetThereShared` → shared DTOs/contracts, no runtime. Referenced by the MAUI app, so nothing
   server-side belongs in it
 - `SharedAuth` → server-side invariants shared by both APIs: token signing/hashing, refresh-token
@@ -14,6 +15,18 @@
   belong here
 
 One-way rule: TransitInfoAPI knows nothing about GetThereAPI. GetThereAPI references operators by TransitInfoAPI GlobalId.
+
+**The map is the one client-side exception.** `MapPage` is a WebView pointed at
+`map/public.html` on TransitInfoAPI, so the page is same-origin with the data it reads and needs no
+proxy, no bearer token and no CORS. The endpoints it uses (`stations`, `routes`,
+`mobility/stations`, `stations/{id}/departures`, `realtime/vehicles`, `stations/search`) are
+`[AllowAnonymous]` for that reason — treat them as a public surface when changing them. Everything
+else the client does still goes exclusively through GetThereAPI. This replaced a proxy in
+GetThereAPI; `docs/map-proxy-migration.md` records the arrangement and why it was undone.
+
+The client's map address is `Map:BaseUrl` (see `ApiEndpoints`), and it must be **https** — the
+Android manifest sets `usesCleartextTraffic="false"`, so TransitInfoAPI's `http` profile fails
+silently on device.
 
 **Separate auth domains, same key type.** Both APIs use `IdentityUser` with a string GUID key —
 TransitInfoAPI was moved off `IdentityUser<int>` in Phase 0. They remain separate user stores in
@@ -28,8 +41,9 @@ separate databases with no cross-system user references. The service account bri
 # Business API (must start first)
 dotnet run --project GetThereAPI/GetThereAPI.csproj --launch-profile https
 
-# Map platform
-dotnet run --project TransitInfoAPI/TransitInfoAPI.csproj
+# Map platform — https, not the default http profile: the MAUI client loads the map page from
+# here, and the Android manifest disallows cleartext.
+dotnet run --project TransitInfoAPI/TransitInfoAPI.csproj --launch-profile https
 
 # MAUI — Android
 dotnet build GetThere/GetThere.csproj -t:Run -f net10.0-android
@@ -90,7 +104,11 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 
 ## Off-limits (need human instruction)
 
-- JWT auth pipeline (token creation/validation)
+- JWT auth pipeline (token creation/validation). One deliberate change was authorised on 2026-07-31:
+  refresh tokens are no longer rejected when presented from a different IP address. Rotation and reuse
+  detection remain the theft response; the address is audited as `RefreshAddressChanged`. The rest of
+  the pipeline is still off-limits — see
+  [`docs/reference/getthere-api/architecture.md`](docs/reference/getthere-api/architecture.md#the-address-is-recorded-not-enforced)
 - Wallet balance deduction logic
 - Ticket status transitions
 - ImportedTicket status transitions

@@ -18,6 +18,7 @@ namespace GetThere.ViewModels;
 public partial class TicketDetailViewModel : BaseViewModel
 {
     private readonly TicketService _ticketService;
+    private readonly BarcodeRenderService _barcodeRenderer;
 
     private string _ticketId = string.Empty;
 
@@ -44,6 +45,18 @@ public partial class TicketDetailViewModel : BaseViewModel
     /// <summary>The adapter's payload — a QR string, a barcode number, or a plain code.</summary>
     [ObservableProperty]
     private string _payload = string.Empty;
+
+    /// <summary>
+    /// The payload rendered as a scannable code, or null when it cannot safely be drawn as one —
+    /// an unsupported format, or a payload the symbology will not round-trip. Null is expected, and
+    /// the view falls back to printing <see cref="Payload"/> as text.
+    /// </summary>
+    [ObservableProperty]
+    private ImageSource? _payloadImage;
+
+    /// <summary>True when there is a code to show, so the view can pick a branch.</summary>
+    [ObservableProperty]
+    private bool _hasPayloadImage;
 
     [ObservableProperty]
     private string _issuedByText = string.Empty;
@@ -82,9 +95,10 @@ public partial class TicketDetailViewModel : BaseViewModel
 
     private int? _journeyId;
 
-    public TicketDetailViewModel(TicketService ticketService)
+    public TicketDetailViewModel(TicketService ticketService, BarcodeRenderService barcodeRenderer)
     {
         _ticketService = ticketService;
+        _barcodeRenderer = barcodeRenderer;
     }
 
     private async Task LoadAsync(int ticketId)
@@ -129,10 +143,21 @@ public partial class TicketDetailViewModel : BaseViewModel
             : $"{option.AdapterName} · {option.ExternalProductId}";
 
         RouteText = option.Name;
-        IsActive = ticket.Status == TicketStatus.Active;
-        StatusText = ticket.Status.ToString().ToUpperInvariant();
+        // Display only — the server owns the status, and a window that closed since this was read
+        // must not still show as active on the screen someone holds up at a barrier.
+        var recordedActive = ticket.Status == TicketStatus.Active;
+        var pastValidity = TicketValidity.IsPastValidity(recordedActive, ticket.ValidTo, DateTime.UtcNow);
+
+        IsActive = recordedActive && !pastValidity;
+        StatusText = (pastValidity ? nameof(TicketStatus.Expired) : ticket.Status.ToString()).ToUpperInvariant();
 
         Payload = ticket.Data;
+
+        // ticket.Format is the adapter's own description of the payload. It was never read before
+        // this — the screen printed the string and left the format unused.
+        PayloadImage = _barcodeRenderer.Render(ticket.Data, ticket.Format);
+        HasPayloadImage = PayloadImage is not null;
+
         IssuedByText = string.IsNullOrWhiteSpace(option.AdapterType)
             ? option.AdapterName
             : string.Format(LocalizationService.Instance["Ticket_AdapterSuffix"], option.AdapterType);

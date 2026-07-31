@@ -3,10 +3,14 @@
     Frame 3d of "GetThere App.dc.html".
 
     The design's QR square is a mockup placeholder (a checkerboard with "QR ISSUED BY … ADAPTER"
-    printed over it). This renders the panel at the drawn size and treatment but puts the adapter's
-    real payload in it rather than a decorative checkerboard, so nothing on screen looks scannable
-    unless it actually is. Turning the payload into a true QR bitmap needs a QR encoder package,
-    which the solution does not currently reference.
+    printed over it). This renders the panel at the drawn size and treatment, and now draws a real
+    scannable code in it — BarcodeRenderService encodes the adapter's payload according to the
+    ticket's declared format.
+
+    Not every payload has a code to draw: a booking reference, a stored PDF, an NFC credential, or a
+    format the renderer will not risk re-encoding all fall back to printing the payload as text.
+    That fallback is the original behaviour and is deliberate — nothing on screen should look
+    scannable unless it actually is.
 -->
 <ContentPage
     x:Class="GetThere.Pages.TicketDetailPage"
@@ -20,6 +24,10 @@
     x:DataType="vm:TicketDetailViewModel"
     BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
     Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,*">
         <components:AnimatedBackground Grid.RowSpan="2" />
@@ -134,31 +142,50 @@
                                 <Border.StrokeShape>
                                     <shapes:RoundRectangle CornerRadius="14" />
                                 </Border.StrokeShape>
-                                <VerticalStackLayout
-                                    HorizontalOptions="Center"
-                                    Spacing="10"
-                                    VerticalOptions="Center">
-                                    <Label
-                                        CharacterSpacing="1"
-                                        FontSize="10"
-                                        HorizontalTextAlignment="Center"
-                                        Style="{StaticResource DsMono}"
-                                        Text="{localization:Translate Ticket_IssuedBy}" />
-                                    <Label
-                                        FontSize="11"
-                                        HorizontalTextAlignment="Center"
-                                        Style="{StaticResource DsMono}"
-                                        Text="{Binding IssuedByText}"
-                                        TextColor="{StaticResource TealText}" />
-                                    <Label
-                                        FontSize="13"
-                                        HorizontalTextAlignment="Center"
-                                        LineBreakMode="CharacterWrap"
-                                        MaximumWidthRequest="170"
-                                        Style="{StaticResource DsMono}"
-                                        Text="{Binding Payload}"
-                                        TextColor="{AppThemeBinding Light={StaticResource TextPrimaryLight}, Dark={StaticResource Gray100}}" />
-                                </VerticalStackLayout>
+                                <Grid>
+                                    <!--
+                                        The scannable code. Rendered at 720px and scaled down to
+                                        fit — a scanner reads modules, and upscaling a small bitmap
+                                        blurs their edges until it stops reading.
+                                    -->
+                                    <Image
+                                        Aspect="AspectFit"
+                                        IsVisible="{Binding HasPayloadImage}"
+                                        Source="{Binding PayloadImage}" />
+
+                                    <!--
+                                        Fallback for a payload with no code to draw: a booking
+                                        reference, a stored PDF, an NFC credential, or a format the
+                                        renderer will not risk re-encoding. Printing the payload is
+                                        the honest answer — see BarcodeRenderService.
+                                    -->
+                                    <VerticalStackLayout
+                                        HorizontalOptions="Center"
+                                        IsVisible="{Binding HasPayloadImage, Converter={StaticResource InverseBoolConverter}}"
+                                        Spacing="10"
+                                        VerticalOptions="Center">
+                                        <Label
+                                            CharacterSpacing="1"
+                                            FontSize="10"
+                                            HorizontalTextAlignment="Center"
+                                            Style="{StaticResource DsMono}"
+                                            Text="{localization:Translate Ticket_IssuedBy}" />
+                                        <Label
+                                            FontSize="11"
+                                            HorizontalTextAlignment="Center"
+                                            Style="{StaticResource DsMono}"
+                                            Text="{Binding IssuedByText}"
+                                            TextColor="{StaticResource TealText}" />
+                                        <Label
+                                            FontSize="13"
+                                            HorizontalTextAlignment="Center"
+                                            LineBreakMode="CharacterWrap"
+                                            MaximumWidthRequest="170"
+                                            Style="{StaticResource DsMono}"
+                                            Text="{Binding Payload}"
+                                            TextColor="{AppThemeBinding Light={StaticResource TextPrimaryLight}, Dark={StaticResource Gray100}}" />
+                                    </VerticalStackLayout>
+                                </Grid>
                             </Border>
 
                             <Label

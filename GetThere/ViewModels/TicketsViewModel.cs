@@ -4,6 +4,7 @@ using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using GetThere.Localization;
 using GetThere.Services;
 
 using GetThereShared.Contracts;
@@ -15,7 +16,11 @@ public partial class TicketsViewModel : BaseViewModel
 {
     private readonly AuthService _authService;
     private readonly ImportedTicketService _importedService;
+    private readonly TicketService _ticketService;
     private readonly TicketCaptureService _capture;
+    private readonly TicketStore _store;
+    private readonly PendingImportQueue _pendingImports;
+    private readonly ImportSyncService _importSync;
     private readonly IAnalyticsService _analytics;
     private ImportedTicketStatus? _activeFilter;
 
@@ -38,10 +43,31 @@ public partial class TicketsViewModel : BaseViewModel
     [ObservableProperty]
     private bool _hasMore;
 
+    /// <summary>True when the list on screen came from the device rather than the server.</summary>
+    [ObservableProperty]
+    private bool _isShowingCached;
+
+    /// <summary>How old that copy is, in words. Empty unless <see cref="IsShowingCached"/>.</summary>
+    [ObservableProperty]
+    private string _cachedAtText = string.Empty;
+
     private int _currentPage = 1;
     private const int PageSize = 50;
 
+    /// <summary>Imported tickets as the server returned them, kept for paging and the card actions.</summary>
     public ObservableCollection<ImportedTicketResponse> ImportedTickets { get; } = [];
+
+    /// <summary>Purchased tickets. Not paged — <c>GET /tickets</c> returns the whole history.</summary>
+    private readonly List<TicketResponse> _purchasedTickets = [];
+
+    /// <summary>
+    /// What the wallet actually lists: both kinds in one place, newest first.
+    /// <para>
+    /// Until this existed the screen showed imported tickets only, so a ticket the user had *paid
+    /// for* was visible for a few seconds after purchase and then unreachable.
+    /// </para>
+    /// </summary>
+    public ObservableCollection<WalletTicket> WalletTickets { get; } = [];
 
     /// <summary>
     /// The Journeys half of this screen. Composed rather than merged: journeys and tickets are two
@@ -69,13 +95,21 @@ public partial class TicketsViewModel : BaseViewModel
     public TicketsViewModel(
         AuthService authService,
         ImportedTicketService importedService,
+        TicketService ticketService,
         TicketCaptureService capture,
+        TicketStore store,
+        PendingImportQueue pendingImports,
+        ImportSyncService importSync,
         IAnalyticsService analytics,
         JourneysViewModel journeys)
     {
         _authService = authService;
         _importedService = importedService;
+        _ticketService = ticketService;
         _capture = capture;
+        _store = store;
+        _pendingImports = pendingImports;
+        _importSync = importSync;
         _analytics = analytics;
         Journeys = journeys;
     }
@@ -99,15 +133,52 @@ public partial class TicketsViewModel : BaseViewModel
     [RelayCommand]
     private async Task LoadTickets()
     {
-        var loggedIn = await _authService.IsLoggedInAsync();
-        IsAuthenticated = loggedIn;
-        if (!loggedIn) return;
-
         IsBusy = true;
         HasError = false;
+        IsOffline = false;
+        IsShowingCached = false;
+        CachedAtText = string.Empty;
         _currentPage = 1;
         try
         {
+            // Inside the try deliberately. This reaches the network — an expired access token sends
+            // IsLoggedInAsync straight into a refresh — and it used to sit above it, so the first
+            // thing this screen did without a connection was throw past every handler below.
+            var loggedIn = await _authService.IsLoggedInAsync();
+
+            if (!loggedIn && IsOfflineNow)
+            {
+                // A refresh that could not reach the server says nothing about whether the user is
+                // signed in, so fall back to whether credentials are still on file — a SecureStorage
+                // read, no network. Without this the wallet raises its full-screen "account
+                // required" prompt at someone who is merely offline, and on a cold start
+                // IsAuthenticated has never been true, so there is no previous value to keep.
+                var hasStoredCredentials = !string.IsNullOrWhiteSpace(await _authService.GetRefreshTokenAsync());
+                if (hasStoredCredentials)
+                {
+                    IsAuthenticated = true;
+                    IsOffline = true;
+                    HasError = true;
+                    ErrorText = LocalizationService.Instance["Common_Offline"];
+                    await ShowCachedAsync();
+                    return;
+                }
+            }
+
+            IsAuthenticated = loggedIn;
+
+            // A guest is signed out but may still hold tickets — they are on the device, waiting for
+            // an account. Show those rather than the "account required" wall.
+            if (!loggedIn)
+            {
+                await ShowPendingOnlyAsync();
+                return;
+            }
+
+            // Anything imported offline or before signing in is pushed first, so the list below
+            // already contains it rather than showing it twice from two sources.
+            await _importSync.FlushAsync();
+
             var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
             if (result.Success)
             {
@@ -116,22 +187,217 @@ public partial class TicketsViewModel : BaseViewModel
                 foreach (var t in paged.Data)
                     ImportedTickets.Add(t);
                 TotalTickets = paged.Total;
-                HasImportedTickets = ImportedTickets.Count > 0;
                 HasMore = _currentPage < paged.TotalPages;
-                _analytics.TrackEvent("tickets_loaded", new() { ["count"] = ImportedTickets.Count.ToString() });
+
+                // Purchased tickets are fetched separately and merged below. GET /tickets is
+                // unpaged and unfiltered — the whole history in one response — so it cannot join the
+                // paging above and is simply re-read whenever the first page is.
+                await LoadPurchasedAsync();
+                RebuildWallet();
+
+                // Caching is a by-product of a read that already succeeded, not a sync step of its
+                // own. Only the unfiltered first page is worth keeping — a cache of "the Used ones"
+                // would be a confusing thing to show someone offline.
+                if (_activeFilter is null && _currentPage == 1)
+                    await CacheCurrentAsync();
+
+                _analytics.TrackEvent("tickets_loaded", new() { ["count"] = WalletTickets.Count.ToString() });
             }
             else
             {
-                ErrorText = result.Message ?? "Could not load tickets.";
+                // The service turns every transport failure into one generic message, so ask the
+                // device rather than the message which kind of failure this was.
+                IsOffline = IsOfflineNow;
+                ErrorText = IsOffline
+                    ? LocalizationService.Instance["Common_Offline"]
+                    : result.Message ?? "Could not load tickets.";
                 HasError = true;
+                await ShowCachedAsync();
             }
         }
         catch (Exception ex)
         {
-            ErrorText = ex.Message;
+            IsOffline = IsOfflineNow;
+            ErrorText = IsOffline ? LocalizationService.Instance["Common_Offline"] : ex.Message;
             HasError = true;
+            await ShowCachedAsync();
         }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>
+    /// The wallet for someone with no account: whatever they have imported, held on the device.
+    /// <para>
+    /// A guest used to get a full-screen "account required" scrim over an empty tab. Importing works
+    /// without an account now, so there is something real to show — and hiding it behind a sign-up
+    /// prompt would mean taking a ticket away from the person who just added it.
+    /// </para>
+    /// </summary>
+    private async Task ShowPendingOnlyAsync()
+    {
+        var pending = await _pendingImports.PeekAllAsync();
+
+        ImportedTickets.Clear();
+        _purchasedTickets.Clear();
+
+        // Authenticated in the sense the screen cares about: there is a wallet worth rendering.
+        // Nothing here is a claim about the server, and no request will be made with it.
+        IsAuthenticated = pending.Count > 0;
+
+        WalletTickets.Clear();
+        foreach (var t in pending.Select(WalletTicket.FromPending).OrderByDescending(t => t.SortDate))
+            WalletTickets.Add(t);
+
+        HasImportedTickets = WalletTickets.Count > 0;
+        TotalTickets = WalletTickets.Count;
+        HasMore = false;
+
+        if (WalletTickets.Count > 0)
+        {
+            IsShowingCached = true;
+            CachedAtText = LocalizationService.Instance["Tickets_OnThisDeviceOnly"];
+        }
+    }
+
+    /// <summary>Writes what is currently on screen to the device, so the next failed load has it.</summary>
+    private async Task CacheCurrentAsync()
+    {
+        var owner = await _authService.GetOwnerKeyAsync();
+        await _store.SaveImportedAsync(owner, ImportedTickets);
+        await _store.SavePurchasedAsync(owner, _purchasedTickets);
+    }
+
+    /// <summary>
+    /// Falls back to the device's copy after a failed load.
+    /// <para>
+    /// Only ever reached from a failure path, so it can never mask a live read. It leaves the error
+    /// banner in place — the list is real but may be out of date, and
+    /// <see cref="CachedAtText"/> says how far.
+    /// </para>
+    /// </summary>
+    private async Task ShowCachedAsync()
+    {
+        try
+        {
+            var owner = await _authService.GetOwnerKeyAsync();
+            var imported = await _store.ReadImportedAsync(owner);
+            var purchased = await _store.ReadPurchasedAsync(owner);
+
+            if (imported is null && purchased is null) return;
+
+            ImportedTickets.Clear();
+            foreach (var t in imported?.Items ?? [])
+                ImportedTickets.Add(t);
+
+            _purchasedTickets.Clear();
+            _purchasedTickets.AddRange(purchased?.Items ?? []);
+
+            RebuildWallet();
+
+            var cachedAt = imported?.CachedAtUtc ?? purchased?.CachedAtUtc;
+            IsShowingCached = WalletTickets.Count > 0;
+            CachedAtText = cachedAt is { } at
+                ? string.Format(LocalizationService.Instance["Tickets_SavedAgo"], DescribeAge(DateTime.UtcNow - at))
+                : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[TicketsViewModel] Could not read the cached wallet: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Coarse, human age of the cache. Deliberately vague — "3 days ago" is what a traveller needs
+    /// to judge whether to trust the screen, and a precise timestamp would imply a precision the
+    /// underlying status does not have.
+    /// </summary>
+    private static string DescribeAge(TimeSpan age) => age switch
+    {
+        { TotalMinutes: < 2 } => LocalizationService.Instance["Tickets_JustNow"],
+        { TotalHours: < 1 } => $"{(int)age.TotalMinutes} min",
+        { TotalDays: < 1 } => $"{(int)age.TotalHours} h",
+        _ => $"{(int)age.TotalDays} d"
+    };
+
+    /// <summary>
+    /// Reads the purchased half. Deliberately forgiving: a wallet that can show the user's imported
+    /// tickets should show them even if the purchased call fails, so a failure here empties that
+    /// half rather than blanking the screen or raising the shared error banner.
+    /// </summary>
+    private async Task LoadPurchasedAsync()
+    {
+        _purchasedTickets.Clear();
+        try
+        {
+            var result = await _ticketService.GetMyTicketsAsync();
+            if (result.Success && result.Data is not null)
+                _purchasedTickets.AddRange(result.Data);
+            else
+                Trace.WriteLine($"[TicketsViewModel] Purchased tickets unavailable: {result.Message}");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[TicketsViewModel] Purchased tickets unavailable: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Projects both sources into one list, newest first.
+    /// <para>
+    /// The status chips filter imported tickets server-side, so the same filter is applied to the
+    /// purchased half here — otherwise selecting "Used" would leave every purchased ticket on
+    /// screen and the filter would look broken.
+    /// </para>
+    /// </summary>
+    private void RebuildWallet()
+    {
+        var purchased = _purchasedTickets.AsEnumerable();
+
+        if (_activeFilter is { } filter)
+        {
+            // The two enums are separate types that share their names; comparing the names is what
+            // lets one chip mean the same thing on both halves.
+            var wanted = filter.ToString();
+            purchased = purchased.Where(t => string.Equals(t.Status.ToString(), wanted, StringComparison.Ordinal));
+        }
+
+        var merged = ImportedTickets.Select(WalletTicket.FromImported)
+            .Concat(purchased.Select(WalletTicket.FromPurchased))
+            .OrderByDescending(t => t.SortDate)
+            .ToList();
+
+        WalletTickets.Clear();
+        foreach (var t in merged)
+            WalletTickets.Add(t);
+
+        HasImportedTickets = WalletTickets.Count > 0;
+    }
+
+    /// <summary>
+    /// Opens a ticket. Tapping a card used to offer an action sheet; that is a secondary control
+    /// now, because the first thing a traveller wants from a wallet is the ticket itself.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenTicket(WalletTicket? ticket)
+    {
+        if (ticket is null) return;
+
+        // Not yet pushed, so it has no server id and both detail screens fetch by one. Say so rather
+        // than opening a screen that would fail to load.
+        if (ticket.IsPending)
+        {
+            ErrorText = LocalizationService.Instance["Tickets_PendingNotOpenable"];
+            HasError = true;
+            return;
+        }
+
+        var route = ticket.Kind switch
+        {
+            WalletTicketKind.Purchased => $"ticketdetail?ticketId={ticket.Id}",
+            _ => $"importedticketdetail?ticketId={ticket.Id}"
+        };
+
+        await Shell.Current.GoToAsync(route);
     }
 
     [RelayCommand]
@@ -150,6 +416,10 @@ public partial class TicketsViewModel : BaseViewModel
                 foreach (var t in paged.Data)
                     ImportedTickets.Add(t);
                 HasMore = _currentPage < paged.TotalPages;
+
+                // Only the imported half pages, so the purchased half is left as it is and the
+                // merged list is rebuilt around the newly appended rows.
+                RebuildWallet();
             }
             else
             {
@@ -313,8 +583,13 @@ public partial class TicketsViewModel : BaseViewModel
     /// is now one deliberate choice among several rather than the default consequence of a tap.
     /// </summary>
     [RelayCommand]
-    private async Task ShowTicketActions(ImportedTicketResponse ticket)
+    private async Task ShowTicketActions(WalletTicket? walletTicket)
     {
+        // Only imported tickets have actions. No API moves a purchased ticket out of Active — the
+        // expiry worker is the only thing that ever changes its status — so a menu here would offer
+        // buttons that cannot work.
+        if (walletTicket?.Imported is not { } ticket) return;
+
         if (ticket.Status != ImportedTicketStatus.Active)
         {
             // Nothing can be done to a terminal ticket, so offering a menu would only lead to a

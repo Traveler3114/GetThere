@@ -127,12 +127,23 @@
                 </HorizontalStackLayout>
             </ScrollView>
 
-            <Label
-                Grid.Row="3"
-                Margin="0,8,0,0"
-                IsVisible="{Binding HasError}"
-                Style="{StaticResource DsErrorLabel}"
-                Text="{Binding ErrorText}" />
+            <VerticalStackLayout Grid.Row="3" Margin="0,8,0,0" Spacing="4">
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <!--
+                    Provenance, shown only when the list below came off the device rather than the
+                    server. Someone holding a phone at a barrier needs to know how old the screen is
+                    — a ticket cancelled on another device would still look active here.
+                -->
+                <Label
+                    FontSize="12"
+                    IsVisible="{Binding IsShowingCached}"
+                    Style="{StaticResource DsMetaCaption}"
+                    Text="{Binding CachedAtText}" />
+            </VerticalStackLayout>
 
             <!--  ── TICKET LIST ──  -->
             <CollectionView
@@ -140,7 +151,7 @@
                 Grid.Row="4"
                 Margin="0,12,0,0"
                 IsVisible="{Binding ShowTickets}"
-                ItemsSource="{Binding ImportedTickets}">
+                ItemsSource="{Binding WalletTickets}">
                 <CollectionView.EmptyView>
                     <VerticalStackLayout
                         HorizontalOptions="Center"
@@ -164,20 +175,20 @@
                             Margin="0,6"
                             Padding="16"
                             BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
-                            Opacity="{Binding Status, Converter={StaticResource StatusOpacity}}"
+                            Opacity="{Binding DisplayStatus, Converter={StaticResource StatusOpacity}}"
                             StrokeThickness="0">
                             <Border.StrokeShape>
                                 <shapes:RoundRectangle CornerRadius="16" />
                             </Border.StrokeShape>
                             <Border.GestureRecognizers>
                                 <!--
-                                    Offers the ticket's actions. This used to invoke Cancel
-                                    directly — tapping anywhere on a card was the only interaction
-                                    available, and it was offered on already-used and expired
-                                    tickets too.
+                                    Opens the ticket. A tap used to offer an action sheet, and
+                                    before that invoked Cancel outright — so the list's primary
+                                    gesture was a destructive one and the ticket itself could not be
+                                    opened at all. The actions moved to the control below.
                                 -->
                                 <TapGestureRecognizer
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=ShowTicketActionsCommand}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=OpenTicketCommand}"
                                     CommandParameter="{Binding .}" />
                             </Border.GestureRecognizers>
                             <Grid
@@ -190,16 +201,43 @@
                                     Grid.Column="0"
                                     Style="{StaticResource DsCardTitle}"
                                     Text="{Binding TicketName}" />
-                                <Border
+                                <HorizontalStackLayout
                                     Grid.Row="0"
                                     Grid.Column="1"
-                                    BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
-                                    Style="{StaticResource DsBadge}">
+                                    Spacing="8">
+                                    <!--
+                                        DisplayStatus, not Status: the server's expiry sweep runs
+                                        hourly and a cached list can be staler still, so a ticket
+                                        whose window has closed would otherwise read Active.
+                                    -->
+                                    <Border
+                                        BackgroundColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                        Style="{StaticResource DsBadge}">
+                                        <Label
+                                            Style="{StaticResource DsBadgeLabel}"
+                                            Text="{Binding DisplayStatus}"
+                                            TextColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}}" />
+                                    </Border>
+                                    <!--
+                                        Cancel / mark-used, now that a tap opens the ticket instead.
+                                        Only imported tickets have actions — nothing moves a
+                                        purchased ticket out of Active — so HasActions hides this
+                                        rather than offering a menu that cannot act.
+                                    -->
                                     <Label
-                                        Style="{StaticResource DsBadgeLabel}"
-                                        Text="{Binding Status}"
-                                        TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
-                                </Border>
+                                        Padding="6,0"
+                                        FontSize="18"
+                                        IsVisible="{Binding HasActions}"
+                                        Style="{StaticResource DsMetaCaption}"
+                                        Text="⋯"
+                                        VerticalTextAlignment="Center">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=ShowTicketActionsCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </HorizontalStackLayout>
                                 <Label
                                     Grid.Row="1"
                                     Grid.Column="0"

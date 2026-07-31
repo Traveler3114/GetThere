@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Ticket extraction that runs identically on the server and on a device.
+
+    It used to live entirely in GetThereAPI, and Directory.Packages.props still records the reason:
+    "Extraction runs server-side so it is unit-testable and behaves identically on every client
+    platform." That was a policy choice rather than a technical constraint — nothing in extraction
+    touches the database or user identity — and it had one consequence that mattered: every import
+    path needed a network call and an account, so a signed-out user could not import a ticket and
+    neither could a signed-in one with no signal.
+
+    A shared project keeps the original intent better than server-only did. Both sides run the same
+    code, so they cannot disagree, and it is still covered by the same test project.
+
+    What deliberately stayed behind in GetThereAPI:
+      - PdfTicketExtractor  — PdfPig is the heaviest dependency here and the AOT/trimming risk on
+                              iOS is real. PDF import therefore still needs an account.
+      - ICalTicketExtractor — Ical.Net, same reasoning, lower value.
+      - PkPassTicketExtractor — BCL-only and otherwise portable, but it throws GetThereAPI's
+                              AppException, and untangling that is a separate change.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GetThereShared\GetThereShared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Decodes the barcode formats transport tickets use. Both consumers already reference it. -->
+    <PackageReference Include="ZXing.Net" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+</Project>

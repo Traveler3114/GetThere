@@ -333,26 +333,6 @@
         </Setter>
     </Style>
 
-    <!--  round map control (locate / layers) and other icon-sized taps  -->
-    <Style x:Key="DsMapControl" TargetType="Border">
-        <Setter Property="WidthRequest" Value="44" />
-        <Setter Property="HeightRequest" Value="44" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}" />
-        <Setter Property="Stroke" Value="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkSurfaceAlt}}" />
-        <Setter Property="StrokeShape">
-            <Setter.Value>
-                <shapes:RoundRectangle CornerRadius="14" />
-            </Setter.Value>
-        </Setter>
-        <Setter Property="Shadow">
-            <Setter.Value>
-                <Shadow Brush="Black" Opacity="0.3" Radius="12" Offset="0,4" />
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <!-- ══════════════════════════════════════════════════════════
          BRUSHES
          ══════════════════════════════════════════════════════════ -->

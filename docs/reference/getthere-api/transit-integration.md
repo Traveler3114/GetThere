@@ -41,9 +41,16 @@ precisely because the two databases must be able to move independently.
 MAUI client  ──►  GetThereAPI  ──►  TransitInfoAPI
 ```
 
-The client never talks to TransitInfoAPI. Everything in this document exists to make that rule
-enforceable rather than merely conventional. See
+For business data, the client talks only to GetThereAPI, and everything in this document exists to
+make that enforceable rather than conventional. See
 [architecture.md](architecture.md#what-this-service-is-for) for why.
+
+> **The map is the exception, and it no longer passes through here.** The client loads the map page
+> from TransitInfoAPI and reads that service's anonymous endpoints same-origin. The proxy that used
+> to serve it — a whitelisted passthrough plus typed reads — is gone; only
+> `/api/map/transport-types` remains, as the admin console's reachability probe. See
+> [`map-proxy-migration.md`](../../map-proxy-migration.md). This document still describes the
+> service-account hop, which every other upstream read continues to use.
 
 ---
 
@@ -137,13 +144,14 @@ for the minimum and adds for the maximum.
 
 Worth recording because of how long it hid. This class mirrors TransitInfoAPI's `Paginated<T>`, whose
 list property is `data`. It originally declared `Items`, which matches nothing upstream sends — so it
-deserialised to an empty list **every time**, and `MapManager`'s typed endpoints
+deserialised to an empty list **every time**, and the typed map endpoints that once sat on top of it
 (`/api/map/stations`, `/routes`, `/mobility/stations`) silently returned `[]` for their entire
 existence.
 
-Nothing noticed because the map page was still calling TransitInfoAPI directly at the time. The lesson
-is that these hand-maintained mirror DTOs have no compile-time link to the upstream contract — the two
-projects share no assembly — so a rename upstream fails silently here. That is the price of the
+Nothing noticed because the map page was calling TransitInfoAPI directly at the time — as, by a route
+nobody planned, it does again. The lesson still stands for every other read this client makes: these
+hand-maintained mirror DTOs have no compile-time link to the upstream contract — the two projects
+share no assembly — so a rename upstream fails silently here. That is the price of the
 deliberate independence, and it is why `JsonSerializerOptions.PropertyNameCaseInsensitive = true` is
 set but nothing stronger can be.
 
@@ -151,7 +159,14 @@ set but nothing stronger can be.
 
 ## `MapManager` — caching and the allowlist
 
-### Two cache tiers, for a reason
+### Two cache tiers, for a reason (removed with the proxy)
+
+> **Gone.** These tiers lived in `MapManager` and served the map proxy; the map reads TransitInfoAPI
+> directly now, so there is nothing here to cache and `MapManager` no longer takes an `IMemoryCache`
+> at all. Recorded because the pressure it answered did not go away — it moved upstream, where a
+> panning client now reaches TransitInfoAPI's database on every viewport change. If that shows up as
+> load, response caching on `/stations` and `/routes` in TransitInfoAPI is the equivalent fix, and
+> the reasoning below is the shape of it.
 
 Panning a map re-requests the same tiles constantly, and every one of those was previously a fresh
 round trip upstream. But not all map data ages the same way:
@@ -174,14 +189,19 @@ limit exists because viewport-keyed entries are unbounded in principle; see
 Note that `/departures`, `/operators/station/{id}` and `/transport-types` go through `GetRawAsync`
 **uncached** — departures are time-sensitive enough that caching them would be wrong.
 
-### The upstream allowlist
+### The upstream allowlist (removed — kept for the reasoning)
 
-`/api/map/upstream/{**path}` forwards a request to TransitInfoAPI verbatim. That is dangerous by
+> **This passthrough no longer exists.** It was deleted with the rest of the map proxy once the map
+> page moved to TransitInfoAPI, because there is no longer a page here that needs upstream shapes.
+> The reasoning below is retained deliberately: it is the argument any future passthrough has to
+> answer, and the allowlist is the pattern to copy if one is ever added back.
+
+`/api/map/upstream/{**path}` forwarded a request to TransitInfoAPI verbatim. That is dangerous by
 default: without a guard it is an open gateway to TransitInfoAPI **carrying the service account's
 credentials**, letting any user holding `map.view` — which is every user — reach feed imports, station
 merges, and reconciliation upstream.
 
-The guard is an **allowlist of anchored regexes**, not a blocklist:
+The guard was an **allowlist of anchored regexes**, not a blocklist:
 
 ```
 ^stations$
@@ -207,14 +227,16 @@ reads and validate their own parameters.
 **Adding an entry to this list is a security decision**, not a routine change. The path becomes
 reachable by every authenticated user.
 
-### Why a passthrough exists at all
+### Why a passthrough existed at all
 
-The typed endpoints re-map upstream shapes into `GetThereShared` contracts. The map page also consumes
-upstream shapes **directly** — GeoJSON feature collections in particular — and re-modelling a GeoJSON
-feature collection into a C# type only to serialise it back to identical JSON adds drift with no
-benefit.
+The typed endpoints re-mapped upstream shapes into `GetThereShared` contracts. The map page consumed
+upstream shapes **directly** — GeoJSON feature collections in particular — and re-modelling one into
+a C# type only to serialise it back to identical JSON adds drift with no benefit.
 
-The passthrough is what lets the client honour the one-way rule while still rendering those shapes.
+So the passthrough was what let the client honour the one-way rule while still rendering those
+shapes. That framing is worth keeping, because it is also the argument that ended it: once the page
+is served by the service that owns the GeoJSON, there is no origin to bridge and nothing to re-ship.
+The whole apparatus was a consequence of *where the page was hosted*, not of what it needed.
 
 ---
 

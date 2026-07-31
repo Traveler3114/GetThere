@@ -18,8 +18,9 @@ happens here.
 | Crash reporting | `Sentry.Maui` |
 | XAML | `XamlCompilation(Compile)` — compiled, not runtime-inflated |
 
-It talks to **GetThereAPI only**. It has no knowledge of TransitInfoAPI, by design — see
-[../getthere-api/transit-integration.md](../getthere-api/transit-integration.md#the-one-way-rule).
+It talks to **GetThereAPI** for everything a user's data touches, and reads **TransitInfoAPI**
+directly for one thing only: the map page, which it loads in a WebView. See
+[../overview.md](../overview.md#the-one-way-rule).
 
 ---
 
@@ -28,7 +29,7 @@ It talks to **GetThereAPI only**. It has no knowledge of TransitInfoAPI, by desi
 ```
 Pages/          ContentPages — XAML plus thin code-behind
 ViewModels/     All presentation logic; derive from BaseViewModel
-Services/       HTTP clients and device integration
+Services/       HTTP clients, device integration, and the on-device ticket store
 State/          Cross-session preferences
 Helpers/        ApiEndpoints, AuthenticatedHttpHandler, PageUtility + value converters
 Localization/   LocalizationService, TranslateExtension, ApiMessageMapper
@@ -58,6 +59,8 @@ navigation time rather than at startup.
 |---|---|---|
 | **Singleton** | `AuthService` | Holds the token cache and the refresh lock — see below |
 | **Singleton** | `TicketCaptureService` | Stateless; wraps platform pickers and a Skia re-encode |
+| **Singleton** | `BarcodeRenderService`, `LocalExtractionService` | Stateless; payload in, image or draft out |
+| **Singleton** | `TicketStore`, `PendingImportQueue` | Each owns a file and a write lock — two screens finishing a load at once must not interleave into a half-written file |
 | **Singleton** | `CountryPreferenceService`, `IAnalyticsService` | Stateless preference access |
 | **Singleton** | `AppShell`, `LoginShell` | Navigation roots |
 | **Transient** | Pages, view models, API services | Fresh state per navigation |
@@ -135,7 +138,7 @@ refresh with a now-revoked token and trigger exactly the reuse detection the loc
 |---|---|---|
 | Signed in, remember me | `remember_me` preference + SecureStorage | Straight into `AppShell` on launch |
 | Signed in, no remember me | SecureStorage only | Tokens exist but `App` starts at `LoginShell` |
-| Guest | `is_guest` preference | `AppShell` with no token; authenticated calls fail |
+| Guest | `is_guest` preference | `AppShell` with no token; authenticated calls fail, but the map and ticket import both work |
 
 `App.InitializeWindowAsync` picks the root shell from this. It catches broadly and falls back to
 `LoginShell` — with the comment noting `LoginShell` has no DI dependencies, so it cannot itself fail
@@ -145,8 +148,16 @@ throw.
 Shell switching is `App.GoToApp()` / `App.GoToLogin()`, both marshalled onto the main thread since
 `AuthenticatedHttpHandler` can call them from a background continuation.
 
-**Guest mode has no server-side concept.** It is purely a client preference that lets someone browse
-the map without an account; every authenticated call simply fails. There is no anonymous token.
+**Guest mode still has no server-side concept** — no anonymous token, and every authenticated call
+fails. What changed is that a guest is no longer limited to browsing. **Importing a ticket works
+without an account**: extraction runs on the device via `GetThereExtraction`, the ticket is written to
+`PendingImportQueue`, and the wallet lists it as device-only rather than showing the "account
+required" scrim. `ImportSyncService` pushes the queue when the user signs in, which is the
+guest-to-account upgrade — nothing did that before, so a guest who imported and then registered would
+have found an empty wallet.
+
+A pending ticket cannot be *opened*, because it has no server id and both detail screens fetch by
+one. The list says so on tap rather than navigating to a screen that would fail to load.
 
 ---
 
@@ -275,41 +286,68 @@ on any failure so a missing or malformed file disables crash reporting rather th
 
 ---
 
-## The map: a WebView, and how the token reaches it
+## The wallet offline
 
-`MapPage` hosts a `WebView` pointed at `{GetThereApiBase}map/public.html` — a page served by
-GetThereAPI that calls GetThereAPI's own map proxy on the same origin.
+The client used to persist nothing at all: no SQLite, `AppDataDirectory` never touched, every screen
+a live HTTP read on appear. Offline meant an empty list and an error label — backwards for a travel
+wallet, where a ticket is most needed at a barrier and a barrier is where signal is worst.
 
-The interesting problem is authentication. **A WebView navigation cannot carry an `Authorization`
-header.** The options were to put the token in the URL or to inject it after load; the code chooses
-injection:
+Three pieces, and the boundaries between them are the design:
 
-```csharp
-await MapWebView.EvaluateJavaScriptAsync($"window.setAuthToken && window.setAuthToken('{escaped}')");
-```
+| Piece | Owns |
+|---|---|
+| `TicketStore` | Tickets already accepted by the server. A **cache** |
+| `PendingImportQueue` | Tickets created here that the server has not seen. **Not** a cache — the only copy |
+| `ImportSyncService` | Draining the second into the first, on sign-in and on every wallet load |
 
-> Pushing the token in afterwards keeps it out of the URL, where it would otherwise end up in server
-> request logs and WebView history.
+**Network-first, cache-on-failure.** The store is written as a by-product of a read that already
+succeeded, and read *only* from a failure path, so a bug in it cannot serve a stale ticket to someone
+who is online. Everything is keyed by owner — the `sub` claim, or a generated guest id — because a
+device is not a person, and two accounts on one phone must never see each other's tickets. The owner
+key is read from the token **without checking its expiry**: it identifies whose data this is and
+grants nothing, so it has to keep answering while offline with a lapsed token, which is the whole
+point.
 
-The page holds its requests until `setAuthToken` is called. Two details:
+Files are AES-GCM encrypted under a key in `SecureStorage`, and the tickets directory is excluded
+from Android's Auto Backup *and* device transfer. A barcode payload is a bearer credential for
+travel — whoever renders it rides — so it belongs at the same protection level as the tokens.
 
-- The token is **escaped** before interpolation. It is base64url and carries no quotes, but the code
-  escapes defensively rather than relying on that.
-- The mode filter is passed through `JsonSerializer.Serialize` rather than string-concatenated —
-  "the keys are ours today, but a hand-built array literal is the kind of thing that quietly becomes
-  an injection point later."
+**Status needs care, and gets a rule of its own.** The server owns status; `TicketExpiryWorker` sweeps
+hourly. A cached ticket can therefore claim `Active` long after its window shut, which at a barrier is
+the one failure that matters. `TicketValidity.IsPastValidity` downgrades the *display* — never the
+stored value, never anything sent to the server — and it can only ever downgrade. `Used` and
+`Cancelled` come from an explicit action, possibly on another device, so recomputing them would
+resurrect a cancelled ticket to active.
 
-Native chips are drawn *over* the WebView, so `MapViewModel` raises a `ModeFilterChanged` event and
-the page pushes it in. The view model holds **no WebView reference** — it reports, the page calls.
-That is what keeps it testable. The filter is replayed once after navigation completes, because the
-page starts out showing everything.
+---
 
-`MapModeChip.Key` must stay in step with `MODE_ROUTE_TYPES` in `public.html` — a **cross-language
-coupling with no compile-time check**, and the one thing most likely to break silently when transport
-modes change.
+## The map: a WebView, and nothing else
 
-Turning the last chip off restores "everything" rather than showing nothing: *an empty map is never a
-useful state to be stuck in.*
+`MapPage` hosts a `WebView` pointed at `{TransitInfoApiBase}map/public.html?lang=…`. That is the
+whole class — a constructor and an `OnAppearing`.
+
+It used to be considerably more. The page was served by GetThereAPI and proxied upstream, and the
+search field, transport-mode chips and map controls were drawn *natively over* the WebView, driven
+through four `EvaluateJavaScriptAsync` bridges. Two things fell out of moving the page to
+TransitInfoAPI and the chrome into the page:
+
+- **No token to inject.** A WebView navigation cannot carry an `Authorization` header, so the page
+  used to start unauthenticated, queue its requests, and wait for `window.setAuthToken(…)` pushed in
+  after navigation — deliberately not via the URL, which would have put a bearer credential in
+  server logs and WebView history. The page is now same-origin with its data and reads endpoints
+  that are `[AllowAnonymous]`, so there is no credential in play at all.
+- **No cross-language coupling.** `MapModeChip.Key` had to stay in step with `MODE_ROUTE_TYPES` in
+  the page, with no compile-time check — the one thing most likely to break silently when transport
+  modes change. Its doc comment even named the wrong file. Both halves are now the page's.
+
+What survived the move, in the page rather than in C#: chips open on Tram, and turning the last one
+off restores "everything" rather than showing nothing — *an empty map is never a useful state to be
+stuck in.*
+
+The one thing the client still supplies is language. The chrome was localised from `AppResources`;
+the page carries its own en/hr table and `MapViewModel` passes the current culture as `?lang=`.
+`LoadMap` runs from `OnAppearing` rather than the constructor so that returning to the tab after a
+language change reloads the page in it.
 
 ---
 

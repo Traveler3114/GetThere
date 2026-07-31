@@ -19,6 +19,8 @@ namespace GetThere.ViewModels;
 public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
 {
     private readonly ImportedTicketService _importedService;
+    private readonly PendingImportQueue _queue;
+    private readonly AuthService _authService;
     private readonly IAnalyticsService _analytics;
 
     [ObservableProperty]
@@ -65,9 +67,15 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
 
     public string[] Currencies => SupportedCurrencies.Selectable;
 
-    public ImportTicketViewModel(ImportedTicketService importedService, IAnalyticsService analytics)
+    public ImportTicketViewModel(
+        ImportedTicketService importedService,
+        PendingImportQueue queue,
+        AuthService authService,
+        IAnalyticsService analytics)
     {
         _importedService = importedService;
+        _queue = queue;
+        _authService = authService;
         _analytics = analytics;
     }
 
@@ -180,8 +188,24 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
                 ValidTo = validTo,
                 OperatorNameSnapshot = string.IsNullOrWhiteSpace(OperatorName) ? null : OperatorName.Trim(),
                 RawPayload = _rawPayload,
-                PayloadFormat = _payloadFormat
+                PayloadFormat = _payloadFormat,
+
+                // Minted here, at creation, not at push time. That is what makes a retry safe: the
+                // id survives the app being killed mid-push, so the server recognises the second
+                // attempt as the same ticket rather than a new one.
+                ClientId = Guid.NewGuid()
             };
+
+            // Signed out, or with no way to reach the server, the ticket is kept on the device and
+            // pushed later. Importing used to require both an account and a connection, which for a
+            // wallet whose premise is holding tickets the user already has was the wrong way round.
+            if (!await _authService.IsLoggedInAsync() || IsOfflineNow)
+            {
+                await _queue.EnqueueAsync(request);
+                _analytics.TrackEvent("ticket_imported_offline", new() { ["source"] = _source.ToString() });
+                await Shell.Current.GoToAsync("..");
+                return;
+            }
 
             var result = await _importedService.CreateAsync(request);
 
@@ -208,8 +232,12 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
             }
             else
             {
-                ErrorText = result.Message ?? "Could not save ticket.";
-                HasError = true;
+                // The server was reachable a moment ago and is not now, or refused for a reason that
+                // is not the user's fault. Queue rather than lose what they just typed — the same
+                // ClientId means the eventual push cannot double it.
+                await _queue.EnqueueAsync(request);
+                _analytics.TrackEvent("ticket_imported_offline", new() { ["source"] = _source.ToString() });
+                await Shell.Current.GoToAsync("..");
             }
         }
         catch (Exception ex)

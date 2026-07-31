@@ -2,14 +2,14 @@
 
 ## Start here
 
-**[reference/overview.md](reference/overview.md)** — what the system does, why it is four projects,
+**[reference/overview.md](reference/overview.md)** — what the system does, why it is five projects,
 how they connect, and where the genuinely hard problems are.
 
 ---
 
 ## Reference documentation
 
-Full technical reference for all four projects. Written to explain *why* things are built the way
+Full technical reference for all five projects. Written to explain *why* things are built the way
 they are, not just what each type does.
 
 ### Shared contracts
@@ -26,8 +26,9 @@ they are, not just what each type does.
   journeys, the background worker, the ticketing SDK
 - **[ticket-import.md](reference/getthere-api/ticket-import.md)** — upload, byte sniffing, the four
   extractors, storage and path containment
-- **[transit-integration.md](reference/getthere-api/transit-integration.md)** — the upstream client,
-  caching, the map proxy allowlist
+- **[transit-integration.md](reference/getthere-api/transit-integration.md)** — the upstream client
+  and the service-account hop (the map proxy it also described is gone; see
+  [map-proxy-migration.md](map-proxy-migration.md))
 
 ### TransitInfoAPI
 
@@ -74,5 +75,6 @@ they are, not just what each type does.
 - [../PROJECT.md](../PROJECT.md) — product intent and scope
 - [../ROADMAP.md](../ROADMAP.md) — what is planned
 - [../AGENTS.md](../AGENTS.md) — conventions and rules for working in this repo
-- [../audit.md](../audit.md) — **superseded** 2026-07-13 audit; most open items are since fixed. Kept for provenance only
+- [../VERIFY.md](../VERIFY.md) — **temporary.** What to check on the current feature branch, none of which
+  has been compiled. Delete it once that branch is merged
 - [changelog.md](changelog.md) — per-session implementation detail

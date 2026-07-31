@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    API 31+ replacement for backup_rules.xml, which still applies on 23-30. Keep the two in step:
+    Android picks whichever matches the device, so an exclusion added to only one silently stops
+    applying on half the fleet.
+
+    Two separate transports, and both matter:
+
+    - cloud-backup is Auto Backup to Google Drive.
+    - device-transfer is a direct phone-to-phone migration, which people do when replacing a handset
+      and which is the likelier route for a wallet to leave a device someone still owns.
+
+    Cached tickets hold barcode payloads — bearer credentials for travel — so they are excluded from
+    both. They are encrypted with a key in SecureStorage, which Android does not back up, so a copied
+    file would be undecryptable regardless; excluding it keeps the credential off the wire rather
+    than depending on that.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="tickets" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="tickets" />
+    </device-transfer>
+</data-extraction-rules>

@@ -42,7 +42,16 @@ public class StationsController : ControllerBase
         return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
-    [Authorize(Policy = PermissionKeys.StationsView)]
+    /// <summary>
+    /// Station name search, read anonymously by the public map page's search box.
+    /// <para>
+    /// This required <c>stations.view</c> while the map was served by GetThereAPI and proxied here
+    /// under the service account. The map now loads from this service and calls it same-origin as an
+    /// ordinary browser, so it holds no credential. It returns nothing <see cref="GetAll"/> does not
+    /// already serve anonymously — the same station rows, selected by name rather than by radius.
+    /// </para>
+    /// </summary>
+    [AllowAnonymous]
     [HttpGet("search")]
     public async Task<ActionResult<Paginated<StationResponse>>> Search(
         [FromQuery] string? q,

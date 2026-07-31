@@ -194,6 +194,10 @@
   <data name="Tickets_Active" xml:space="preserve"><value>Aktivne</value></data>
   <data name="Tickets_Expired" xml:space="preserve"><value>Istekle</value></data>
   <data name="Tickets_Used" xml:space="preserve"><value>Iskorištene</value></data>
+  <data name="Tickets_SavedAgo" xml:space="preserve"><value>Spremljeno prije {0} · prikazuje se zadnje ažuriranje</value></data>
+  <data name="Tickets_OnThisDeviceOnly" xml:space="preserve"><value>Samo na ovom uređaju · prijavite se da ih spremite na račun</value></data>
+  <data name="Tickets_PendingNotOpenable" xml:space="preserve"><value>Ova karta još nije spremljena na vaš račun. Prijavite se i ponovno otvorite novčanik.</value></data>
+  <data name="Tickets_JustNow" xml:space="preserve"><value>trenutak</value></data>
   <data name="Tickets_NoItems" xml:space="preserve"><value>Nema pronađenih stavki</value></data>
   <data name="Tickets_MockLabel" xml:space="preserve"><value>Karte sesije (Testne)</value></data>
   <data name="Tickets_MockDisclaimer" xml:space="preserve"><value>⚠️ TESTNE KARTE — NISU VALJANE ZA PUTOVANJE</value></data>
@@ -316,24 +320,16 @@
   <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} novčanik</value></data>
   <data name="Ticket_ShowJourney" xml:space="preserve"><value>Prikaži putovanje</value></data>
   <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
+  <data name="Ticket_NoScannableCode" xml:space="preserve"><value>Ova karta nema kod za skeniranje</value></data>
   <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Nije moguće učitati ovu kartu.</value></data>
   <data name="Tickets_Subtitle" xml:space="preserve"><value>Kupljene i uvezene karte</value></data>
   <data name="Tickets_All" xml:space="preserve"><value>Sve</value></data>
   <data name="Tickets_ImportButton" xml:space="preserve"><value>Uvezi kartu</value></data>
   <data name="Tickets_CountSummary" xml:space="preserve"><value>{0} karata · {1} aktivnih</value></data>
-  <data name="Map_SearchPlaceholder" xml:space="preserve"><value>Kamo putujete?</value></data>
-  <data name="Map_ModeTram" xml:space="preserve"><value>Tramvaj</value></data>
-  <data name="Map_ModeBus" xml:space="preserve"><value>Autobus</value></data>
-  <data name="Map_ModeTrain" xml:space="preserve"><value>Vlak</value></data>
-  <data name="Map_ModeBikes" xml:space="preserve"><value>Bicikli</value></data>
-  <data name="Map_Locate" xml:space="preserve"><value>Centriraj</value></data>
-  <data name="Map_Layers" xml:space="preserve"><value>Slojevi</value></data>
-  <data name="Map_BuyTicket" xml:space="preserve"><value>Kupi kartu</value></data>
-  <data name="Map_Departures" xml:space="preserve"><value>Polasci</value></data>
-  <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vozila uživo</value></data>
   <data name="Login_Tagline" xml:space="preserve"><value>Jedan račun za karte, novčanik i putovanja svih operatera</value></data>
   <data name="Common_Create" xml:space="preserve"><value>Stvori</value></data>
   <data name="Common_Dismiss" xml:space="preserve"><value>Odbaci</value></data>
+  <data name="Common_Offline" xml:space="preserve"><value>Niste povezani. Povežite se za najnovije podatke.</value></data>
   <data name="Journeys_Title" xml:space="preserve"><value>Putovanja</value></data>
   <data name="Journeys_Suggested" xml:space="preserve"><value>PREDLOŽENA PUTOVANJA</value></data>
   <data name="Journeys_AcceptSuggestion" xml:space="preserve"><value>Stvori putovanje</value></data>

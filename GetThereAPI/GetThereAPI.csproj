@@ -36,16 +36,11 @@
   <ItemGroup>
     <ProjectReference Include="..\SharedAuth\SharedAuth.csproj" />
     <ProjectReference Include="..\GetThereShared\GetThereShared.csproj" />
+    <ProjectReference Include="..\GetThereExtraction\GetThereExtraction.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Migrations\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="wwwroot\images\bus.png" />
-    <None Include="wwwroot\images\train.png" />
-    <None Include="wwwroot\images\tram.png" />
   </ItemGroup>
 
 </Project>

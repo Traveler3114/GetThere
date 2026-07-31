@@ -312,11 +312,10 @@ the abstraction exists so wiring a real provider is one registration change. `Ap
 
 | Gap | Impact |
 |---|---|
-| API base URL is compile-time | A released build cannot be repointed |
+| Basemap tiles come from `tiles.openfreemap.org` | MapLibre itself is vendored, so the page and its chrome load without network — but with the tile host unreachable the map renders empty. Real offline use needs self-hosted or packaged tiles |
 | `ApiMessageMapper` covers auth codes only | Money-path errors show in English |
 | `AnalyticsService` is a stub | Events go nowhere |
 | `SourceFor` duplicates server logic | Can drift; fix is to add `Source` to `TicketUploadResponse` |
-| `MapModeChip.Key` ↔ `MODE_ROUTE_TYPES` | Cross-language coupling with no compile-time check |
 | Suggestion dismissal is not persisted | A dismissed proposal returns on the next load |
 | No "add existing ticket to a journey" flow | Tickets join a journey via a suggestion or at creation; there is no picker on an existing journey |
 

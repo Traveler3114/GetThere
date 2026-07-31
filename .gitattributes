@@ -18,6 +18,16 @@
 *.cs text eol=crlf
 
 ###############################################################################
+# Vendored third-party assets are stored byte-for-byte.
+#
+# `text=auto` above would normalise their line endings, so a checked-out file
+# would no longer match the artifact it was copied from and could not be
+# verified against the published one by hash. Nobody edits these by hand; they
+# are replaced wholesale by the command in the directory's README.
+###############################################################################
+wwwroot/vendor/** -text
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

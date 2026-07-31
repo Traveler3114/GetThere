@@ -238,8 +238,9 @@ vehicles 200 (114 KB), mobility 200 (23 KB); `operators`, `feeds`, `users`,
 
 ### Audit pass — GetThereAPI, MAUI client, SharedAuth, both `wwwroot` front-ends
 
-Report: [`audit-2026-07-30.md`](../audit-2026-07-30.md). **No code changed** — report-only by
-decision, because nothing in this container can be compiled or run.
+Report-only pass; **no code changed**, because nothing in that container could be compiled or run.
+The report itself (`audit-2026-07-30.md`) has since been deleted along with the other audit files —
+what it found that still matters is either fixed below or recorded in `docs/money-path-defects.md`.
 
 | Area | What |
 |------|------|
@@ -249,3 +250,270 @@ decision, because nothing in this container can be compiled or run.
 | **Carried-forward** | Every `H*`/`M*`/`L*` from `audit-2026-07-28.md` re-derived: 11 fixed, 3 half-fixed, 4 still open. Its "Still open" section was stale in the direction that causes rework, so both older audits now carry status banners |
 | **No regression** | The 28 findings in `audit-transitinfo-2026-07-29.md` were checked against the current tree; none has regressed on the surfaces this pass read |
 | **Still never audited** | `tests/GetThere.Tests` — excluded on 07-28 and again here. 3 748 lines and CI's only correctness gate |
+
+---
+
+## Session — July 31, 2026
+
+### Map UI moved into the page; client reads TransitInfoAPI directly
+
+The map screen was a MapLibre page in a WebView with its chrome drawn natively over it. Every
+control existed twice — once in XAML, once in JavaScript — and `MapPage` drove the page through
+four `EvaluateJavaScriptAsync` bridges. Moving the chrome into the page removed that duplication;
+moving the page to TransitInfoAPI removed the machinery around it, because the page is then
+same-origin with the data it reads.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Chrome into the page** | `TransitInfoAPI/wwwroot/map/public.{html,js}` | Search field, transport-mode chips, recentre and layers, wired with `addEventListener` (the page's CSP has no `'unsafe-inline'` in `script-src`). Chips open on Tram and turning the last one off restores everything, as the view model did. Safe-area insets and `viewport-fit=cover`, which MAUI used to handle |
+| **Search made real** | same | The field had been bound to `MapViewModel.SearchText` and read by nothing since it was added. Debounced, floored at two characters, `AbortController` on the in-flight request; picking a result flies the map in and reuses the page's existing `showStationDetails` — a `StationResponse` already carries the properties it expects |
+| **Localisation** | same, `MapViewModel.cs`, `ApiEndpoints.cs` | The page carries an en/hr table keyed off `?lang=`; the client passes its current culture. `LoadMap` runs from `OnAppearing`, so returning to the tab after a language change reloads the page in it |
+| **Client points at TransitInfoAPI** | `ApiEndpoints.cs`, `Resources/Raw/appsettings.json` | Second configured address, `Map:BaseUrl`, defaulting to the **https** profile (5001) — the Android manifest sets `usesCleartextTraffic="false"`, so the http profile fails silently on device |
+| **`MapPage` reduced to a WebView** | `MapPage.xaml(.cs)`, `MapViewModel.cs` | Four JS bridges, the token handshake, `MapModeChip`, `ToggleModeCommand`, `ModeFilterChanged` and `SearchText` all deleted. `DsMapControl` and ten `Map_*` resx keys went with them |
+| **Two endpoints opened** | `RealtimeController.cs`, `StationsController.cs` | `realtime/vehicles` and `stations/search` were gated behind permissions the service account held on the page's behalf. With no proxy there is no service account, so both are `[AllowAnonymous]` like the four map endpoints beside them. Public transit facts; the rate limiter already partitions anonymous callers by address |
+| **GetThereAPI's map path retired** | `MapProxyController.cs`, `MapManager.cs`, `Program.cs`, `wwwroot/map/`, `route-colors.js`, `MapContract.cs`, `MapProxyAllowlistTests.cs` | Separate commit. Verified nothing loaded it first. The allow-list existed to stop the proxy becoming an open gateway under the service account's credentials — with no proxy there is no gateway. One endpoint kept, `/api/map/transport-types`, which the admin console uses as a reachability probe. The `MapAssets` allow-any-origin CORS policy and the `/map` CSP branch went too |
+| **One-way rule amended** | `AGENTS.md`, `docs/map-proxy-migration.md`, `docs/reference/*` | The client uses GetThereAPI for all business data and reads TransitInfoAPI for the map alone. The H5 migration doc is marked superseded rather than deleted — it explains why the proxy was built, which is what makes removing it legible |
+
+**Verification.** The page's chrome was exercised in a headless browser against stubbed endpoints:
+chips render and toggle in both languages, the all-off case restores everything, the mode filter
+reaches the map layers in all four states, the layers button toggles route lines, and search renders
+results, flies to a pick and opens the sidebar. **The C# was not compiled** — this container has no
+.NET SDK and the installer is blocked by egress policy, same as the 07-30 audit. Everything under
+*Verification* in the plan that needs a running API, a device or an emulator is still outstanding;
+the Android https/dev-cert path is the most likely thing to bite and cannot reproduce on Windows.
+
+### MapLibre vendored into `wwwroot`
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Library vendored** | `TransitInfoAPI/wwwroot/vendor/maplibre-gl/` | MapLibre GL JS 4.7.1 (`maplibre-gl.js`, `maplibre-gl.css`) from the npm tarball, with `LICENSE.txt` beside it because the BSD notice has to travel with the code, and a README giving the update command and the version to bump |
+| **Four pages repointed** | `map/public.html`, `map/index.html`, `admin/reconciliation-map.html`, `admin/shape-editor.html` | All were loading it from `unpkg.com`. That made a public CDN a hard runtime dependency, and it had grown teeth: the map's chrome now lives in `map/public.js`, a script that never runs if `maplibregl` is undefined, so a CDN failure took the search box and mode chips down with the basemap |
+| **CSP tightened** | `TransitInfoAPI/Program.cs` | The map policy drops `unpkg.com` from `script-src` and `style-src` — **no external origin may execute script on that page at all** now. The admin policy drops it too; `cdn.jsdelivr.net` stays for Bootstrap |
+
+**Verified** in a headless browser against the tightened policy, served with the same CSP
+`Program.cs` sends: `maplibregl.getVersion()` returns `4.7.1`, the map canvas constructs, the chrome
+renders, and there are **zero CSP violations**. The only off-origin request the page makes is to
+`tiles.openfreemap.org`.
+
+**This does not make the map work offline**, and the run above happens to prove it: that host is
+blocked in the build sandbox, so the map rendered with controls, scale bar and attribution but an
+empty basemap. Vendoring removes the CDN serving the *code*; tiles, glyphs and sprites are still
+fetched at runtime. Offline means self-hosting or packaging tiles — a much larger piece of work, and
+`docs/architecture/map-features.md` already lists "offline map & routing" as a feature in its own
+right.
+
+**Noticed while here, not fixed:** `admin/shape-editor.html` loads `mapbox-gl-draw` from
+`https://api.mapbox.com`, an origin the admin CSP has never allowed. That plugin is therefore already
+blocked and its drawing toolbar cannot be working. Vendoring it or allowing the origin is a separate
+decision; a comment in `Program.cs` records it next to the policy.
+
+### Refresh tokens are no longer pinned to an IP address
+
+Authorised departure from the `AGENTS.md` off-limits list, made deliberately rather than as a side
+effect of the offline work it was blocking.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Address no longer decides the verdict** | `SharedAuth/RefreshTokenEvaluator.cs` | `Evaluate` drops its two address parameters. An `Invalid` verdict is a 401, and the MAUI client answers a failed refresh by clearing its credentials — so the check fired on every wifi-to-cellular handover, cell handover, CGNAT rebinding and IPv6 privacy-extension rotation. For a travel app whose users are by definition moving, that is repeated sign-outs, and it would have taken every offline-cached ticket with it |
+| **Signal kept** | same, plus both `AuthManager.RefreshAsync` | New pure `IsAddressChange`, used only to write a `RefreshAddressChanged` audit row. Verdict logic and forensics are separate functions so the distinction is visible in the type. `RefreshToken.IpAddress` is still stored |
+| **Tests** | `tests/GetThere.Tests/Auth/RefreshTokenEvaluatorTests.cs` | The two tests that encoded the old behaviour were rewritten to assert the new behaviour rather than deleted — a silently removed test is how a control comes back by accident. `Theft_detection_is_unaffected_by_the_address` is the regression guard; `IsAddressChange` gains its own coverage including both-null |
+| **Docs** | `AGENTS.md`, `getthere-api/architecture.md`, `getthere-api/endpoints.md`, `transitinfo-api/endpoints.md`, `db/getthere-schema.md`, `overview.md` | The "IP binding, with a deliberate hole" section is replaced by "The address is recorded, not enforced", carrying the reasoning below |
+
+**Why removing it does not weaken the system.** Rotation plus reuse detection is the actual theft
+response and is untouched: a stolen token replayed after the legitimate client refreshes hits
+`hasReplacement`, and the user's whole token family is revoked and audited. That holds regardless of
+address. The address check only added value in the window before the next legitimate refresh, and
+only against an attacker on a different address — while both APIs call `UseForwardedHeaders()` with
+`KnownIPNetworks` and `KnownProxies` cleared, so `X-Forwarded-For` is honoured from any immediate
+peer and an attacker holding a stolen token could simply assert the address the check wanted. It
+punished honest mobile users reliably and a capable attacker not at all, and it could not distinguish
+"user moved" from "thief", so no stricter or looser version would have been better.
+
+**What would earn its place instead:** a binding to the *device* — a client-generated identifier that
+survives a change of network but not a change of hardware. `RefreshToken.DeviceInfo` is not that; it
+is the raw `User-Agent`, caller-supplied and not unique. Recorded as a follow-up, not built here.
+
+**Not compiled.** No .NET SDK in this container; CI's `build-check.yml` is the gate.
+
+### Ticket payloads are drawn as scannable codes
+
+The wallet had never rendered one. `TicketDetailPage` showed the payload as monospace text inside a
+dashed square standing in for a QR, and its own header comment said why: *"Turning the payload into a
+true QR bitmap needs a QR encoder package, which the solution does not currently reference."* Nothing
+server-side generated an image either — `ZXing.Net` was there only to *decode* uploads. A wallet whose
+ticket cannot be scanned at a barrier is not a wallet.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **The decision** | `GetThereShared/Common/TicketBarcode.cs`, `Enums/BarcodeSymbology.cs` | Which symbology a payload may be drawn as, or none. Put in GetThereShared, away from any encoder, because the test project cannot reference the MAUI project and this is the part worth covering |
+| **The rendering** | `GetThere/Services/BarcodeRenderService.cs`, `GetThere.csproj`, `MauiProgram.cs` | ZXing encodes, SkiaSharp rasterises to PNG. `ZXing.Net` was already in `Directory.Packages.props` for the API's decoder, so the client reference pins nothing new |
+| **The screen** | `GetThere/Pages/TicketDetailPage.xaml`, `ViewModels/TicketDetailViewModel.cs` | The code where the placeholder was, with the payload text retained as the fallback branch. `TicketResponse.Format` is read for the first time — it had never been consumed by the client |
+| **Tests** | `tests/GetThere.Tests/Tickets/TicketBarcodeTests.cs` | Nine cases over the choice, including the lossy-format trap below |
+
+**The format discriminator is lossy, and refusing to guess is the design.** `TicketFormat` has five
+values, but `BarcodeDecoder.ToTicketFormat` collapses everything that is not QR or DataMatrix into
+`Barcode` — including Aztec and PDF417, which is exactly what UIC 918-3 rail tickets use and which
+that decoder explicitly reads. So `Barcode` may mean a short linear code or a compressed binary rail
+payload, and re-encoding the latter as Code 128 would produce a symbol that scans to the wrong bytes.
+`ChooseSymbology` returns null whenever the payload will not round-trip, and the screen falls back to
+text. An honest non-answer beats a confident wrong code at a gate.
+
+The real fix is for the stored format to carry the true symbology rather than a five-value
+approximation; that is a contract and storage change, recorded as a follow-up.
+
+Rendered at 720px and scaled **down** — a scanner reads modules, and upscaling a small bitmap blurs
+their edges until it stops reading. PNG, not JPEG: lossy artefacts land exactly on the module
+boundaries a scanner measures. QR uses error-correction level Q, since this is read off a phone
+screen where glare and fingerprints eat modules.
+
+**Not compiled, and not yet scanned.** No .NET SDK in this container. The unverified risk is precisely
+the one tests cannot cover: a code that renders but does not scan. It must be read by a real scanner,
+per format, before this is trusted.
+
+### Every ticket is reachable from the wallet
+
+The Tickets tab listed **only imported tickets**. `TicketsViewModel` had one collection,
+`ObservableCollection<ImportedTicketResponse>`, and `GET /tickets` was never surfaced as a list — so a
+purchased ticket was visible for the few seconds after buying it, via the direct navigation in
+`TicketPurchaseViewModel`, and then unreachable. That contradicts the product's own premise: *"one app
+that holds **every** ticket a traveller has — the ones it sold them and the ones they already had"*.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **One list, both kinds** | `ViewModels/WalletTicket.cs`, `TicketsViewModel.cs` | A projection of either contract onto what a card shows. The two contracts share no base type and should not — separate tables, lifecycles and status enums — so this is a view concern, not a model one. Property names deliberately match the bindings the template already used, so the card did not have to be rewritten |
+| **Tap opens the ticket** | `Pages/TicketsPage.xaml` | A tap used to raise an action sheet, and before that invoked Cancel outright — the list's primary gesture was destructive and the ticket itself could not be opened. Cancel/mark-used moved to a `⋯` control, shown only where the actions can actually work |
+| **Imported tickets have a detail screen** | `Pages/ImportedTicketDetailPage.xaml(.cs)`, `ViewModels/ImportedTicketDetailViewModel.cs` | They had none at all, so `RawPayload` — decoded on import, and the thing a barrier scans — was written once and never shown. Now it renders through `BarcodeRenderService` |
+
+Three states for the code panel, said differently on purpose: a drawn barcode; "no scannable code on
+this ticket" for one typed by hand or imported from a file with no code in it; and the raw payload as
+text when there is one but the renderer declined to redraw it. Collapsing the last two would tell a
+user their ticket is empty when it is not.
+
+Purchased tickets get no actions menu. Nothing in the API moves a purchased ticket out of `Active` —
+the expiry worker is the only writer — so offering one would be a button that cannot work.
+`GET /tickets` is unpaged, so it is re-read whenever the imported half loads its first page and
+filtered client-side to match the status chips.
+
+**Not compiled.** No .NET SDK in this container; CI is the gate.
+
+### Tickets survive having no signal
+
+The client persisted nothing at all — no SQLite, `AppDataDirectory` never touched, every screen a
+live HTTP read on appear. Offline meant an empty list and an error label, which for a travel wallet
+is backwards: a ticket is most needed at a barrier, which is where signal is worst.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **The store** | `GetThere/Services/TicketStore.cs` | JSON per collection under `FileSystem.AppDataDirectory`, written temp-then-move so a process killed mid-write cannot leave a truncated file. A write lock because two screens can finish loading at once |
+| **Whose data it is** | `Services/AuthService.cs` | `GetOwnerKeyAsync` — the `sub` claim when signed in, read **without checking expiry** because it must answer while offline with a lapsed token; a persisted generated id otherwise. Directories are named by a hash of that key, so a user id never appears in a path |
+| **Read and write rules** | `ViewModels/TicketsViewModel.cs` | Written as a by-product of a successful unfiltered first-page read; read **only** from a failure path, so a bug here cannot serve a stale ticket to someone who is online |
+| **Provenance** | `Pages/TicketsPage.xaml` | "Saved 3 h ago · showing your last update" whenever the list came off the device. Coarse on purpose — that is what a traveller needs to judge the screen, and a precise timestamp would imply a precision the cached *status* does not have |
+
+Keyed by owner because a device is not a person: two accounts, or an account and the guest who used
+the phone before them, must never see each other's tickets. Only the unfiltered page is cached — a
+stored copy of "the Used ones" would be a strange thing to show someone offline.
+
+`Clear` exists for an explicit sign-out and is deliberately **not** called from the 401 path in
+`AuthenticatedHttpHandler`: that fires when a refresh is rejected, which is not always the user's
+decision, and wiping their tickets in response would remove the cache in exactly the situation it
+exists for.
+
+Still to come in this series: cached tickets are written in clear text, and `allowBackup="true"` means
+they would reach cloud backups. Encryption keyed from `SecureStorage` is the next slice.
+
+**Not compiled.** No .NET SDK in this container; CI is the gate.
+
+### Cached tickets no longer claim to be active after their window closes
+
+Necessary companion to the cache above. Status is a stored column the server owns —
+`TicketExpiryWorker` sweeps hourly and nothing else writes it — so a ticket whose window shut ten
+minutes ago still reads `Active`, and one served from the device's cache can be far staler. Showing
+`Active` over a closed window is the one failure that matters at a barrier.
+
+`GetThereShared/Common/TicketValidity.cs` decides it, display-only, and is applied in `WalletTicket`,
+`TicketDetailViewModel` and `ImportedTicketDetailViewModel`. The result is never written into a
+status field, sent to the server, or used to gate an API call — `AGENTS.md` puts ticket status
+transitions off-limits, and this stays firmly on the display side of that line.
+
+Four rules, each with a reason:
+
+- **Downgrade only.** A ticket already `Used`, `Cancelled` or `Expired` is left alone. Those come
+  from an explicit action, possibly on another device, and are unknowable offline — recomputing them
+  would resurrect a cancelled ticket to active, which at a barrier looks like fare evasion.
+- **A null `ValidTo` never expires**, matching the sweep, which requires it to be non-null, and SQL,
+  where a comparison against NULL is never true.
+- **`ValidTo < now`, strictly**, matching the worker. A boundary that disagreed would make the same
+  ticket flip state on reconnect.
+- **UTC always.** A timestamp off the wire can arrive as `DateTimeKind.Unspecified`; comparing that
+  to local time is wrong by the device's offset. That confusion already caused a bug on the write
+  path — see `ImportedTicketManager.ToUtc`.
+
+Seven tests, written around proving the rule cannot upgrade a status rather than that it can
+downgrade one.
+
+### Cached tickets are encrypted and kept out of backups
+
+A barcode payload is a bearer credential for travel: whoever renders it rides. Until now the cache
+above wrote them in clear text into `AppDataDirectory`, which is app-private — enough against another
+app, not against a rooted device or an ADB pull — and `allowBackup="true"` meant they would also
+travel to Google's servers.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **At rest** | `Services/TicketStore.cs` | AES-GCM, key generated on first use and held in `SecureStorage` — the same store already holding the auth tokens, which puts the payloads at parity with the credentials they are equivalent to. Layout is nonce ‖ tag ‖ ciphertext, nonce fresh per write |
+| **Off the wire** | `AndroidManifest.xml`, `Resources/xml/backup_rules.xml`, `Resources/xml/data_extraction_rules.xml` | The tickets directory is excluded from Auto Backup **and** from device-to-device transfer. Two files because Android picks by API level — 23-30 reads `fullBackupContent`, 31+ reads `dataExtractionRules` — and an exclusion added to only one silently stops applying on half the fleet |
+| **On sign-out** | `ViewModels/ProfileViewModel.cs` | The explicit sign-out clears the store, and only it. Order matters: the owner key comes from the access token, so it is resolved *before* `Logout` clears it |
+
+Authenticated encryption rather than plain AES, so a file edited on a rooted device fails its tag
+check instead of deserialising into a ticket whose contents someone else chose. A failed decrypt is
+treated exactly like a missing file — the screen shows its ordinary offline state rather than a
+second, stranger error.
+
+The 401 path in `AuthenticatedHttpHandler` also calls `Logout`, and deliberately does **not** clear:
+that fires when a refresh is rejected, which is not a decision the user made, and deleting their
+offline wallet in response would remove the cache in exactly the situation it exists for.
+
+Backup stays enabled overall — losing a wallet's settings on a handset swap would be a poor trade.
+Only the ticket directory is excluded. Its key lives in `SecureStorage`, which Android does not back
+up, so a restored copy would be undecryptable anyway; the exclusion keeps the credential off the wire
+rather than depending on that.
+
+### Importing a ticket no longer needs an account or a connection
+
+The last of the offline series, and the one that changes what the app is for. Every import path
+called an authorized endpoint before the confirmation form opened, and `Save` unconditionally posted
+to the server — so a signed-out user could not import a ticket, and neither could a signed-in one
+with no signal. For a wallet whose premise is holding tickets the user already has, both were the
+wrong way round.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Extraction became shared** | new `GetThereExtraction/` | `BarcodeDecoder`, `ImageTicketExtractor`, `TicketTextScraper`, `TicketFileSniffer` and `ITicketExtractor` moved out of GetThereAPI. Same code both sides, so a ticket read on a device and one read on the server cannot disagree — which serves the original "behaves identically on every platform" intent better than server-only did |
+| **The device can read a ticket** | `GetThere/Services/LocalExtractionService.cs` | Photo and pasted text, with no network. `CanExtractLocally` is how a caller finds out before promising the user anything |
+| **Local-first saving** | `ViewModels/ImportTicketViewModel.cs`, `Services/PendingImportQueue.cs` | Saved to the device, pushed later. A failed create now queues rather than losing what the user typed |
+| **Idempotency** | `Entities/ImportedTicket.cs`, `ImportedTicketContract.cs`, `AppDbContext.cs`, migration `20260731120000` | `ClientId`, minted at creation, unique per user. `CreateAsync` checks it **first** and returns the original on a replay |
+| **Guest → account** | `Services/ImportSyncService.cs`, `ViewModels/LoginViewModel.cs`, `TicketsViewModel.cs` | The queue drains on sign-in and on every wallet load. Nothing did this before — `ClearGuest` ran on logout and never on login, so a guest who imported and then signed up would have found an empty wallet |
+
+**Why the dedupe hash could not be the idempotency key**, which is the whole reason for a new column:
+it is computed from the request's fields, so a ticket edited between being queued and being pushed
+hashes differently and inserts twice; and its unique index is filtered on `Status = 'Active'`, so one
+marked used before the queue drained inserts again. The new index is filtered on `ClientId IS NOT
+NULL` only — deliberately *not* on status — so a retry finds the original whatever became of it.
+`ImportedTicketClientIdTests` pins both failure modes against the real hash function, so that if
+either ever stops being true someone can see the column is no longer earning its place.
+
+**What stayed server-side:** PDF (PdfPig), calendar invites (Ical.Net) and wallet passes. The first
+two are the heaviest dependencies and the AOT/trimming risk on iOS is real; `PkPassTicketExtractor`
+is otherwise portable but throws GetThereAPI's `AppException`, and untangling that is its own change.
+Those formats still need an account, and the UI says so rather than failing obscurely.
+
+**A guest's wallet now shows their tickets** instead of a full-screen "account required" scrim. They
+are marked as device-only and cannot be opened — they have no server id, and both detail screens
+fetch by one.
+
+> **The migration is hand-written.** `20260731120000_AddImportedTicketClientId` and the matching
+> `AppDbContextModelSnapshot` edit were authored without `dotnet ef`, because the environment had no
+> .NET SDK — a deliberate exception to `AGENTS.md`'s "never manually edit `*ModelSnapshot.cs`",
+> granted for this change. Re-scaffold it against a real toolchain before it reaches a shared
+> database. The DDL is two statements; the snapshot agreeing with the model is the part worth
+> checking.

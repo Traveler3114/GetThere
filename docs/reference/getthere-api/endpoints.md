@@ -30,7 +30,9 @@ credential-guessing endpoints.
 whether an account exists. See [architecture.md](architecture.md#registration-does-not-confirm-whether-an-address-exists).
 
 **`login`** captures `User-Agent` as `DeviceInfo` and `RemoteIpAddress` as `IpAddress` on the refresh
-token row. The IP is later enforced on refresh, so a token stolen and replayed from elsewhere fails.
+token row. Both are **forensics, not controls** — the IP was enforced on refresh until 2026-07-31 and
+now only produces a `RefreshAddressChanged` audit entry; a stolen token is caught by reuse detection
+instead. See [architecture.md](architecture.md#the-address-is-recorded-not-enforced).
 `rememberMe` is a **query parameter, not part of the body** — easy to miss when hand-writing a call.
 
 **`change-password`** revokes every active refresh token for the user afterwards. Changing a password
@@ -43,7 +45,7 @@ There is nothing useful to tell a caller who is trying to end a session that is 
 | Error code | Status | Cause |
 |---|---|---|
 | `INVALID_CREDENTIALS` | 401 | Unknown address or wrong password — deliberately the same code for both |
-| `REFRESH_TOKEN_EXPIRED` | 401 | Expired, revoked, replayed, or IP mismatch — again deliberately indistinguishable |
+| `REFRESH_TOKEN_EXPIRED` | 401 | Expired, revoked, replayed, or belonging to a locked account — deliberately indistinguishable |
 | `USER_NOT_FOUND` | 404 | Change-password against a deleted user |
 
 Failed logins, successful logins, refreshes, reuse detections and password changes all write
@@ -259,22 +261,20 @@ reshuffle someone's wallet. Accepting one is a `POST /journeys` with the returne
 
 ## `/api/map` — MapProxyController
 
-All gated on `map.view`, which every user holds. This is the client's only route to transit data.
-
 | Method | Route | Query | Returns |
 |---|---|---|---|
-| GET | `/api/map/stations` | `lat`, `lon`, `radiusKm` | `List<MapStationResponse>` |
-| GET | `/api/map/routes` | `operatorId`, `routeType` | `List<MapRouteResponse>` |
-| GET | `/api/map/mobility/stations` | `lat`, `lon`, `radiusKm` | `List<MapMobilityStationResponse>` |
-| GET | `/api/map/vehicles` | `feedId`, `lat`, `lon`, `radiusKm` | `List<MapVehicleResponse>` |
-| GET | `/api/map/departures/{onestopId}` | — | `List<MapDepartureResponse>` |
-| GET | `/api/map/operators/station/{onestopId}` | — | `List<MapOperatorResponse>` |
 | GET | `/api/map/transport-types` | — | Raw `JsonElement` |
-| GET | `/api/map/upstream/{**path}` | passthrough | Verbatim upstream body |
 
-The typed endpoints re-map upstream shapes into `GetThereShared` contracts. `/upstream/{**path}` is a
-verbatim passthrough for cases where the map page consumes upstream shapes directly — GeoJSON feature
-collections in particular, where re-modelling would only add drift.
+Gated on `map.view`. One endpoint, and it is not the client's — the **admin console** calls it as a
+reachability probe, because any success means TransitInfoAPI answered and the service-account
+credentials line up.
+
+This used to be the client's only route to transit data: typed reads for stations, routes, vehicles
+and departures, plus a whitelisted verbatim passthrough at `/api/map/upstream/{**path}` for the
+GeoJSON the map page rendered directly. All of it existed so a page served by *this* API could reach
+*that* one. The page moved to TransitInfoAPI and the client loads it from there, so it is
+same-origin with its data and the proxy has no caller. See
+[`docs/map-proxy-migration.md`](../../map-proxy-migration.md).
 
 **`/upstream` is guarded by a regex allowlist**, not a blocklist. Forwarding an arbitrary path would
 turn this into an open gateway to TransitInfoAPI carrying the service account's credentials, letting

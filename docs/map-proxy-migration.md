@@ -1,5 +1,16 @@
 # Map proxy migration (H5)
 
+> **SUPERSEDED, 2026-07-31.** The proxy this describes no longer exists. The map page moved to
+> TransitInfoAPI and the client loads it from there, which makes the page same-origin with the data
+> it reads — so the passthrough, the allow-list, the service-account hop and the token injection
+> below were all deleted rather than maintained. They existed only to bridge two origins.
+>
+> The one-way rule was amended to say so: the client uses GetThereAPI for all business data and
+> reads TransitInfoAPI for the map alone. See `AGENTS.md`.
+>
+> Kept because it explains *why* the proxy was built, which is what makes the deletion legible —
+> and because the allow-list reasoning still applies to anything that proxies upstream in future.
+
 **Status: DONE, 2026-07-27.** Verified end-to-end against both APIs running.
 
 ## What was wrong

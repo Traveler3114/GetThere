@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 
-using GetThereAPI.Common;
+using GetThereExtraction;
 
 using GetThereShared.Enums;
 

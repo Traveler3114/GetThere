@@ -11,6 +11,7 @@ namespace GetThere.ViewModels;
 public partial class LoginViewModel : BaseViewModel
 {
     private readonly AuthService _authService;
+    private readonly ImportSyncService _importSync;
     private readonly IAnalyticsService _analytics;
 
     [ObservableProperty]
@@ -37,9 +38,10 @@ public partial class LoginViewModel : BaseViewModel
     [ObservableProperty]
     private string _passwordToggleText = LocalizationService.Instance["Login_ShowPassword"];
 
-    public LoginViewModel(AuthService authService, IAnalyticsService analytics)
+    public LoginViewModel(AuthService authService, ImportSyncService importSync, IAnalyticsService analytics)
     {
         _authService = authService;
+        _importSync = importSync;
         _analytics = analytics;
     }
 
@@ -78,6 +80,18 @@ public partial class LoginViewModel : BaseViewModel
             if (result.Success)
             {
                 _analytics.TrackEvent("login_success", new() { ["method"] = RememberMe ? "remember" : "standard" });
+
+                // The guest-to-account upgrade. Anything imported before signing in is pushed now,
+                // so the wallet the user lands on already contains it. Nothing did this before —
+                // ClearGuest ran on logout and never on login, and no data moved, so a guest who
+                // imported tickets and then signed up found an empty wallet.
+                //
+                // Best-effort on purpose: a failed push leaves the queue intact for the next attempt
+                // and must not block a sign-in that otherwise worked.
+                var pushed = await _importSync.FlushAsync();
+                if (pushed > 0)
+                    _analytics.TrackEvent("guest_imports_claimed", new() { ["count"] = pushed.ToString() });
+
                 App.GoToApp();
             }
             else

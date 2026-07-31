@@ -9,6 +9,23 @@ public class ImportedTicket
     public string UserId { get; set; } = string.Empty;
     public AppUser User { get; set; } = null!;
 
+    /// <summary>
+    /// The device's own id for this ticket, when it was created on one.
+    /// <para>
+    /// This is the idempotency key for the offline import queue, and it exists because the dedupe
+    /// hash cannot serve as one. That hash is computed from the request's fields, so a ticket edited
+    /// between being queued and being pushed produces a different hash and inserts twice; and its
+    /// unique index is filtered on <c>Status = 'Active'</c>, so a ticket marked used before the
+    /// queue drained inserts again too. A client-minted GUID has neither problem.
+    /// </para>
+    /// <para>
+    /// Null for anything created directly against the API, which is why the unique index below is
+    /// filtered — SQL Server treats NULLs as equal in a unique index, so an unfiltered one would
+    /// allow exactly one server-created ticket per user.
+    /// </para>
+    /// </summary>
+    public Guid? ClientId { get; set; }
+
     public string? OperatorGlobalId { get; set; }
     public string? OperatorNameSnapshot { get; set; }
 
