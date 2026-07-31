@@ -167,6 +167,7 @@ through an adapter.
 
 | Property | Type | Validation | Notes |
 |---|---|---|---|
+| `ClientId` | `Guid?` | | Minted by the device at creation. The idempotency key for the offline import queue — a replay returns the original ticket instead of a second copy. Omit for a ticket created directly against the API |
 | `OperatorGlobalId` | `string?` | `[MaxLength(128)]` | Onestop-style id from TransitInfoAPI |
 | `OperatorNameSnapshot` | `string?` | `[MaxLength(200)]` | Denormalised so the ticket still reads correctly if the operator is renamed or removed |
 | `Source` | `ImportSource?` | `[Required]` | Nullable so a missing value fails validation instead of defaulting to `Manual` (ordinal 0) |
@@ -197,6 +198,7 @@ day are a legitimate pair of tickets, and a hard 409 left them no way through.
 | Property | Type | Notes |
 |---|---|---|
 | `Id` | `int` | |
+| `ClientId` | `Guid?` | Set when the ticket was created on a device; how that device recognises its own |
 | `OperatorGlobalId` | `string?` | |
 | `OperatorNameSnapshot` | `string?` | |
 | `Source` | `ImportSource` | |

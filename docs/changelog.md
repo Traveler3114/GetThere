@@ -238,8 +238,9 @@ vehicles 200 (114 KB), mobility 200 (23 KB); `operators`, `feeds`, `users`,
 
 ### Audit pass — GetThereAPI, MAUI client, SharedAuth, both `wwwroot` front-ends
 
-Report: [`audit-2026-07-30.md`](../audit-2026-07-30.md). **No code changed** — report-only by
-decision, because nothing in this container can be compiled or run.
+Report-only pass; **no code changed**, because nothing in that container could be compiled or run.
+The report itself (`audit-2026-07-30.md`) has since been deleted along with the other audit files —
+what it found that still matters is either fixed below or recorded in `docs/money-path-defects.md`.
 
 | Area | What |
 |------|------|

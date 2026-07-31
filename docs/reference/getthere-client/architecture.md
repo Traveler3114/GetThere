@@ -18,8 +18,9 @@ happens here.
 | Crash reporting | `Sentry.Maui` |
 | XAML | `XamlCompilation(Compile)` — compiled, not runtime-inflated |
 
-It talks to **GetThereAPI only**. It has no knowledge of TransitInfoAPI, by design — see
-[../getthere-api/transit-integration.md](../getthere-api/transit-integration.md#the-one-way-rule).
+It talks to **GetThereAPI** for everything a user's data touches, and reads **TransitInfoAPI**
+directly for one thing only: the map page, which it loads in a WebView. See
+[../overview.md](../overview.md#the-one-way-rule).
 
 ---
 
@@ -28,7 +29,7 @@ It talks to **GetThereAPI only**. It has no knowledge of TransitInfoAPI, by desi
 ```
 Pages/          ContentPages — XAML plus thin code-behind
 ViewModels/     All presentation logic; derive from BaseViewModel
-Services/       HTTP clients and device integration
+Services/       HTTP clients, device integration, and the on-device ticket store
 State/          Cross-session preferences
 Helpers/        ApiEndpoints, AuthenticatedHttpHandler, PageUtility + value converters
 Localization/   LocalizationService, TranslateExtension, ApiMessageMapper
@@ -58,6 +59,8 @@ navigation time rather than at startup.
 |---|---|---|
 | **Singleton** | `AuthService` | Holds the token cache and the refresh lock — see below |
 | **Singleton** | `TicketCaptureService` | Stateless; wraps platform pickers and a Skia re-encode |
+| **Singleton** | `BarcodeRenderService`, `LocalExtractionService` | Stateless; payload in, image or draft out |
+| **Singleton** | `TicketStore`, `PendingImportQueue` | Each owns a file and a write lock — two screens finishing a load at once must not interleave into a half-written file |
 | **Singleton** | `CountryPreferenceService`, `IAnalyticsService` | Stateless preference access |
 | **Singleton** | `AppShell`, `LoginShell` | Navigation roots |
 | **Transient** | Pages, view models, API services | Fresh state per navigation |
@@ -135,7 +138,7 @@ refresh with a now-revoked token and trigger exactly the reuse detection the loc
 |---|---|---|
 | Signed in, remember me | `remember_me` preference + SecureStorage | Straight into `AppShell` on launch |
 | Signed in, no remember me | SecureStorage only | Tokens exist but `App` starts at `LoginShell` |
-| Guest | `is_guest` preference | `AppShell` with no token; authenticated calls fail |
+| Guest | `is_guest` preference | `AppShell` with no token; authenticated calls fail, but the map and ticket import both work |
 
 `App.InitializeWindowAsync` picks the root shell from this. It catches broadly and falls back to
 `LoginShell` — with the comment noting `LoginShell` has no DI dependencies, so it cannot itself fail
@@ -145,8 +148,16 @@ throw.
 Shell switching is `App.GoToApp()` / `App.GoToLogin()`, both marshalled onto the main thread since
 `AuthenticatedHttpHandler` can call them from a background continuation.
 
-**Guest mode has no server-side concept.** It is purely a client preference that lets someone browse
-the map without an account; every authenticated call simply fails. There is no anonymous token.
+**Guest mode still has no server-side concept** — no anonymous token, and every authenticated call
+fails. What changed is that a guest is no longer limited to browsing. **Importing a ticket works
+without an account**: extraction runs on the device via `GetThereExtraction`, the ticket is written to
+`PendingImportQueue`, and the wallet lists it as device-only rather than showing the "account
+required" scrim. `ImportSyncService` pushes the queue when the user signs in, which is the
+guest-to-account upgrade — nothing did that before, so a guest who imported and then registered would
+have found an empty wallet.
+
+A pending ticket cannot be *opened*, because it has no server id and both detail screens fetch by
+one. The list says so on tap rather than navigating to a screen that would fail to load.
 
 ---
 
@@ -272,6 +283,41 @@ solution.
 The Sentry DSN *is* externalised — read from a bundled `appsettings.json` at startup, returning null
 on any failure so a missing or malformed file disables crash reporting rather than preventing launch.
 `TracesSampleRate = 0.0`: crashes only, no performance tracing.
+
+---
+
+## The wallet offline
+
+The client used to persist nothing at all: no SQLite, `AppDataDirectory` never touched, every screen
+a live HTTP read on appear. Offline meant an empty list and an error label — backwards for a travel
+wallet, where a ticket is most needed at a barrier and a barrier is where signal is worst.
+
+Three pieces, and the boundaries between them are the design:
+
+| Piece | Owns |
+|---|---|
+| `TicketStore` | Tickets already accepted by the server. A **cache** |
+| `PendingImportQueue` | Tickets created here that the server has not seen. **Not** a cache — the only copy |
+| `ImportSyncService` | Draining the second into the first, on sign-in and on every wallet load |
+
+**Network-first, cache-on-failure.** The store is written as a by-product of a read that already
+succeeded, and read *only* from a failure path, so a bug in it cannot serve a stale ticket to someone
+who is online. Everything is keyed by owner — the `sub` claim, or a generated guest id — because a
+device is not a person, and two accounts on one phone must never see each other's tickets. The owner
+key is read from the token **without checking its expiry**: it identifies whose data this is and
+grants nothing, so it has to keep answering while offline with a lapsed token, which is the whole
+point.
+
+Files are AES-GCM encrypted under a key in `SecureStorage`, and the tickets directory is excluded
+from Android's Auto Backup *and* device transfer. A barcode payload is a bearer credential for
+travel — whoever renders it rides — so it belongs at the same protection level as the tokens.
+
+**Status needs care, and gets a rule of its own.** The server owns status; `TicketExpiryWorker` sweeps
+hourly. A cached ticket can therefore claim `Active` long after its window shut, which at a barrier is
+the one failure that matters. `TicketValidity.IsPastValidity` downgrades the *display* — never the
+stored value, never anything sent to the server — and it can only ever downgrade. `Used` and
+`Cancelled` come from an explicit action, possibly on another device, so recomputing them would
+resurrect a cancelled ticket to active.
 
 ---
 

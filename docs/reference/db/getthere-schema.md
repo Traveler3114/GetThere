@@ -233,6 +233,7 @@ Recoverable, surfaced on the admin overview, no automatic sweep.
 | `PayloadFormat` | `nvarchar` NULL | |
 | `SourceFileBlobKey` | `nvarchar(max)` NULL | |
 | `SourceFileContentType` | `nvarchar(100)` NULL | Sniffed, not declared |
+| `ClientId` | `uniqueidentifier` NULL | Device-minted idempotency key for the offline import queue; unique per user where not null |
 | `DedupeHash` | `nvarchar(64)` NULL | SHA-256 hex |
 | `JourneyId` | `int` NULL | FK, `SetNull` |
 | `CreatedAt`, `UpdatedAt` | `datetime2` | |
@@ -245,11 +246,26 @@ IX_ImportedTickets_UserId_Status                     -- the list query
 CREATE UNIQUE INDEX IX_ImportedTickets_UserId_DedupeHash
 ON ImportedTickets (UserId, DedupeHash)
 WHERE [Status] = 'Active' AND [DedupeHash] IS NOT NULL;
+
+CREATE UNIQUE INDEX IX_ImportedTickets_UserId_ClientId
+ON ImportedTickets (UserId, ClientId)
+WHERE [ClientId] IS NOT NULL;
 ```
 
-Both filter clauses do work. `Status = 'Active'` means a cancelled or expired ticket does not block
-re-importing the same one. `DedupeHash IS NOT NULL` is what lets an explicitly-allowed duplicate
-coexist — `AllowDuplicate` stores **no hash at all** rather than just skipping the pre-check.
+Both filter clauses on the dedupe index do work. `Status = 'Active'` means a cancelled or expired
+ticket does not block re-importing the same one. `DedupeHash IS NOT NULL` is what lets an
+explicitly-allowed duplicate coexist — `AllowDuplicate` stores **no hash at all** rather than just
+skipping the pre-check.
+
+**The two unique indexes answer different questions, and the second exists because the first cannot.**
+Dedupe asks "has this user already imported something that looks like this?"; `ClientId` asks "is
+this the same import arriving twice?". The hash cannot answer the second: it is computed from the
+request's fields, so a ticket edited between being queued on a device and being pushed hashes
+differently and inserts twice, and its `Status = 'Active'` filter means one marked used before the
+queue drained inserts again. So the `ClientId` index is filtered on NOT NULL **only** — deliberately
+not on status — and a retry finds the original whatever became of it. It is filtered at all because
+SQL Server treats NULLs as equal in a unique index: unfiltered, a user could hold exactly one ticket
+created directly against the API.
 
 `OperatorNameSnapshot` is denormalised so a ticket still reads correctly if the operator is renamed or
 removed upstream. `MaxLength(8000)` on `RawPayload` keeps it out of `nvarchar(max)` — indexable and
