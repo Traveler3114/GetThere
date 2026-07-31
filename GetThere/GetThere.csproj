@@ -83,6 +83,10 @@
 		<PackageReference Include="SkiaSharp" />
 		<PackageReference Include="SkiaSharp.Skottie" />
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" />
+		<!-- Encodes a ticket's payload into a scannable code. GetThereAPI uses the same package for
+		     the reverse — decoding barcodes out of uploaded ticket images — so the two directions
+		     agree on which symbologies exist. Version comes from Directory.Packages.props. -->
+		<PackageReference Include="ZXing.Net" />
 	</ItemGroup>
 
 	<ItemGroup>

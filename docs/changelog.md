@@ -333,3 +333,38 @@ survives a change of network but not a change of hardware. `RefreshToken.DeviceI
 is the raw `User-Agent`, caller-supplied and not unique. Recorded as a follow-up, not built here.
 
 **Not compiled.** No .NET SDK in this container; CI's `build-check.yml` is the gate.
+
+### Ticket payloads are drawn as scannable codes
+
+The wallet had never rendered one. `TicketDetailPage` showed the payload as monospace text inside a
+dashed square standing in for a QR, and its own header comment said why: *"Turning the payload into a
+true QR bitmap needs a QR encoder package, which the solution does not currently reference."* Nothing
+server-side generated an image either — `ZXing.Net` was there only to *decode* uploads. A wallet whose
+ticket cannot be scanned at a barrier is not a wallet.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **The decision** | `GetThereShared/Common/TicketBarcode.cs`, `Enums/BarcodeSymbology.cs` | Which symbology a payload may be drawn as, or none. Put in GetThereShared, away from any encoder, because the test project cannot reference the MAUI project and this is the part worth covering |
+| **The rendering** | `GetThere/Services/BarcodeRenderService.cs`, `GetThere.csproj`, `MauiProgram.cs` | ZXing encodes, SkiaSharp rasterises to PNG. `ZXing.Net` was already in `Directory.Packages.props` for the API's decoder, so the client reference pins nothing new |
+| **The screen** | `GetThere/Pages/TicketDetailPage.xaml`, `ViewModels/TicketDetailViewModel.cs` | The code where the placeholder was, with the payload text retained as the fallback branch. `TicketResponse.Format` is read for the first time — it had never been consumed by the client |
+| **Tests** | `tests/GetThere.Tests/Tickets/TicketBarcodeTests.cs` | Nine cases over the choice, including the lossy-format trap below |
+
+**The format discriminator is lossy, and refusing to guess is the design.** `TicketFormat` has five
+values, but `BarcodeDecoder.ToTicketFormat` collapses everything that is not QR or DataMatrix into
+`Barcode` — including Aztec and PDF417, which is exactly what UIC 918-3 rail tickets use and which
+that decoder explicitly reads. So `Barcode` may mean a short linear code or a compressed binary rail
+payload, and re-encoding the latter as Code 128 would produce a symbol that scans to the wrong bytes.
+`ChooseSymbology` returns null whenever the payload will not round-trip, and the screen falls back to
+text. An honest non-answer beats a confident wrong code at a gate.
+
+The real fix is for the stored format to carry the true symbology rather than a five-value
+approximation; that is a contract and storage change, recorded as a follow-up.
+
+Rendered at 720px and scaled **down** — a scanner reads modules, and upscaling a small bitmap blurs
+their edges until it stops reading. PNG, not JPEG: lossy artefacts land exactly on the module
+boundaries a scanner measures. QR uses error-correction level Q, since this is read off a phone
+screen where glare and fingerprints eat modules.
+
+**Not compiled, and not yet scanned.** No .NET SDK in this container. The unverified risk is precisely
+the one tests cannot cover: a code that renders but does not scan. It must be read by a real scanner,
+per format, before this is trusted.

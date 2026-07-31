@@ -144,6 +144,9 @@ public static class MauiProgram
         // calls, so one instance serves every import.
         builder.Services.AddSingleton<TicketCaptureService>();
 
+        // Also stateless — payload in, image out, no cache and no HttpClient.
+        builder.Services.AddSingleton<BarcodeRenderService>();
+
         var assembly = Assembly.GetExecutingAssembly();
 
         var pageTypes = assembly
