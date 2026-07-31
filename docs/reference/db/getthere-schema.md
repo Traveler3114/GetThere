@@ -79,7 +79,7 @@ non-alphanumeric; unique email required; lockout after 5 failures for 15 minutes
 | `RevokedAt` | `datetime2` NULL | |
 | `ReplacedByToken` | `nvarchar(128)` NULL | Set on rotation — drives reuse detection |
 | `DeviceInfo` | `nvarchar(256)` NULL | User-Agent at issue |
-| `IpAddress` | `nvarchar(64)` NULL | Enforced on refresh |
+| `IpAddress` | `nvarchar(64)` NULL | Audited on refresh, not enforced (see auth architecture) |
 
 > **The `HasMaxLength(128)` is not cosmetic.** The column was originally unbounded, making it
 > `nvarchar(max)` — which SQL Server **cannot index**. The declared unique index was silently never

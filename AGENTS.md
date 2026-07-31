@@ -104,7 +104,11 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 
 ## Off-limits (need human instruction)
 
-- JWT auth pipeline (token creation/validation)
+- JWT auth pipeline (token creation/validation). One deliberate change was authorised on 2026-07-31:
+  refresh tokens are no longer rejected when presented from a different IP address. Rotation and reuse
+  detection remain the theft response; the address is audited as `RefreshAddressChanged`. The rest of
+  the pipeline is still off-limits — see
+  [`docs/reference/getthere-api/architecture.md`](docs/reference/getthere-api/architecture.md#the-address-is-recorded-not-enforced)
 - Wallet balance deduction logic
 - Ticket status transitions
 - ImportedTicket status transitions

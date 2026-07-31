@@ -30,7 +30,9 @@ credential-guessing endpoints.
 whether an account exists. See [architecture.md](architecture.md#registration-does-not-confirm-whether-an-address-exists).
 
 **`login`** captures `User-Agent` as `DeviceInfo` and `RemoteIpAddress` as `IpAddress` on the refresh
-token row. The IP is later enforced on refresh, so a token stolen and replayed from elsewhere fails.
+token row. Both are **forensics, not controls** — the IP was enforced on refresh until 2026-07-31 and
+now only produces a `RefreshAddressChanged` audit entry; a stolen token is caught by reuse detection
+instead. See [architecture.md](architecture.md#the-address-is-recorded-not-enforced).
 `rememberMe` is a **query parameter, not part of the body** — easy to miss when hand-writing a call.
 
 **`change-password`** revokes every active refresh token for the user afterwards. Changing a password
@@ -43,7 +45,7 @@ There is nothing useful to tell a caller who is trying to end a session that is 
 | Error code | Status | Cause |
 |---|---|---|
 | `INVALID_CREDENTIALS` | 401 | Unknown address or wrong password — deliberately the same code for both |
-| `REFRESH_TOKEN_EXPIRED` | 401 | Expired, revoked, replayed, or IP mismatch — again deliberately indistinguishable |
+| `REFRESH_TOKEN_EXPIRED` | 401 | Expired, revoked, replayed, or belonging to a locked account — deliberately indistinguishable |
 | `USER_NOT_FOUND` | 404 | Change-password against a deleted user |
 
 Failed logins, successful logins, refreshes, reuse detections and password changes all write

@@ -159,9 +159,7 @@ public class AuthManager
         var verdict = SharedAuth.RefreshTokenEvaluator.Evaluate(
             found: existingRefreshToken is not null,
             hasReplacement: existingRefreshToken?.ReplacedByToken is not null,
-            isActive: existingRefreshToken?.IsActive ?? false,
-            storedIpAddress: existingRefreshToken?.IpAddress,
-            presentedIpAddress: ipAddress);
+            isActive: existingRefreshToken?.IsActive ?? false);
 
         if (existingRefreshToken is null || verdict is SharedAuth.RefreshTokenVerdict.Invalid)
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
@@ -196,6 +194,16 @@ public class AuthManager
             // Deliberately the same answer as an expired token: whether an account exists and is
             // locked is not something an unauthenticated caller should be able to tell apart.
             throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
+
+        // Recorded, not enforced. An address change no longer rejects the token — see
+        // RefreshTokenEvaluator.IsAddressChange for why — but it is still the signal you would want
+        // when investigating an account, so it goes in the audit log rather than being discarded.
+        if (SharedAuth.RefreshTokenEvaluator.IsAddressChange(existingRefreshToken.IpAddress, ipAddress))
+        {
+            LogAudit(existingRefreshToken.UserId, "RefreshAddressChanged", "RefreshToken",
+                existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture),
+                oldValues: existingRefreshToken.IpAddress, newValues: ipAddress);
         }
 
         existingRefreshToken.RevokedAt = DateTime.UtcNow;

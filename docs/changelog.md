@@ -305,3 +305,31 @@ right.
 `https://api.mapbox.com`, an origin the admin CSP has never allowed. That plugin is therefore already
 blocked and its drawing toolbar cannot be working. Vendoring it or allowing the origin is a separate
 decision; a comment in `Program.cs` records it next to the policy.
+
+### Refresh tokens are no longer pinned to an IP address
+
+Authorised departure from the `AGENTS.md` off-limits list, made deliberately rather than as a side
+effect of the offline work it was blocking.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Address no longer decides the verdict** | `SharedAuth/RefreshTokenEvaluator.cs` | `Evaluate` drops its two address parameters. An `Invalid` verdict is a 401, and the MAUI client answers a failed refresh by clearing its credentials — so the check fired on every wifi-to-cellular handover, cell handover, CGNAT rebinding and IPv6 privacy-extension rotation. For a travel app whose users are by definition moving, that is repeated sign-outs, and it would have taken every offline-cached ticket with it |
+| **Signal kept** | same, plus both `AuthManager.RefreshAsync` | New pure `IsAddressChange`, used only to write a `RefreshAddressChanged` audit row. Verdict logic and forensics are separate functions so the distinction is visible in the type. `RefreshToken.IpAddress` is still stored |
+| **Tests** | `tests/GetThere.Tests/Auth/RefreshTokenEvaluatorTests.cs` | The two tests that encoded the old behaviour were rewritten to assert the new behaviour rather than deleted — a silently removed test is how a control comes back by accident. `Theft_detection_is_unaffected_by_the_address` is the regression guard; `IsAddressChange` gains its own coverage including both-null |
+| **Docs** | `AGENTS.md`, `getthere-api/architecture.md`, `getthere-api/endpoints.md`, `transitinfo-api/endpoints.md`, `db/getthere-schema.md`, `overview.md` | The "IP binding, with a deliberate hole" section is replaced by "The address is recorded, not enforced", carrying the reasoning below |
+
+**Why removing it does not weaken the system.** Rotation plus reuse detection is the actual theft
+response and is untouched: a stolen token replayed after the legitimate client refreshes hits
+`hasReplacement`, and the user's whole token family is revoked and audited. That holds regardless of
+address. The address check only added value in the window before the next legitimate refresh, and
+only against an attacker on a different address — while both APIs call `UseForwardedHeaders()` with
+`KnownIPNetworks` and `KnownProxies` cleared, so `X-Forwarded-For` is honoured from any immediate
+peer and an attacker holding a stolen token could simply assert the address the check wanted. It
+punished honest mobile users reliably and a capable attacker not at all, and it could not distinguish
+"user moved" from "thief", so no stricter or looser version would have been better.
+
+**What would earn its place instead:** a binding to the *device* — a client-generated identifier that
+survives a change of network but not a change of hardware. `RefreshToken.DeviceInfo` is not that; it
+is the raw `User-Agent`, caller-supplied and not unique. Recorded as a follow-up, not built here.
+
+**Not compiled.** No .NET SDK in this container; CI's `build-check.yml` is the gate.

@@ -14,22 +14,22 @@ public class RefreshTokenEvaluatorTests
 {
     private const string IssuedIp = "203.0.113.10";
 
+    private const string OtherIp = "198.51.100.7";
+
     [Fact]
     public void An_unknown_token_is_invalid()
     {
         var verdict = RefreshTokenEvaluator.Evaluate(
-            found: false, hasReplacement: false, isActive: false,
-            storedIpAddress: null, presentedIpAddress: IssuedIp);
+            found: false, hasReplacement: false, isActive: false);
 
         Assert.Equal(RefreshTokenVerdict.Invalid, verdict);
     }
 
     [Fact]
-    public void A_live_token_from_the_issuing_address_rotates()
+    public void A_live_token_rotates()
     {
         var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: false, isActive: true,
-            storedIpAddress: IssuedIp, presentedIpAddress: IssuedIp);
+            found: true, hasReplacement: false, isActive: true);
 
         Assert.Equal(RefreshTokenVerdict.Rotate, verdict);
     }
@@ -41,20 +41,7 @@ public class RefreshTokenEvaluatorTests
         // token is always inactive by the time it comes back. Testing IsActive first would classify
         // every theft as an ordinary expiry and the reuse response would never fire.
         var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: true, isActive: false,
-            storedIpAddress: IssuedIp, presentedIpAddress: IssuedIp);
-
-        Assert.Equal(RefreshTokenVerdict.ReuseDetected, verdict);
-    }
-
-    [Fact]
-    public void Reuse_outranks_a_mismatched_address()
-    {
-        // A thief on another connection must still trigger the family revocation rather than a
-        // quiet rejection, otherwise the theft goes unrecorded.
-        var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: true, isActive: false,
-            storedIpAddress: IssuedIp, presentedIpAddress: "198.51.100.7");
+            found: true, hasReplacement: true, isActive: false);
 
         Assert.Equal(RefreshTokenVerdict.ReuseDetected, verdict);
     }
@@ -63,42 +50,56 @@ public class RefreshTokenEvaluatorTests
     public void An_expired_or_revoked_token_is_invalid()
     {
         var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: false, isActive: false,
-            storedIpAddress: IssuedIp, presentedIpAddress: IssuedIp);
+            found: true, hasReplacement: false, isActive: false);
 
         Assert.Equal(RefreshTokenVerdict.Invalid, verdict);
     }
 
-    [Fact]
-    public void A_token_presented_from_a_different_address_is_invalid()
-    {
-        var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: false, isActive: true,
-            storedIpAddress: IssuedIp, presentedIpAddress: "198.51.100.7");
-
-        Assert.Equal(RefreshTokenVerdict.Invalid, verdict);
-    }
+    // ── The address is no longer part of the verdict ─────────────────────────────
+    // It used to be: a mismatch returned Invalid, which is a 401, which the MAUI client answers by
+    // clearing its credentials. That fired on every wifi-to-cellular handover. Rotation and reuse
+    // detection catch a stolen token regardless of address, so these assert the *new* behaviour
+    // rather than being deleted — a silent removal is how a control comes back by accident.
 
     [Fact]
-    public void Suppressing_the_address_does_not_skip_the_check()
+    public void A_token_presented_from_a_different_address_still_rotates()
     {
-        // Otherwise the binding is worth nothing: anyone holding the token just omits the header.
         var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: false, isActive: true,
-            storedIpAddress: IssuedIp, presentedIpAddress: null);
-
-        Assert.Equal(RefreshTokenVerdict.Invalid, verdict);
-    }
-
-    [Fact]
-    public void A_token_stored_without_an_address_is_allowed_through()
-    {
-        // Issued before addresses were captured. There is nothing to compare, and rejecting these
-        // would log out every user holding one.
-        var verdict = RefreshTokenEvaluator.Evaluate(
-            found: true, hasReplacement: false, isActive: true,
-            storedIpAddress: null, presentedIpAddress: IssuedIp);
+            found: true, hasReplacement: false, isActive: true);
 
         Assert.Equal(RefreshTokenVerdict.Rotate, verdict);
+        Assert.True(RefreshTokenEvaluator.IsAddressChange(IssuedIp, OtherIp));
+    }
+
+    [Fact]
+    public void Theft_detection_is_unaffected_by_the_address()
+    {
+        // The regression that matters: whatever else changed, a replayed token must still revoke the
+        // family rather than being quietly rejected, so the theft is recorded.
+        var verdict = RefreshTokenEvaluator.Evaluate(
+            found: true, hasReplacement: true, isActive: false);
+
+        Assert.Equal(RefreshTokenVerdict.ReuseDetected, verdict);
+    }
+
+    [Theory]
+    // Same address, and the two "nothing to compare" cases: a token issued before addresses were
+    // captured, and a caller whose address could not be read.
+    [InlineData(IssuedIp, IssuedIp)]
+    [InlineData(null, IssuedIp)]
+    [InlineData(null, null)]
+    public void IsAddressChange_is_false_when_there_is_no_change_to_report(string? stored, string? presented)
+    {
+        Assert.False(RefreshTokenEvaluator.IsAddressChange(stored, presented));
+    }
+
+    [Theory]
+    [InlineData(IssuedIp, OtherIp)]
+    // A caller presenting no address at all, against a token that has one, is still a change worth
+    // recording — it is what someone suppressing the header would look like.
+    [InlineData(IssuedIp, null)]
+    public void IsAddressChange_is_true_when_the_address_moved(string? stored, string? presented)
+    {
+        Assert.True(RefreshTokenEvaluator.IsAddressChange(stored, presented));
     }
 }

@@ -9,7 +9,7 @@ public enum RefreshTokenVerdict
     /// <summary>Already rotated once and presented again — treat as theft and revoke the family.</summary>
     ReuseDetected,
 
-    /// <summary>Unknown, expired, revoked, or presented from the wrong address.</summary>
+    /// <summary>Unknown, expired, or revoked.</summary>
     Invalid
 }
 
@@ -21,20 +21,23 @@ public enum RefreshTokenVerdict
 /// decision here (and the database writes in each API's own manager) means the two cannot disagree
 /// about what counts as theft.
 /// </para>
+/// <para>
+/// <b>Rotation plus reuse detection is the whole of the theft response.</b> A stolen token replayed
+/// after the legitimate client has refreshed hits <see cref="RefreshTokenVerdict.ReuseDetected"/> and
+/// the user's entire token family is revoked. That holds no matter where either party is connecting
+/// from, which is why the address check that used to sit here could be removed without weakening it —
+/// see <see cref="IsAddressChange"/>.
+/// </para>
 /// </summary>
 public static class RefreshTokenEvaluator
 {
     /// <param name="found">Whether a stored token matched the presented hash.</param>
     /// <param name="hasReplacement">Whether the stored token already names a successor.</param>
     /// <param name="isActive">Whether the stored token is neither expired nor revoked.</param>
-    /// <param name="storedIpAddress">Address the token was issued to, if one was captured.</param>
-    /// <param name="presentedIpAddress">Address presenting it now.</param>
     public static RefreshTokenVerdict Evaluate(
         bool found,
         bool hasReplacement,
-        bool isActive,
-        string? storedIpAddress,
-        string? presentedIpAddress)
+        bool isActive)
     {
         if (!found)
             return RefreshTokenVerdict.Invalid;
@@ -49,13 +52,33 @@ public static class RefreshTokenEvaluator
         if (!isActive)
             return RefreshTokenVerdict.Invalid;
 
-        // A caller presenting no address at all is rejected when the token was issued with one,
-        // otherwise suppressing the address is enough to skip the check entirely. A token stored
-        // without an address (issued before addresses were captured) cannot be compared, so it is
-        // allowed through.
-        if (storedIpAddress is not null && storedIpAddress != presentedIpAddress)
-            return RefreshTokenVerdict.Invalid;
-
         return RefreshTokenVerdict.Rotate;
     }
+
+    /// <summary>
+    /// Whether a token is being presented from a different address than it was issued to.
+    /// <para>
+    /// <b>Telemetry only — this must not decide a verdict.</b> It used to: an address change returned
+    /// <see cref="RefreshTokenVerdict.Invalid"/>, which becomes a 401, which the MAUI client answers
+    /// by clearing its credentials and returning to the login screen. On a phone that fired on every
+    /// wifi-to-cellular handover, every cell handover, every CGNAT rebinding and every IPv6
+    /// privacy-extension rotation — so a travel app whose users are by definition moving signed them
+    /// out repeatedly, and took any offline-cached ticket with it.
+    /// </para>
+    /// <para>
+    /// It was not buying much in exchange. Rotation and reuse detection already catch a stolen token
+    /// regardless of address. And both APIs run <c>UseForwardedHeaders</c> with the known-proxy lists
+    /// cleared, so <c>X-Forwarded-For</c> is honoured from any immediate peer: an attacker holding a
+    /// stolen token could simply assert the address the check wanted. It punished honest users
+    /// reliably and a capable attacker not at all.
+    /// </para>
+    /// <para>
+    /// The signal is still worth recording, so callers audit it. A real binding would be to the
+    /// device rather than the network — a client-generated identifier that survives a change of
+    /// network but not a change of hardware. Note <c>RefreshToken.DeviceInfo</c> is <b>not</b> that
+    /// today: it is the raw <c>User-Agent</c>, caller-supplied and not unique.
+    /// </para>
+    /// </summary>
+    public static bool IsAddressChange(string? storedAddress, string? presentedAddress) =>
+        storedAddress is not null && storedAddress != presentedAddress;
 }

@@ -315,7 +315,7 @@ emulator. A released build cannot be repointed — a known open item.
 | Test | Guards |
 |---|---|
 | `Money/PurchaseFlowTests` | The three-stage purchase, refunds, idempotency |
-| `Auth/RefreshTokenTests` | Rotation, reuse detection, IP binding |
+| `Auth/RefreshTokenTests` | Rotation, reuse detection |
 | `AuthorizationMatrixTests` | Endpoint-to-permission mapping |
 | `FeedUrlSsrfTests` | Feed URL SSRF protection |
 | `ImportedTickets/TicketFileSnifferTests` | Magic-number detection |
