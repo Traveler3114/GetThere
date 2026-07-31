@@ -280,3 +280,28 @@ results, flies to a pick and opens the sidebar. **The C# was not compiled** — 
 .NET SDK and the installer is blocked by egress policy, same as the 07-30 audit. Everything under
 *Verification* in the plan that needs a running API, a device or an emulator is still outstanding;
 the Android https/dev-cert path is the most likely thing to bite and cannot reproduce on Windows.
+
+### MapLibre vendored into `wwwroot`
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Library vendored** | `TransitInfoAPI/wwwroot/vendor/maplibre-gl/` | MapLibre GL JS 4.7.1 (`maplibre-gl.js`, `maplibre-gl.css`) from the npm tarball, with `LICENSE.txt` beside it because the BSD notice has to travel with the code, and a README giving the update command and the version to bump |
+| **Four pages repointed** | `map/public.html`, `map/index.html`, `admin/reconciliation-map.html`, `admin/shape-editor.html` | All were loading it from `unpkg.com`. That made a public CDN a hard runtime dependency, and it had grown teeth: the map's chrome now lives in `map/public.js`, a script that never runs if `maplibregl` is undefined, so a CDN failure took the search box and mode chips down with the basemap |
+| **CSP tightened** | `TransitInfoAPI/Program.cs` | The map policy drops `unpkg.com` from `script-src` and `style-src` — **no external origin may execute script on that page at all** now. The admin policy drops it too; `cdn.jsdelivr.net` stays for Bootstrap |
+
+**Verified** in a headless browser against the tightened policy, served with the same CSP
+`Program.cs` sends: `maplibregl.getVersion()` returns `4.7.1`, the map canvas constructs, the chrome
+renders, and there are **zero CSP violations**. The only off-origin request the page makes is to
+`tiles.openfreemap.org`.
+
+**This does not make the map work offline**, and the run above happens to prove it: that host is
+blocked in the build sandbox, so the map rendered with controls, scale bar and attribution but an
+empty basemap. Vendoring removes the CDN serving the *code*; tiles, glyphs and sprites are still
+fetched at runtime. Offline means self-hosting or packaging tiles — a much larger piece of work, and
+`docs/architecture/map-features.md` already lists "offline map & routing" as a feature in its own
+right.
+
+**Noticed while here, not fixed:** `admin/shape-editor.html` loads `mapbox-gl-draw` from
+`https://api.mapbox.com`, an origin the admin CSP has never allowed. That plugin is therefore already
+blocked and its drawing toolbar cannot be working. Vendoring it or allowing the origin is a separate
+decision; a comment in `Program.cs` records it next to the policy.

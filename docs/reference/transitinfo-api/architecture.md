@@ -288,9 +288,13 @@ the feed importer back into an SSRF proxy for the server's own network.
 // are served from the same origin. Server-to-server callers don't need CORS.
 ```
 
-GetThereAPI is a server-to-server caller, so it is unaffected. Note the CSP here is **looser** than
-GetThereAPI's — it allows `cdn.jsdelivr.net` and `unpkg.com` for the Bootstrap and MapLibre the legacy
-admin pages still load, plus `img-src https:` for map tiles.
+GetThereAPI is a server-to-server caller, so it is unaffected.
+
+Two CSPs are sent from here. The **map** pages get `script-src 'self'` with no external origin at
+all — MapLibre is served from `wwwroot/vendor/maplibre-gl`, so nothing off-origin may execute; the
+tile host appears only in `img-src`/`connect-src`, because the basemap is still fetched from it. The
+**admin** pages are looser: `'unsafe-inline'` (see below) plus `cdn.jsdelivr.net` for Bootstrap, and
+`img-src https:` for tiles.
 
 ---
 

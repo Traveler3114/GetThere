@@ -312,7 +312,7 @@ the abstraction exists so wiring a real provider is one registration change. `Ap
 
 | Gap | Impact |
 |---|---|
-| MapLibre is loaded from a CDN | If unpkg is unreachable the map page renders nothing at all — chrome included, now that the chrome lives in the page. Vendoring it into `wwwroot` removes the dependency |
+| Basemap tiles come from `tiles.openfreemap.org` | MapLibre itself is vendored, so the page and its chrome load without network — but with the tile host unreachable the map renders empty. Real offline use needs self-hosted or packaged tiles |
 | `ApiMessageMapper` covers auth codes only | Money-path errors show in English |
 | `AnalyticsService` is a stub | Events go nowhere |
 | `SourceFor` duplicates server logic | Can drift; fix is to add `Source` to `TicketUploadResponse` |
