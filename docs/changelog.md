@@ -394,3 +394,30 @@ the expiry worker is the only writer — so offering one would be a button that 
 filtered client-side to match the status chips.
 
 **Not compiled.** No .NET SDK in this container; CI is the gate.
+
+### Tickets survive having no signal
+
+The client persisted nothing at all — no SQLite, `AppDataDirectory` never touched, every screen a
+live HTTP read on appear. Offline meant an empty list and an error label, which for a travel wallet
+is backwards: a ticket is most needed at a barrier, which is where signal is worst.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **The store** | `GetThere/Services/TicketStore.cs` | JSON per collection under `FileSystem.AppDataDirectory`, written temp-then-move so a process killed mid-write cannot leave a truncated file. A write lock because two screens can finish loading at once |
+| **Whose data it is** | `Services/AuthService.cs` | `GetOwnerKeyAsync` — the `sub` claim when signed in, read **without checking expiry** because it must answer while offline with a lapsed token; a persisted generated id otherwise. Directories are named by a hash of that key, so a user id never appears in a path |
+| **Read and write rules** | `ViewModels/TicketsViewModel.cs` | Written as a by-product of a successful unfiltered first-page read; read **only** from a failure path, so a bug here cannot serve a stale ticket to someone who is online |
+| **Provenance** | `Pages/TicketsPage.xaml` | "Saved 3 h ago · showing your last update" whenever the list came off the device. Coarse on purpose — that is what a traveller needs to judge the screen, and a precise timestamp would imply a precision the cached *status* does not have |
+
+Keyed by owner because a device is not a person: two accounts, or an account and the guest who used
+the phone before them, must never see each other's tickets. Only the unfiltered page is cached — a
+stored copy of "the Used ones" would be a strange thing to show someone offline.
+
+`Clear` exists for an explicit sign-out and is deliberately **not** called from the 401 path in
+`AuthenticatedHttpHandler`: that fires when a refresh is rejected, which is not always the user's
+decision, and wiping their tickets in response would remove the cache in exactly the situation it
+exists for.
+
+Still to come in this series: cached tickets are written in clear text, and `allowBackup="true"` means
+they would reach cloud backups. Encryption keyed from `SecureStorage` is the next slice.
+
+**Not compiled.** No .NET SDK in this container; CI is the gate.

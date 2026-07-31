@@ -194,6 +194,8 @@
   <data name="Tickets_Active" xml:space="preserve"><value>Aktivne</value></data>
   <data name="Tickets_Expired" xml:space="preserve"><value>Istekle</value></data>
   <data name="Tickets_Used" xml:space="preserve"><value>Iskorištene</value></data>
+  <data name="Tickets_SavedAgo" xml:space="preserve"><value>Spremljeno prije {0} · prikazuje se zadnje ažuriranje</value></data>
+  <data name="Tickets_JustNow" xml:space="preserve"><value>trenutak</value></data>
   <data name="Tickets_NoItems" xml:space="preserve"><value>Nema pronađenih stavki</value></data>
   <data name="Tickets_MockLabel" xml:space="preserve"><value>Karte sesije (Testne)</value></data>
   <data name="Tickets_MockDisclaimer" xml:space="preserve"><value>⚠️ TESTNE KARTE — NISU VALJANE ZA PUTOVANJE</value></data>

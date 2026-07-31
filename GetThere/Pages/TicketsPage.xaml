@@ -127,12 +127,23 @@
                 </HorizontalStackLayout>
             </ScrollView>
 
-            <Label
-                Grid.Row="3"
-                Margin="0,8,0,0"
-                IsVisible="{Binding HasError}"
-                Style="{StaticResource DsErrorLabel}"
-                Text="{Binding ErrorText}" />
+            <VerticalStackLayout Grid.Row="3" Margin="0,8,0,0" Spacing="4">
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <!--
+                    Provenance, shown only when the list below came off the device rather than the
+                    server. Someone holding a phone at a barrier needs to know how old the screen is
+                    — a ticket cancelled on another device would still look active here.
+                -->
+                <Label
+                    FontSize="12"
+                    IsVisible="{Binding IsShowingCached}"
+                    Style="{StaticResource DsMetaCaption}"
+                    Text="{Binding CachedAtText}" />
+            </VerticalStackLayout>
 
             <!--  ── TICKET LIST ──  -->
             <CollectionView

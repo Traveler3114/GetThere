@@ -18,6 +18,7 @@ public partial class TicketsViewModel : BaseViewModel
     private readonly ImportedTicketService _importedService;
     private readonly TicketService _ticketService;
     private readonly TicketCaptureService _capture;
+    private readonly TicketStore _store;
     private readonly IAnalyticsService _analytics;
     private ImportedTicketStatus? _activeFilter;
 
@@ -39,6 +40,14 @@ public partial class TicketsViewModel : BaseViewModel
 
     [ObservableProperty]
     private bool _hasMore;
+
+    /// <summary>True when the list on screen came from the device rather than the server.</summary>
+    [ObservableProperty]
+    private bool _isShowingCached;
+
+    /// <summary>How old that copy is, in words. Empty unless <see cref="IsShowingCached"/>.</summary>
+    [ObservableProperty]
+    private string _cachedAtText = string.Empty;
 
     private int _currentPage = 1;
     private const int PageSize = 50;
@@ -86,6 +95,7 @@ public partial class TicketsViewModel : BaseViewModel
         ImportedTicketService importedService,
         TicketService ticketService,
         TicketCaptureService capture,
+        TicketStore store,
         IAnalyticsService analytics,
         JourneysViewModel journeys)
     {
@@ -93,6 +103,7 @@ public partial class TicketsViewModel : BaseViewModel
         _importedService = importedService;
         _ticketService = ticketService;
         _capture = capture;
+        _store = store;
         _analytics = analytics;
         Journeys = journeys;
     }
@@ -119,6 +130,8 @@ public partial class TicketsViewModel : BaseViewModel
         IsBusy = true;
         HasError = false;
         IsOffline = false;
+        IsShowingCached = false;
+        CachedAtText = string.Empty;
         _currentPage = 1;
         try
         {
@@ -141,6 +154,7 @@ public partial class TicketsViewModel : BaseViewModel
                     IsOffline = true;
                     HasError = true;
                     ErrorText = LocalizationService.Instance["Common_Offline"];
+                    await ShowCachedAsync();
                     return;
                 }
             }
@@ -164,6 +178,12 @@ public partial class TicketsViewModel : BaseViewModel
                 await LoadPurchasedAsync();
                 RebuildWallet();
 
+                // Caching is a by-product of a read that already succeeded, not a sync step of its
+                // own. Only the unfiltered first page is worth keeping — a cache of "the Used ones"
+                // would be a confusing thing to show someone offline.
+                if (_activeFilter is null && _currentPage == 1)
+                    await CacheCurrentAsync();
+
                 _analytics.TrackEvent("tickets_loaded", new() { ["count"] = WalletTickets.Count.ToString() });
             }
             else
@@ -175,6 +195,7 @@ public partial class TicketsViewModel : BaseViewModel
                     ? LocalizationService.Instance["Common_Offline"]
                     : result.Message ?? "Could not load tickets.";
                 HasError = true;
+                await ShowCachedAsync();
             }
         }
         catch (Exception ex)
@@ -182,9 +203,70 @@ public partial class TicketsViewModel : BaseViewModel
             IsOffline = IsOfflineNow;
             ErrorText = IsOffline ? LocalizationService.Instance["Common_Offline"] : ex.Message;
             HasError = true;
+            await ShowCachedAsync();
         }
         finally { IsBusy = false; }
     }
+
+    /// <summary>Writes what is currently on screen to the device, so the next failed load has it.</summary>
+    private async Task CacheCurrentAsync()
+    {
+        var owner = await _authService.GetOwnerKeyAsync();
+        await _store.SaveImportedAsync(owner, ImportedTickets);
+        await _store.SavePurchasedAsync(owner, _purchasedTickets);
+    }
+
+    /// <summary>
+    /// Falls back to the device's copy after a failed load.
+    /// <para>
+    /// Only ever reached from a failure path, so it can never mask a live read. It leaves the error
+    /// banner in place — the list is real but may be out of date, and
+    /// <see cref="CachedAtText"/> says how far.
+    /// </para>
+    /// </summary>
+    private async Task ShowCachedAsync()
+    {
+        try
+        {
+            var owner = await _authService.GetOwnerKeyAsync();
+            var imported = await _store.ReadImportedAsync(owner);
+            var purchased = await _store.ReadPurchasedAsync(owner);
+
+            if (imported is null && purchased is null) return;
+
+            ImportedTickets.Clear();
+            foreach (var t in imported?.Items ?? [])
+                ImportedTickets.Add(t);
+
+            _purchasedTickets.Clear();
+            _purchasedTickets.AddRange(purchased?.Items ?? []);
+
+            RebuildWallet();
+
+            var cachedAt = imported?.CachedAtUtc ?? purchased?.CachedAtUtc;
+            IsShowingCached = WalletTickets.Count > 0;
+            CachedAtText = cachedAt is { } at
+                ? string.Format(LocalizationService.Instance["Tickets_SavedAgo"], DescribeAge(DateTime.UtcNow - at))
+                : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[TicketsViewModel] Could not read the cached wallet: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Coarse, human age of the cache. Deliberately vague — "3 days ago" is what a traveller needs
+    /// to judge whether to trust the screen, and a precise timestamp would imply a precision the
+    /// underlying status does not have.
+    /// </summary>
+    private static string DescribeAge(TimeSpan age) => age switch
+    {
+        { TotalMinutes: < 2 } => LocalizationService.Instance["Tickets_JustNow"],
+        { TotalHours: < 1 } => $"{(int)age.TotalMinutes} min",
+        { TotalDays: < 1 } => $"{(int)age.TotalHours} h",
+        _ => $"{(int)age.TotalDays} d"
+    };
 
     /// <summary>
     /// Reads the purchased half. Deliberately forgiving: a wallet that can show the user's imported

@@ -194,6 +194,8 @@
   <data name="Tickets_Active" xml:space="preserve"><value>Active</value></data>
   <data name="Tickets_Expired" xml:space="preserve"><value>Expired</value></data>
   <data name="Tickets_Used" xml:space="preserve"><value>Used</value></data>
+  <data name="Tickets_SavedAgo" xml:space="preserve"><value>Saved {0} ago · showing your last update</value></data>
+  <data name="Tickets_JustNow" xml:space="preserve"><value>just now</value></data>
   <data name="Tickets_NoItems" xml:space="preserve"><value>No items found</value></data>
   <data name="Tickets_MockLabel" xml:space="preserve"><value>Session Tickets (Mock)</value></data>
   <data name="Tickets_MockDisclaimer" xml:space="preserve"><value>⚠️ MOCK TICKETS — NOT VALID FOR TRAVEL</value></data>

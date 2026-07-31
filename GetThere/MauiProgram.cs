@@ -147,6 +147,10 @@ public static class MauiProgram
         // Also stateless — payload in, image out, no cache and no HttpClient.
         builder.Services.AddSingleton<BarcodeRenderService>();
 
+        // Singleton because it owns a write lock: two screens finishing a load at the same moment
+        // must not interleave into a half-written file.
+        builder.Services.AddSingleton<TicketStore>();
+
         var assembly = Assembly.GetExecutingAssembly();
 
         var pageTypes = assembly

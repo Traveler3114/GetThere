@@ -206,6 +206,51 @@ public class AuthService : IDisposable
         catch { return null; }
     }
 
+    /// <summary>Preference holding the id used to file a signed-out user's own data.</summary>
+    private const string GuestIdKey = "guest_id";
+
+    /// <summary>
+    /// Identifies whose locally-stored data this is.
+    /// <para>
+    /// The subject claim when signed in, read from the stored token **without checking its expiry** —
+    /// this has to answer while offline with a lapsed token, which is exactly when cached tickets
+    /// matter. It authorises nothing; it only decides which folder to look in.
+    /// </para>
+    /// <para>
+    /// A signed-out user gets a generated id that persists, so tickets imported as a guest are still
+    /// theirs on the next launch and can be claimed if they later register.
+    /// </para>
+    /// </summary>
+    public async Task<string> GetOwnerKeyAsync()
+    {
+        try
+        {
+            var token = await GetTokenAsync();
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                var subject = new JwtPayloadReader(token).GetSubject();
+                if (!string.IsNullOrWhiteSpace(subject))
+                    return "user:" + subject;
+            }
+        }
+        catch (Exception ex)
+        {
+            // An unreadable token must not cost the user their cache; falling through to the guest
+            // key would be worse still, since it would file their data somewhere new. Report it and
+            // let the caller decide.
+            Trace.WriteLine($"[AuthService] Could not read the subject claim: {ex.Message}");
+        }
+
+        var guestId = Preferences.Default.Get(GuestIdKey, string.Empty);
+        if (string.IsNullOrWhiteSpace(guestId))
+        {
+            guestId = Guid.NewGuid().ToString("N");
+            Preferences.Default.Set(GuestIdKey, guestId);
+        }
+
+        return "guest:" + guestId;
+    }
+
     public async Task<string?> GetRefreshTokenAsync()
     {
         if (_cachedRefreshToken is not null)
@@ -295,6 +340,16 @@ public class AuthService : IDisposable
         public string? GetEmail() =>
             _payload.ValueKind == JsonValueKind.Object
             && _payload.TryGetProperty("email", out var email) ? email.GetString() : null;
+
+        /// <summary>
+        /// The subject claim — the user's id. Read straight off the payload without validating the
+        /// signature or expiry, deliberately: this identifies *whose* cached data is on the device,
+        /// and it has to keep working while the token is expired and there is no network to refresh
+        /// it. It grants nothing on its own.
+        /// </summary>
+        public string? GetSubject() =>
+            _payload.ValueKind == JsonValueKind.Object
+            && _payload.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
 
         /// <summary>The token's expiry, or null when it carries no readable <c>exp</c> claim.</summary>
         public DateTimeOffset? GetExpiry() =>
