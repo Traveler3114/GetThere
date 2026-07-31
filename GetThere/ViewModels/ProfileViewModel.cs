@@ -23,6 +23,7 @@ public partial class ProfileViewModel : BaseViewModel
 {
     private readonly WalletService _walletService;
     private readonly AuthService _authService;
+    private readonly TicketStore _ticketStore;
     private readonly CountryService _countryService;
     private readonly CountryPreferenceService _prefs;
     private readonly IAnalyticsService _analytics;
@@ -73,10 +74,11 @@ public partial class ProfileViewModel : BaseViewModel
 
     public ObservableCollection<WalletTransactionResponse> Transactions { get; } = [];
 
-    public ProfileViewModel(WalletService walletService, AuthService authService, CountryService countryService, CountryPreferenceService prefs, IAnalyticsService analytics)
+    public ProfileViewModel(WalletService walletService, AuthService authService, CountryService countryService, CountryPreferenceService prefs, TicketStore ticketStore, IAnalyticsService analytics)
     {
         _walletService = walletService;
         _authService = authService;
+        _ticketStore = ticketStore;
         _countryService = countryService;
         _prefs = prefs;
         _analytics = analytics;
@@ -259,6 +261,16 @@ public partial class ProfileViewModel : BaseViewModel
             LocalizationService.Instance["App_No"]);
 
         if (!confirmed) return;
+
+        // Signing out deliberately takes the cached tickets with it — this is the one place that
+        // should, because it is the one place the user asked. The 401 path in
+        // AuthenticatedHttpHandler also calls Logout, and clearing there would delete someone's
+        // offline wallet because a refresh was rejected, which is not a decision they made.
+        //
+        // Order matters: the owner key is read from the access token, so it has to be resolved
+        // before Logout clears it, or this would clear an empty guest directory instead.
+        var owner = await _authService.GetOwnerKeyAsync();
+        _ticketStore.Clear(owner);
 
         AuthService.ClearGuest();
         await _authService.Logout();

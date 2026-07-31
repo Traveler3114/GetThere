@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auto Backup rules for API 23-30. The API 31+ equivalent is data_extraction_rules.xml, and both
+    have to say the same thing or the exclusion silently stops applying on newer devices.
+
+    Cached tickets are excluded. They hold barcode payloads, which are bearer credentials for travel:
+    whoever renders one rides. The files are encrypted, but their key lives in SecureStorage, which
+    Android does not back up — so a restored copy would be undecryptable anyway. Excluding them keeps
+    the credential off Google's servers rather than relying on that.
+-->
+<full-backup-content>
+    <exclude domain="file" path="tickets" />
+</full-backup-content>

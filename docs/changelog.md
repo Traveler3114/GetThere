@@ -449,3 +449,30 @@ Four rules, each with a reason:
 
 Seven tests, written around proving the rule cannot upgrade a status rather than that it can
 downgrade one.
+
+### Cached tickets are encrypted and kept out of backups
+
+A barcode payload is a bearer credential for travel: whoever renders it rides. Until now the cache
+above wrote them in clear text into `AppDataDirectory`, which is app-private — enough against another
+app, not against a rooted device or an ADB pull — and `allowBackup="true"` meant they would also
+travel to Google's servers.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **At rest** | `Services/TicketStore.cs` | AES-GCM, key generated on first use and held in `SecureStorage` — the same store already holding the auth tokens, which puts the payloads at parity with the credentials they are equivalent to. Layout is nonce ‖ tag ‖ ciphertext, nonce fresh per write |
+| **Off the wire** | `AndroidManifest.xml`, `Resources/xml/backup_rules.xml`, `Resources/xml/data_extraction_rules.xml` | The tickets directory is excluded from Auto Backup **and** from device-to-device transfer. Two files because Android picks by API level — 23-30 reads `fullBackupContent`, 31+ reads `dataExtractionRules` — and an exclusion added to only one silently stops applying on half the fleet |
+| **On sign-out** | `ViewModels/ProfileViewModel.cs` | The explicit sign-out clears the store, and only it. Order matters: the owner key comes from the access token, so it is resolved *before* `Logout` clears it |
+
+Authenticated encryption rather than plain AES, so a file edited on a rooted device fails its tag
+check instead of deserialising into a ticket whose contents someone else chose. A failed decrypt is
+treated exactly like a missing file — the screen shows its ordinary offline state rather than a
+second, stranger error.
+
+The 401 path in `AuthenticatedHttpHandler` also calls `Logout`, and deliberately does **not** clear:
+that fires when a refresh is rejected, which is not a decision the user made, and deleting their
+offline wallet in response would remove the cache in exactly the situation it exists for.
+
+Backup stays enabled overall — losing a wallet's settings on a handset swap would be a poor trade.
+Only the ticket directory is excluded. Its key lives in `SecureStorage`, which Android does not back
+up, so a restored copy would be undecryptable anyway; the exclusion keeps the credential off the wire
+rather than depending on that.
