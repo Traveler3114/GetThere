@@ -5,13 +5,29 @@ not part of the permanent docs.
 
 ## Read this first
 
-**Nothing on this branch has been compiled or run.** It was written in a container with no .NET SDK,
-and the installer is blocked by egress policy. Every claim below about behaviour is derived from
-reading the code, not from observing it. Treat the build as the first real gate and everything after
-it as unproven.
+**It was written in a container with no .NET SDK**, so nothing here was compiled locally. CI has
+since compiled and run it, which changes what is worth your time — see below. Every claim about
+*behaviour* is still derived from reading the code, not from observing it.
 
-Static checks that *were* done, so you can skip re-deriving them: no references remain to any deleted
-or moved symbol; `.resx` parity holds at 281 keys in both cultures; every `.csproj`, `.xaml`,
+**What CI has now proven** (`.github/workflows/build-check.yml` on PR #72):
+
+- All five non-MAUI projects build with `-warnaserror`, and `dotnet format --verify-no-changes`
+  passes on each.
+- **301 tests pass**, against a real SQL Server. That includes the hand-written migration below,
+  which all three database fixtures apply via `Database.Migrate()`.
+- The MAUI project's **C# compiles for `net10.0-android`**.
+
+**What CI still does not cover**, and where the remaining risk sits:
+
+- **XAML compilation.** The Android build failed at `CoreCompile` on its first pass, so `XamlC` and
+  everything after it has run only once, at the end. The ticket card's `DataTemplate` is untyped, so
+  a wrong property name fails at *runtime* regardless — item 4 below stands.
+- **iOS, MacCatalyst and Windows heads** are never built by any job.
+- **`dotnet format` is not run against the MAUI project.**
+- Anything requiring a device, a screen or a scanner — which is most of §3.
+
+Static checks that *were* done by hand, so you can skip re-deriving them: no references remain to any
+deleted or moved symbol; `.resx` parity holds at 281 keys in both cultures; every `.csproj`, `.xaml`,
 `.slnx` and Android manifest parses; every changed constructor has a matching DI registration.
 
 Twelve commits, in two groups that can be reviewed together:
@@ -42,16 +58,23 @@ dotnet build GetThere/GetThere.csproj -f net10.0-ios          # macOS only
 dotnet build GetThere/GetThere.csproj -f net10.0-windows10.0.19041.0   # Windows only
 ```
 
-**Most likely to be red, in order:**
+**Most likely to be red, in order.** Items 1–3 are now settled by CI and are here only so you do not
+re-investigate them; item 4 is the live one.
 
-1. **`GetThereExtraction` is a new project.** It was added to `GetThere.slnx`, both apps, the test
-   project, and all four places `build-check.yml` names projects individually. If CI passes but a
-   local `dotnet build GetThere.slnx` fails, suspect the solution entry.
-2. **`BarcodeRenderService`** uses ZXing APIs (`BarcodeWriterPixelData`, `QrCodeEncodingOptions`,
-   `ErrorCorrectionLevel`) that were written from memory against ZXing.Net 0.16.11.
-3. **`TicketStore`** uses `AesGcm` and `SKBitmap.InstallPixels` over a pinned buffer.
+1. ~~**`GetThereExtraction` is a new project.**~~ Builds in CI. It was added to `GetThere.slnx`, both
+   apps, the test project, and all four places `build-check.yml` names projects individually — but
+   CI builds projects *individually*, never the solution, so a bad `.slnx` entry would still only
+   show up in a local `dotnet build GetThere.slnx`. That is the one part of this item left to check.
+2. ~~**`BarcodeRenderService` ZXing APIs**~~ — written from memory against ZXing.Net 0.16.11 and, as
+   expected, wrong: `PixelData` is in `ZXing.Rendering`, not `ZXing`. Fixed; the file now compiles,
+   which means `BarcodeWriterPixelData`, `QrCodeEncodingOptions`, `EncodingOptions.PureBarcode` and
+   `ErrorCorrectionLevel.Q` all resolve. **Compiling is not scanning** — §3b is still the real test.
+3. ~~**`TicketStore`'s `AesGcm`** and `SKBitmap.InstallPixels` over a pinned buffer~~ — compile.
+   Whether the pinned-buffer copy produces a *correct* image is §3b; whether the ciphertext
+   round-trips is §3c item 17.
 4. **XAML bindings** — `TicketsPage` and the two detail pages changed shape. The ticket card's
-   `DataTemplate` is untyped, so a wrong property name fails at runtime, not compile time.
+   `DataTemplate` is untyped, so a wrong property name fails at runtime, not compile time. **This is
+   the one CI cannot reach**, and the reason §3c item 1 is worth doing first.
 
 ## 2. The database change — check this before running anything against a real database
 
