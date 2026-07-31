@@ -324,6 +324,7 @@
   <data name="Login_Tagline" xml:space="preserve"><value>One account for every operator's tickets, wallet and live journeys</value></data>
   <data name="Common_Create" xml:space="preserve"><value>Create</value></data>
   <data name="Common_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
+  <data name="Common_Offline" xml:space="preserve"><value>You're offline. Reconnect to see the latest.</value></data>
   <data name="Journeys_Title" xml:space="preserve"><value>Journeys</value></data>
   <data name="Journeys_Suggested" xml:space="preserve"><value>SUGGESTED TRIPS</value></data>
   <data name="Journeys_AcceptSuggestion" xml:space="preserve"><value>Create journey</value></data>

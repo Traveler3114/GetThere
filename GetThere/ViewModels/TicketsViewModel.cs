@@ -4,6 +4,7 @@ using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using GetThere.Localization;
 using GetThere.Services;
 
 using GetThereShared.Contracts;
@@ -99,15 +100,38 @@ public partial class TicketsViewModel : BaseViewModel
     [RelayCommand]
     private async Task LoadTickets()
     {
-        var loggedIn = await _authService.IsLoggedInAsync();
-        IsAuthenticated = loggedIn;
-        if (!loggedIn) return;
-
         IsBusy = true;
         HasError = false;
+        IsOffline = false;
         _currentPage = 1;
         try
         {
+            // Inside the try deliberately. This reaches the network — an expired access token sends
+            // IsLoggedInAsync straight into a refresh — and it used to sit above it, so the first
+            // thing this screen did without a connection was throw past every handler below.
+            var loggedIn = await _authService.IsLoggedInAsync();
+
+            if (!loggedIn && IsOfflineNow)
+            {
+                // A refresh that could not reach the server says nothing about whether the user is
+                // signed in, so fall back to whether credentials are still on file — a SecureStorage
+                // read, no network. Without this the wallet raises its full-screen "account
+                // required" prompt at someone who is merely offline, and on a cold start
+                // IsAuthenticated has never been true, so there is no previous value to keep.
+                var hasStoredCredentials = !string.IsNullOrWhiteSpace(await _authService.GetRefreshTokenAsync());
+                if (hasStoredCredentials)
+                {
+                    IsAuthenticated = true;
+                    IsOffline = true;
+                    HasError = true;
+                    ErrorText = LocalizationService.Instance["Common_Offline"];
+                    return;
+                }
+            }
+
+            IsAuthenticated = loggedIn;
+            if (!loggedIn) return;
+
             var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
             if (result.Success)
             {
@@ -122,13 +146,19 @@ public partial class TicketsViewModel : BaseViewModel
             }
             else
             {
-                ErrorText = result.Message ?? "Could not load tickets.";
+                // The service turns every transport failure into one generic message, so ask the
+                // device rather than the message which kind of failure this was.
+                IsOffline = IsOfflineNow;
+                ErrorText = IsOffline
+                    ? LocalizationService.Instance["Common_Offline"]
+                    : result.Message ?? "Could not load tickets.";
                 HasError = true;
             }
         }
         catch (Exception ex)
         {
-            ErrorText = ex.Message;
+            IsOffline = IsOfflineNow;
+            ErrorText = IsOffline ? LocalizationService.Instance["Common_Offline"] : ex.Message;
             HasError = true;
         }
         finally { IsBusy = false; }

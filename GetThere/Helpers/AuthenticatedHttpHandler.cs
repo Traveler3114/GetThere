@@ -45,6 +45,17 @@ public class AuthenticatedHttpHandler : DelegatingHandler
         var refreshedAfter401 = await _authService.TryRefreshTokenAsync();
         if (!refreshedAfter401)
         {
+            // "Could not refresh" now covers two very different cases, because TryRefreshTokenAsync
+            // reports a transport failure as false rather than throwing. A rejected refresh token
+            // means sign the user out; an unreachable server means the connection dropped between
+            // the 401 and the refresh, and wiping their credentials over that would be a bad trade.
+            // Leave them signed in and let the caller surface an ordinary failure.
+            if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
+            {
+                Trace.WriteLine("[AuthenticatedHttpHandler] Refresh failed with no connection; keeping the session.");
+                return response;
+            }
+
             await _authService.Logout();
             MainThread.BeginInvokeOnMainThread(App.GoToLogin);
             return response;

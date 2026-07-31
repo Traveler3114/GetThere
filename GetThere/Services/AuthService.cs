@@ -88,7 +88,25 @@ public class AuthService : IDisposable
             if (currentRefreshToken != observedRefreshToken)
                 return true;
 
-            var response = await _http.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest(currentRefreshToken), JsonOptions);
+            HttpResponseMessage response;
+            try
+            {
+                response = await _http.PostAsJsonAsync("auth/refresh", new RefreshTokenRequest(currentRefreshToken), JsonOptions);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                // The server was unreachable, which says nothing about whether the token is still
+                // good. Returning false reports "not refreshed" and leaves the stored tokens alone —
+                // they are very likely still valid once there is a network again.
+                //
+                // This used to throw. IsLoggedInAsync calls straight into here whenever the access
+                // token has expired, so offline the exception escaped every caller that assumed a
+                // bool: the wallet screen faulted on its first load rather than showing anything.
+                // Clearing tokens here would be worse still — it would sign a user out for walking
+                // into a tunnel.
+                Trace.WriteLine($"[AuthService] Could not reach the server to refresh: {ex.Message}");
+                return false;
+            }
 
             if (response.IsSuccessStatusCode)
             {

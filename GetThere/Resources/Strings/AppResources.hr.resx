@@ -324,6 +324,7 @@
   <data name="Login_Tagline" xml:space="preserve"><value>Jedan račun za karte, novčanik i putovanja svih operatera</value></data>
   <data name="Common_Create" xml:space="preserve"><value>Stvori</value></data>
   <data name="Common_Dismiss" xml:space="preserve"><value>Odbaci</value></data>
+  <data name="Common_Offline" xml:space="preserve"><value>Niste povezani. Povežite se za najnovije podatke.</value></data>
   <data name="Journeys_Title" xml:space="preserve"><value>Putovanja</value></data>
   <data name="Journeys_Suggested" xml:space="preserve"><value>PREDLOŽENA PUTOVANJA</value></data>
   <data name="Journeys_AcceptSuggestion" xml:space="preserve"><value>Stvori putovanje</value></data>
