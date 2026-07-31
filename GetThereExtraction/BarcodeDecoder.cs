@@ -5,7 +5,7 @@ using SkiaSharp;
 using ZXing;
 using ZXing.Common;
 
-namespace GetThereAPI.Services.Extraction;
+namespace GetThereExtraction;
 
 /// <summary>A barcode found in an uploaded file.</summary>
 /// <param name="Payload">The decoded text, stored as the ticket's raw payload.</param>
@@ -23,9 +23,20 @@ public record DecodedBarcode(string Payload, TicketFormat Format);
 /// </summary>
 public class BarcodeDecoder
 {
-    private readonly ILogger<BarcodeDecoder> _logger;
+    /// <summary>
+    /// Where diagnostics go, if anywhere.
+    /// <para>
+    /// A delegate rather than <c>ILogger</c> so this project needs no logging dependency: it runs
+    /// inside a MAUI app as well as an API, and a shared library forcing a logging abstraction onto
+    /// a phone for four warning lines is a poor trade. GetThereAPI passes its logger in; the client
+    /// passes a Trace write, or nothing.
+    /// </para>
+    /// </summary>
+    private readonly Action<string, Exception?>? _log;
 
-    public BarcodeDecoder(ILogger<BarcodeDecoder> logger) { _logger = logger; }
+    public BarcodeDecoder(Action<string, Exception?>? log = null) { _log = log; }
+
+    private void Log(string message, Exception? error = null) => _log?.Invoke(message, error);
 
     private static readonly BarcodeFormat[] TicketFormats =
     [
@@ -63,7 +74,7 @@ public class BarcodeDecoder
                 // HEIC in particular is not decodable by every SkiaSharp native build. The client
                 // re-encodes camera captures to JPEG for this reason; a picked-from-disk HEIC that
                 // lands here simply yields no barcode rather than failing the upload.
-                _logger.LogInformation("Image could not be decoded for barcode scanning");
+                Log("Image could not be decoded for barcode scanning");
                 return null;
             }
 
@@ -72,16 +83,14 @@ public class BarcodeDecoder
             var pixels = (long)info.Width * info.Height;
             if (pixels > MaxDecodedPixels)
             {
-                _logger.LogWarning(
-                    "Refusing to decode a {Width}x{Height} image ({Pixels} px) for barcode scanning; the ceiling is {Max} px",
-                    info.Width, info.Height, pixels, MaxDecodedPixels);
+                Log($"Refusing to decode a {info.Width}x{info.Height} image ({pixels} px) for barcode scanning; the ceiling is {MaxDecodedPixels} px");
                 return null;
             }
 
             using var bitmap = SKBitmap.Decode(codec);
             if (bitmap is null)
             {
-                _logger.LogInformation("Image could not be decoded for barcode scanning");
+                Log("Image could not be decoded for barcode scanning");
                 return null;
             }
 
@@ -91,7 +100,7 @@ public class BarcodeDecoder
         // trouble, and swallowing it here reported "no barcode found" while leaving it unrecoverable.
         catch (Exception ex) when (ex is not (OutOfMemoryException or StackOverflowException))
         {
-            _logger.LogWarning(ex, "Barcode decoding failed");
+            Log("Barcode decoding failed", ex);
             return null;
         }
     }

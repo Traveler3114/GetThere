@@ -195,6 +195,8 @@
   <data name="Tickets_Expired" xml:space="preserve"><value>Istekle</value></data>
   <data name="Tickets_Used" xml:space="preserve"><value>Iskorištene</value></data>
   <data name="Tickets_SavedAgo" xml:space="preserve"><value>Spremljeno prije {0} · prikazuje se zadnje ažuriranje</value></data>
+  <data name="Tickets_OnThisDeviceOnly" xml:space="preserve"><value>Samo na ovom uređaju · prijavite se da ih spremite na račun</value></data>
+  <data name="Tickets_PendingNotOpenable" xml:space="preserve"><value>Ova karta još nije spremljena na vaš račun. Prijavite se i ponovno otvorite novčanik.</value></data>
   <data name="Tickets_JustNow" xml:space="preserve"><value>trenutak</value></data>
   <data name="Tickets_NoItems" xml:space="preserve"><value>Nema pronađenih stavki</value></data>
   <data name="Tickets_MockLabel" xml:space="preserve"><value>Karte sesije (Testne)</value></data>

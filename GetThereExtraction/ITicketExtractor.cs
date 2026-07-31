@@ -1,7 +1,7 @@
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
-namespace GetThereAPI.Services.Extraction;
+namespace GetThereExtraction;
 
 /// <summary>
 /// Reads candidate ticket fields out of an uploaded file.

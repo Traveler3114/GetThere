@@ -7,6 +7,8 @@ using GetThereShared.Enums;
 
 using Ical.Net.CalendarComponents;
 
+using GetThereExtraction;
+
 namespace GetThereAPI.Services.Extraction;
 
 /// <summary>

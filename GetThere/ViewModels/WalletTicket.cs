@@ -68,7 +68,7 @@ public sealed class WalletTicket
     /// is no API that moves a purchased ticket out of `Active`, and offering the action would be a
     /// button that cannot work.
     /// </summary>
-    public bool HasActions => Kind is WalletTicketKind.Imported && IsRecordedActive;
+    public bool HasActions => Kind is WalletTicketKind.Imported && IsRecordedActive && !IsPending;
 
     /// <summary>Whether the *stored* status is the active one. Both enums spell it the same way.</summary>
     private bool IsRecordedActive =>
@@ -91,6 +91,33 @@ public sealed class WalletTicket
         TicketValidity.IsPastValidity(IsRecordedActive, ValidTo, DateTime.UtcNow)
             ? nameof(ImportedTicketStatus.Expired)
             : Status;
+
+    /// <summary>
+    /// A ticket created on this device that the server has not accepted yet — imported by a guest,
+    /// or while offline.
+    /// <para>
+    /// It has no server id, so <see cref="Id"/> is 0 and it cannot be opened: the detail screens
+    /// fetch by id. Showing it in the list anyway is the honest choice — the ticket exists and the
+    /// user made it. <see cref="IsPending"/> is what the card uses to say so.
+    /// </para>
+    /// </summary>
+    public static WalletTicket FromPending(CreateImportedTicketRequest r) => new()
+    {
+        Kind = WalletTicketKind.Imported,
+        Id = 0,
+        TicketName = r.TicketName,
+        RouteDescription = r.RouteDescription,
+        Status = nameof(ImportedTicketStatus.Active),
+        ValidFrom = r.ValidFrom,
+        ValidTo = r.ValidTo,
+        Price = r.Price,
+        Currency = r.Currency,
+        SortDate = r.ValidFrom ?? DateTime.UtcNow,
+        IsPending = true
+    };
+
+    /// <summary>True while this ticket is still only on the device.</summary>
+    public bool IsPending { get; init; }
 
     public static WalletTicket FromImported(ImportedTicketResponse t) => new()
     {

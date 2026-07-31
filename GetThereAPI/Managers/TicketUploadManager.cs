@@ -3,7 +3,7 @@ using GetThereAPI.Data;
 using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Services;
-using GetThereAPI.Services.Extraction;
+using GetThereExtraction;
 
 using GetThereShared.Contracts;
 using GetThereShared.Enums;

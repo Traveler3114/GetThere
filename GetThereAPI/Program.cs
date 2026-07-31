@@ -9,7 +9,7 @@ using GetThereAPI.Exceptions;
 using GetThereAPI.Managers;
 using GetThereAPI.Sdk;
 using GetThereAPI.Services;
-using GetThereAPI.Services.Extraction;
+using GetThereExtraction;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -91,7 +91,19 @@ builder.Services.AddHostedService<PurchaseReconciliationWorker>();
 // Everything here is stateless, hence singleton.
 builder.Services.AddSingleton<ITicketFileStore, LocalTicketFileStore>();
 builder.Services.AddSingleton<ITicketFileScanner, NoOpTicketFileScanner>();
-builder.Services.AddSingleton<BarcodeDecoder>();
+// Constructed by hand rather than by type, because the decoder moved to GetThereExtraction and no
+// longer takes an ILogger — a shared library that also runs inside a MAUI app should not force a
+// logging abstraction onto a phone for four warning lines. It takes a delegate, and this is where
+// the server's logger gets attached to it.
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("BarcodeDecoder");
+    return new BarcodeDecoder((message, error) =>
+    {
+        if (error is null) logger.LogInformation("{Message}", message);
+        else logger.LogWarning(error, "{Message}", message);
+    });
+});
 builder.Services.AddSingleton<ITicketExtractor, PkPassTicketExtractor>();
 builder.Services.AddSingleton<ITicketExtractor, PdfTicketExtractor>();
 builder.Services.AddSingleton<ITicketExtractor, ImageTicketExtractor>();

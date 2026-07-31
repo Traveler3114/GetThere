@@ -2,7 +2,7 @@ using System.Text;
 
 using GetThereShared.Enums;
 
-namespace GetThereAPI.Common;
+namespace GetThereExtraction;
 
 /// <summary>
 /// Decides what an uploaded file actually is by reading its leading bytes.

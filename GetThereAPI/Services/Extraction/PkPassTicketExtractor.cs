@@ -8,6 +8,8 @@ using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
+using GetThereExtraction;
+
 namespace GetThereAPI.Services.Extraction;
 
 /// <summary>

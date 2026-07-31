@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 
 using GetThereAPI.Exceptions;
-using GetThereAPI.Services.Extraction;
+using GetThereExtraction;
 
 using GetThereShared.Enums;
 

@@ -3,6 +3,7 @@
   <Project Path="GetThereAPI/GetThereAPI.csproj" />
   <Project Path="SharedAuth/SharedAuth.csproj" />
   <Project Path="GetThereShared/GetThereShared.csproj" />
+  <Project Path="GetThereExtraction/GetThereExtraction.csproj" />
   <Project Path="TransitInfoAPI/TransitInfoAPI.csproj" />
   <Project Path="tests/GetThere.Tests/GetThere.Tests.csproj" />
 </Solution>

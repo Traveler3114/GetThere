@@ -476,3 +476,43 @@ Backup stays enabled overall — losing a wallet's settings on a handset swap wo
 Only the ticket directory is excluded. Its key lives in `SecureStorage`, which Android does not back
 up, so a restored copy would be undecryptable anyway; the exclusion keeps the credential off the wire
 rather than depending on that.
+
+### Importing a ticket no longer needs an account or a connection
+
+The last of the offline series, and the one that changes what the app is for. Every import path
+called an authorized endpoint before the confirmation form opened, and `Save` unconditionally posted
+to the server — so a signed-out user could not import a ticket, and neither could a signed-in one
+with no signal. For a wallet whose premise is holding tickets the user already has, both were the
+wrong way round.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Extraction became shared** | new `GetThereExtraction/` | `BarcodeDecoder`, `ImageTicketExtractor`, `TicketTextScraper`, `TicketFileSniffer` and `ITicketExtractor` moved out of GetThereAPI. Same code both sides, so a ticket read on a device and one read on the server cannot disagree — which serves the original "behaves identically on every platform" intent better than server-only did |
+| **The device can read a ticket** | `GetThere/Services/LocalExtractionService.cs` | Photo and pasted text, with no network. `CanExtractLocally` is how a caller finds out before promising the user anything |
+| **Local-first saving** | `ViewModels/ImportTicketViewModel.cs`, `Services/PendingImportQueue.cs` | Saved to the device, pushed later. A failed create now queues rather than losing what the user typed |
+| **Idempotency** | `Entities/ImportedTicket.cs`, `ImportedTicketContract.cs`, `AppDbContext.cs`, migration `20260731120000` | `ClientId`, minted at creation, unique per user. `CreateAsync` checks it **first** and returns the original on a replay |
+| **Guest → account** | `Services/ImportSyncService.cs`, `ViewModels/LoginViewModel.cs`, `TicketsViewModel.cs` | The queue drains on sign-in and on every wallet load. Nothing did this before — `ClearGuest` ran on logout and never on login, so a guest who imported and then signed up would have found an empty wallet |
+
+**Why the dedupe hash could not be the idempotency key**, which is the whole reason for a new column:
+it is computed from the request's fields, so a ticket edited between being queued and being pushed
+hashes differently and inserts twice; and its unique index is filtered on `Status = 'Active'`, so one
+marked used before the queue drained inserts again. The new index is filtered on `ClientId IS NOT
+NULL` only — deliberately *not* on status — so a retry finds the original whatever became of it.
+`ImportedTicketClientIdTests` pins both failure modes against the real hash function, so that if
+either ever stops being true someone can see the column is no longer earning its place.
+
+**What stayed server-side:** PDF (PdfPig), calendar invites (Ical.Net) and wallet passes. The first
+two are the heaviest dependencies and the AOT/trimming risk on iOS is real; `PkPassTicketExtractor`
+is otherwise portable but throws GetThereAPI's `AppException`, and untangling that is its own change.
+Those formats still need an account, and the UI says so rather than failing obscurely.
+
+**A guest's wallet now shows their tickets** instead of a full-screen "account required" scrim. They
+are marked as device-only and cannot be opened — they have no server id, and both detail screens
+fetch by one.
+
+> **The migration is hand-written.** `20260731120000_AddImportedTicketClientId` and the matching
+> `AppDbContextModelSnapshot` edit were authored without `dotnet ef`, because the environment had no
+> .NET SDK — a deliberate exception to `AGENTS.md`'s "never manually edit `*ModelSnapshot.cs`",
+> granted for this change. Re-scaffold it against a real toolchain before it reaches a shared
+> database. The DDL is two statements; the snapshot agreeing with the model is the part worth
+> checking.

@@ -151,6 +151,17 @@ public static class MauiProgram
         // must not interleave into a half-written file.
         builder.Services.AddSingleton<TicketStore>();
 
+        // Both own a file and a lock, so both are singletons for the same reason TicketStore is.
+        builder.Services.AddSingleton<PendingImportQueue>();
+
+        // Extraction on the device, so importing works signed out and with no signal.
+        builder.Services.AddSingleton<LocalExtractionService>();
+
+        builder.Services.AddTransient(sp => new ImportSyncService(
+            sp.GetRequiredService<ImportedTicketService>(),
+            sp.GetRequiredService<PendingImportQueue>(),
+            sp.GetRequiredService<AuthService>()));
+
         var assembly = Assembly.GetExecutingAssembly();
 
         var pageTypes = assembly

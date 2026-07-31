@@ -146,6 +146,9 @@ namespace GetThereAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -235,6 +238,10 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("JourneyId");
 
                     b.HasIndex("Status", "ValidTo");
+
+                    b.HasIndex("UserId", "ClientId")
+                        .IsUnique()
+                        .HasFilter("[ClientId] IS NOT NULL");
 
                     b.HasIndex("UserId", "DedupeHash")
                         .IsUnique()

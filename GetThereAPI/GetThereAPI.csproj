@@ -36,6 +36,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SharedAuth\SharedAuth.csproj" />
     <ProjectReference Include="..\GetThereShared\GetThereShared.csproj" />
+    <ProjectReference Include="..\GetThereExtraction\GetThereExtraction.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -105,6 +105,25 @@ public class ImportedTicketManager
 
         // Resolved against this user's own unconsumed uploads, so a blob key names a file the
         // caller demonstrably uploaded rather than an arbitrary storage path.
+        // Idempotency comes first, before dedupe and before the upload key is spent. A device
+        // replaying a queued import must get its original ticket back, not a 409 about a duplicate
+        // and not a second row — the whole reason ClientId exists is that the dedupe hash cannot
+        // answer this: it changes when the user edits the draft, and its index ignores tickets that
+        // have left Active.
+        if (request.ClientId is { } clientId)
+        {
+            var existing = await _db.ImportedTickets
+                .FirstOrDefaultAsync(t => t.UserId == userId && t.ClientId == clientId, ct);
+
+            if (existing is not null)
+            {
+                _logger.LogInformation(
+                    "Imported ticket {Id} returned for a replayed client id {ClientId} (user {UserId})",
+                    existing.Id, clientId, userId);
+                return ImportedTicketMapper.ToResponse(existing);
+            }
+        }
+
         var upload = await ResolveUploadAsync(userId, request.SourceFileBlobKey, ct);
 
         // AllowDuplicate stores no hash at all rather than skipping only the pre-check: the unique
@@ -126,6 +145,7 @@ public class ImportedTicketManager
         {
             OriginName = request.OriginName,
             DestinationName = request.DestinationName,
+            ClientId = request.ClientId,
             SourceFileBlobKey = upload?.BlobKey,
             SourceFileContentType = upload?.ContentType,
             UserId = userId,
@@ -160,6 +180,19 @@ public class ImportedTicketManager
         }
         catch (DbUpdateException ex) when (IsDuplicateKeyViolation(ex))
         {
+            // Two devices — or one device retrying fast enough to race itself — can both pass the
+            // check above and reach the index. For a client id that is not a duplicate to report
+            // but the same import arriving twice, so re-read and return the winner.
+            if (request.ClientId is { } racedClientId)
+            {
+                var winner = await _db.ImportedTickets
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.UserId == userId && t.ClientId == racedClientId, ct);
+
+                if (winner is not null)
+                    return ImportedTicketMapper.ToResponse(winner);
+            }
+
             throw new AppException("This ticket appears to be a duplicate of an existing active ticket.", 409);
         }
 

@@ -6,6 +6,17 @@ namespace GetThereShared.Contracts;
 
 public class CreateImportedTicketRequest
 {
+    /// <summary>
+    /// The device's own id for this ticket, if it was created on one.
+    /// <para>
+    /// Makes a queued import safe to retry: a device that loses its connection mid-push, or is
+    /// killed before it records the response, resends the same id and the server returns the
+    /// existing ticket instead of a second copy. Omit it for a ticket created directly against the
+    /// API.
+    /// </para>
+    /// </summary>
+    public Guid? ClientId { get; set; }
+
     [MaxLength(128)]
     public string? OperatorGlobalId { get; set; }
     [MaxLength(200)]
@@ -53,6 +64,9 @@ public class CreateImportedTicketRequest
 public class ImportedTicketResponse
 {
     public int Id { get; set; }
+
+    /// <summary>Set when the ticket was created on a device; how that device recognises its own.</summary>
+    public Guid? ClientId { get; set; }
     public string? OperatorGlobalId { get; set; }
     public string? OperatorNameSnapshot { get; set; }
     public ImportSource Source { get; set; }

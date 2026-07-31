@@ -176,6 +176,15 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.HasIndex(t => new { t.UserId, t.DedupeHash })
                   .IsUnique()
                   .HasFilter("[Status] = 'Active' AND [DedupeHash] IS NOT NULL");
+
+            // Idempotency for the offline import queue. Filtered on NOT NULL because SQL Server
+            // treats NULLs as equal in a unique index — unfiltered, this would permit exactly one
+            // server-created ticket per user. Unlike the dedupe index above it is deliberately *not*
+            // filtered on Status: the whole point is that a retry finds the original whatever became
+            // of it, including a ticket already marked used.
+            entity.HasIndex(t => new { t.UserId, t.ClientId })
+                  .IsUnique()
+                  .HasFilter("[ClientId] IS NOT NULL");
             entity.Property(t => t.Price).HasPrecision(18, 2);
             entity.Property(t => t.OperatorGlobalId).HasMaxLength(128);
             entity.Property(t => t.OperatorNameSnapshot).HasMaxLength(200);

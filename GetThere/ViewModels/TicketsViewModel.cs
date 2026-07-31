@@ -19,6 +19,8 @@ public partial class TicketsViewModel : BaseViewModel
     private readonly TicketService _ticketService;
     private readonly TicketCaptureService _capture;
     private readonly TicketStore _store;
+    private readonly PendingImportQueue _pendingImports;
+    private readonly ImportSyncService _importSync;
     private readonly IAnalyticsService _analytics;
     private ImportedTicketStatus? _activeFilter;
 
@@ -96,6 +98,8 @@ public partial class TicketsViewModel : BaseViewModel
         TicketService ticketService,
         TicketCaptureService capture,
         TicketStore store,
+        PendingImportQueue pendingImports,
+        ImportSyncService importSync,
         IAnalyticsService analytics,
         JourneysViewModel journeys)
     {
@@ -104,6 +108,8 @@ public partial class TicketsViewModel : BaseViewModel
         _ticketService = ticketService;
         _capture = capture;
         _store = store;
+        _pendingImports = pendingImports;
+        _importSync = importSync;
         _analytics = analytics;
         Journeys = journeys;
     }
@@ -160,7 +166,18 @@ public partial class TicketsViewModel : BaseViewModel
             }
 
             IsAuthenticated = loggedIn;
-            if (!loggedIn) return;
+
+            // A guest is signed out but may still hold tickets — they are on the device, waiting for
+            // an account. Show those rather than the "account required" wall.
+            if (!loggedIn)
+            {
+                await ShowPendingOnlyAsync();
+                return;
+            }
+
+            // Anything imported offline or before signing in is pushed first, so the list below
+            // already contains it rather than showing it twice from two sources.
+            await _importSync.FlushAsync();
 
             var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
             if (result.Success)
@@ -206,6 +223,40 @@ public partial class TicketsViewModel : BaseViewModel
             await ShowCachedAsync();
         }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>
+    /// The wallet for someone with no account: whatever they have imported, held on the device.
+    /// <para>
+    /// A guest used to get a full-screen "account required" scrim over an empty tab. Importing works
+    /// without an account now, so there is something real to show — and hiding it behind a sign-up
+    /// prompt would mean taking a ticket away from the person who just added it.
+    /// </para>
+    /// </summary>
+    private async Task ShowPendingOnlyAsync()
+    {
+        var pending = await _pendingImports.PeekAllAsync();
+
+        ImportedTickets.Clear();
+        _purchasedTickets.Clear();
+
+        // Authenticated in the sense the screen cares about: there is a wallet worth rendering.
+        // Nothing here is a claim about the server, and no request will be made with it.
+        IsAuthenticated = pending.Count > 0;
+
+        WalletTickets.Clear();
+        foreach (var t in pending.Select(WalletTicket.FromPending).OrderByDescending(t => t.SortDate))
+            WalletTickets.Add(t);
+
+        HasImportedTickets = WalletTickets.Count > 0;
+        TotalTickets = WalletTickets.Count;
+        HasMore = false;
+
+        if (WalletTickets.Count > 0)
+        {
+            IsShowingCached = true;
+            CachedAtText = LocalizationService.Instance["Tickets_OnThisDeviceOnly"];
+        }
     }
 
     /// <summary>Writes what is currently on screen to the device, so the next failed load has it.</summary>
@@ -330,6 +381,15 @@ public partial class TicketsViewModel : BaseViewModel
     private async Task OpenTicket(WalletTicket? ticket)
     {
         if (ticket is null) return;
+
+        // Not yet pushed, so it has no server id and both detail screens fetch by one. Say so rather
+        // than opening a screen that would fail to load.
+        if (ticket.IsPending)
+        {
+            ErrorText = LocalizationService.Instance["Tickets_PendingNotOpenable"];
+            HasError = true;
+            return;
+        }
 
         var route = ticket.Kind switch
         {

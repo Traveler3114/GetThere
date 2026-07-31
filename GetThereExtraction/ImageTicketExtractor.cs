@@ -1,7 +1,7 @@
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
-namespace GetThereAPI.Services.Extraction;
+namespace GetThereExtraction;
 
 /// <summary>
 /// Reads a photograph or screenshot of a ticket.
