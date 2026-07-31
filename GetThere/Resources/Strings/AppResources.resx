@@ -321,16 +321,6 @@
   <data name="Tickets_All" xml:space="preserve"><value>All</value></data>
   <data name="Tickets_ImportButton" xml:space="preserve"><value>Import ticket</value></data>
   <data name="Tickets_CountSummary" xml:space="preserve"><value>{0} tickets · {1} active</value></data>
-  <data name="Map_SearchPlaceholder" xml:space="preserve"><value>Where are you going?</value></data>
-  <data name="Map_ModeTram" xml:space="preserve"><value>Tram</value></data>
-  <data name="Map_ModeBus" xml:space="preserve"><value>Bus</value></data>
-  <data name="Map_ModeTrain" xml:space="preserve"><value>Train</value></data>
-  <data name="Map_ModeBikes" xml:space="preserve"><value>Bikes</value></data>
-  <data name="Map_Locate" xml:space="preserve"><value>Recentre</value></data>
-  <data name="Map_Layers" xml:space="preserve"><value>Layers</value></data>
-  <data name="Map_BuyTicket" xml:space="preserve"><value>Buy ticket</value></data>
-  <data name="Map_Departures" xml:space="preserve"><value>Departures</value></data>
-  <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vehicles live</value></data>
   <data name="Login_Tagline" xml:space="preserve"><value>One account for every operator's tickets, wallet and live journeys</value></data>
   <data name="Common_Create" xml:space="preserve"><value>Create</value></data>
   <data name="Common_Dismiss" xml:space="preserve"><value>Dismiss</value></data>

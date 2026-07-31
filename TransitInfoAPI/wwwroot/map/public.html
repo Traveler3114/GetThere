@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<!--
+  viewport-fit=cover so the chrome below can sit under a notch and pad itself back out with
+  env(safe-area-inset-*). The MAUI client used to position this UI natively, where the platform
+  handled safe areas for us; now the page owns that.
+-->
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>Transit Map</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -37,6 +42,95 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 .loading { color: #999; font-style: italic; }
 #mapError { position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#dc3545; color:#fff; padding:8px 16px; border-radius:6px; font-size:0.85rem; z-index:2000; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
 #mapError.d-none { display:none; }
+
+/* ── Map chrome ────────────────────────────────────────────────────────────────
+   Search field, transport-mode chips and the two round controls. These were drawn
+   natively over this page by the MAUI client (frame 3a of the design); the values
+   below mirror the styles they were built from — DsField, DsChip, DsChipLabel and
+   DsMapControl in GetThere/Resources/Styles/DesignSystem.xaml — so the screen looks
+   the same now that the page owns it. */
+
+#chrome {
+  position: fixed; z-index: 1100;
+  top: calc(14px + env(safe-area-inset-top));
+  left: calc(16px + env(safe-area-inset-left));
+  right: calc(16px + env(safe-area-inset-right));
+  max-width: 420px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+/* DsField: 46px tall on the map, 12px radius, 1px border, 14px text. */
+#searchField {
+  display: flex; align-items: center; gap: 10px;
+  height: 46px; padding: 0 14px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
+#searchIcon {
+  flex: none; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid #94A3B8;
+}
+#searchInput {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font: inherit; font-size: 14px; color: #0F172A;
+}
+#searchInput::placeholder { color: #94A3B8; }
+/* The native clear affordance sits badly against the round icon and duplicates Escape. */
+#searchInput::-webkit-search-cancel-button { display: none; }
+
+#searchResults {
+  list-style: none; margin: 0; padding: 4px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  max-height: 260px; overflow-y: auto;
+}
+#searchResults[hidden] { display: none; }
+#searchResults li {
+  padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; color: #0F172A;
+}
+#searchResults li:hover, #searchResults li.active { background: #F1F5F9; }
+#searchResults li .sub { display: block; font-size: 12px; color: #94A3B8; margin-top: 2px; }
+#searchResults li.empty { cursor: default; color: #94A3B8; font-style: italic; }
+#searchResults li.empty:hover { background: none; }
+
+/* Horizontally scrollable, as the native ScrollView was. */
+#modeChips {
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+#modeChips::-webkit-scrollbar { display: none; }
+
+/* DsChip + DsChipLabel, with ChipPartConverter's selected/unselected colours. */
+.chip {
+  flex: none; height: 32px; padding: 0 14px; border-radius: 16px;
+  font: inherit; font-size: 12.5px; line-height: 30px;
+  background: transparent; border: 1px solid #4B5563; color: #D1D5DB;
+  cursor: pointer; white-space: nowrap;
+}
+.chip.selected { background: #134E4A; border-color: #10B981; color: #5EEAD4; }
+
+/* DsMapControl: 44x44, 14px radius. */
+#mapControls {
+  position: fixed; z-index: 1100;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 10px;
+}
+#mapControls button {
+  width: 44px; height: 44px; border-radius: 14px; cursor: pointer;
+  background: #fff; border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+}
+#btnRecentre .ring {
+  width: 16px; height: 16px; border-radius: 50%; border: 2px solid #5EEAD4;
+  display: flex; align-items: center; justify-content: center;
+}
+#btnRecentre .dot { width: 5px; height: 5px; border-radius: 50%; background: #2DD4BF; }
+#btnLayers .bars { display: flex; flex-direction: column; gap: 3px; }
+#btnLayers .bars i { display: block; width: 16px; height: 2px; border-radius: 1px; background: #334155; }
+#btnLayers.off .bars i { opacity: 0.4; }
+
 @media (prefers-color-scheme: dark) {
   body { background: #0F172A; }
   #sidebar { background: #111827; color: #e2e8f0; }
@@ -45,12 +139,39 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   #sidebar .info-row strong { color: #94a3b8; }
   #sidebar .departure-item { border-bottom-color: #1e293b; color: #cbd5e1; }
   .loading { color: #64748b; }
+
+  #searchField, #searchResults { background: #1F2937; border-color: #374151; }
+  #searchInput { color: #F3F4F6; }
+  #searchResults li { color: #F3F4F6; }
+  #searchResults li:hover, #searchResults li.active { background: #374151; }
+  #mapControls button { background: #111827; border-color: #1F2937; }
+  #btnLayers .bars i { background: #CBD5E1; }
 }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="mapError" class="d-none"></div>
+
+<!--
+  Labels and placeholders are filled in by public.js from the ?lang= table rather than written
+  here, so there is one place to add a language.
+-->
+<div id="chrome">
+  <div id="searchField">
+    <span id="searchIcon"></span>
+    <input id="searchInput" type="search" autocomplete="off" autocorrect="off" spellcheck="false"
+           role="combobox" aria-expanded="false" aria-controls="searchResults">
+  </div>
+  <ul id="searchResults" role="listbox" hidden></ul>
+  <div id="modeChips" role="group"></div>
+</div>
+
+<div id="mapControls">
+  <button id="btnRecentre" type="button"><span class="ring"><span class="dot"></span></span></button>
+  <button id="btnLayers" type="button"><span class="bars"><i></i><i></i><i></i></span></button>
+</div>
+
 <div id="sidebar">
   <button class="close-btn" id="sidebarClose">&times;</button>
   <div id="sidebar-content"><p class="loading">Click a stop to view details</p></div>

@@ -321,16 +321,6 @@
   <data name="Tickets_All" xml:space="preserve"><value>Sve</value></data>
   <data name="Tickets_ImportButton" xml:space="preserve"><value>Uvezi kartu</value></data>
   <data name="Tickets_CountSummary" xml:space="preserve"><value>{0} karata · {1} aktivnih</value></data>
-  <data name="Map_SearchPlaceholder" xml:space="preserve"><value>Kamo putujete?</value></data>
-  <data name="Map_ModeTram" xml:space="preserve"><value>Tramvaj</value></data>
-  <data name="Map_ModeBus" xml:space="preserve"><value>Autobus</value></data>
-  <data name="Map_ModeTrain" xml:space="preserve"><value>Vlak</value></data>
-  <data name="Map_ModeBikes" xml:space="preserve"><value>Bicikli</value></data>
-  <data name="Map_Locate" xml:space="preserve"><value>Centriraj</value></data>
-  <data name="Map_Layers" xml:space="preserve"><value>Slojevi</value></data>
-  <data name="Map_BuyTicket" xml:space="preserve"><value>Kupi kartu</value></data>
-  <data name="Map_Departures" xml:space="preserve"><value>Polasci</value></data>
-  <data name="Map_LiveVehicles" xml:space="preserve"><value>{0} vozila uživo</value></data>
   <data name="Login_Tagline" xml:space="preserve"><value>Jedan račun za karte, novčanik i putovanja svih operatera</value></data>
   <data name="Common_Create" xml:space="preserve"><value>Stvori</value></data>
   <data name="Common_Dismiss" xml:space="preserve"><value>Odbaci</value></data>

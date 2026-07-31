@@ -16,8 +16,19 @@ public class RealtimeController : ControllerBase
 
     public RealtimeController(RealtimeManager realtime) { _realtime = realtime; }
 
+    /// <summary>
+    /// Live vehicle positions, read anonymously by the public map page.
+    /// <para>
+    /// This required <c>realtime.view</c> while the map was served by GetThereAPI and proxied here
+    /// under the service account. The map now loads from this service and calls it same-origin as an
+    /// ordinary browser, so it holds no credential. Vehicle positions are a public transit fact —
+    /// the same data every agency publishes on its own arrivals board — and the global rate limiter
+    /// is what bounds scraping. <c>tripupdates</c> and <c>alerts</c> stay gated: nothing public reads
+    /// them yet, and an endpoint is far easier to open later than to close.
+    /// </para>
+    /// </summary>
     [HttpGet("vehicles")]
-    [Authorize(Policy = PermissionKeys.RealtimeView)]
+    [AllowAnonymous]
     public async Task<ActionResult<List<VehicleResponse>>> GetVehicles(
         [FromQuery] string? feedId = null,
         [FromQuery] double? minLat = null,

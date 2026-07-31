@@ -286,6 +286,11 @@ map.on('load', () => {
   loadMapData();
   loadVehicles();
   vehiclesInterval = setInterval(loadVehicles, 30000);
+
+  // The chips render before the style is ready, so their initial selection has nothing to act on
+  // until here. Applying it once the layers exist is what makes the page open on Tram rather than
+  // showing everything and then snapping.
+  applyModeFilter();
 });
 
 map.on('moveend', () => {
@@ -429,3 +434,284 @@ window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(
 // Wired here rather than with an inline onclick attribute: the page's CSP has no
 // 'unsafe-inline' in script-src, so an inline handler would silently stop firing.
 document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Map chrome
+//
+//  Search, transport-mode chips and the two round controls. The MAUI client used to draw these
+//  natively over this page and drive them through EvaluateJavaScriptAsync — the page exported
+//  setModeFilter/recentreMap/toggleRouteLines and owned none of the state. That bridge was one-way,
+//  so the chips could never reflect anything the map knew, and every control existed twice: once in
+//  XAML and once here. The page now owns both halves and the client is just a WebView.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Language ────────────────────────────────────────────────────────────────
+// Comes from ?lang= (the client passes its current culture), falling back to the browser and then
+// to English. Strings are lifted from the client's AppResources.resx / AppResources.hr.resx, which
+// no longer carry them.
+const STRINGS = {
+  en: {
+    search: 'Where are you going?',
+    Tram: 'Tram', Bus: 'Bus', Train: 'Train', Bikes: 'Bikes',
+    recentre: 'Recentre', layers: 'Layers',
+    noResults: 'No stations found'
+  },
+  hr: {
+    search: 'Kamo putujete?',
+    Tram: 'Tramvaj', Bus: 'Autobus', Train: 'Vlak', Bikes: 'Bicikli',
+    recentre: 'Centriraj', layers: 'Slojevi',
+    noResults: 'Nema pronađenih stanica'
+  }
+};
+
+const LANG = (() => {
+  const requested = new URLSearchParams(location.search).get('lang')
+    || (navigator.language || 'en');
+  // Accept "hr-HR" as readily as "hr" — the client sends a two-letter code, a browser may not.
+  const short = requested.toLowerCase().split('-')[0];
+  return STRINGS[short] ? short : 'en';
+})();
+
+function t(key) { return STRINGS[LANG][key] ?? STRINGS.en[key] ?? key; }
+
+// ── Transport-mode chips ────────────────────────────────────────────────────
+// Keys map to the routeType values the stations and routes carry. Bike share is not a route type at
+// all — it lives in its own source — so it is handled as a visibility toggle below.
+const MODE_ROUTE_TYPES = {
+  Tram: ['Tram'],
+  Bus: ['Bus', 'Trolleybus'],
+  Train: ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail']
+};
+
+const MODES = ['Tram', 'Bus', 'Train', 'Bikes'];
+
+// Frame 3a opens with Tram lit.
+const selectedModes = new Set(['Tram']);
+
+function renderChips() {
+  const host = document.getElementById('modeChips');
+  host.replaceChildren(...MODES.map(mode => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = selectedModes.has(mode) ? 'chip selected' : 'chip';
+    btn.dataset.mode = mode;
+    btn.textContent = t(mode);
+    btn.setAttribute('aria-pressed', selectedModes.has(mode) ? 'true' : 'false');
+    return btn;
+  }));
+}
+
+/**
+ * Applies the current chip selection to the map layers.
+ *
+ * All modes selected is the same as none, and both mean "show everything" — which is also the state
+ * the layers are built in.
+ */
+function applyModeFilter() {
+  if (!map || !map.isStyleLoaded()) return;
+
+  const showAll = selectedModes.size === 0 || selectedModes.size === MODES.length;
+
+  // Bike share lives in its own source, so it is a visibility toggle rather than a filter.
+  const showBikes = showAll || selectedModes.has('Bikes');
+  for (const id of ['mobility-cluster', 'mobility-cluster-count', 'mobility-dot']) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', showBikes ? 'visible' : 'none');
+    }
+  }
+
+  // Stops carry primaryRouteType, so the unclustered icons can be filtered directly. Clusters
+  // aggregate across types and cannot be filtered by a member property, so they are hidden while a
+  // transport filter is on and the individual stops carry the answer instead.
+  const wanted = [...selectedModes].flatMap(m => MODE_ROUTE_TYPES[m] || []);
+  const filteringStops = wanted.length > 0 && !showAll;
+
+  if (map.getLayer('stations-circle')) {
+    map.setFilter('stations-circle', filteringStops
+      ? ['all', ['!', ['has', 'point_count']], ['in', ['get', 'primaryRouteType'], ['literal', wanted]]]
+      : ['!', ['has', 'point_count']]);
+  }
+
+  for (const id of ['stations-cluster', 'stations-cluster-count']) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', filteringStops ? 'none' : 'visible');
+    }
+  }
+
+  // Route lines and live vehicles belong to the scheduled network, so they follow the same
+  // transport selection and switch off entirely when only bikes are asked for.
+  const showNetwork = showAll || wanted.length > 0;
+  for (const id of ['routes-line', 'vehicles-circle', 'vehicles-arrow']) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', showNetwork ? 'visible' : 'none');
+    }
+  }
+
+  // The layers button toggles route lines independently; a mode change re-shows them, so keep its
+  // indicator honest rather than letting it claim a state the map is no longer in.
+  syncLayersButton();
+}
+
+// One delegated listener rather than one per chip, so re-rendering on a language change cannot
+// leave handlers behind.
+document.getElementById('modeChips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+
+  const mode = chip.dataset.mode;
+  if (selectedModes.has(mode)) selectedModes.delete(mode); else selectedModes.add(mode);
+
+  // Turning the last chip off would leave an empty map, which is never a useful state to be stuck
+  // in; restore everything instead.
+  if (selectedModes.size === 0) MODES.forEach(m => selectedModes.add(m));
+
+  renderChips();
+  applyModeFilter();
+});
+
+// ── Round controls ──────────────────────────────────────────────────────────
+
+const DEFAULT_CENTRE = [16.0, 45.8];
+const DEFAULT_ZOOM = 7;
+
+/** Recentres on the device's position, falling back to the country view if that is unavailable. */
+document.getElementById('btnRecentre').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    map.easeTo({ center: DEFAULT_CENTRE, zoom: DEFAULT_ZOOM });
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => map.easeTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 }),
+    () => map.easeTo({ center: DEFAULT_CENTRE, zoom: DEFAULT_ZOOM }),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+  );
+});
+
+/** Layers button: shows or hides the route shapes over the basemap. */
+document.getElementById('btnLayers').addEventListener('click', () => {
+  if (!map.isStyleLoaded() || !map.getLayer('routes-line')) return;
+
+  const visible = map.getLayoutProperty('routes-line', 'visibility') !== 'none';
+  map.setLayoutProperty('routes-line', 'visibility', visible ? 'none' : 'visible');
+  syncLayersButton();
+});
+
+function syncLayersButton() {
+  const btn = document.getElementById('btnLayers');
+  if (!btn || !map.isStyleLoaded() || !map.getLayer('routes-line')) return;
+
+  const visible = map.getLayoutProperty('routes-line', 'visibility') !== 'none';
+  btn.classList.toggle('off', !visible);
+}
+
+// ── Station search ──────────────────────────────────────────────────────────
+// /stations/search is anonymous, same-origin and unmetered by any cache, so the request is kept
+// cheap: debounced, floored at two characters, and the previous one aborted rather than raced.
+
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+let searchTimer = null;
+let searchAbort = null;
+
+function closeSearchResults() {
+  searchResults.hidden = true;
+  searchResults.replaceChildren();
+  searchInput.setAttribute('aria-expanded', 'false');
+}
+
+function renderSearchResults(stations) {
+  if (stations.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = t('noResults');
+    searchResults.replaceChildren(li);
+  } else {
+    searchResults.replaceChildren(...stations.map(s => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.textContent = s.name || '';
+
+      const where = [s.cityName, s.countryName].filter(Boolean).join(', ');
+      if (where) {
+        const sub = document.createElement('span');
+        sub.className = 'sub';
+        sub.textContent = where;
+        li.appendChild(sub);
+      }
+
+      li.addEventListener('click', () => selectStation(s));
+      return li;
+    }));
+  }
+
+  searchResults.hidden = false;
+  searchInput.setAttribute('aria-expanded', 'true');
+}
+
+/**
+ * Flies to a picked station and opens the detail sidebar.
+ *
+ * A StationResponse already carries the property names showStationDetails expects, so the existing
+ * sidebar renders it without a second code path.
+ */
+function selectStation(station) {
+  closeSearchResults();
+  searchInput.blur();
+  map.easeTo({ center: [station.longitude, station.latitude], zoom: 15 });
+  showStationDetails(station.id, station);
+}
+
+function runSearch(query) {
+  if (searchAbort) searchAbort.abort();
+  searchAbort = new AbortController();
+
+  fetch(`/stations/search?q=${encodeURIComponent(query)}&perPage=8`, { signal: searchAbort.signal })
+    .then(r => {
+      if (!r.ok) throw new Error('Search failed (' + r.status + ')');
+      return r.json();
+    })
+    .then(page => renderSearchResults(page?.data || []))
+    .catch(err => {
+      // An aborted request is this code superseding itself, not a failure worth reporting.
+      if (err.name === 'AbortError') return;
+      closeSearchResults();
+      showMapError('Search failed');
+    });
+}
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const query = searchInput.value.trim();
+
+  if (query.length < 2) {
+    if (searchAbort) searchAbort.abort();
+    closeSearchResults();
+    return;
+  }
+
+  searchTimer = setTimeout(() => runSearch(query), 250);
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeSearchResults();
+    searchInput.blur();
+  }
+});
+
+// Dismiss on an outside tap, and whenever the user starts moving the map — the results describe a
+// place they have just navigated away from.
+document.addEventListener('click', e => {
+  if (!searchResults.hidden && !e.target.closest('#chrome')) closeSearchResults();
+});
+map.on('movestart', () => { if (!searchResults.hidden) closeSearchResults(); });
+
+// ── Boot ────────────────────────────────────────────────────────────────────
+// Chips render immediately; applyModeFilter runs from the map's load handler, once there are layers
+// to filter.
+document.documentElement.lang = LANG;
+searchInput.placeholder = t('search');
+document.getElementById('btnRecentre').setAttribute('aria-label', t('recentre'));
+document.getElementById('btnLayers').setAttribute('aria-label', t('layers'));
+renderChips();
