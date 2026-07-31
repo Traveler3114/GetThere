@@ -148,7 +148,11 @@ public class BarcodeDecoder
     /// Maps a wallet pass's declared barcode format, which arrives as a string rather than as a
     /// scanned symbol.
     /// </summary>
-    internal static TicketFormat FromPkPassFormat(string? pkFormat) =>
+    /// <remarks>
+    /// Public rather than internal because <c>PkPassTicketExtractor</c> stayed in GetThereAPI — it
+    /// throws that project's <c>AppException</c> — and is therefore in a different assembly now.
+    /// </remarks>
+    public static TicketFormat FromPkPassFormat(string? pkFormat) =>
         pkFormat?.Contains("QR", StringComparison.OrdinalIgnoreCase) == true
             ? TicketFormat.QR
             : TicketFormat.Barcode;

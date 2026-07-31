@@ -9,6 +9,7 @@ using GetThereAPI.Exceptions;
 using GetThereAPI.Managers;
 using GetThereAPI.Sdk;
 using GetThereAPI.Services;
+using GetThereAPI.Services.Extraction;
 using GetThereExtraction;
 
 using Microsoft.AspNetCore.Authentication;
