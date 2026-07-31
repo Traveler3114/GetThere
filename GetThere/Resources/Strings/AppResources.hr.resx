@@ -316,6 +316,7 @@
   <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} novčanik</value></data>
   <data name="Ticket_ShowJourney" xml:space="preserve"><value>Prikaži putovanje</value></data>
   <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
+  <data name="Ticket_NoScannableCode" xml:space="preserve"><value>Ova karta nema kod za skeniranje</value></data>
   <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Nije moguće učitati ovu kartu.</value></data>
   <data name="Tickets_Subtitle" xml:space="preserve"><value>Kupljene i uvezene karte</value></data>
   <data name="Tickets_All" xml:space="preserve"><value>Sve</value></data>

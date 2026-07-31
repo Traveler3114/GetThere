@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    An imported ticket, with its barcode.
+
+    Deliberately plainer than TicketDetailPage. A purchased ticket is ours and can carry operator
+    branding; an imported one is somebody else's, its fields are whatever extraction managed to read,
+    and half of them are routinely missing. The layout says that honestly rather than dressing up
+    gaps.
+-->
+<ContentPage
+    x:Class="GetThere.Pages.ImportedTicketDetailPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    x:DataType="vm:ImportedTicketDetailViewModel"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
+    Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+        <components:AnimatedBackground Grid.RowSpan="2" />
+
+        <!--  ── HEADER ──  -->
+        <Grid
+            Grid.Row="0"
+            Padding="20,44,20,14"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="14">
+            <Grid
+                HeightRequest="44"
+                VerticalOptions="Center"
+                WidthRequest="32">
+                <shapes:Path
+                    Data="M19,5L9,12l10,7 M9,12h14"
+                    HeightRequest="24"
+                    HorizontalOptions="Center"
+                    Stroke="{AppThemeBinding Light={StaticResource TextPrimaryLight}, Dark={StaticResource Gray100}}"
+                    StrokeThickness="2"
+                    VerticalOptions="Center"
+                    WidthRequest="24" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                <Label
+                    LineBreakMode="TailTruncation"
+                    Style="{StaticResource DsCardTitle}"
+                    Text="{Binding TicketName}" />
+                <Label
+                    LineBreakMode="TailTruncation"
+                    Style="{StaticResource DsCardSubtitle}"
+                    Text="{Binding RouteText}" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="20,0,20,32" Spacing="16">
+
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <Border
+                    Padding="0"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                    StrokeThickness="0">
+                    <Border.StrokeShape>
+                        <shapes:RoundRectangle CornerRadius="18" />
+                    </Border.StrokeShape>
+
+                    <VerticalStackLayout Padding="20,22" Spacing="14">
+
+                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="10">
+                            <Label
+                                CharacterSpacing="1"
+                                FontSize="11"
+                                Style="{StaticResource DsMetaCaption}"
+                                Text="{Binding OperatorLine}" />
+                            <Label
+                                CharacterSpacing="1"
+                                FontSize="11"
+                                Style="{StaticResource DsMetaValue}"
+                                Text="{Binding StatusText}" />
+                        </HorizontalStackLayout>
+
+                        <!--  the scannable code, or an honest substitute  -->
+                        <Border
+                            Padding="16"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceRaisedLight}, Dark={StaticResource DarkBackground}}"
+                            HeightRequest="210"
+                            HorizontalOptions="Center"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource DarkMuted}}"
+                            StrokeDashArray="4,3"
+                            StrokeDashOffset="0"
+                            StrokeThickness="1"
+                            WidthRequest="210">
+                            <Border.StrokeShape>
+                                <shapes:RoundRectangle CornerRadius="14" />
+                            </Border.StrokeShape>
+
+                            <Grid>
+                                <Image
+                                    Aspect="AspectFit"
+                                    IsVisible="{Binding HasPayloadImage}"
+                                    Source="{Binding PayloadImage}" />
+
+                                <!--
+                                    Two different absences, said differently: a ticket that never
+                                    carried a code (typed by hand, or a file with none in it), and a
+                                    payload the renderer would not risk redrawing. The second still
+                                    shows the payload, because that is what the user has.
+                                -->
+                                <Label
+                                    HorizontalTextAlignment="Center"
+                                    IsVisible="{Binding HasNoPayload}"
+                                    Style="{StaticResource DsCardSubtitle}"
+                                    Text="{localization:Translate Ticket_NoScannableCode}"
+                                    VerticalTextAlignment="Center" />
+
+                                <Label
+                                    FontSize="13"
+                                    HorizontalTextAlignment="Center"
+                                    LineBreakMode="CharacterWrap"
+                                    MaximumWidthRequest="170"
+                                    Style="{StaticResource DsMono}"
+                                    IsVisible="{Binding HasPayloadText}"
+                                    Text="{Binding Payload}"
+                                    TextColor="{AppThemeBinding Light={StaticResource TextPrimaryLight}, Dark={StaticResource Gray100}}"
+                                    VerticalTextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Grid
+                            ColumnDefinitions="*,*"
+                            ColumnSpacing="12"
+                            RowDefinitions="Auto,Auto"
+                            RowSpacing="12">
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="0">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_Departs}" />
+                                <Label Style="{StaticResource DsMetaValue}" Text="{Binding DepartsText}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="1">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_Arrives}" />
+                                <Label Style="{StaticResource DsMetaValue}" Text="{Binding ArrivesText}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="0">
+                                <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Ticket_Paid}" />
+                                <Label Style="{StaticResource DsMetaValue}" Text="{Binding PriceText}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

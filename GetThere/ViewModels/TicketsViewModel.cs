@@ -16,6 +16,7 @@ public partial class TicketsViewModel : BaseViewModel
 {
     private readonly AuthService _authService;
     private readonly ImportedTicketService _importedService;
+    private readonly TicketService _ticketService;
     private readonly TicketCaptureService _capture;
     private readonly IAnalyticsService _analytics;
     private ImportedTicketStatus? _activeFilter;
@@ -42,7 +43,20 @@ public partial class TicketsViewModel : BaseViewModel
     private int _currentPage = 1;
     private const int PageSize = 50;
 
+    /// <summary>Imported tickets as the server returned them, kept for paging and the card actions.</summary>
     public ObservableCollection<ImportedTicketResponse> ImportedTickets { get; } = [];
+
+    /// <summary>Purchased tickets. Not paged — <c>GET /tickets</c> returns the whole history.</summary>
+    private readonly List<TicketResponse> _purchasedTickets = [];
+
+    /// <summary>
+    /// What the wallet actually lists: both kinds in one place, newest first.
+    /// <para>
+    /// Until this existed the screen showed imported tickets only, so a ticket the user had *paid
+    /// for* was visible for a few seconds after purchase and then unreachable.
+    /// </para>
+    /// </summary>
+    public ObservableCollection<WalletTicket> WalletTickets { get; } = [];
 
     /// <summary>
     /// The Journeys half of this screen. Composed rather than merged: journeys and tickets are two
@@ -70,12 +84,14 @@ public partial class TicketsViewModel : BaseViewModel
     public TicketsViewModel(
         AuthService authService,
         ImportedTicketService importedService,
+        TicketService ticketService,
         TicketCaptureService capture,
         IAnalyticsService analytics,
         JourneysViewModel journeys)
     {
         _authService = authService;
         _importedService = importedService;
+        _ticketService = ticketService;
         _capture = capture;
         _analytics = analytics;
         Journeys = journeys;
@@ -140,9 +156,15 @@ public partial class TicketsViewModel : BaseViewModel
                 foreach (var t in paged.Data)
                     ImportedTickets.Add(t);
                 TotalTickets = paged.Total;
-                HasImportedTickets = ImportedTickets.Count > 0;
                 HasMore = _currentPage < paged.TotalPages;
-                _analytics.TrackEvent("tickets_loaded", new() { ["count"] = ImportedTickets.Count.ToString() });
+
+                // Purchased tickets are fetched separately and merged below. GET /tickets is
+                // unpaged and unfiltered — the whole history in one response — so it cannot join the
+                // paging above and is simply re-read whenever the first page is.
+                await LoadPurchasedAsync();
+                RebuildWallet();
+
+                _analytics.TrackEvent("tickets_loaded", new() { ["count"] = WalletTickets.Count.ToString() });
             }
             else
             {
@@ -164,6 +186,78 @@ public partial class TicketsViewModel : BaseViewModel
         finally { IsBusy = false; }
     }
 
+    /// <summary>
+    /// Reads the purchased half. Deliberately forgiving: a wallet that can show the user's imported
+    /// tickets should show them even if the purchased call fails, so a failure here empties that
+    /// half rather than blanking the screen or raising the shared error banner.
+    /// </summary>
+    private async Task LoadPurchasedAsync()
+    {
+        _purchasedTickets.Clear();
+        try
+        {
+            var result = await _ticketService.GetMyTicketsAsync();
+            if (result.Success && result.Data is not null)
+                _purchasedTickets.AddRange(result.Data);
+            else
+                Trace.WriteLine($"[TicketsViewModel] Purchased tickets unavailable: {result.Message}");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[TicketsViewModel] Purchased tickets unavailable: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Projects both sources into one list, newest first.
+    /// <para>
+    /// The status chips filter imported tickets server-side, so the same filter is applied to the
+    /// purchased half here — otherwise selecting "Used" would leave every purchased ticket on
+    /// screen and the filter would look broken.
+    /// </para>
+    /// </summary>
+    private void RebuildWallet()
+    {
+        var purchased = _purchasedTickets.AsEnumerable();
+
+        if (_activeFilter is { } filter)
+        {
+            // The two enums are separate types that share their names; comparing the names is what
+            // lets one chip mean the same thing on both halves.
+            var wanted = filter.ToString();
+            purchased = purchased.Where(t => string.Equals(t.Status.ToString(), wanted, StringComparison.Ordinal));
+        }
+
+        var merged = ImportedTickets.Select(WalletTicket.FromImported)
+            .Concat(purchased.Select(WalletTicket.FromPurchased))
+            .OrderByDescending(t => t.SortDate)
+            .ToList();
+
+        WalletTickets.Clear();
+        foreach (var t in merged)
+            WalletTickets.Add(t);
+
+        HasImportedTickets = WalletTickets.Count > 0;
+    }
+
+    /// <summary>
+    /// Opens a ticket. Tapping a card used to offer an action sheet; that is a secondary control
+    /// now, because the first thing a traveller wants from a wallet is the ticket itself.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenTicket(WalletTicket? ticket)
+    {
+        if (ticket is null) return;
+
+        var route = ticket.Kind switch
+        {
+            WalletTicketKind.Purchased => $"ticketdetail?ticketId={ticket.Id}",
+            _ => $"importedticketdetail?ticketId={ticket.Id}"
+        };
+
+        await Shell.Current.GoToAsync(route);
+    }
+
     [RelayCommand]
     private async Task LoadMore()
     {
@@ -180,6 +274,10 @@ public partial class TicketsViewModel : BaseViewModel
                 foreach (var t in paged.Data)
                     ImportedTickets.Add(t);
                 HasMore = _currentPage < paged.TotalPages;
+
+                // Only the imported half pages, so the purchased half is left as it is and the
+                // merged list is rebuilt around the newly appended rows.
+                RebuildWallet();
             }
             else
             {
@@ -343,8 +441,13 @@ public partial class TicketsViewModel : BaseViewModel
     /// is now one deliberate choice among several rather than the default consequence of a tap.
     /// </summary>
     [RelayCommand]
-    private async Task ShowTicketActions(ImportedTicketResponse ticket)
+    private async Task ShowTicketActions(WalletTicket? walletTicket)
     {
+        // Only imported tickets have actions. No API moves a purchased ticket out of Active — the
+        // expiry worker is the only thing that ever changes its status — so a menu here would offer
+        // buttons that cannot work.
+        if (walletTicket?.Imported is not { } ticket) return;
+
         if (ticket.Status != ImportedTicketStatus.Active)
         {
             // Nothing can be done to a terminal ticket, so offering a menu would only lead to a

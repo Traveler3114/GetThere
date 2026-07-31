@@ -44,6 +44,10 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("ticketpurchase", typeof(TicketPurchasePage));
         Routing.RegisterRoute("ticketdetail", typeof(TicketDetailPage));
 
+        // Imported tickets are a separate route rather than a mode of the one above: the two
+        // contracts share no base type and their detail screens show different fields.
+        Routing.RegisterRoute("importedticketdetail", typeof(ImportedTicketDetailPage));
+
         // Journeys have no destination of their own: the design puts them behind a segmented
         // control on Tickets rather than a fifth tab, which the phone frames have no room for.
         Routing.RegisterRoute("journeydetail", typeof(JourneyDetailPage));

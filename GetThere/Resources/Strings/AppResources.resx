@@ -316,6 +316,7 @@
   <data name="Ticket_PaidWallet" xml:space="preserve"><value>{0} wallet</value></data>
   <data name="Ticket_ShowJourney" xml:space="preserve"><value>Show journey</value></data>
   <data name="Ticket_NotAvailable" xml:space="preserve"><value>—</value></data>
+  <data name="Ticket_NoScannableCode" xml:space="preserve"><value>No scannable code on this ticket</value></data>
   <data name="Ticket_CouldNotLoad" xml:space="preserve"><value>Could not load this ticket.</value></data>
   <data name="Tickets_Subtitle" xml:space="preserve"><value>Bought and imported tickets</value></data>
   <data name="Tickets_All" xml:space="preserve"><value>All</value></data>

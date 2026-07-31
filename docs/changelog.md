@@ -368,3 +368,29 @@ screen where glare and fingerprints eat modules.
 **Not compiled, and not yet scanned.** No .NET SDK in this container. The unverified risk is precisely
 the one tests cannot cover: a code that renders but does not scan. It must be read by a real scanner,
 per format, before this is trusted.
+
+### Every ticket is reachable from the wallet
+
+The Tickets tab listed **only imported tickets**. `TicketsViewModel` had one collection,
+`ObservableCollection<ImportedTicketResponse>`, and `GET /tickets` was never surfaced as a list — so a
+purchased ticket was visible for the few seconds after buying it, via the direct navigation in
+`TicketPurchaseViewModel`, and then unreachable. That contradicts the product's own premise: *"one app
+that holds **every** ticket a traveller has — the ones it sold them and the ones they already had"*.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **One list, both kinds** | `ViewModels/WalletTicket.cs`, `TicketsViewModel.cs` | A projection of either contract onto what a card shows. The two contracts share no base type and should not — separate tables, lifecycles and status enums — so this is a view concern, not a model one. Property names deliberately match the bindings the template already used, so the card did not have to be rewritten |
+| **Tap opens the ticket** | `Pages/TicketsPage.xaml` | A tap used to raise an action sheet, and before that invoked Cancel outright — the list's primary gesture was destructive and the ticket itself could not be opened. Cancel/mark-used moved to a `⋯` control, shown only where the actions can actually work |
+| **Imported tickets have a detail screen** | `Pages/ImportedTicketDetailPage.xaml(.cs)`, `ViewModels/ImportedTicketDetailViewModel.cs` | They had none at all, so `RawPayload` — decoded on import, and the thing a barrier scans — was written once and never shown. Now it renders through `BarcodeRenderService` |
+
+Three states for the code panel, said differently on purpose: a drawn barcode; "no scannable code on
+this ticket" for one typed by hand or imported from a file with no code in it; and the raw payload as
+text when there is one but the renderer declined to redraw it. Collapsing the last two would tell a
+user their ticket is empty when it is not.
+
+Purchased tickets get no actions menu. Nothing in the API moves a purchased ticket out of `Active` —
+the expiry worker is the only writer — so offering one would be a button that cannot work.
+`GET /tickets` is unpaged, so it is re-read whenever the imported half loads its first page and
+filtered client-side to match the status chips.
+
+**Not compiled.** No .NET SDK in this container; CI is the gate.
