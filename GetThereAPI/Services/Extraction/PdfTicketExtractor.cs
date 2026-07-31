@@ -2,12 +2,12 @@ using System.Text;
 
 using GetThereAPI.Exceptions;
 
+using GetThereExtraction;
+
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
 using UglyToad.PdfPig;
-
-using GetThereExtraction;
 
 namespace GetThereAPI.Services.Extraction;
 

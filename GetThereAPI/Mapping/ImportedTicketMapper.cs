@@ -12,7 +12,7 @@ public static class ImportedTicketMapper
         t => new ImportedTicketResponse
         {
             Id = t.Id,
-        ClientId = t.ClientId,
+            ClientId = t.ClientId,
             OperatorGlobalId = t.OperatorGlobalId,
             OperatorNameSnapshot = t.OperatorNameSnapshot,
             Source = t.Source,
