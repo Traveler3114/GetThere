@@ -143,6 +143,12 @@ scan is the failure mode to hunt for.**
 
 `SharedAuth/RefreshTokenEvaluator` no longer rejects a token presented from a different address.
 
+`RefreshTokenTests` now covers rows 1–3 against a real database — the two tests that asserted the
+old rejection were inverted rather than deleted, and rotation-after-an-address-change, the
+`RefreshAddressChanged` audit row, its absence on an unchanged address, and reuse detection from the
+issuing address are all pinned there. So this section is confirmation on a real device, not
+discovery.
+
 | # | Check | Expected |
 |---|---|---|
 | 1 | Sign in on wifi, switch to cellular, wait past the 15-min access token, use the app | **Session survives.** This used to be a silent sign-out |
