@@ -82,7 +82,7 @@ detection and IP binding. See
 | GET | `/stations/{id}/reconciliation-detail` | `stations.manage` |
 
 `GET /stations` supports geographic filtering (`lat`, `lon`, `radiusKm`) plus pagination. This is what
-GetThereAPI's `/api/map/stations` proxies, paging to exhaustion at 500 per page.
+The map page reads this directly, anonymously and same-origin.
 
 `GET /stations/{id}/departures` is the schedule query described in
 [realtime.md](realtime.md#departures-schedulemanager) — GTFS times resolved through the configured

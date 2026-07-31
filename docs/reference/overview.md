@@ -52,7 +52,7 @@ codebase are the [import pipeline](getthere-api/ticket-import.md) and
 | Project | Files | What it owns |
 |---|---|---|
 | **[GetThere](getthere-client/architecture.md)** | 64 | The app. Pages, view models, device integration, navigation |
-| **[GetThereAPI](getthere-api/architecture.md)** | 83 | Users, wallets, tickets, journeys, the import pipeline, the map proxy |
+| **[GetThereAPI](getthere-api/architecture.md)** | 83 | Users, wallets, tickets, journeys, the import pipeline |
 | **[GetThereShared](shared/contracts.md)** | 26 | The DTOs and enums crossing the wire |
 | **[TransitInfoAPI](transitinfo-api/architecture.md)** | 108 | GTFS feeds, station identity, schedules, realtime, mobility |
 
@@ -99,24 +99,30 @@ service silently alter the other. The only channel between them is HTTP.
 ## The one-way rule
 
 ```
-client → GetThereAPI → TransitInfoAPI
+client → GetThereAPI → TransitInfoAPI      (all business data)
+client → TransitInfoAPI                     (the map, and only the map)
 ```
 
-**The client never talks to TransitInfoAPI.** This is the single most important architectural
-constraint in the system, and it is enforced rather than merely stated. Three reasons:
+**For everything it does with a user's data, the client talks only to GetThereAPI.** Three reasons:
 
-1. **Credentials.** Reaching TransitInfoAPI needs a service-account login. Direct client access would
-   put that credential in an app binary, where anyone can read it.
+1. **Credentials.** Reaching TransitInfoAPI's *authorized* surface needs a service-account login.
+   Direct client access to it would put that credential in an app binary, where anyone can read it.
 2. **Authorization.** TransitInfoAPI has admin endpoints — feed imports, station merges,
-   reconciliation. The service account can reach them; a client holding it could too. The proxy
-   exposes a small **allowlist** instead.
+   reconciliation. The service account can reach them; a client holding it could too.
 3. **Coupling.** TransitInfoAPI's contracts can change without an app release, because only
-   `TransitInfoApiClient` and `MapManager` are pinned to them.
+   `TransitInfoApiClient` is pinned to them.
 
-The map page is where this gets interesting: it is a WebView served *by GetThereAPI*, calling
-GetThereAPI's own proxy on the same origin, with the bearer token injected after navigation because a
-WebView cannot send an `Authorization` header. See
-[the map section](getthere-client/architecture.md#the-map-a-webview-and-how-the-token-reaches-it).
+**The map is the deliberate exception.** It is a WebView pointed at a page served *by
+TransitInfoAPI*, reading that service's `[AllowAnonymous]` endpoints same-origin — no proxy, no
+service account, no bearer token, no CORS. None of the three reasons above applies to it: it carries
+no credential, touches no admin endpoint, and renders GeoJSON that GetThereAPI was only re-shipping
+verbatim anyway. It replaced a proxy that existed purely to bridge two origins; see
+[`docs/map-proxy-migration.md`](../map-proxy-migration.md) and
+[the map section](getthere-client/architecture.md#the-map-a-webview-and-nothing-else).
+
+The practical consequence: those endpoints are a **public surface**. Treat a change to `stations`,
+`routes`, `mobility/stations`, `stations/{id}/departures`, `realtime/vehicles` or `stations/search`
+as a change anyone can see.
 
 The single link between the two domains is a **string, not a foreign key**:
 `TicketingAdapter.TransitInfoGlobalId` points at an operator's Onestop ID upstream. Looseness is the
@@ -218,11 +224,15 @@ which is what makes it safe to let a client name a stored file at all.
 ### Showing the map
 
 ```
-App  →  WebView → GetThereAPI /map/public.html
-        token injected via JavaScript after navigation
-Page →  GetThereAPI /api/map/*
-        → cached (2 min reference / 5 s live) → TransitInfoAPI
+App  →  WebView → TransitInfoAPI /map/public.html?lang=…
+Page →  TransitInfoAPI /stations, /routes, /mobility/stations,
+        /realtime/vehicles, /stations/search, /stations/{id}/departures
+        same-origin, anonymous — no proxy, no token, no CORS
 ```
+
+The map is the sole place the client reads TransitInfoAPI directly; everything else goes through
+GetThereAPI. It used to be proxied — `docs/map-proxy-migration.md` explains that arrangement and why
+it went away.
 
 ---
 
@@ -307,7 +317,6 @@ emulator. A released build cannot be repointed — a known open item.
 | `Money/PurchaseFlowTests` | The three-stage purchase, refunds, idempotency |
 | `Auth/RefreshTokenTests` | Rotation, reuse detection, IP binding |
 | `AuthorizationMatrixTests` | Endpoint-to-permission mapping |
-| `MapProxyAllowlistTests` | The upstream allowlist — an open gateway if wrong |
 | `FeedUrlSsrfTests` | Feed URL SSRF protection |
 | `ImportedTickets/TicketFileSnifferTests` | Magic-number detection |
 | `ImportedTickets/TicketFileStoreTests` | Path traversal |

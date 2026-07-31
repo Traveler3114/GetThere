@@ -346,5 +346,5 @@ on their next refresh, which is the known cost of inferring rather than storing.
 - [endpoints.md](endpoints.md) — every route, its policy, and why it is gated that way
 - [domain-logic.md](domain-logic.md) — the money path, imports, journeys
 - [ticket-import.md](ticket-import.md) — the file upload and extraction pipeline
-- [transit-integration.md](transit-integration.md) — the TransitInfoAPI client and map proxy
+- [transit-integration.md](transit-integration.md) — the TransitInfoAPI client and the service-account hop
 - [../shared/contracts.md](../shared/contracts.md) — the DTOs crossing the wire

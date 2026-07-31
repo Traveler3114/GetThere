@@ -249,3 +249,34 @@ decision, because nothing in this container can be compiled or run.
 | **Carried-forward** | Every `H*`/`M*`/`L*` from `audit-2026-07-28.md` re-derived: 11 fixed, 3 half-fixed, 4 still open. Its "Still open" section was stale in the direction that causes rework, so both older audits now carry status banners |
 | **No regression** | The 28 findings in `audit-transitinfo-2026-07-29.md` were checked against the current tree; none has regressed on the surfaces this pass read |
 | **Still never audited** | `tests/GetThere.Tests` — excluded on 07-28 and again here. 3 748 lines and CI's only correctness gate |
+
+---
+
+## Session — July 31, 2026
+
+### Map UI moved into the page; client reads TransitInfoAPI directly
+
+The map screen was a MapLibre page in a WebView with its chrome drawn natively over it. Every
+control existed twice — once in XAML, once in JavaScript — and `MapPage` drove the page through
+four `EvaluateJavaScriptAsync` bridges. Moving the chrome into the page removed that duplication;
+moving the page to TransitInfoAPI removed the machinery around it, because the page is then
+same-origin with the data it reads.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Chrome into the page** | `TransitInfoAPI/wwwroot/map/public.{html,js}` | Search field, transport-mode chips, recentre and layers, wired with `addEventListener` (the page's CSP has no `'unsafe-inline'` in `script-src`). Chips open on Tram and turning the last one off restores everything, as the view model did. Safe-area insets and `viewport-fit=cover`, which MAUI used to handle |
+| **Search made real** | same | The field had been bound to `MapViewModel.SearchText` and read by nothing since it was added. Debounced, floored at two characters, `AbortController` on the in-flight request; picking a result flies the map in and reuses the page's existing `showStationDetails` — a `StationResponse` already carries the properties it expects |
+| **Localisation** | same, `MapViewModel.cs`, `ApiEndpoints.cs` | The page carries an en/hr table keyed off `?lang=`; the client passes its current culture. `LoadMap` runs from `OnAppearing`, so returning to the tab after a language change reloads the page in it |
+| **Client points at TransitInfoAPI** | `ApiEndpoints.cs`, `Resources/Raw/appsettings.json` | Second configured address, `Map:BaseUrl`, defaulting to the **https** profile (5001) — the Android manifest sets `usesCleartextTraffic="false"`, so the http profile fails silently on device |
+| **`MapPage` reduced to a WebView** | `MapPage.xaml(.cs)`, `MapViewModel.cs` | Four JS bridges, the token handshake, `MapModeChip`, `ToggleModeCommand`, `ModeFilterChanged` and `SearchText` all deleted. `DsMapControl` and ten `Map_*` resx keys went with them |
+| **Two endpoints opened** | `RealtimeController.cs`, `StationsController.cs` | `realtime/vehicles` and `stations/search` were gated behind permissions the service account held on the page's behalf. With no proxy there is no service account, so both are `[AllowAnonymous]` like the four map endpoints beside them. Public transit facts; the rate limiter already partitions anonymous callers by address |
+| **GetThereAPI's map path retired** | `MapProxyController.cs`, `MapManager.cs`, `Program.cs`, `wwwroot/map/`, `route-colors.js`, `MapContract.cs`, `MapProxyAllowlistTests.cs` | Separate commit. Verified nothing loaded it first. The allow-list existed to stop the proxy becoming an open gateway under the service account's credentials — with no proxy there is no gateway. One endpoint kept, `/api/map/transport-types`, which the admin console uses as a reachability probe. The `MapAssets` allow-any-origin CORS policy and the `/map` CSP branch went too |
+| **One-way rule amended** | `AGENTS.md`, `docs/map-proxy-migration.md`, `docs/reference/*` | The client uses GetThereAPI for all business data and reads TransitInfoAPI for the map alone. The H5 migration doc is marked superseded rather than deleted — it explains why the proxy was built, which is what makes removing it legible |
+
+**Verification.** The page's chrome was exercised in a headless browser against stubbed endpoints:
+chips render and toggle in both languages, the all-off case restores everything, the mode filter
+reaches the map layers in all four states, the layers button toggles route lines, and search renders
+results, flies to a pick and opens the sidebar. **The C# was not compiled** — this container has no
+.NET SDK and the installer is blocked by egress policy, same as the 07-30 audit. Everything under
+*Verification* in the plan that needs a running API, a device or an emulator is still outstanding;
+the Android https/dev-cert path is the most likely thing to bite and cannot reproduce on Windows.

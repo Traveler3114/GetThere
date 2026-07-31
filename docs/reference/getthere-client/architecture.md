@@ -275,41 +275,33 @@ on any failure so a missing or malformed file disables crash reporting rather th
 
 ---
 
-## The map: a WebView, and how the token reaches it
+## The map: a WebView, and nothing else
 
-`MapPage` hosts a `WebView` pointed at `{GetThereApiBase}map/public.html` — a page served by
-GetThereAPI that calls GetThereAPI's own map proxy on the same origin.
+`MapPage` hosts a `WebView` pointed at `{TransitInfoApiBase}map/public.html?lang=…`. That is the
+whole class — a constructor and an `OnAppearing`.
 
-The interesting problem is authentication. **A WebView navigation cannot carry an `Authorization`
-header.** The options were to put the token in the URL or to inject it after load; the code chooses
-injection:
+It used to be considerably more. The page was served by GetThereAPI and proxied upstream, and the
+search field, transport-mode chips and map controls were drawn *natively over* the WebView, driven
+through four `EvaluateJavaScriptAsync` bridges. Two things fell out of moving the page to
+TransitInfoAPI and the chrome into the page:
 
-```csharp
-await MapWebView.EvaluateJavaScriptAsync($"window.setAuthToken && window.setAuthToken('{escaped}')");
-```
+- **No token to inject.** A WebView navigation cannot carry an `Authorization` header, so the page
+  used to start unauthenticated, queue its requests, and wait for `window.setAuthToken(…)` pushed in
+  after navigation — deliberately not via the URL, which would have put a bearer credential in
+  server logs and WebView history. The page is now same-origin with its data and reads endpoints
+  that are `[AllowAnonymous]`, so there is no credential in play at all.
+- **No cross-language coupling.** `MapModeChip.Key` had to stay in step with `MODE_ROUTE_TYPES` in
+  the page, with no compile-time check — the one thing most likely to break silently when transport
+  modes change. Its doc comment even named the wrong file. Both halves are now the page's.
 
-> Pushing the token in afterwards keeps it out of the URL, where it would otherwise end up in server
-> request logs and WebView history.
+What survived the move, in the page rather than in C#: chips open on Tram, and turning the last one
+off restores "everything" rather than showing nothing — *an empty map is never a useful state to be
+stuck in.*
 
-The page holds its requests until `setAuthToken` is called. Two details:
-
-- The token is **escaped** before interpolation. It is base64url and carries no quotes, but the code
-  escapes defensively rather than relying on that.
-- The mode filter is passed through `JsonSerializer.Serialize` rather than string-concatenated —
-  "the keys are ours today, but a hand-built array literal is the kind of thing that quietly becomes
-  an injection point later."
-
-Native chips are drawn *over* the WebView, so `MapViewModel` raises a `ModeFilterChanged` event and
-the page pushes it in. The view model holds **no WebView reference** — it reports, the page calls.
-That is what keeps it testable. The filter is replayed once after navigation completes, because the
-page starts out showing everything.
-
-`MapModeChip.Key` must stay in step with `MODE_ROUTE_TYPES` in `public.html` — a **cross-language
-coupling with no compile-time check**, and the one thing most likely to break silently when transport
-modes change.
-
-Turning the last chip off restores "everything" rather than showing nothing: *an empty map is never a
-useful state to be stuck in.*
+The one thing the client still supplies is language. The chrome was localised from `AppResources`;
+the page carries its own en/hr table and `MapViewModel` passes the current culture as `?lang=`.
+`LoadMap` runs from `OnAppearing` rather than the constructor so that returning to the tab after a
+language change reloads the page in it.
 
 ---
 

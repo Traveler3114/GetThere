@@ -26,8 +26,9 @@ they are, not just what each type does.
   journeys, the background worker, the ticketing SDK
 - **[ticket-import.md](reference/getthere-api/ticket-import.md)** — upload, byte sniffing, the four
   extractors, storage and path containment
-- **[transit-integration.md](reference/getthere-api/transit-integration.md)** — the upstream client,
-  caching, the map proxy allowlist
+- **[transit-integration.md](reference/getthere-api/transit-integration.md)** — the upstream client
+  and the service-account hop (the map proxy it also described is gone; see
+  [map-proxy-migration.md](map-proxy-migration.md))
 
 ### TransitInfoAPI
 
