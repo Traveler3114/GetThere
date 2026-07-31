@@ -38,10 +38,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
 builder.Services.AddControllers();
-// SizeLimit makes the cache bounded rather than "however much the map asks for": map reads are keyed
-// by viewport, so a user panning around produces an unbounded set of distinct keys. Every entry must
-// therefore declare a Size — both consumers (MapManager, DynamicClaimsTransformation) use 1, so this
-// is an entry count.
+// SizeLimit keeps the cache bounded. It was sized for the map proxy, whose reads were keyed by
+// viewport and so produced an unbounded set of distinct keys as a user panned; that proxy is gone
+// and DynamicClaimsTransformation is the only consumer left. Every entry must still declare a Size,
+// and it uses 1, so this is an entry count.
 builder.Services.AddMemoryCache(options => options.SizeLimit = 2_000);
 builder.Services.AddOpenApi();
 
@@ -200,13 +200,10 @@ builder.Services.AddRateLimiter(limiter =>
     limiter.RejectionStatusCode = 429;
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MapAssets", policy =>
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader());
-});
+// CORS is deliberately not configured. The one policy that existed, "MapAssets", was an
+// allow-any-origin rule scoped to /map so the map page could be embedded cross-origin; that page is
+// served by TransitInfoAPI now and this API hosts no browser asset that a foreign origin reads. The
+// admin console is same-origin.
 
 builder.Services.AddResponseCompression(options =>
 {
@@ -270,36 +267,19 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseResponseCompression();
 
-// The permissive policy exists so the map assets can be embedded cross-origin; it is scoped to
-// /map rather than applied globally, so it never widens access to the authenticated API surface.
-app.UseWhen(
-    context => context.Request.Path.StartsWithSegments("/map"),
-    branch => branch.UseCors("MapAssets"));
-
 // The /admin console is served as plain static files. It deliberately carries no authorization
 // gate: authentication here is bearer-token based, and a browser navigation to an .html file
 // cannot send an Authorization header — a gate on these paths 401s the login page itself and
 // makes the console unreachable. The console holds no secrets; every byte of data it renders
 // comes from API endpoints that are authorized per-endpoint (see AdminController).
-// Map tiles, glyphs and sprites all come from this one external origin (see wwwroot/map/style.json).
-// Named once so the CSP below and any future change to the tile provider stay in step.
-const string MapTileOrigin = "https://tiles.openfreemap.org";
-
-// MapLibre is loaded from a CDN. Pinning it here at least bounds which external origin may execute
-// script on the map page; vendoring the file into wwwroot would remove the dependency outright and
-// is the better end state.
-const string MapScriptCdn = "https://unpkg.com";
-
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
-        var path = ctx.Context.Request.Path;
-        var isAdmin = path.StartsWithSegments("/admin");
-        var isMap = path.StartsWithSegments("/map");
-
-        if (!isAdmin && !isMap) return;
+        // /map used to be served from here too, with its own CSP allowing the MapLibre CDN and the
+        // tile origin. That page belongs to TransitInfoAPI now, and so does its policy.
+        if (!ctx.Context.Request.Path.StartsWithSegments("/admin")) return;
 
         var headers = ctx.Context.Response.Headers;
         headers["X-Robots-Tag"] = "noindex, nofollow";
@@ -314,24 +294,9 @@ app.UseStaticFiles(new StaticFileOptions
         //
         // style-src keeps 'unsafe-inline' for the handful of style attributes still in the markup.
         // An injected style is a defacement risk, not a token-theft one.
-        headers["Content-Security-Policy"] = isAdmin
-            ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
-              "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-
-            // The map page had no policy at all until now, which mattered more than the console's:
-            // MapPage hands it a live access token through window.setAuthToken, so any script that
-            // executes here can read a bearer credential. Its own script now lives in map/*.js with
-            // no inline handler, so script-src carries no 'unsafe-inline' either — only this page's
-            // own origin and the CDN serving MapLibre may execute.
-            //
-            // style-src keeps 'unsafe-inline' for the page's <style> block, and worker/blob is
-            // required because MapLibre builds its tile workers from blob URLs.
-            : $"default-src 'self'; script-src 'self' {MapScriptCdn}; " +
-              $"style-src 'self' 'unsafe-inline' {MapScriptCdn}; " +
-              $"img-src 'self' data: blob: {MapTileOrigin}; " +
-              $"connect-src 'self' {MapTileOrigin}; " +
-              "worker-src 'self' blob:; child-src 'self' blob:; " +
-              "frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
+        headers["Content-Security-Policy"] =
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     }
 });
 
