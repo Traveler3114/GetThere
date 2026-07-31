@@ -175,7 +175,7 @@
                             Margin="0,6"
                             Padding="16"
                             BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
-                            Opacity="{Binding Status, Converter={StaticResource StatusOpacity}}"
+                            Opacity="{Binding DisplayStatus, Converter={StaticResource StatusOpacity}}"
                             StrokeThickness="0">
                             <Border.StrokeShape>
                                 <shapes:RoundRectangle CornerRadius="16" />
@@ -205,13 +205,18 @@
                                     Grid.Row="0"
                                     Grid.Column="1"
                                     Spacing="8">
+                                    <!--
+                                        DisplayStatus, not Status: the server's expiry sweep runs
+                                        hourly and a cached list can be staler still, so a ticket
+                                        whose window has closed would otherwise read Active.
+                                    -->
                                     <Border
-                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                        BackgroundColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
                                         Style="{StaticResource DsBadge}">
                                         <Label
                                             Style="{StaticResource DsBadgeLabel}"
-                                            Text="{Binding Status}"
-                                            TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
+                                            Text="{Binding DisplayStatus}"
+                                            TextColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}}" />
                                     </Border>
                                     <!--
                                         Cancel / mark-used, now that a tap opens the ticket instead.

@@ -1,3 +1,4 @@
+using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
@@ -67,8 +68,29 @@ public sealed class WalletTicket
     /// is no API that moves a purchased ticket out of `Active`, and offering the action would be a
     /// button that cannot work.
     /// </summary>
-    public bool HasActions => Kind is WalletTicketKind.Imported
-        && string.Equals(Status, nameof(ImportedTicketStatus.Active), StringComparison.Ordinal);
+    public bool HasActions => Kind is WalletTicketKind.Imported && IsRecordedActive;
+
+    /// <summary>Whether the *stored* status is the active one. Both enums spell it the same way.</summary>
+    private bool IsRecordedActive =>
+        string.Equals(Status, nameof(ImportedTicketStatus.Active), StringComparison.Ordinal);
+
+    /// <summary>
+    /// The status to show, which is not always the one stored.
+    /// <para>
+    /// The server's expiry sweep runs hourly, so a ticket whose window closed ten minutes ago still
+    /// reads `Active` — and a ticket served from the device's cache may be far staler than that.
+    /// Showing `Active` over a window that has shut is the one error worth avoiding at a barrier, so
+    /// the display downgrades where the dates say it should.
+    /// </para>
+    /// <para>
+    /// Downgrade only, and display only: nothing here is written back or sent anywhere. See
+    /// <see cref="TicketValidity.IsPastValidity"/> for why it can never restore a status.
+    /// </para>
+    /// </summary>
+    public string DisplayStatus =>
+        TicketValidity.IsPastValidity(IsRecordedActive, ValidTo, DateTime.UtcNow)
+            ? nameof(ImportedTicketStatus.Expired)
+            : Status;
 
     public static WalletTicket FromImported(ImportedTicketResponse t) => new()
     {

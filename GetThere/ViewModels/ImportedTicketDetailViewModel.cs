@@ -138,7 +138,14 @@ public partial class ImportedTicketDetailViewModel : BaseViewModel
 
         TicketName = ticket.TicketName ?? dash;
         RouteText = ticket.RouteDescription ?? string.Empty;
-        StatusText = ticket.Status.ToString().ToUpperInvariant();
+        // Downgraded where the dates say so. The server's sweep runs hourly, so a window that shut
+        // minutes ago still reads Active — and this screen is exactly where that matters.
+        var pastValidity = TicketValidity.IsPastValidity(
+            ticket.Status == GetThereShared.Enums.ImportedTicketStatus.Active, ticket.ValidTo, DateTime.UtcNow);
+
+        StatusText = (pastValidity
+            ? nameof(GetThereShared.Enums.ImportedTicketStatus.Expired)
+            : ticket.Status.ToString()).ToUpperInvariant();
         OperatorLine = ticket.OperatorNameSnapshot ?? ticket.Source.ToString();
 
         Payload = ticket.RawPayload ?? string.Empty;

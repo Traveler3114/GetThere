@@ -421,3 +421,31 @@ Still to come in this series: cached tickets are written in clear text, and `all
 they would reach cloud backups. Encryption keyed from `SecureStorage` is the next slice.
 
 **Not compiled.** No .NET SDK in this container; CI is the gate.
+
+### Cached tickets no longer claim to be active after their window closes
+
+Necessary companion to the cache above. Status is a stored column the server owns —
+`TicketExpiryWorker` sweeps hourly and nothing else writes it — so a ticket whose window shut ten
+minutes ago still reads `Active`, and one served from the device's cache can be far staler. Showing
+`Active` over a closed window is the one failure that matters at a barrier.
+
+`GetThereShared/Common/TicketValidity.cs` decides it, display-only, and is applied in `WalletTicket`,
+`TicketDetailViewModel` and `ImportedTicketDetailViewModel`. The result is never written into a
+status field, sent to the server, or used to gate an API call — `AGENTS.md` puts ticket status
+transitions off-limits, and this stays firmly on the display side of that line.
+
+Four rules, each with a reason:
+
+- **Downgrade only.** A ticket already `Used`, `Cancelled` or `Expired` is left alone. Those come
+  from an explicit action, possibly on another device, and are unknowable offline — recomputing them
+  would resurrect a cancelled ticket to active, which at a barrier looks like fare evasion.
+- **A null `ValidTo` never expires**, matching the sweep, which requires it to be non-null, and SQL,
+  where a comparison against NULL is never true.
+- **`ValidTo < now`, strictly**, matching the worker. A boundary that disagreed would make the same
+  ticket flip state on reconnect.
+- **UTC always.** A timestamp off the wire can arrive as `DateTimeKind.Unspecified`; comparing that
+  to local time is wrong by the device's offset. That confusion already caused a bug on the write
+  path — see `ImportedTicketManager.ToUtc`.
+
+Seven tests, written around proving the rule cannot upgrade a status rather than that it can
+downgrade one.

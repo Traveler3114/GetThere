@@ -143,8 +143,13 @@ public partial class TicketDetailViewModel : BaseViewModel
             : $"{option.AdapterName} · {option.ExternalProductId}";
 
         RouteText = option.Name;
-        IsActive = ticket.Status == TicketStatus.Active;
-        StatusText = ticket.Status.ToString().ToUpperInvariant();
+        // Display only — the server owns the status, and a window that closed since this was read
+        // must not still show as active on the screen someone holds up at a barrier.
+        var recordedActive = ticket.Status == TicketStatus.Active;
+        var pastValidity = TicketValidity.IsPastValidity(recordedActive, ticket.ValidTo, DateTime.UtcNow);
+
+        IsActive = recordedActive && !pastValidity;
+        StatusText = (pastValidity ? nameof(TicketStatus.Expired) : ticket.Status.ToString()).ToUpperInvariant();
 
         Payload = ticket.Data;
 
