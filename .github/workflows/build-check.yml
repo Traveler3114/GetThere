@@ -124,6 +124,9 @@ jobs:
       - name: Lint TransitInfoAPI
         run: dotnet format TransitInfoAPI/TransitInfoAPI.csproj --verify-no-changes --no-restore
 
+      - name: Lint GetThere.Tests
+        run: dotnet format tests/GetThere.Tests/GetThere.Tests.csproj --verify-no-changes --no-restore
+
   # Fails the build on a known-vulnerable package. NU1903 (high severity) was previously worked
   # around with <NoWarn> so that -warnaserror would pass; this job makes that hard to repeat quietly.
   vulnerability-scan:

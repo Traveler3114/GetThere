@@ -202,46 +202,46 @@
     },
 
     mount: function (page) {
-      if (!Shell.requireAuth()) return false;
+      return buildShell(page, '<div class="content" id="content"></div>');
+    },
 
-      var host = document.getElementById('shell');
-      if (!host) return false;
+    /**
+     * Mounts the rail and topbar around a page that still renders Bootstrap markup, moving that
+     * page's existing content inside instead of replacing it.
+     * <p>
+     * These pages were reachable only by typing a URL or going back to the overview: they carried a
+     * `← Home > Admin` text breadcrumb and no navigation at all, so the console had a rail on
+     * exactly one of its fifteen screens. Their markup and page scripts are untouched — the content
+     * area is filled by relocation, not by a rewrite, which is what makes this safe to apply to all
+     * of them at once.
+     * <p>
+     * The content div deliberately carries **no `id`**. Every legacy page already owns an element
+     * with `id="content"` that its own script writes into, and creating a second one here would
+     * silently break whichever the script reached first.
+     * <p>
+     * <b>`#page` is never hidden, and must not be.</b> The first version of this marked it
+     * `hidden` and relied on the relocation below to reveal it, which made every failure
+     * catastrophic: a stale cached copy of this script, a load error, anything that threw before
+     * the move left the attribute in place and the screen entirely blank. Leaving the content
+     * visible means the worst case is the page rendering as it did before the shell existed —
+     * unstyled chrome, but readable and fully usable. Degrade to the old page, never to nothing.
+     *
+     * @param page {{active:string, title:string, crumb?:string, meta?:string, actions?:string}}
+     */
+    mountLegacy: function (page) {
+      var body = document.getElementById('page');
+      if (!body) return false;
+      if (!buildShell(page, '<div class="content is-legacy" data-legacy-content></div>')) return false;
 
-      var claims = Shell.claims() || {};
-      var who = claims.email || claims.name || claims.sub || '';
+      var target = document.querySelector('[data-legacy-content]');
+      // Moved rather than copied via innerHTML: these nodes may already have listeners bound by a
+      // script that ran before this call, and re-serialising them would drop every one.
+      while (body.firstChild) target.appendChild(body.firstChild);
+      body.remove();
 
-      host.className = 'shell';
-      host.innerHTML =
-        '<aside class="rail">' +
-          '<div class="rail-head">' +
-            '<div class="rail-mark">T</div>' +
-            '<div class="rail-name"><b>TransitInfoAPI</b><span>TransitDB · standalone</span></div>' +
-          '</div>' +
-          '<nav class="rail-nav">' + NAV.map(renderGroup(page.active)).join('') + '</nav>' +
-          '<div class="rail-foot">' +
-            '<div style="display:flex;align-items:center;gap:8px">' +
-              '<span class="dot is-live"></span><span id="railFeedNote">GTFS-RT polling</span>' +
-            '</div>' +
-            '<div class="mono">knows nothing of GetThereAPI</div>' +
-          '</div>' +
-        '</aside>' +
-        '<div class="main">' +
-          '<header class="topbar">' +
-            (page.crumb ? '<span class="crumb">' + Shell.esc(page.crumb) + '</span><span class="sep">/</span>' : '') +
-            '<h1>' + Shell.esc(page.title) + '</h1>' +
-            (page.meta ? '<div class="topbar-meta">' + Shell.esc(page.meta) + '</div>' : '') +
-            '<div class="spacer"></div>' +
-            (page.actions || '') +
-            '<div class="avatar" id="railAvatar" title="' + Shell.esc(who) + ' — sign out">' +
-              Shell.esc(Shell.initials(who)) + '</div>' +
-          '</header>' +
-          '<div class="content" id="content"></div>' +
-        '</div>';
-
-      document.getElementById('railAvatar').addEventListener('click', function () {
-        if (window.confirm('Sign out of the admin console?')) Shell.logout();
-      });
-
+      // body.bs pads the top of the page, which is right for a bare container and wrong once the
+      // rail owns the full viewport height.
+      document.body.classList.add('has-shell');
       return true;
     },
 
@@ -262,6 +262,55 @@
       if (el) el.innerHTML = '<div class="alert">' + Shell.esc(message) + '</div>';
     }
   };
+
+  /**
+   * Renders the rail and topbar into `#shell` and wires the sign-out avatar.
+   * `contentHtml` is what fills the main area — an empty `#content` for design-system pages, a
+   * relocation target for legacy ones.
+   */
+  function buildShell(page, contentHtml) {
+    if (!Shell.requireAuth()) return false;
+
+    var host = document.getElementById('shell');
+    if (!host) return false;
+
+    var claims = Shell.claims() || {};
+    var who = claims.email || claims.name || claims.sub || '';
+
+    host.className = 'shell';
+    host.innerHTML =
+      '<aside class="rail">' +
+        '<div class="rail-head">' +
+          '<div class="rail-mark">T</div>' +
+          '<div class="rail-name"><b>TransitInfoAPI</b><span>TransitDB · standalone</span></div>' +
+        '</div>' +
+        '<nav class="rail-nav">' + NAV.map(renderGroup(page.active)).join('') + '</nav>' +
+        '<div class="rail-foot">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<span class="dot is-live"></span><span id="railFeedNote">GTFS-RT polling</span>' +
+          '</div>' +
+          '<div class="mono">knows nothing of GetThereAPI</div>' +
+        '</div>' +
+      '</aside>' +
+      '<div class="main">' +
+        '<header class="topbar">' +
+          (page.crumb ? '<span class="crumb">' + Shell.esc(page.crumb) + '</span><span class="sep">/</span>' : '') +
+          '<h1>' + Shell.esc(page.title) + '</h1>' +
+          (page.meta ? '<div class="topbar-meta">' + Shell.esc(page.meta) + '</div>' : '') +
+          '<div class="spacer"></div>' +
+          (page.actions || '') +
+          '<div class="avatar" id="railAvatar" title="' + Shell.esc(who) + ' — sign out">' +
+            Shell.esc(Shell.initials(who)) + '</div>' +
+        '</header>' +
+        contentHtml +
+      '</div>';
+
+    document.getElementById('railAvatar').addEventListener('click', function () {
+      if (window.confirm('Sign out of the admin console?')) Shell.logout();
+    });
+
+    return true;
+  }
 
   function renderGroup(active) {
     return function (group) {

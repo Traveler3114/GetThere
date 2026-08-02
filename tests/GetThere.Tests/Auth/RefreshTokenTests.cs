@@ -2,10 +2,10 @@ using GetThereAPI.Data;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Managers;
 
+using GetThereShared.Contracts;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
-using GetThereShared.Contracts;
 
 namespace GetThere.Tests.Auth;
 

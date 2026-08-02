@@ -143,9 +143,17 @@ The two-platform architecture (section 1) is fully realized: `TransitInfoAPI` ow
 - Contract source: `GetThereShared` DTOs.
 - Response wrapper convention: `OperationResult` / `OperationResult<T>`.
 
-### Boundary 2: GetThereAPI <-> TransitInfoAPI
-- Protocol: JSON over HTTP (REST)
-- Service account: `getthere-api@transit.local` with read-only `Client` role.
+### Boundary 2: GetThereAPI <-> TransitInfoAPI — **removed, 2026-08-02**
+- This boundary no longer exists. GetThereAPI makes no call to TransitInfoAPI and holds no
+  credentials for it; the `getthere-api@transit.local` service account is dormant upstream.
+- Was: JSON over HTTP (REST), authenticated as `getthere-api@transit.local` with a read-only
+  `Client` role.
+- The client reaches TransitInfoAPI directly and anonymously for the map — see Boundary 1a below and
+  `docs/reference/getthere-api/transit-integration.md`.
+
+### Boundary 1a: MAUI <-> TransitInfoAPI (the map only)
+- Protocol: JSON/GeoJSON over HTTPS, `[AllowAnonymous]`, same-origin with the map page that service
+  serves. No credential, no proxy, no CORS.
 
 ### Boundary 3: TransitInfoAPI <-> SQL Server (TransitDB)
 - Protocol: EF Core SQL Server queries

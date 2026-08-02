@@ -63,8 +63,9 @@ detection. The address a token was issued to is audited on refresh, not enforced
 `SharedAuth` so neither service can drift from the other. See
 [../getthere-api/architecture.md](../getthere-api/architecture.md#authentication-why-refresh-tokens-are-shaped-the-way-they-are).
 
-`POST /auth/login` is the endpoint GetThereAPI's `TransitInfoApiClient` calls with the
-`getthere-api` service account.
+`POST /auth/login` was the endpoint GetThereAPI's `TransitInfoApiClient` called with the
+`getthere-api` service account. That client was deleted on 2026-08-02 and the account is now dormant
+— no machine caller uses this endpoint.
 
 ---
 
@@ -325,6 +326,10 @@ means repeated failure), and whether `/realtime/vehicles` returns anything.
 ## No OpenAPI document
 
 Unlike GetThereAPI, this service does not map OpenAPI or Scalar in any environment. The contract is
-`TransitInfoAPI.Contracts` plus this document; GetThereAPI's `TransitInfoApiClient` maintains
-hand-written mirror DTOs against it, with no compile-time link — which is exactly how the `Items`
-versus `data` bug survived.
+`TransitInfoAPI.Contracts` plus this document.
+
+GetThereAPI's `TransitInfoApiClient` used to maintain hand-written mirror DTOs against it with no
+compile-time link — which is exactly how the `Items` versus `data` bug survived. That client is
+gone, but the hazard is not: **the map page consumes these shapes as JavaScript**, which pins nothing
+at compile time either. A rename here still fails silently downstream; it now fails in the browser
+rather than in C#.

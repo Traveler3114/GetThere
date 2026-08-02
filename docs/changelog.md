@@ -517,3 +517,139 @@ fetch by one.
 > granted for this change. Re-scaffold it against a real toolchain before it reaches a shared
 > database. The DDL is two statements; the snapshot agreeing with the model is the part worth
 > checking.
+>
+> **It was never valid, and this was caught on 2026-08-02 — see that session below.** The file had no
+> `[Migration]` attribute and no `.Designer.cs`, so EF never discovered it: it never appeared in
+> `migrations list` and `database update` skipped it while reporting success. The DDL was correct
+> and the snapshot did match the model; the missing piece was the metadata that makes a migration
+> *run*.
+
+---
+
+## Session — August 2, 2026
+
+### GetThereAPI's TransitInfoAPI dependency removed entirely
+
+The map migration (July 31) moved the map page to TransitInfoAPI and left the proxy with one
+endpoint: `GET /api/map/transport-types`, which no client called. The **admin console** used it as a
+reachability probe, lighting a status dot in the rail on any success — and that call was the only
+remaining reason GetThereAPI held TransitInfoAPI service-account credentials.
+
+The probe authenticated with the service account in order to prove the service account worked. Once
+nothing else used that credential, the check was circular: it verified the health of a thing whose
+sole consumer was the check itself. Deleting it is the end state the map migration implied.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Upstream client deleted** | `GetThereAPI/Services/TransitInfoApiClient.cs` | 487 lines: service-account login, `static` token cache with double-checked locking, 5-minute expiry margin, single 401 retry, `FetchAllPagesAsync`, the 502 wrapper and the hand-maintained mirror DTOs |
+| **Proxy remnants deleted** | `MapManager.cs`, `MapProxyController.cs` | The last manager/controller pair in the map path. `MapManager` needed no DI removal — `GetThereAPI.Managers.*` is auto-registered by namespace scan, so deleting the file was sufficient |
+| **DI + config** | `Program.cs`, `appsettings.json` | `AddHttpClient<TransitInfoApiClient>` and `Configure<TransitInfoApiOptions>` dropped; the whole `TransitInfoApi` block went with them, including the `"ClientSecret": "CHANGE-ME"` placeholder |
+| **Permission retired** | `Common/PermissionKeys.cs` | `MapView` (`map.view`) removed from the constant, `All`, `UserRoleDefaults` and `Meta`. Seeding is claim-**additive**, so existing role claims keep `map.view` in the database — a stale claim no code reads. Delete it by hand if that matters |
+| **Admin console** | `wwwroot/admin/admin.js` | Rail status dot, its markup and `probeTransitInfo` removed. The rail foot keeps the "one-way · GlobalId reference" line, which is still accurate |
+| **Docs** | `AGENTS.md`, `VERIFY.md`, `docs/README.md`, `docs/map-proxy-migration.md`, `docs/architecture/integration-guide.md`, `docs/reference/{overview,shared/contracts}.md`, `docs/reference/getthere-api/{architecture,endpoints,transit-integration}.md` | Boundary 2 marked removed; `transit-integration.md` marked superseded but **kept in full** — the allowlist argument and the 502-not-500 rule are what any future integration has to answer |
+
+**What deliberately stays.** `TicketingAdapter.TransitInfoGlobalId` is untouched: an indexed column
+with live data, rendered in the adapters admin page and mapped in `AdminManager`. It is a **string
+soft reference** to an operator's Onestop ID, not a foreign key and not a call — removing it is a
+migration and a data loss, which is a different change from unwiring an integration.
+
+**Consequences worth knowing.** Cold-start order no longer matters — TransitInfoAPI had to come up
+first because it creates the `getthere-api` service account. The `Seed:ServiceAccountPassword` /
+`TransitInfoApi:ClientSecret` split, previously the most common integration failure between the two
+services, no longer exists. The `getthere-api` account remains upstream, dormant. The shared
+`IMemoryCache` `SizeLimit = 2_000` was introduced for `MapManager`'s viewport-keyed reads and is kept
+despite losing that consumer; `DynamicClaimsTransformation` is now its only user.
+
+**Verification.** `dotnet build` clean (0 warnings, 0 errors) and the full suite green at **303/303**.
+Both had to be built to a scratch `BaseOutputPath` — GetThereAPI and TransitInfoAPI were running
+locally and held file locks on `bin/`, which surfaces as MSB3021/MSB3027 copy errors rather than
+compile errors.
+
+### Fixed: `Invalid column name 'ClientId'` on the tickets and journeys screens
+
+Reported from the MAUI app as an unexpected error on both screens. Not an app-level error code —
+there is no `INVALID_CLIENT_ID` anywhere in the repo — but SQL Server's own message surfacing
+through the generic error path.
+
+**`ImportedTickets.ClientId` did not exist in `GetThereDB`, while the EF model expected it.** Every
+generated SELECT included the column, so every query against `ImportedTickets` failed: the tickets
+screen directly, and the journeys list through `.Include(j => j.ImportedTickets)`
+(`JourneyManager.cs:70`).
+
+The cause was the hand-written migration from July 31. `20260731120000_AddImportedTicketClientId`
+carried **no `[Migration]` attribute and no `.Designer.cs`**. That attribute is how EF discovers
+migrations, so the class — despite inheriting `Migration` and containing correct DDL — was invisible
+to the tooling. `dotnet ef migrations list` did not show it and `dotnet ef database update` skipped
+it while reporting `Done.`, which is why the drift went unnoticed for two days.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Migration re-scaffolded** | `Migrations/20260802130743_AddImportedTicketClientId.{cs,Designer.cs}` | `AppDbContextModelSnapshot.cs` restored from `4318c52^` so the model diff was non-empty, the invalid file deleted, then `dotnet ef migrations add`. The generated DDL is **identical** to the hand-written version — the SQL was always right |
+| **Reasoning preserved** | same | The filtered-index rationale (`ClientId IS NOT NULL`, because SQL Server treats NULLs as equal in a unique index; deliberately *not* filtered on `Status`, because a retry must find the original whatever became of it) was carried over from the deleted file, plus a note on why the original silently did nothing |
+| **Applied** | `GetThereDB` | Verified in `sys.columns` / `sys.indexes`: `ClientId uniqueidentifier NULL`, unique index filtered `([ClientId] IS NOT NULL)` |
+| **Docs** | `VERIFY.md` §2, this file | The July 31 caveat marked resolved rather than deleted |
+
+**Two migrations were also pending and unrelated** — `20260728153241_AddPurchaseStatusIndex` and
+`20260728155730_AddExpirySweepIndexes` — and applied in the same run. GetThereAPI does not migrate on
+startup (only TransitInfoAPI does, and only in Development), so migrations here are a manual step and
+drift like this is invisible until a query hits the gap.
+
+> **Why the test suite could not catch this.** Tests build their schema from the EF model, so a
+> migration that never executes is indistinguishable from one that does — 303/303 passed throughout,
+> both before and after the fix. Only a query against a real database exposes it. Worth remembering
+> before trusting a green suite as evidence that a schema change landed.
+
+### TransitInfoAPI admin: navigation on every page, not just the overview
+
+The console had a rail on exactly one of its fifteen screens. Every other page was a Bootstrap
+container whose only navigation was a `← Home > Admin` text breadcrumb, so moving between screens
+meant going back to the overview or typing a URL. The July 31 restyle gave those pages the dark
+palette via `body.bs` but never mounted the shell on them, which is why they looked roughly right
+and behaved badly.
+
+`admin-shell.js` already listed all fourteen destinations in `NAV` — nothing needed designing, only
+mounting.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Shell refactor** | `admin-shell.js` | Rail/topbar markup extracted from `mount` into a private `buildShell(page, contentHtml)`. `mount` is unchanged in behaviour; the chrome now has one definition instead of two |
+| **`Shell.mountLegacy`** | same | Mounts the chrome around a page that still renders Bootstrap, **relocating** its existing markup into the content area rather than replacing it. Nodes are moved, not re-serialised through `innerHTML`, so listeners bound by an earlier script survive. The content div deliberately carries **no `id`** — every legacy page already owns an `id="content"` its own script writes into, and a second one would silently break whichever the script reached first |
+| **12 pages mounted** | `agencies`, `alerts`, `countries`, `feed-versions`, `feeds`, `mobility`, `operators`, `places`, `realtime`, `reconciliation`, `routes`, `stations` `.html` | `<div id="shell">` + `<div id="page" hidden>` wrapper, the text breadcrumb dropped (the rail replaces it), the in-page `<h1>` dropped (the topbar owns the title), and the header row switched to `justify-content-end` so the action buttons stay right-aligned without it. `realtime.html` keeps `space-between` — its live indicator sits where the h1 was |
+| **Layout** | `style.css` | `body.bs.has-shell` drops the `padding-top` that suits a bare centred container and fights a full-height rail; `.content.is-legacy` resets the Bootstrap container's centring and max-width, since `.content` already provides the gutter |
+
+**No page script was touched.** All 4,583 lines of `*.page.js` are untouched, and the inner tables,
+filters and modals keep their Bootstrap markup — already dark via the `body.bs` skin. Porting that
+content onto the design-system primitives is a separate, much larger pass.
+
+**Two pages were deliberately left alone.** `reconciliation-map.html` and `shape-editor.html` are
+full-bleed map surfaces with fixed-position overlays, reached from a parent screen and carrying their
+own back/cancel affordance. A rail would shrink the map and fight those overlays, and neither is a
+navigation destination.
+
+#### Regression, same session: every mounted page rendered black
+
+The first version wrapped each page in `<div id="page" hidden>` and relied on `mountLegacy` to
+reveal it by relocating the content. **That makes every failure catastrophic.** Anything that stops
+the mount call from completing — a browser holding a cached copy of the previous `admin-shell.js`,
+which has no `mountLegacy` and throws `TypeError`; a script that fails to load; an auth redirect
+mid-flight — leaves the attribute in place and the screen entirely blank. Static files here are
+served with only `ETag`/`Last-Modified` and no `Cache-Control`, so a stale cached script is an
+ordinary occurrence, not an edge case.
+
+**Fixed by never hiding the content.** `hidden` is gone from all twelve wrappers; the markup renders
+in place and `mountLegacy` moves it. The worst case is now the page looking as it did before the
+shell existed — no rail, but readable and fully usable. The reasoning is recorded in the
+`mountLegacy` doc comment so it does not get reintroduced.
+
+The lesson generalises past this change: **an enhancement that hides content until JavaScript
+succeeds converts every failure into a blank page.** Relocate visible content instead of revealing
+hidden content, and the same code degrades instead of disappearing.
+
+**Verification.** Tag balance checked on all twelve (every `<div>` closed), plus `#shell` host,
+single `mountLegacy` call, `admin-shell.js` loaded before the page script, and the served CSP
+(`script-src 'self' 'unsafe-inline' …`) confirmed to permit the inline mount call.
+
+Both paths were then exercised in a real browser against the live CSS, for all twelve pages, by
+parsing each page and replaying the mount: **0 failures**. Each was checked to render its content
+with the shell absent (the degraded path), and on mount to produce 14 rail items, the right topbar
+title, the container relocated into the content area, and no `#page` wrapper left behind.

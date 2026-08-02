@@ -1,5 +1,24 @@
 # GetThereAPI ↔ TransitInfoAPI — The Integration
 
+> **SUPERSEDED, 2026-08-02. The integration described below no longer exists.** GetThereAPI makes no
+> HTTP call to TransitInfoAPI and holds no credentials for it. `TransitInfoApiClient`, `MapManager`,
+> `MapProxyController`, the `TransitInfoApi` configuration block and the `map.view` permission are
+> deleted; the service account `getthere-api@transit.local` has no caller.
+>
+> This finished what the map-proxy migration started. That change moved the map page to
+> TransitInfoAPI and left exactly one endpoint behind — a reachability probe for the admin console's
+> status dot. The probe authenticated with the service account to prove the service account worked,
+> which is circular once nothing else uses it, so the dot and the credential went together.
+>
+> **What survives is the domain link, and it is not an integration.**
+> `TicketingAdapter.TransitInfoGlobalId` is still a column, still indexed, still rendered in the
+> adapters admin page. It is a **string, not a foreign key, and not a call** — a soft reference to an
+> operator's Onestop ID upstream, resolved by a human rather than by this service.
+>
+> Everything below is kept deliberately. It is the record of why the coupling was built the way it
+> was, and it is the argument any future integration has to answer — particularly the allowlist
+> section and the 502-not-500 rule. Read it as history, not as a description of running code.
+
 ## Why there are two services at all
 
 The two systems solve genuinely different problems and change at completely different rates:
@@ -21,9 +40,10 @@ own `GeoConstants`, `PermissionKeys`, `AppException`, `RoleNames`, `AuditLog` an
 duplication is intentional — a shared library would couple two independent release cycles and let a
 change made for one service silently alter the other.
 
-The dependency runs **one way, over HTTP only**. GetThereAPI authenticates as an ordinary user of
-TransitInfoAPI and maps its responses into its own types; TransitInfoAPI knows nothing about
-GetThereAPI at all.
+The dependency ran **one way, over HTTP only**. GetThereAPI authenticated as an ordinary user of
+TransitInfoAPI and mapped its responses into its own types; TransitInfoAPI knew nothing about
+GetThereAPI at all. There is now no dependency in either direction — the assembly-level independence
+below is still a hard rule, and the HTTP link that used to sit beside it is gone too.
 
 > A `ProjectReference` to `GetThereShared` did exist here, used only for `RoleDto`/`UserDto`. It was
 > removed and those types now live in `TransitInfoAPI.Contracts`. Treat its reappearance as a
@@ -38,19 +58,19 @@ precisely because the two databases must be able to move independently.
 ## The one-way rule
 
 ```
-MAUI client  ──►  GetThereAPI  ──►  TransitInfoAPI
+MAUI client  ──►  GetThereAPI          (business data)
+MAUI client  ──►  TransitInfoAPI       (the map, anonymous, same-origin with the page)
 ```
 
-For business data, the client talks only to GetThereAPI, and everything in this document exists to
+For business data, the client talks only to GetThereAPI, and everything in this document existed to
 make that enforceable rather than conventional. See
 [architecture.md](architecture.md#what-this-service-is-for) for why.
 
-> **The map is the exception, and it no longer passes through here.** The client loads the map page
-> from TransitInfoAPI and reads that service's anonymous endpoints same-origin. The proxy that used
-> to serve it — a whitelisted passthrough plus typed reads — is gone; only
-> `/api/map/transport-types` remains, as the admin console's reachability probe. See
-> [`map-proxy-migration.md`](../../map-proxy-migration.md). This document still describes the
-> service-account hop, which every other upstream read continues to use.
+> **The second hop is gone entirely.** The arrow that used to run
+> `GetThereAPI ──► TransitInfoAPI` has no code behind it. The client loads the map page from
+> TransitInfoAPI and reads that service's anonymous endpoints same-origin; GetThereAPI is not
+> involved in the map at any point and no longer authenticates upstream for anything. See
+> [`map-proxy-migration.md`](../../map-proxy-migration.md).
 
 ---
 
@@ -257,10 +277,18 @@ Both are visible only in server logs.
 
 ## Operational notes
 
-- The **service account must exist in TransitInfoAPI** with permission to read stations, routes,
-  realtime and mobility. Creating it is a TransitInfoAPI-side task; nothing in GetThereAPI provisions
-  it.
-- The default `BaseUrl` (`https://localhost:5001`) matches TransitInfoAPI's Kestrel HTTPS endpoint, so
-  running both locally needs no configuration.
-- Map endpoints are the only part of GetThereAPI that depends on TransitInfoAPI. Wallets, tickets,
-  imports and journeys all work with it completely down.
+**All obsolete — recorded for anyone reading the history.** GetThereAPI needs no configuration for
+TransitInfoAPI, no service account, and no network path to it. The two can be started, stopped,
+deployed and version-bumped independently, and neither has an opinion about whether the other is
+running.
+
+- The **service account had to exist in TransitInfoAPI** with permission to read stations, routes,
+  realtime and mobility. Creating it was a TransitInfoAPI-side task; nothing in GetThereAPI ever
+  provisioned it. It still exists upstream and is now unused — see
+  [`docs/secrets-rotation.md`](../../secrets-rotation.md) if you want it removed rather than left
+  dormant.
+- The default `BaseUrl` (`https://localhost:5001`) matched TransitInfoAPI's Kestrel HTTPS endpoint, so
+  running both locally needed no configuration.
+- Map endpoints were the only part of GetThereAPI that depended on TransitInfoAPI, and wallets,
+  tickets, imports and journeys already worked with it completely down. Removing them is why that
+  caveat no longer needs stating: **nothing** in GetThereAPI depends on TransitInfoAPI.

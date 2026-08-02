@@ -30,8 +30,13 @@ silently on device.
 
 **Separate auth domains, same key type.** Both APIs use `IdentityUser` with a string GUID key —
 TransitInfoAPI was moved off `IdentityUser<int>` in Phase 0. They remain separate user stores in
-separate databases with no cross-system user references. The service account bridge
-(`getthere-api@transit.local`) handles cross-API auth independently.
+separate databases with no cross-system user references.
+
+**GetThereAPI makes no call to TransitInfoAPI.** The service-account bridge
+(`getthere-api@transit.local`), `TransitInfoApiClient`, `MapProxyController`, `MapManager` and the
+`map.view` permission were removed on 2026-08-02, once the map migration left them with no caller but
+an admin status dot. Treat any reappearance as a regression — and note that GetThereAPI referencing
+an operator by `TransitInfoGlobalId` is **not** that: it is a string soft reference, not a call.
 
 ## Running
 

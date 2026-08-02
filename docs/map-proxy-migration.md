@@ -10,6 +10,14 @@
 >
 > Kept because it explains *why* the proxy was built, which is what makes the deletion legible —
 > and because the allow-list reasoning still applies to anything that proxies upstream in future.
+>
+> **Completed, 2026-08-02.** This migration left one endpoint standing —
+> `GET /api/map/transport-types`, the admin console's reachability probe — and with it the service
+> account, `TransitInfoApiClient`, `MapManager` and the `map.view` permission. That remainder is now
+> deleted as well. The probe's only purpose was to prove the credential it authenticated with still
+> worked, which stops meaning anything once nothing else uses that credential; the honest end state
+> of moving the page is that GetThereAPI has no dependency on TransitInfoAPI at all, and that is
+> where it now sits. See `docs/reference/getthere-api/transit-integration.md`.
 
 **Status: DONE, 2026-07-27.** Verified end-to-end against both APIs running.
 

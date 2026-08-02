@@ -1,5 +1,4 @@
-using System;
-
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,17 +10,20 @@ namespace GetThereAPI.Migrations
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Hand-written.</b> Every other migration here came from <c>dotnet ef migrations add</c>;
-    /// this one was authored by hand because the environment that produced it had no .NET SDK.
-    /// Re-scaffolding it against a real toolchain before this reaches a shared database is the
-    /// safe move — the risk is not the DDL below, which is two statements, but the model snapshot
-    /// it has to agree with.
-    /// </para>
-    /// <para>
     /// The index is filtered on <c>ClientId IS NOT NULL</c> because SQL Server treats NULLs as equal
     /// in a unique index: unfiltered, a user could hold only one ticket created directly against the
     /// API. It is deliberately not filtered on <c>Status</c>, unlike the dedupe index beside it — a
     /// retry must find the original whatever became of it, including one already marked used.
+    /// </para>
+    /// <para>
+    /// This replaces a hand-written migration dated <c>20260731120000</c>, authored in an
+    /// environment with no .NET SDK. The DDL was correct and is reproduced verbatim below, but the
+    /// file carried no <c>[Migration]</c> attribute and no <c>.Designer.cs</c> — the attribute is
+    /// how EF discovers migrations, so it was invisible to <c>migrations list</c> and silently
+    /// skipped by <c>database update</c>. The column never reached any database, and every query
+    /// touching <c>ImportedTickets</c> failed with <c>Invalid column name 'ClientId'</c>. This is
+    /// the failure mode that makes "never hand-write a migration" worth enforcing: the DDL is the
+    /// easy part to get right, and the metadata is the part that silently does nothing.
     /// </para>
     /// </remarks>
     public partial class AddImportedTicketClientId : Migration

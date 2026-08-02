@@ -11,10 +11,10 @@
 <script src="/admin/admin-auth.js"></script>
 </head>
 <body class="bs">
+<div id="shell"></div>
+<div id="page">
 <div class="container">
-  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0">Reconciliation</h1>
+  <div class="d-flex justify-content-end align-items-center mb-3">
     <div>
       <button class="btn btn-success btn-sm d-none" id="batchApproveBtn" onclick="batchApprove()"><i class="bi bi-check-all"></i> Approve Selected</button>
       <button class="btn btn-outline-primary btn-sm" onclick="loadAll()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
@@ -67,7 +67,12 @@
   <div id="content" class="d-none"></div>
   <div id="pagination" class="d-none"></div>
 </div>
+</div>
 
+<script src="/admin/admin-shell.js"></script>
+<script>
+  Shell.mountLegacy({ active: 'reconciliation', crumb: 'Network', title: 'Reconciliation' });
+</script>
 <script src="reconciliation.page.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -853,6 +853,25 @@ body.bs {
 
 body.bs .container, body.bs .container-fluid { max-width: 1600px; }
 
+/* Legacy page mounted inside the rail + topbar (Shell.mountLegacy).
+   The padding above is right for a bare centred container and wrong once the rail owns the full
+   viewport height; the container itself stops centring because .content already provides the gutter. */
+body.bs.has-shell { padding-top: 0; }
+
+.content.is-legacy {
+  display: block;
+  gap: 0;
+  overflow: auto;
+}
+
+.content.is-legacy > .container,
+.content.is-legacy > .container-fluid {
+  max-width: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
 body.bs h1, body.bs h2, body.bs h3, body.bs h4, body.bs h5, body.bs h6 { color: var(--text-strong); }
 body.bs .text-muted { color: var(--text-4) !important; }
 body.bs .text-body-secondary { color: var(--text-3) !important; }

@@ -11,10 +11,10 @@
 <script src="/admin/admin-auth.js"></script>
 </head>
 <body class="bs">
+<div id="shell"></div>
+<div id="page">
 <div class="container">
-  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0">Places</h1>
+  <div class="d-flex justify-content-end align-items-center mb-3">
     <button class="btn btn-outline-primary btn-sm" onclick="loadPlaces()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
   </div>
 
@@ -32,7 +32,12 @@
   <div id="content" class="d-none"></div>
   <div id="pagination" class="d-none"></div>
 </div>
+</div>
 
+<script src="/admin/admin-shell.js"></script>
+<script>
+  Shell.mountLegacy({ active: 'places', crumb: 'Network', title: 'Places' });
+</script>
 <script src="places.page.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

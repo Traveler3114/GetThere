@@ -1,4 +1,4 @@
-﻿using GetThereAPI.Exceptions;
+using GetThereAPI.Exceptions;
 using GetThereAPI.Models;
 using GetThereAPI.Sdk;
 

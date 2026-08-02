@@ -100,24 +100,29 @@ service silently alter the other. The only channel between them is HTTP.
 ## The one-way rule
 
 ```
-client → GetThereAPI → TransitInfoAPI      (all business data)
+client → GetThereAPI                        (all business data)
 client → TransitInfoAPI                     (the map, and only the map)
 ```
 
-**For everything it does with a user's data, the client talks only to GetThereAPI.** Three reasons:
+**The two services do not call each other.** GetThereAPI once brokered transit data for the client,
+for three reasons:
 
-1. **Credentials.** Reaching TransitInfoAPI's *authorized* surface needs a service-account login.
-   Direct client access to it would put that credential in an app binary, where anyone can read it.
+1. **Credentials.** Reaching TransitInfoAPI's *authorized* surface needed a service-account login.
+   Direct client access would put that credential in an app binary, where anyone can read it.
 2. **Authorization.** TransitInfoAPI has admin endpoints — feed imports, station merges,
-   reconciliation. The service account can reach them; a client holding it could too.
-3. **Coupling.** TransitInfoAPI's contracts can change without an app release, because only
-   `TransitInfoApiClient` is pinned to them.
+   reconciliation. The service account could reach them; a client holding it could too.
+3. **Coupling.** TransitInfoAPI's contracts could change without an app release, because only
+   `TransitInfoApiClient` was pinned to them.
 
-**The map is the deliberate exception.** It is a WebView pointed at a page served *by
+**The map is what made all three moot.** It is a WebView pointed at a page served *by
 TransitInfoAPI*, reading that service's `[AllowAnonymous]` endpoints same-origin — no proxy, no
-service account, no bearer token, no CORS. None of the three reasons above applies to it: it carries
-no credential, touches no admin endpoint, and renders GeoJSON that GetThereAPI was only re-shipping
-verbatim anyway. It replaced a proxy that existed purely to bridge two origins; see
+service account, no bearer token, no CORS. It carries no credential, touches no admin endpoint, and
+renders GeoJSON that GetThereAPI was only re-shipping verbatim anyway. Once that was true, the
+brokering had one caller left — an admin status dot — and on 2026-08-02 it was removed entirely,
+along with `TransitInfoApiClient`, `MapManager`, `MapProxyController` and the `map.view` permission.
+
+**For everything it does with a user's data, the client still talks only to GetThereAPI.** That rule
+is unchanged; what changed is that GetThereAPI no longer talks to anything else on its behalf. It replaced a proxy that existed purely to bridge two origins; see
 [`docs/map-proxy-migration.md`](../map-proxy-migration.md) and
 [the map section](getthere-client/architecture.md#the-map-a-webview-and-nothing-else).
 
@@ -174,14 +179,16 @@ up to an hour and revocation has to take effect sooner. Claims are reloaded per 
 sliding with a **5-minute absolute ceiling** — the ceiling is the real control, since sliding alone
 never lapses for an active user.
 
-GetThereAPI authenticates to TransitInfoAPI the same way, as the `getthere-api` service account
-holding the `Client` role. Its token is cached in `static` fields with double-checked locking, and
-every request retries once on 401.
-
-> **`Seed:ServiceAccountPassword` in TransitInfoAPI must equal `TransitInfoApi:ClientSecret` in
-> GetThereAPI.** Two halves of one credential configured in two places, with nothing validating that
-> they match. A mismatch appears as 502 on every map endpoint — the most common integration failure
-> between the two services.
+> **Removed, 2026-08-02.** GetThereAPI used to authenticate to TransitInfoAPI the same way, as the
+> `getthere-api` service account holding the `Client` role, caching its token in `static` fields with
+> double-checked locking and retrying once on 401. It no longer calls TransitInfoAPI at all, so
+> `TransitInfoApi:ClientSecret` is gone from its configuration.
+>
+> This also retires what used to be the most common integration failure between the two services:
+> `Seed:ServiceAccountPassword` in TransitInfoAPI and `TransitInfoApi:ClientSecret` in GetThereAPI
+> were two halves of one credential configured in two places, with nothing validating that they
+> matched, and a mismatch surfaced as a 502 on every map endpoint. The `getthere-api` account still
+> exists upstream and is now dormant.
 
 ### Buying a ticket
 
@@ -301,8 +308,11 @@ GetThereAPI does not — run them explicitly:
 dotnet ef database update --project GetThereAPI/GetThereAPI.csproj
 ```
 
-Order matters on a cold start: bring up **TransitInfoAPI first** (it creates the `getthere-api`
-service account), then GetThereAPI, then the app.
+**Start order no longer matters.** It used to: TransitInfoAPI had to come up first because it creates
+the `getthere-api` service account GetThereAPI authenticated with. With that call path removed, the
+two APIs are independent at startup and can be brought up in any order, or one without the other. The
+app needs GetThereAPI for business data and TransitInfoAPI for the map, and degrades on whichever is
+missing rather than failing to start.
 
 The app's API base URL is **compile-time** (`Helpers/ApiEndpoints.cs`), with `10.0.2.2` for the Android
 emulator. A released build cannot be repointed — a known open item.

@@ -256,10 +256,6 @@
           '</div>' +
           '<nav class="rail-nav">' + NAV.map(renderGroup(page.active)).join('') + '</nav>' +
           '<div class="rail-foot">' +
-            '<div style="display:flex;align-items:center;gap:8px">' +
-              '<span class="dot is-idle" id="railTransitDot"></span>' +
-              '<span id="railTransitText">TransitInfoAPI — checking</span>' +
-            '</div>' +
             '<div class="mono">one-way · GlobalId reference</div>' +
           '</div>' +
         '</aside>' +
@@ -284,7 +280,6 @@
         if (window.confirm('Sign out of the admin console?')) Admin.logout();
       });
 
-      Admin.probeTransitInfo();
       return true;
     },
 
@@ -306,21 +301,6 @@
           }
         });
       });
-    },
-
-    /** One-way reachability probe: any successful proxy call means TransitInfoAPI answered. */
-    probeTransitInfo: async function () {
-      var dot = document.getElementById('railTransitDot');
-      var text = document.getElementById('railTransitText');
-      if (!dot || !text) return;
-      try {
-        await Admin.api('/api/map/transport-types');
-        dot.className = 'dot is-live';
-        text.textContent = 'TransitInfoAPI reachable';
-      } catch (e) {
-        dot.className = 'dot is-danger';
-        text.textContent = 'TransitInfoAPI unreachable';
-      }
     },
 
     /** Replaces #content with a one-off error panel. */

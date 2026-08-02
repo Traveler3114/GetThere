@@ -209,10 +209,16 @@ admin@transit.local      Admin   ← human operator
 getthere-api             Client  ← GetThereAPI's service account
 ```
 
-**`Seed:ServiceAccountPassword` must equal GetThereAPI's `TransitInfoApi:ClientSecret`.** They are two
-halves of one credential configured in two places, and nothing validates that they match — a mismatch
-shows up as GetThereAPI returning 502 on every map endpoint. This is the single most common
-integration failure between the two services.
+> **The `getthere-api` account is dormant as of 2026-08-02.** GetThereAPI no longer calls this
+> service — `TransitInfoApiClient` and the whole map proxy were removed — so nothing authenticates
+> with it. It is still seeded, because seeding it is harmless and removing it is a decision about
+> this service's own user store, not about the integration. Delete it if you want the surface gone.
+>
+> This also retires what was **the single most common integration failure between the two services**:
+> `Seed:ServiceAccountPassword` here had to equal GetThereAPI's `TransitInfoApi:ClientSecret`, two
+> halves of one credential configured in two places with nothing validating that they matched, and a
+> mismatch surfaced as GetThereAPI returning 502 on every map endpoint. That configuration key no
+> longer exists on the GetThereAPI side.
 
 ---
 

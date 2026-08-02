@@ -10,11 +10,11 @@
 <script src="/admin/admin-auth.js"></script>
 </head>
 <body class="bs">
+<div id="shell"></div>
+<div id="page">
 <div class="container">
-  <nav class="mb-4"><a href="/" class="text-decoration-none">&larr; Home</a> &gt; <a href="/admin/" class="text-decoration-none">Admin</a></nav>
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-3">
-      <h1 class="mb-0">Realtime Vehicles</h1>
       <span id="liveIndicator" class="small"><span class="live-dot"></span> Live</span>
     </div>
     <div>
@@ -42,7 +42,12 @@
   <div id="content" class="d-none"></div>
   <div id="statusBar" class="small text-muted mt-2 d-none"></div>
 </div>
+</div>
 
+<script src="/admin/admin-shell.js"></script>
+<script>
+  Shell.mountLegacy({ active: 'realtime', crumb: 'Monitor', title: 'Realtime Vehicles' });
+</script>
 <script src="realtime.page.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

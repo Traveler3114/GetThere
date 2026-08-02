@@ -54,9 +54,6 @@ public static class PermissionKeys
     // Audit
     public const string AuditView = "audit.view";
 
-    // Map (via MapProxyController)
-    public const string MapView = "map.view";
-
     public static readonly string[] All =
     [
         UsersView, UsersManage, RolesView, RolesManage,
@@ -68,8 +65,7 @@ public static class PermissionKeys
         SettingsView, SettingsManage,
         AdaptersView, AdaptersManage,
         AdminStatsView, AdminPurchasesView,
-        AuditView,
-        MapView
+        AuditView
     ];
 
     /// <summary>
@@ -83,7 +79,6 @@ public static class PermissionKeys
         WalletsView, WalletsManage,
         ProfileView, ProfileManage,
         SettingsView,
-        MapView,
         ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage,
         JourneysView, JourneysCreate, JourneysManage
     ];
@@ -115,6 +110,5 @@ public static class PermissionKeys
         [AdminStatsView] = ("View Platform Stats", "View platform-wide KPIs, revenue and wallet float", "Admin"),
         [AdminPurchasesView] = ("View All Purchases", "View the purchase feed across all users", "Admin"),
         [AuditView] = ("View Audit Log", "View audit log entries", "Audit"),
-        [MapView] = ("View Map", "Access map data (stations, routes, vehicles)", "Map"),
     };
 }

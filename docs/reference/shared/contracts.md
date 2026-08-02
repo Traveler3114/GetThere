@@ -8,9 +8,10 @@ breaks compilation on both sides at once instead of failing silently over the wi
 - **Referenced by:** `GetThere` (MAUI) and `GetThereAPI` — those two only.
 - **Never referenced by `TransitInfoAPI`.** That service is independent: its contracts live in
   `TransitInfoAPI.Contracts`, and it must not take a dependency on this assembly, on `GetThereAPI`
-  or on the client. The two systems talk over HTTP through `TransitInfoApiClient`, which re-maps
-  upstream shapes into the `Map*` types here — so a transit contract change cannot break the client
-  by construction.
+  or on the client. The two systems no longer talk at all — `TransitInfoApiClient`, which re-mapped
+  upstream shapes into the `Map*` types here, was removed on 2026-08-02. The client reads
+  TransitInfoAPI's own shapes directly in the map page, which is JavaScript and pins no C# type, so a
+  transit contract change still cannot break the client by construction.
 
   > A `ProjectReference` from `TransitInfoAPI` to `GetThereShared` did exist, used only for
   > `RoleDto`/`UserDto`. It was removed and those types now live in `TransitInfoAPI.Contracts`.

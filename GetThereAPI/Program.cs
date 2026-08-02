@@ -59,12 +59,6 @@ builder.Services.AddHealthChecks()
 // Inert unless Otel:Endpoint is configured. See SharedAuth.TelemetryRegistration.
 builder.Services.AddSharedTelemetry(builder.Configuration, "GetThereAPI");
 
-builder.Services.AddHttpClient<TransitInfoApiClient>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["TransitInfoApi:BaseUrl"] ?? "https://localhost:5001");
-    client.Timeout = TimeSpan.FromSeconds(30);
-});
-
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
     options.Password.RequiredLength = 12;
@@ -78,8 +72,6 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
-
-builder.Services.Configure<TransitInfoApiOptions>(builder.Configuration.GetSection("TransitInfoApi"));
 
 builder.Services.AddSingleton<AdapterRegistry>();
 builder.Services.AddHostedService<TicketExpiryWorker>();

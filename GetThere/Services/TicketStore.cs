@@ -32,7 +32,7 @@ public sealed class CachedTickets<T>
 /// plus a schema plus migrations is a large first step for a list.
 /// </para>
 /// </summary>
-public class TicketStore
+public sealed class TicketStore : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -250,5 +250,15 @@ public class TicketStore
         {
             Trace.WriteLine($"[TicketStore] Could not clear the cache: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Releases both locks. A singleton for the app's lifetime, so this runs only when the DI
+    /// container is torn down at shutdown.
+    /// </summary>
+    public void Dispose()
+    {
+        _keyLock.Dispose();
+        _writeLock.Dispose();
     }
 }

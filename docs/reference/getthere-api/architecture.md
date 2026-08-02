@@ -6,35 +6,45 @@ GetThereAPI is the **only** service the mobile app talks to. That is the single 
 about it, and most of its design follows from it.
 
 The app needs two very different things: its own account/wallet/ticket data, and public transit
-reference data (stations, routes, live vehicles). Those live in two different systems. The API's job
-is to own the first and to *broker* the second, so the client never learns that TransitInfoAPI
-exists.
+reference data (stations, routes, live vehicles). Those live in two different systems. **This API
+owns the first and has nothing to do with the second.**
 
-Why enforce that? Three reasons, in order of importance:
+It used to broker transit data as well, so the client never learned that TransitInfoAPI existed.
+That brokering was removed on 2026-08-02. The argument for it was:
 
-1. **Credentials.** Reaching TransitInfoAPI requires a service-account login. If the client called it
-   directly, that credential would have to ship inside an app binary, where it is readable by anyone
-   who cares to look. Keeping the call server-side keeps the credential server-side.
-2. **Authorization.** TransitInfoAPI has admin endpoints — feed imports, station merges, reconciliation.
-   The service account can reach them. A client holding that account could too. The proxy exposes a
-   deliberately small allowlist instead (see [transit-integration.md](transit-integration.md)).
-3. **Coupling.** TransitInfoAPI's contracts can change without a client release, because only
-   `TransitInfoApiClient` and `MapManager` are pinned to them.
+1. **Credentials.** Reaching TransitInfoAPI's authorized surface required a service-account login. A
+   client calling it directly would have to ship that credential inside an app binary, readable by
+   anyone who cares to look. Keeping the call server-side kept the credential server-side.
+2. **Authorization.** TransitInfoAPI has admin endpoints — feed imports, station merges,
+   reconciliation. The service account could reach them, so a client holding that account could too.
+   The proxy exposed a deliberately small allowlist instead.
+3. **Coupling.** TransitInfoAPI's contracts could change without a client release, because only
+   `TransitInfoApiClient` and `MapManager` were pinned to them.
+
+**What dissolved the argument** is that the map page moved to TransitInfoAPI and reads that service
+same-origin and *anonymously*. There is no credential to protect, no admin endpoint in reach, and no
+contract pinned here — so all three reasons apply to a call that no longer happens. See
+[transit-integration.md](transit-integration.md), which is kept as the historical record.
 
 ```
-┌──────────────┐   HTTPS + user JWT     ┌──────────────┐   HTTPS + service JWT   ┌────────────────┐
-│  GetThere    │ ─────────────────────► │ GetThereAPI  │ ──────────────────────► │ TransitInfoAPI │
-│  (MAUI app)  │ ◄───────────────────── │              │ ◄────────────────────── │                │
-└──────────────┘                        └──────┬───────┘                         └────────┬───────┘
+┌──────────────┐   HTTPS + user JWT     ┌──────────────┐                         ┌────────────────┐
+│  GetThere    │ ─────────────────────► │ GetThereAPI  │     no call path        │ TransitInfoAPI │
+│  (MAUI app)  │ ◄───────────────────── │              │      either way         │                │
+└──────┬───────┘                        └──────┬───────┘                         └────────┬───────┘
+       │                                       │                                          ▲
+       │        the map — HTTPS, anonymous, same-origin with its page                      │
+       ├──────────────────────────────────────────────────────────────────────────────────┘
        │                                       │                                          │
-       │  both reference                       │ EF Core                                  │ EF Core
+       │  references                           │ EF Core                                  │ EF Core
        ▼                                       ▼                                          ▼
 ┌──────────────┐                        ┌──────────────┐                         ┌────────────────┐
 │GetThereShared│                        │  GetThereDb  │                         │  TransitInfoDb │
 └──────────────┘                        └──────────────┘                         └────────────────┘
 ```
 
-The arrow only ever points right. Nothing upstream calls back down.
+The two services never call each other in either direction. The only link between the domains is
+`TicketingAdapter.TransitInfoGlobalId`, a string soft reference to an operator's Onestop ID — no
+foreign key, no request.
 
 ---
 
@@ -135,11 +145,13 @@ The absolute ceiling is the real security control; the sliding window is only an
 
 ### 3. The shared `IMemoryCache` and its size limit
 
-`Program.cs` registers one memory cache with `SizeLimit = 2_000`, shared by this transformation and
-by `MapManager`. The limit exists because map reads are keyed by viewport — a user panning around
-produces an unbounded set of distinct keys, so an unbounded cache is a slow memory leak.
+`Program.cs` registers one memory cache with `SizeLimit = 2_000`. The limit was introduced for
+`MapManager`, whose map reads were keyed by viewport — a user panning around produces an unbounded
+set of distinct keys, so an unbounded cache is a slow memory leak. `MapManager` is gone and this
+transformation is now the only consumer, but the limit stays: the reasoning applies to any future
+cached read keyed by user-supplied input, and removing a bound is harder to notice than keeping one.
 
-Because a size limit is set, **every entry must declare a `Size`**. Both consumers use `Size = 1`, so
+Because a size limit is set, **every entry must declare a `Size`**. Entries use `Size = 1`, so
 the limit is effectively an entry count. An entry added without a size throws at runtime; this is the
 most common way to break the cache when adding a new cached read.
 
@@ -343,8 +355,6 @@ has. Deleting a key from `PermissionKeys.All` therefore leaves the stale claim i
 | `Jwt:ExpiryMinutes` | No | Default 60 |
 | `Jwt:RefreshTokenDays` | No | Default 1 |
 | `Jwt:RefreshTokenDaysRememberMe` | No | Default 30 |
-| `TransitInfoApi:BaseUrl` | No | Default `https://localhost:5001` |
-| `TransitInfoApi:ClientId` / `ClientSecret` | Yes in practice | Service-account credentials; map endpoints 502 without them |
 | `TicketFiles:RootPath` | No | Defaults to `{ContentRoot}/ticket-files` |
 | `TicketExpiry:CheckIntervalHours` | No | Default 1, floored at 1 minute |
 | `Seed:AdminPassword` | Outside Dev | See above |
@@ -365,5 +375,6 @@ on their next refresh, which is the known cost of inferring rather than storing.
 - [endpoints.md](endpoints.md) — every route, its policy, and why it is gated that way
 - [domain-logic.md](domain-logic.md) — the money path, imports, journeys
 - [ticket-import.md](ticket-import.md) — the file upload and extraction pipeline
-- [transit-integration.md](transit-integration.md) — the TransitInfoAPI client and the service-account hop
+- [transit-integration.md](transit-integration.md) — **historical**: the TransitInfoAPI client and the
+  service-account hop, both removed. Kept for the allowlist and 502-not-500 reasoning
 - [../shared/contracts.md](../shared/contracts.md) — the DTOs crossing the wire

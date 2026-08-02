@@ -259,31 +259,29 @@ reshuffle someone's wallet. Accepting one is a `POST /journeys` with the returne
 
 ---
 
-## `/api/map` — MapProxyController
+## `/api/map` — removed, 2026-08-02
 
-| Method | Route | Query | Returns |
-|---|---|---|---|
-| GET | `/api/map/transport-types` | — | Raw `JsonElement` |
+**There is no map surface on this API, and no route to TransitInfoAPI from it at all.** The
+controller, `MapManager`, `TransitInfoApiClient`, the `TransitInfoApi` configuration block and the
+`map.view` permission are all deleted. A request to any `/api/map/*` path is a plain 404 from
+routing.
 
-Gated on `map.view`. One endpoint, and it is not the client's — the **admin console** calls it as a
-reachability probe, because any success means TransitInfoAPI answered and the service-account
-credentials line up.
+The last endpoint to go was `GET /api/map/transport-types`, which no client ever called — the
+**admin console** used it as a reachability probe, lighting a status dot in the rail on any success.
+That probe was the sole remaining reason this API held TransitInfoAPI service-account credentials,
+and the only thing it ultimately proved was the health of the credential it was using. Before that
+the section carried typed reads for stations, routes, vehicles and departures plus a whitelisted
+passthrough at `/api/map/upstream/{**path}`; all of it existed so a page served by *this* API could
+reach *that* one, and it lost its caller when the page moved.
 
-This used to be the client's only route to transit data: typed reads for stations, routes, vehicles
-and departures, plus a whitelisted verbatim passthrough at `/api/map/upstream/{**path}` for the
-GeoJSON the map page rendered directly. All of it existed so a page served by *this* API could reach
-*that* one. The page moved to TransitInfoAPI and the client loads it from there, so it is
-same-origin with its data and the proxy has no caller. See
-[`docs/map-proxy-migration.md`](../../map-proxy-migration.md).
+The reasoning worth keeping — why a proxy existed, why its allowlist was anchored, and why upstream
+failures became 502 rather than 500 — is preserved in
+[transit-integration.md](transit-integration.md) and
+[`docs/map-proxy-migration.md`](../../map-proxy-migration.md). Both are historical records now.
 
-**`/upstream` is guarded by a regex allowlist**, not a blocklist. Forwarding an arbitrary path would
-turn this into an open gateway to TransitInfoAPI carrying the service account's credentials, letting
-any user with `map.view` reach admin endpoints there. Non-matching paths get 404
-`UNKNOWN_MAP_RESOURCE` and a warning log. The allowlist is in
-[transit-integration.md](transit-integration.md#the-upstream-allowlist).
-
-Any upstream failure surfaces as **502 `TRANSIT_UPSTREAM_UNAVAILABLE`**, never a 500 — a dependency
-being down is not this API being broken, and the client shows a different message for each.
+**If you need transit data from this API again, that is a new integration, not a restoration.**
+Start from the allowlist argument in those documents; it is what any future passthrough has to
+answer.
 
 ---
 

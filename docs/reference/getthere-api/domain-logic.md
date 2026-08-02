@@ -13,7 +13,6 @@ them together.
 | `ImportedTicketManager` | Imported ticket CRUD, deduplication, UTC normalisation |
 | `TicketUploadManager` | File intake, extraction dispatch, abandoned-upload sweep |
 | `JourneyManager` | Trip grouping, suggestions, status roll-up |
-| `MapManager` | Transit data proxy and caching |
 | `AdminManager` | Platform KPIs, purchase feed, adapter health |
 | `RolePermissionManager` | Roles and permission claims |
 | `ProfileManager`, `UserSettingsManager` | Self-service profile and settings |

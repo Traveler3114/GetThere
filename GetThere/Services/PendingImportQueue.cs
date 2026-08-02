@@ -18,7 +18,7 @@ namespace GetThere.Services;
 /// nothing else can have edited a ticket the server has never seen.
 /// </para>
 /// </summary>
-public class PendingImportQueue
+public sealed class PendingImportQueue : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -106,4 +106,10 @@ public class PendingImportQueue
             Trace.WriteLine($"[PendingImportQueue] Could not write the queue: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Releases the lock. A singleton for the app's lifetime, so this runs only when the DI container
+    /// is torn down at shutdown.
+    /// </summary>
+    public void Dispose() => _lock.Dispose();
 }

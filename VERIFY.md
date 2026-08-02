@@ -76,21 +76,32 @@ re-investigate them; item 4 is the live one.
    `DataTemplate` is untyped, so a wrong property name fails at runtime, not compile time. **This is
    the one CI cannot reach**, and the reason §3c item 1 is worth doing first.
 
-## 2. The database change — check this before running anything against a real database
+## 2. The database change — resolved, 2026-08-02
 
-`GetThereAPI/Migrations/20260731120000_AddImportedTicketClientId.cs` **and** the matching
-`AppDbContextModelSnapshot.cs` edit were written **by hand**, because there was no `dotnet ef`. This
-was an explicitly granted exception to `AGENTS.md`'s "never manually edit `*ModelSnapshot.cs`".
+`20260731120000_AddImportedTicketClientId.cs` and the matching `AppDbContextModelSnapshot.cs` edit
+were written **by hand**, as an explicitly granted exception to `AGENTS.md`'s "never manually edit
+`*ModelSnapshot.cs`". **That migration never ran anywhere**, and the failure was silent.
+
+It had no `[Migration]` attribute and no `.Designer.cs`. The attribute is how EF discovers a
+migration, so the class was invisible: absent from `dotnet ef migrations list`, and skipped without
+comment by `dotnet ef database update`, which still reported `Done.` The column never reached the
+database while the EF model expected it, so **every query touching `ImportedTickets` failed with
+`Invalid column name 'ClientId'`** — the tickets screen and the journeys list, which
+`.Include(j => j.ImportedTickets)`.
+
+It has been re-scaffolded as `20260802130743_AddImportedTicketClientId` and applied. The DDL the tool
+produced is identical to the hand-written version: the SQL was always right, and only the metadata
+that makes it *run* was missing.
 
 ```bash
-# Should report no pending model changes. If it wants to scaffold another migration,
-# the hand-written snapshot does not match the model — trust the tool, not the file.
+# Should report no pending model changes.
 cd GetThereAPI && dotnet ef migrations has-pending-model-changes
 ```
 
-The DDL is two statements and is low risk. The snapshot agreeing with the model is the part worth
-verifying. If it disagrees, delete both hand-written files and re-scaffold:
-`dotnet ef migrations add AddImportedTicketClientId`.
+> **The lesson is worth keeping even though the file is gone.** The tests did not catch this, and
+> could not: they build their schema from the model, so a migration that never executes is
+> indistinguishable from one that does. Only a query against a real database shows the drift — which
+> is why this section exists at all.
 
 ---
 
@@ -117,8 +128,9 @@ dotnet run --project GetThereAPI/GetThereAPI.csproj --launch-profile https      
 | 7 | Recentre / layers buttons | Prompts for location and moves; hides/shows route lines |
 | 8 | Unclustered stops | Show bus/tram/train icons |
 | 9 | **Android emulator specifically** | The map loads at all. This is the single most likely thing to be broken and will not reproduce on Windows |
-| 10 | GetThereAPI admin console | Still shows "TransitInfoAPI reachable" — the one surviving proxy endpoint |
-| 11 | `/api/map/upstream/stations` | 404. The passthrough is gone |
+| 10 | GetThereAPI admin console | The rail foot shows **no** TransitInfoAPI status dot. The probe and the endpoint behind it are gone; the rail keeps only the "one-way · GlobalId reference" line |
+| 11 | `/api/map/upstream/stations` and `/api/map/transport-types` | 404 from routing. The whole `/api/map` surface is gone, not just the passthrough |
+| 12 | GetThereAPI started with **TransitInfoAPI stopped** | Boots clean, no upstream warnings. Admin console, wallets, tickets, imports and journeys all work — there is no longer any code path between the two services |
 
 > The map page was exercised in a headless browser with stubbed endpoints, so the chrome, chip logic,
 > search and i18n are known to work. What is **not** verified is any of it against real GeoJSON.
