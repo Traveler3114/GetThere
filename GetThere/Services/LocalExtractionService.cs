@@ -1,9 +1,8 @@
 using System.Diagnostics;
 
-using GetThereExtraction;
-
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
+using GetThereShared.Extraction;
 
 namespace GetThere.Services;
 
@@ -16,7 +15,7 @@ namespace GetThere.Services;
 /// already has, both are the wrong way round.
 /// </para>
 /// <para>
-/// The extractors are the same code the API runs, from GetThereExtraction, so a ticket read here and
+/// The extractors are the same code the API runs, from GetThereShared, so a ticket read here and
 /// a ticket read there cannot disagree. What is <em>not</em> here is PDF, wallet passes and calendar
 /// invites: those extractors stayed server-side (PdfPig and Ical.Net, and AOT/trimming on iOS is a
 /// real risk), so those formats still need an account. <see cref="CanExtractLocally"/> is how a

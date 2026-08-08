@@ -53,8 +53,7 @@ codebase are the [import pipeline](getthere-api/ticket-import.md) and
 |---|---|---|
 | **[GetThere](getthere-client/architecture.md)** | 64 | The app. Pages, view models, device integration, navigation |
 | **[GetThereAPI](getthere-api/architecture.md)** | 83 | Users, wallets, tickets, journeys, the import pipeline |
-| **[GetThereShared](shared/contracts.md)** | 26 | The DTOs and enums crossing the wire |
-| **GetThereExtraction** | 5 | Reading a ticket out of a file. Shared by the API and the client so both read it identically — and so a device can import with no account and no signal |
+| **[GetThereShared](shared/contracts.md)** | 31 | The DTOs and enums crossing the wire, plus `Extraction/` — reading a ticket out of a file. Extraction is shared by the API and the client so both read it identically, and so a device can import with no account and no signal |
 | **[TransitInfoAPI](transitinfo-api/architecture.md)** | 108 | GTFS feeds, station identity, schedules, realtime, mobility |
 
 Plus `tests/GetThere.Tests` — one xUnit project covering all of them, with `InternalsVisibleTo` from

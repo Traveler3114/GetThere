@@ -3,12 +3,12 @@ using System.Text;
 using System.Text.Json;
 
 using GetThereAPI.Exceptions;
-// PkPass, Pdf and ICal stayed in GetThereAPI; the rest moved. Both namespaces are needed.
+// PkPass, Pdf and ICal stayed in GetThereAPI; the rest moved to GetThereShared.Extraction.
+// Both namespaces are needed.
 using GetThereAPI.Services.Extraction;
 
-using GetThereExtraction;
-
 using GetThereShared.Enums;
+using GetThereShared.Extraction;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -26,7 +26,7 @@ namespace GetThere.Tests.ImportedTickets;
 /// </summary>
 public class TicketExtractionTests
 {
-    // No logger: the decoder moved to GetThereExtraction, which is referenced by the MAUI app as
+    // No logger: the decoder moved to GetThereShared, which is referenced by the MAUI app as
     // well and so takes an optional log delegate rather than an ILogger. Passing nothing is the
     // quiet default these tests want anyway.
     private static BarcodeDecoder Decoder() => new();

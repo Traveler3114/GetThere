@@ -150,7 +150,7 @@ Shell switching is `App.GoToApp()` / `App.GoToLogin()`, both marshalled onto the
 
 **Guest mode still has no server-side concept** — no anonymous token, and every authenticated call
 fails. What changed is that a guest is no longer limited to browsing. **Importing a ticket works
-without an account**: extraction runs on the device via `GetThereExtraction`, the ticket is written to
+without an account**: extraction runs on the device via `GetThereShared.Extraction`, the ticket is written to
 `PendingImportQueue`, and the wallet lists it as device-only rather than showing the "account
 required" scrim. `ImportSyncService` pushes the queue when the user signs in, which is the
 guest-to-account upgrade — nothing did that before, so a guest who imported and then registered would

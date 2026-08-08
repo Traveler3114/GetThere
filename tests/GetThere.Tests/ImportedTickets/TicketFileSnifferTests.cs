@@ -1,9 +1,8 @@
 using System.IO.Compression;
 using System.Text;
 
-using GetThereExtraction;
-
 using GetThereShared.Enums;
+using GetThereShared.Extraction;
 
 namespace GetThere.Tests.ImportedTickets;
 

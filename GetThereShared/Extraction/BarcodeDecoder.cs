@@ -5,7 +5,7 @@ using SkiaSharp;
 using ZXing;
 using ZXing.Common;
 
-namespace GetThereExtraction;
+namespace GetThereShared.Extraction;
 
 /// <summary>A barcode found in an uploaded file.</summary>
 /// <param name="Payload">The decoded text, stored as the ticket's raw payload.</param>

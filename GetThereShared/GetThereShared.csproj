@@ -1,10 +1,40 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Code shared by the MAUI app and GetThereAPI: the contracts and enums they exchange, and the
+    ticket extraction both run.
+
+    Extraction (Extraction/) used to live in its own GetThereExtraction project. It was folded in
+    here because its consumer set was identical to this project's — nothing referenced one without
+    the other — so the separate assembly bought nothing but another node in the graph. The reason
+    it is shared at all is unchanged and still worth stating: it used to be server-only in
+    GetThereAPI, which meant every import path needed a network call and an account, so a
+    signed-out user could not import a ticket and neither could a signed-in one with no signal.
+    Both sides now run the same code, so they cannot disagree.
+
+    What deliberately stayed behind in GetThereAPI:
+      - PdfTicketExtractor  — PdfPig is the heaviest dependency here and the AOT/trimming risk on
+                              iOS is real. PDF import therefore still needs an account.
+      - ICalTicketExtractor — Ical.Net, same reasoning, lower value.
+      - PkPassTicketExtractor — BCL-only and otherwise portable, but it throws GetThereAPI's
+                              AppException, and untangling that is a separate change.
+
+    Note this project is referenced by the MAUI app, so anything landing here has to be safe for a
+    mobile build. That is why SharedAuth is separate: ASP.NET Identity, EF Core and OpenTelemetry
+    would drag the whole server stack into the app.
+  -->
   <PropertyGroup>
     <TargetFrameworks>net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Extraction only. Decodes the barcode formats transport tickets use; both consumers of this
+         project already reference both packages directly, so this pins nothing new. -->
+    <PackageReference Include="ZXing.Net" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
 
   <!-- Dummy Run target -->
   <Target Name="Run" />

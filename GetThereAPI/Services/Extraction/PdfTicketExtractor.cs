@@ -2,10 +2,9 @@ using System.Text;
 
 using GetThereAPI.Exceptions;
 
-using GetThereExtraction;
-
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
+using GetThereShared.Extraction;
 
 using UglyToad.PdfPig;
 

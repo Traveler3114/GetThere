@@ -693,3 +693,42 @@ measured 25px wide — it renders. Suite green at 303/303.
 
 **GetThereAPI's console needed only the cache header** — it has no Bootstrap Icons at all (the CDN
 was dropped there in the July 31 restyle), so its CSP has no font to allow.
+
+---
+
+## Session — August 8, 2026
+
+### GetThereExtraction folded into GetThereShared
+
+Six projects became five. `GetThereExtraction`'s consumer set was *identical* to
+`GetThereShared`'s — the MAUI app, GetThereAPI and the test project referenced both, nothing
+referenced one without the other — and it already depended on `GetThereShared`. A separate
+assembly for that bought nothing except another node in the reference graph and four more steps in
+`build-check.yml`.
+
+The five files moved to `GetThereShared/Extraction/`, namespace `GetThereExtraction` →
+`GetThereShared.Extraction`. `ZXing.Net` and `SkiaSharp` moved with them; every consumer already
+referenced both directly, so nothing new is pinned.
+
+**Nothing about the extraction split changed.** `PdfTicketExtractor`, `ICalTicketExtractor` and
+`PkPassTicketExtractor` stay in GetThereAPI for the reasons recorded when they were left behind
+(PdfPig and Ical.Net weight, AOT/trimming risk on iOS, and PkPass throwing GetThereAPI's
+`AppException`). Device-side import still covers images and pasted text only.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Move** | `GetThereShared/Extraction/*.cs` | 5 files, namespace rewritten; git tracked all five as renames |
+| **Packages** | `GetThereShared.csproj` | `ZXing.Net` + `SkiaSharp` added, with the rationale from the deleted project carried over |
+| **References** | `GetThere.csproj`, `GetThereAPI.csproj`, `GetThere.Tests.csproj`, `GetThere.slnx` | `GetThereExtraction` ProjectReference and solution entry dropped |
+| **Usings** | 8 consumer files | `using GetThereExtraction;` → `using GetThereShared.Extraction;`, merged into the existing GetThereShared group |
+| **CI** | `.github/workflows/build-check.yml` | Restore/build/lint steps and the vulnerability-scan project list |
+| **Docs** | `docs/reference/overview.md`, `getthere-client/architecture.md` | Project table and the guest-import paragraph |
+
+**One caveat worth recording.** `GetThereShared` was previously package-free — pure DTOs and enums.
+It now carries a native graphics dependency. Nothing references it for contracts alone today, so the
+cost is theoretical, but it is the reason the split was defensible and the reason to reconsider if a
+contracts-only consumer ever appears.
+
+**Verified.** GetThereShared, GetThereAPI and the test project build with `-warnaserror`; the MAUI
+app builds for both `net10.0-windows` and `net10.0-android`; 39 extraction and sniffer tests pass;
+`dotnet format --verify-no-changes` clean on all three non-MAUI projects.

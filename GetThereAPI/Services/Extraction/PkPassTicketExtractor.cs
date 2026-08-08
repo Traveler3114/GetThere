@@ -4,11 +4,10 @@ using System.Text.Json;
 
 using GetThereAPI.Exceptions;
 
-using GetThereExtraction;
-
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
+using GetThereShared.Extraction;
 
 namespace GetThereAPI.Services.Extraction;
 

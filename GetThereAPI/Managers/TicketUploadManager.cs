@@ -4,10 +4,9 @@ using GetThereAPI.Entities;
 using GetThereAPI.Exceptions;
 using GetThereAPI.Services;
 
-using GetThereExtraction;
-
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
+using GetThereShared.Extraction;
 
 using Microsoft.EntityFrameworkCore;
 

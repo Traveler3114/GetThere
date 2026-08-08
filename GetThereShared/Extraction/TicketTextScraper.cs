@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 
-namespace GetThereExtraction;
+namespace GetThereShared.Extraction;
 
 /// <summary>
 /// Pulls ticket fields out of free text — the body of a PDF e-ticket, or a confirmation email the

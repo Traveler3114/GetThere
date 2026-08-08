@@ -61,10 +61,10 @@ dotnet build GetThere/GetThere.csproj -f net10.0-windows10.0.19041.0   # Windows
 **Most likely to be red, in order.** Items 1–3 are now settled by CI and are here only so you do not
 re-investigate them; item 4 is the live one.
 
-1. ~~**`GetThereExtraction` is a new project.**~~ Builds in CI. It was added to `GetThere.slnx`, both
-   apps, the test project, and all four places `build-check.yml` names projects individually — but
-   CI builds projects *individually*, never the solution, so a bad `.slnx` entry would still only
-   show up in a local `dotnet build GetThere.slnx`. That is the one part of this item left to check.
+1. ~~**`GetThereExtraction` is a new project.**~~ **Moot** — the project no longer exists. It was
+   folded into `GetThereShared/Extraction/` on August 8, 2026, so there is no `.slnx` entry left to
+   be wrong. (The underlying gap still stands for other projects: CI builds projects *individually*,
+   never the solution, so a bad `.slnx` entry only shows up in a local `dotnet build GetThere.slnx`.)
 2. ~~**`BarcodeRenderService` ZXing APIs**~~ — written from memory against ZXing.Net 0.16.11 and, as
    expected, wrong: `PixelData` is in `ZXing.Rendering`, not `ZXing`. Fixed; the file now compiles,
    which means `BarcodeWriterPixelData`, `QrCodeEncodingOptions`, `EncodingOptions.PureBarcode` and
