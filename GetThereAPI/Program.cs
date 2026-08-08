@@ -292,6 +292,13 @@ app.UseStaticFiles(new StaticFileOptions
         headers["X-Content-Type-Options"] = "nosniff";
         headers["Referrer-Policy"] = "no-referrer";
 
+        // Revalidate every console asset. Without this the only freshness signals are ETag and
+        // Last-Modified, which a browser may skip checking, so a shipped change to admin.js or
+        // style.css reaches an open tab only on a hard refresh. "no-cache" still permits caching —
+        // it requires a conditional request first, which the ETag answers with a cheap 304.
+        // TransitInfoAPI's console carries the same header for the same reason.
+        headers.CacheControl = "no-cache";
+
         // The console renders operator-supplied text; a CSP is the backstop if an escaping bug slips
         // through. script-src no longer allows 'unsafe-inline': every page's script now lives in its
         // own file and none carries an inline handler, so injected script cannot execute even if

@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "TransitInfoAPI",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "TransitInfoAPI/TransitInfoAPI.csproj", "--launch-profile", "https"],
+      "port": 5001,
+      "url": "https://localhost:5001"
+    },
+    {
+      "name": "GetThereAPI",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "GetThereAPI/GetThereAPI.csproj"],
+      "port": 7230,
+      "url": "https://localhost:7230"
+    }
+  ]
+}

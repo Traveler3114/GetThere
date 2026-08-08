@@ -300,6 +300,14 @@ app.UseStaticFiles(new StaticFileOptions
         var headers = ctx.Context.Response.Headers;
         headers["X-Robots-Tag"] = "noindex, nofollow";
 
+        // Revalidate every console asset. Without this the only freshness signals are ETag and
+        // Last-Modified, which a browser is free to skip checking — so a shipped change to
+        // admin-shell.js or style.css reaches a stale tab only on a hard refresh. That is not
+        // hypothetical: a cached copy of admin-shell.js without Shell.mountLegacy made every legacy
+        // page throw on mount. "no-cache" still allows caching, it just requires a conditional
+        // request first, so the ETag above turns the usual case into a cheap 304.
+        headers.CacheControl = "no-cache";
+
         // Backstop for the escaping in these pages, which render feed- and operator-supplied text.
         // Map tiles and the Bootstrap/MapLibre CDNs the legacy pages still use are allowed
         // explicitly.
@@ -317,10 +325,17 @@ app.UseStaticFiles(new StaticFileOptions
         // Note that shape-editor.html also pulls mapbox-gl-draw from https://api.mapbox.com, an
         // origin this policy has never allowed — so that plugin is already blocked and its drawing
         // toolbar cannot be working. Vendoring it or allowing the origin is a separate decision.
+        // font-src is listed explicitly because omitting it does not mean "unrestricted" — it falls
+        // back to default-src 'self', which blocked the Bootstrap Icons webfont on jsdelivr. The
+        // stylesheet loaded fine (style-src allows the CDN) and every one of the 59 <i class="bi">
+        // glyphs in these pages rendered as nothing, with the failure visible only as a console
+        // violation. Allowing the font here does not widen script execution: jsdelivr can already
+        // serve script and style to this console.
         headers["Content-Security-Policy"] =
             "default-src 'self'; " +
             "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+            "font-src 'self' data: https://cdn.jsdelivr.net; " +
             "img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:; " +
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         headers["X-Content-Type-Options"] = "nosniff";

@@ -653,3 +653,43 @@ Both paths were then exercised in a real browser against the live CSS, for all t
 parsing each page and replaying the mount: **0 failures**. Each was checked to render its content
 with the shell absent (the degraded path), and on mount to produce 14 rail items, the right topbar
 title, the container relocated into the content area, and no `#page` wrapper left behind.
+
+### Admin console: icons were blocked by CSP, and stale assets are no longer possible
+
+**Icons.** Every `<i class="bi bi-…">` in the TransitInfoAPI console rendered as nothing — 59 of
+them across the legacy pages. The cause was the admin CSP, which listed `script-src` and `style-src`
+but **no `font-src`**. An omitted directive does not mean "unrestricted": it falls back to
+`default-src 'self'`, so the Bootstrap Icons *stylesheet* loaded from jsdelivr while the *webfont* it
+points at was blocked. That failure is silent apart from a console violation, which is why it read
+as "icons are buggy" rather than as a policy problem.
+
+Fixed by listing `font-src 'self' data: https://cdn.jsdelivr.net` explicitly. This does not widen
+script execution — jsdelivr may already serve script and style to this console.
+
+The design-system icons were never affected: they are same-origin SVG mask images under
+`/admin/icons/`, allowed by `default-src 'self'` and by `img-src`.
+
+**Caching.** Neither console sent `Cache-Control`, leaving `ETag`/`Last-Modified` as the only
+freshness signals — which a browser may decline to revalidate. A shipped change to `admin-shell.js`
+or `style.css` therefore reached an open tab only on a hard refresh. This is what turned the
+`mountLegacy` rollout into a black screen: tabs holding the previous `admin-shell.js` called a
+function that did not exist in it.
+
+| Area | File(s) | What |
+|------|---------|------|
+| **font-src** | `TransitInfoAPI/Program.cs` | Added to the `/admin` CSP, with the reasoning recorded — the trap is that omitting a directive silently inherits `default-src` |
+| **Cache-Control** | `TransitInfoAPI/Program.cs`, `GetThereAPI/Program.cs` | `no-cache` on every `/admin` asset in **both** consoles. Not `no-store`: caching is still allowed, it just requires a conditional request, which the existing `ETag` answers with a cheap 304 |
+| **Launch config** | `.claude/launch.json` | Added so the APIs can be started for browser verification. TransitInfoAPI uses `--launch-profile https`, as its map page requires |
+
+**Verification, in a real browser against the running service.** `Cache-Control: no-cache` confirmed
+on both the HTML and `admin-shell.js`. `font-src` confirmed present in the served policy. The
+Bootstrap Icons webfont went from `BLOCKED` to `LOADED`, and a `bi bi-arrow-clockwise` glyph
+measured 25px wide — it renders. Suite green at 303/303.
+
+> **Both facts had to be checked against a freshly-loaded document.** The first probe reported the
+> font still blocked, because the page under test had itself been served from cache carrying the
+> *old* CSP — the very problem being fixed, appearing as a false negative in its own verification.
+> Worth remembering when testing a header change: the document doing the testing may predate it.
+
+**GetThereAPI's console needed only the cache header** — it has no Bootstrap Icons at all (the CDN
+was dropped there in the July 31 restyle), so its CSP has no font to allow.
