@@ -16,6 +16,10 @@ public class TransitDbContext : IdentityDbContext<AppUser>
     public DbSet<Operator> Operators { get; set; } = null!;
     public DbSet<Feed> Feeds { get; set; } = null!;
     public DbSet<FeedVersion> FeedVersions { get; set; } = null!;
+    public DbSet<CustomSource> CustomSources { get; set; } = null!;
+    public DbSet<CustomSourceRequest> CustomSourceRequests { get; set; } = null!;
+    public DbSet<CustomSourceMapping> CustomSourceMappings { get; set; } = null!;
+    public DbSet<CustomSourceRun> CustomSourceRuns { get; set; } = null!;
     public DbSet<Agency> Agencies { get; set; } = null!;
     public DbSet<CanonicalStation> CanonicalStations { get; set; } = null!;
     public DbSet<CanonicalStationOperator> CanonicalStationOperators { get; set; } = null!;
@@ -210,6 +214,37 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         modelBuilder.Entity<Feed>()
             .HasIndex(f => f.FeedId)
             .IsUnique();
+
+        // ── Custom sources ────────────────────────────────────────────────────────────────────
+        // Deletes stay Restrict here as everywhere else, so removing a source with runs or requests
+        // is an explicit, ordered operation in the manager rather than a silent cascade.
+        modelBuilder.Entity<CustomSource>(entity =>
+        {
+            entity.Property(cs => cs.Name).HasMaxLength(200);
+            entity.Property(cs => cs.ExtractorKey).HasMaxLength(100);
+            entity.HasIndex(cs => cs.OperatorId);
+            entity.HasIndex(cs => cs.IsActive);
+        });
+
+        modelBuilder.Entity<CustomSourceRequest>(entity =>
+        {
+            entity.Property(r => r.HttpMethod).HasMaxLength(10);
+            entity.Property(r => r.DistinctBy).HasMaxLength(100);
+            entity.HasIndex(r => new { r.CustomSourceId, r.SortOrder });
+        });
+
+        modelBuilder.Entity<CustomSourceMapping>(entity =>
+        {
+            entity.Property(m => m.SourceExpression).HasMaxLength(400);
+            entity.Property(m => m.TargetField).HasMaxLength(100);
+            entity.HasIndex(m => new { m.CustomSourceRequestId, m.SortOrder });
+        });
+
+        modelBuilder.Entity<CustomSourceRun>(entity =>
+        {
+            entity.HasIndex(r => new { r.CustomSourceId, r.StartedAt });
+        });
+
         modelBuilder.Entity<Alert>()
             .HasIndex(a => a.FeedId);
         modelBuilder.Entity<ReconciliationCandidate>()

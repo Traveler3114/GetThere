@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using NetTopologySuite.Geometries;
 
 using TransitInfoAPI.Contracts;
+using TransitInfoAPI.Core;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
@@ -30,9 +31,6 @@ public class FeedImportOptions
 
 public class FeedManager
 {
-    /// <summary>Ceiling on the declared uncompressed size of a GTFS archive — decompression-bomb guard.</summary>
-    private const long MaxUncompressedArchiveBytes = 4L * 1024 * 1024 * 1024;
-
     private readonly TransitDbContext _db;
     private readonly ILogger<FeedManager> _logger;
     private readonly IWebHostEnvironment _env;
@@ -41,10 +39,16 @@ public class FeedManager
     private readonly ReconciliationManager _reconciliation;
     private readonly PlaceMatchingManager _placeMatching;
     private readonly Services.ImportLogStore _logStore;
-    private readonly ExternalFeedSource _externalFeedSource;
+    private readonly TransitSourceResolver _sources;
     private readonly int _bulkCommandTimeoutSeconds;
     private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
+
+    /// <summary>
+    /// Imports currently running, keyed by feed version. Deduplicates concurrent callers — see
+    /// <see cref="ImportFeedVersionAsync"/>.
+    /// </summary>
+    private static readonly ConcurrentDictionary<int, Lazy<Task>> _importsInFlight = new();
 
     public FeedManager(
         TransitDbContext db,
@@ -55,7 +59,7 @@ public class FeedManager
         ReconciliationManager reconciliation,
         PlaceMatchingManager placeMatching,
         Services.ImportLogStore logStore,
-        ExternalFeedSource externalFeedSource,
+        TransitSourceResolver sources,
         Microsoft.Extensions.Options.IOptions<FeedImportOptions> importOptions)
     {
         _db = db;
@@ -66,7 +70,7 @@ public class FeedManager
         _reconciliation = reconciliation;
         _placeMatching = placeMatching;
         _logStore = logStore;
-        _externalFeedSource = externalFeedSource;
+        _sources = sources;
         _bulkCommandTimeoutSeconds = importOptions.Value.BulkCommandTimeoutSeconds;
     }
 
@@ -102,17 +106,28 @@ public class FeedManager
 
     public async Task<Feed> CreateAsync(
         int operatorId, string feedType,
-        string feedId, string? url, int refreshIntervalSeconds, CancellationToken ct)
+        string feedId, string? url, int refreshIntervalSeconds, CancellationToken ct,
+        int? customSourceId = null)
     {
         if (!Enum.TryParse<FeedType>(feedType, true, out var parsedFeedType))
             throw new Exceptions.AppException($"Invalid feed type '{feedType}'.", 400, "INVALID_FEED_TYPE");
 
         if (url is not null && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
             throw new Exceptions.AppException("Invalid feed URL. Must be an absolute HTTP(S) URL.", 400, "INVALID_FEED_URL");
-        if (parsedFeedType == FeedType.GTFSStatic && url is not null && !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+
+        // A custom-source feed has no archive URL of its own — the source's own requests carry the
+        // URLs — so the .zip hint and the missing-URL case are both expected there.
+        if (parsedFeedType == FeedType.GTFSStatic && customSourceId is null && url is not null
+            && !url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             _logger.LogWarning("Feed {FeedId} static URL does not end with .zip — may not be a valid GTFS archive", feedId);
+        if (customSourceId is null && url is null && parsedFeedType == FeedType.GTFSStatic)
+            throw new Exceptions.AppException(
+                "A GTFS static feed needs either a URL or a custom source.", 400, "FEED_HAS_NO_SOURCE");
         if (refreshIntervalSeconds < 60)
             throw new Exceptions.AppException("Refresh interval must be at least 60 seconds.", 400, "INVALID_REFRESH_INTERVAL");
+
+        if (customSourceId is { } sourceId && !await _db.CustomSources.AnyAsync(cs => cs.Id == sourceId, ct))
+            throw new Exceptions.AppException("Custom source not found.", 404, "CUSTOM_SOURCE_NOT_FOUND");
 
         var op = await _db.Operators.FindAsync([operatorId], ct)
             ?? throw new Exceptions.AppException("Operator not found.", 404);
@@ -137,6 +152,7 @@ public class FeedManager
             FeedType = parsedFeedType,
             FeedId = feedId,
             Url = url,
+            CustomSourceId = customSourceId,
             RefreshIntervalSeconds = refreshIntervalSeconds,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -243,60 +259,25 @@ public class FeedManager
             var feed = await _db.Feeds.FindAsync([feedId], ct);
             if (feed is null) return null;
 
-            string? remoteLastModified = null;
-            string? remoteETag = null;
-
             // Removed: HEAD/ETag pre-check. It matched against any past FeedVersion (including
             // inactive/failed ones) and short-circuited real re-imports whenever an upstream
             // server returned a stale or unstable ETag/Last-Modified. The SHA1 check below,
             // done on full downloaded content, is the reliable "unchanged" signal — no need
             // for a second, less trustworthy one.
 
-            var source = _externalFeedSource;
-            var result = await source.FetchDataAsync(feed, ct);
-
-            if (result.AlreadyHandled)
+            var source = _sources.For(feed);
+            if (source is null)
             {
-                _logger.LogInformation("Feed {FeedId}: import handled directly by source, skipping disk write", feed.FeedId);
+                _logger.LogWarning("Feed {FeedId} has no transit source able to handle it", feed.FeedId);
                 return null;
             }
 
-            // Content-type validation for external HTTP responses
-            if (result.ContentType is not null
-                && result.ContentType != "application/zip"
-                && !result.ContentType.StartsWith("application/", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogWarning("Feed {FeedId} has unexpected Content-Type {ContentType}, skipping", feed.FeedId, result.ContentType);
-                return null;
-            }
+            // Downloading, persisting and hashing all belong to the source: what counts as "the
+            // content" differs per kind, and a custom source has no single archive to SHA-1.
+            var fetched = await source.FetchAsync(feed, ct);
+            if (fetched is null) return null;
 
-            var outputDir = GetFeedStorageDirectory(feed.FeedId);
-            try { Directory.CreateDirectory(outputDir); }
-            catch (Exception ex) { _logger.LogError(ex, "Failed to create directory {Dir} for feed {FeedId}", outputDir, feed.FeedId); return null; }
-            var zipPath = Path.Combine(outputDir, "gtfs.zip");
-            var tmpPath = zipPath + ".tmp";
-            await File.WriteAllBytesAsync(tmpPath, result.Data, ct);
-            try
-            {
-                File.Replace(tmpPath, zipPath, null);
-            }
-            catch (FileNotFoundException)
-            {
-                // No existing archive to replace — first fetch for this feed.
-                File.Move(tmpPath, zipPath);
-            }
-            catch (IOException ex)
-            {
-                // File.Replace needs to delete the destination, which fails while anything still
-                // holds a handle on it — an import reading the previous archive, a virus scanner, or
-                // an editor. Observed live as "Unable to remove the file to be replaced" and "the
-                // process cannot access the file", which failed the whole poll for that feed.
-                // Move with overwrite does not have the same delete-then-rename requirement.
-                _logger.LogWarning(ex, "Could not replace {ZipPath} in place for feed {FeedId}; overwriting instead", zipPath, feed.FeedId);
-                File.Move(tmpPath, zipPath, overwrite: true);
-            }
-
-            var sha1 = source.ComputeHash(feed, result.Data);
+            var sha1 = fetched.ContentHash;
 
             var existing = await _db.FeedVersions
                 .Where(fv => fv.FeedId == feedId && fv.Sha1 == sha1)
@@ -321,15 +302,19 @@ public class FeedManager
                 FetchedAt = DateTime.UtcNow,
                 ImportStatus = FeedImportStatus.Pending,
                 IsActive = false,
-                LastModified = remoteLastModified is not null && DateTimeOffset.TryParse(remoteLastModified, out var lm) ? lm.UtcDateTime : null,
-                ETag = remoteETag
+
+                // Left null deliberately. These were populated from the HEAD pre-check removed
+                // above, and have been written as null on every fetch since; the SHA-1 is the
+                // change signal now.
+                LastModified = null,
+                ETag = null
             };
 
             _db.FeedVersions.Add(version);
             await _db.SaveChangesAsync(ct);
 
             _logger.LogInformation("New FeedVersion {VersionId} for feed {FeedId} SHA1={Sha1}", version.Id, feed.FeedId, sha1);
-            _logStore.AddEntry(version.Id, $"Downloaded {result.Data.Length:N0} bytes via {source.GetType().Name}");
+            _logStore.AddEntry(version.Id, $"Downloaded {fetched.ByteCount:N0} bytes via {source.Kind}");
             _logStore.AddEntry(version.Id, $"SHA1 = {sha1}");
             return version;
         }
@@ -339,9 +324,40 @@ public class FeedManager
         }
     }
 
+    /// <summary>
+    /// Imports a feed version, joining an import of the same version that is already running rather
+    /// than starting a second one.
+    /// <para>
+    /// The per-feed semaphore below serialises concurrent callers but does not deduplicate them:
+    /// the poller's scheduled run and an admin pressing "fetch and import" would queue up and each
+    /// do the work in turn. The second pass re-runs the reconciliation backfill, an UPDATE over
+    /// every StopTime in the feed that takes minutes on ZET — and for its duration the previous
+    /// pass's <c>CanonicalStationId</c> values are blanked, so departures return nothing for a feed
+    /// that was working seconds earlier.
+    /// </para>
+    /// </summary>
+    public async Task ImportFeedVersionAsync(int feedVersionId, CancellationToken ct = default)
+    {
+        var inFlight = _importsInFlight.GetOrAdd(
+            feedVersionId,
+            id => new Lazy<Task>(() => ImportFeedVersionCoreAsync(id, ct), LazyThreadSafetyMode.ExecutionAndPublication));
+
+        try
+        {
+            await inFlight.Value;
+        }
+        finally
+        {
+            // Removed by key *and value*, so a caller finishing late cannot evict the entry a newer
+            // import has already installed for the same version.
+            if (inFlight.IsValueCreated && inFlight.Value.IsCompleted)
+                _importsInFlight.TryRemove(new KeyValuePair<int, Lazy<Task>>(feedVersionId, inFlight));
+        }
+    }
+
     // Single bad record fails the entire import. Acceptable for current feed quality (ZET, HZPP).
     // Revisit for noisier Phase 2 feeds.
-    public async Task ImportFeedVersionAsync(int feedVersionId, CancellationToken ct = default)
+    private async Task ImportFeedVersionCoreAsync(int feedVersionId, CancellationToken ct)
     {
         var version = await _db.FeedVersions
             .Include(fv => fv.Feed)
@@ -367,90 +383,105 @@ public class FeedManager
                 return;
             }
 
-            var tempZipPath = PrepareImportTempZip(version, feedVersionId);
-            if (tempZipPath is null)
-            {
-                await _db.SaveChangesAsync(ct);
-                return;
-            }
-            await _db.SaveChangesAsync(ct);
-
-            using var archive = ZipFile.OpenRead(tempZipPath);
-            _logStore.AddEntry(feedVersionId, "Opening GTFS archive...");
-
-            // Decompression-bomb guard: a small zip can declare an enormous expansion, and the
-            // parser streams entries into memory.
-            var declaredUncompressed = archive.Entries.Sum(e => e.Length);
-            if (declaredUncompressed > MaxUncompressedArchiveBytes)
+            var source = _sources.For(version.Feed);
+            if (source is null)
             {
                 version.ImportStatus = FeedImportStatus.Failed;
-                version.ImportError = $"Archive expands to {declaredUncompressed / (1024 * 1024)} MB, over the "
-                    + $"{MaxUncompressedArchiveBytes / (1024 * 1024)} MB limit";
+                version.ImportError = "No transit source is able to read this feed.";
                 _logStore.AddEntry(feedVersionId, $"Error: {version.ImportError}");
                 await _db.SaveChangesAsync(ct);
                 return;
             }
 
-            var (sqlConn, sqlTx, ownsTransaction) = await BeginImportTransactionAsync(ct);
-            try
+            version.ImportStatus = FeedImportStatus.Importing;
+            await _db.SaveChangesAsync(ct);
+            _logStore.AddEntry(feedVersionId, "Import started");
+
+            // Scoped so the source releases its archive handle and temp copy before reconciliation
+            // runs — reconciliation is the long pass, and there is nothing left to read by then.
+            await using (var read = await source.OpenAsync(version.Feed, feedVersionId, ct))
             {
-                _db.Database.SetCommandTimeout(_bulkCommandTimeoutSeconds);
-                _db.ChangeTracker.AutoDetectChangesEnabled = false;
+                if (read.Failed)
+                {
+                    // Reading now happens before the cleanup DELETEs rather than after, so a feed
+                    // that fails to parse leaves the previous rows for this version untouched
+                    // instead of emptying them first.
+                    version.ImportStatus = FeedImportStatus.Failed;
+                    version.ImportError = string.Join("; ", read.Errors);
+                    _logStore.AddEntry(feedVersionId, $"Error: {version.ImportError}");
+                    await _db.SaveChangesAsync(ct);
+                    return;
+                }
+
+                var document = read.Document!;
+
+                var (sqlConn, sqlTx, ownsTransaction) = await BeginImportTransactionAsync(ct);
                 try
                 {
-                    await ValidateAndCleanupAsync(feedVersionId, version, archive, tempZipPath, sqlTx, ct);
-                    if (version.ImportStatus == FeedImportStatus.Failed) return;
+                    _db.Database.SetCommandTimeout(_bulkCommandTimeoutSeconds);
+                    _db.ChangeTracker.AutoDetectChangesEnabled = false;
+                    try
+                    {
+                        await CleanupExistingDataAsync(feedVersionId, ct);
 
-                    _db.ChangeTracker.Clear();
+                        _db.ChangeTracker.Clear();
 
-                    var parsed = await ParseGtfsFilesAsync(feedVersionId, version, archive, tempZipPath, sqlTx, ct);
-                    if (parsed is null) return;
+                        // Each phase is skipped when its section is absent — a null section means the
+                        // source does not carry it, which is a fact about the operator rather than a
+                        // defect in the feed. A GTFS archive always populates all of them.
+                        if (document.HasStopTimes)
+                            await AutoGenerateShapesIfMissing(feedVersionId, document, read.StopTimes!, ct);
 
-                    await AutoGenerateShapesIfMissing(feedVersionId, parsed, archive, ct);
+                        var carryForwardShapeIds = document.HasStopTimes
+                            ? await CarryForwardManualEditsAsync(feedVersionId, version, document, read.StopTimes!, ct)
+                            : [];
 
-                    var carryForwardShapeIds = await CarryForwardManualEditsAsync(feedVersionId, version, parsed, archive, ct);
+                        var canonicalRouteLookup = document.Routes is not null
+                            ? await ImportRoutesPhaseAsync(feedVersionId, version, document.Routes, document.Stops ?? [], document.OperatorId, ct)
+                            : [];
 
-                    var canonicalRouteLookup = await ImportRoutesPhaseAsync(feedVersionId, version, parsed.Routes, parsed.RawStops, parsed.OperatorId, ct);
+                        var prefix = $"gt-{version.Feed.FeedId}-";
+                        var tripLookup = document.Trips is not null
+                            ? await ImportTripsShapesCalendarsPhaseAsync(feedVersionId, version, prefix, document.Trips, document.Shapes, document.Calendar ?? [], document.CalendarDates ?? [], canonicalRouteLookup, carryForwardShapeIds, ct)
+                            : [];
 
-                    var prefix = $"gt-{version.Feed.FeedId}-";
-                    var tripLookup = await ImportTripsShapesCalendarsPhaseAsync(feedVersionId, version, prefix, parsed.Trips, parsed.Shapes, parsed.Calendar, parsed.CalendarDates, canonicalRouteLookup, carryForwardShapeIds, ct);
+                        await BackfillRouteGeometriesAsync(feedVersionId, canonicalRouteLookup, ct);
 
-                    await BackfillRouteGeometriesAsync(feedVersionId, canonicalRouteLookup, ct);
+                        var routeTypesPerStop = document.HasStopTimes
+                            ? await ImportStopTimesBulkPhaseAsync(feedVersionId, read.StopTimes!, tripLookup, document.RouteByTrip, document.RouteTypeByRoute, sqlConn, sqlTx, ct)
+                            : [];
 
-                    var routeTypesPerStop = await ImportStopTimesBulkPhaseAsync(feedVersionId, archive, tripLookup, parsed.RouteByTrip, parsed.RouteTypeByRoute, sqlConn, sqlTx, ct);
+                        await ImportAgenciesAndStopsPhaseAsync(feedVersionId, document.Agencies ?? [], document.Stops ?? [], routeTypesPerStop, document.OperatorId, document.DefaultRouteType, ct);
 
-                    await ImportAgenciesAndStopsPhaseAsync(feedVersionId, parsed.Agencies, parsed.RawStops, routeTypesPerStop, parsed.OperatorId, ct);
-
-                    archive.Dispose();
-
-                    // Reconciliation deliberately does NOT run here. It used to, which meant the
-                    // import transaction — holding write locks on Trips, StopTimes, Shapes,
-                    // Calendars, RawStops and Agencies, escalated to table locks at this row count —
-                    // stayed open across the whole matching pass and a backfill UPDATE budgeted at
-                    // 600 seconds. Three feeds import in parallel and reconciliation writes the
-                    // *shared* CanonicalStations and CanonicalStationOperators tables, so that was a
-                    // blocking and deadlock risk between imports.
-                    //
-                    // It now runs after the commit below. See ReconcileImportedVersionAsync for what
-                    // happens when it fails.
-                    await FinalizeVersionPhaseAsync(feedVersionId, version, parsed.OperatorId, parsed.Routes, parsed.RawStops, parsed.Trips, parsed.Calendar, parsed.CalendarDates, parsed.Agencies, tempZipPath, sqlTx, ct);
+                        // Reconciliation deliberately does NOT run here. It used to, which meant the
+                        // import transaction — holding write locks on Trips, StopTimes, Shapes,
+                        // Calendars, RawStops and Agencies, escalated to table locks at this row count —
+                        // stayed open across the whole matching pass and a backfill UPDATE budgeted at
+                        // 600 seconds. Three feeds import in parallel and reconciliation writes the
+                        // *shared* CanonicalStations and CanonicalStationOperators tables, so that was a
+                        // blocking and deadlock risk between imports.
+                        //
+                        // It now runs after the commit below. See ReconcileImportedVersionAsync for what
+                        // happens when it fails.
+                        await FinalizeVersionPhaseAsync(feedVersionId, version, document, sqlTx, ct);
+                    }
+                    finally
+                    {
+                        _db.ChangeTracker.AutoDetectChangesEnabled = true;
+                        _db.Database.SetCommandTimeout(30);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await HandleImportErrorAsync(feedVersionId, sqlConn, sqlTx, ex, ct);
+                    throw;
                 }
                 finally
                 {
-                    _db.ChangeTracker.AutoDetectChangesEnabled = true;
-                    _db.Database.SetCommandTimeout(30);
+                    // Covers the early returns inside the try as well — a phase that commits and
+                    // returns without reaching the end of the block still has to detach.
+                    EndImportTransaction(sqlTx, ownsTransaction, feedVersionId);
                 }
-            }
-            catch (Exception ex)
-            {
-                await HandleImportErrorAsync(feedVersionId, sqlConn, sqlTx, ex, tempZipPath, ct);
-                throw;
-            }
-            finally
-            {
-                // Covers the early returns inside the try as well — validation failure and a null
-                // parse both commit and return without reaching the end of the block.
-                EndImportTransaction(sqlTx, ownsTransaction, feedVersionId);
             }
 
             // Everything past this point runs against committed data, outside any transaction. A
@@ -539,12 +570,16 @@ public class FeedManager
         return _logStore.GetEntries(versionId);
     }
 
-    public async Task<List<Feed>> GetActiveGtfsFeedsAsync(CancellationToken ct)
+    /// <summary>
+    /// Every feed the static-import poller should visit: GTFS archives, plus feeds backed by a
+    /// custom source. Realtime and mobility feeds have their own workers and are excluded here.
+    /// </summary>
+    public async Task<List<Feed>> GetActiveImportableFeedsAsync(CancellationToken ct)
     {
         return await _db.Feeds
             .Where(f => f.IsActive
-                && f.FeedType == FeedType.GTFSStatic
-                && f.Url != null)
+                && ((f.FeedType == FeedType.GTFSStatic && f.Url != null)
+                    || f.CustomSourceId != null))
             .ToListAsync(ct);
     }
 
@@ -560,40 +595,12 @@ public class FeedManager
     };
 
     /// <summary>
-    /// Resolves the on-disk storage directory for a feed. <see cref="Feed.FeedId"/> is caller-supplied,
-    /// so the resolved path is verified to stay under ContentRootPath/feeds — defence in depth behind
-    /// the character restriction on <c>CreateFeedRequest.FeedId</c>.
+    /// Resolves a feed's archive path. <see cref="Feed.FeedId"/> is caller-supplied, so the containment
+    /// check in <see cref="Services.FeedStorage"/> is defence in depth behind the character restriction
+    /// on <c>CreateFeedRequest.FeedId</c>.
     /// </summary>
-    /// <summary>
-    /// The containment rule itself now lives in <see cref="Services.FeedStorage"/>, where it can be
-    /// tested without standing up this manager and its eight dependencies.
-    /// </summary>
-    private string GetFeedStorageDirectory(string feedId) =>
-        new Services.FeedStorage(_env.ContentRootPath).DirectoryFor(feedId);
-
     private string GetFeedZipPath(string feedId) =>
         new Services.FeedStorage(_env.ContentRootPath).ZipPathFor(feedId);
-
-    private string? PrepareImportTempZip(FeedVersion version, int feedVersionId)
-    {
-        var zipPath = GetFeedZipPath(version.Feed.FeedId);
-        if (!File.Exists(zipPath))
-        {
-            version.ImportStatus = FeedImportStatus.Failed;
-            version.ImportError = "GTFS zip not found on disk";
-            _logStore.AddEntry(feedVersionId, "Error: GTFS zip not found on disk");
-            return null;
-        }
-
-        version.ImportStatus = FeedImportStatus.Importing;
-        var importTempDir = Path.Combine(Path.GetTempPath(), "gtfs-imports");
-        try { Directory.CreateDirectory(importTempDir); } catch { throw new TransitInfoAPI.Exceptions.AppException("Failed to create temporary directory for import.", 500, "ImportTempDirFailed"); }
-        var tempZipPath = Path.Combine(importTempDir, $"import-{feedVersionId}-{Guid.NewGuid()}.zip");
-        File.Copy(zipPath, tempZipPath, overwrite: true);
-        _logStore.AddEntry(feedVersionId, "Copied GTFS zip to temporary working file");
-        _logStore.AddEntry(feedVersionId, "Import started");
-        return tempZipPath;
-    }
 
     /// <summary>
     /// Opens the import transaction, or adopts one already in flight on this context.
@@ -653,21 +660,13 @@ public class FeedManager
         }
     }
 
-    private async Task ValidateAndCleanupAsync(int feedVersionId, FeedVersion version, ZipArchive archive, string tempZipPath, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
+    /// <summary>
+    /// Clears whatever this feed version already wrote, so a re-import replaces rather than
+    /// duplicates. Format validation used to live here; it belongs to the source now, and runs
+    /// before this does.
+    /// </summary>
+    private async Task CleanupExistingDataAsync(int feedVersionId, CancellationToken ct)
     {
-        _logStore.AddEntry(feedVersionId, "Validating GTFS files...");
-        var validation = _gtfs.ValidateGtfs(archive);
-        if (!validation.IsValid)
-        {
-            version.ImportStatus = FeedImportStatus.Failed;
-            version.ImportError = "GTFS validation failed: " + string.Join("; ", validation.Errors);
-            _logStore.AddEntry(feedVersionId, $"Validation failed: {string.Join("; ", validation.Errors)}");
-            await _db.SaveChangesAsync(ct);
-            await sqlTx.CommitAsync(ct);
-            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp file {Path}", tempZipPath); }
-            return;
-        }
-
         _logStore.AddEntry(feedVersionId, "Cleaning up existing data for this feed version...");
         await _db.Database.ExecuteSqlRawAsync(
             "DELETE FROM StopTimes WHERE TripId IN (SELECT Id FROM Trips WHERE FeedVersionId = @p0)",
@@ -683,12 +682,12 @@ public class FeedManager
         await _db.RawStops.Where(rs => rs.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
         await _db.Agencies.Where(a => a.FeedVersionId == feedVersionId).ExecuteDeleteAsync(ct);
         _logStore.AddEntry(feedVersionId, "Cleanup complete");
-        _logStore.AddEntry(feedVersionId, "Validation passed");
     }
 
-    private async Task AutoGenerateShapesIfMissing(int feedVersionId, ParsedGtfsData parsed, ZipArchive archive, CancellationToken ct)
+    private async Task AutoGenerateShapesIfMissing(int feedVersionId, TransitDocument document, Func<IAsyncEnumerable<List<RawStopTimeRecord>>> stopTimes, CancellationToken ct)
     {
-        if (parsed.Shapes.Count > 0) return;
+        if (document.Shapes.Count > 0) return;
+        if (document.Trips is null || document.Stops is null) return;
 
         _logStore.AddEntry(feedVersionId, "No shapes.txt found — generating from stop_times...");
 
@@ -698,7 +697,7 @@ public class FeedManager
         // The grouping below still holds one entry per row, but the parser no longer materialises a
         // second full copy alongside it.
         var byTrip = new Dictionary<string, List<RawStopTimeRecord>>(StringComparer.OrdinalIgnoreCase);
-        await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000).WithCancellation(ct))
+        await foreach (var batch in stopTimes().WithCancellation(ct))
         {
             foreach (var st in batch)
             {
@@ -712,16 +711,12 @@ public class FeedManager
             list.Sort((a, b) => a.StopSequence.CompareTo(b.StopSequence));
 
         var stopsByStopId = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in parsed.RawStops)
+        foreach (var s in document.Stops)
             stopsByStopId[s.StopId] = (s.StopLat, s.StopLon);
-
-        var tripMap = new Dictionary<string, RawTripRecord>(StringComparer.OrdinalIgnoreCase);
-        foreach (var t in parsed.Trips)
-            tripMap[t.TripId] = t;
 
         var generatedCount = 0;
 
-        foreach (var trip in parsed.Trips)
+        foreach (var trip in document.Trips)
         {
             if (!byTrip.TryGetValue(trip.TripId, out var tripStopTimes))
                 continue;
@@ -740,19 +735,24 @@ public class FeedManager
                 continue;
 
             var shapeId = $"gen-{trip.TripId}";
-            if (!parsed.Shapes.ContainsKey(shapeId))
-                parsed.Shapes[shapeId] = GeometryFactory.CreateLineString(coords.ToArray());
+            if (!document.Shapes.ContainsKey(shapeId))
+                document.Shapes[shapeId] = GeometryFactory.CreateLineString(coords.ToArray());
             trip.ShapeId = shapeId;
             generatedCount++;
         }
 
+        if (generatedCount > 0)
+            document.SynthesizedSections.Add("shapes");
+
         _logStore.AddEntry(feedVersionId,
-            $"Generated {generatedCount} shapes from {parsed.Shapes.Count} unique paths for {parsed.Trips.Count} trips");
+            $"Generated {generatedCount} shapes from {document.Shapes.Count} unique paths for {document.Trips.Count} trips");
     }
 
-    private async Task<HashSet<string>> CarryForwardManualEditsAsync(int feedVersionId, FeedVersion version, ParsedGtfsData parsed, ZipArchive archive, CancellationToken ct)
+    private async Task<HashSet<string>> CarryForwardManualEditsAsync(int feedVersionId, FeedVersion version, TransitDocument document, Func<IAsyncEnumerable<List<RawStopTimeRecord>>> stopTimes, CancellationToken ct)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (document.Trips is null) return result;
 
         var prevActive = await _db.FeedVersions
             .FirstOrDefaultAsync(fv => fv.FeedId == version.Feed.Id && fv.IsActive && fv.Id != feedVersionId, ct);
@@ -783,16 +783,20 @@ public class FeedManager
             list.Add(sd.RawStopId);
         }
 
-        var newStopTimes = _gtfs.ParseStopTimes(archive);
+        // Streamed rather than materialised: this is the third pass over stop_times in one import,
+        // and only the per-trip stop id order is needed out of it.
         var newSequences = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var st in newStopTimes)
+        await foreach (var batch in stopTimes().WithCancellation(ct))
         {
-            if (!newSequences.TryGetValue(st.TripId, out var list))
-                newSequences[st.TripId] = list = [];
-            list.Add(st.StopId);
+            foreach (var st in batch)
+            {
+                if (!newSequences.TryGetValue(st.TripId, out var list))
+                    newSequences[st.TripId] = list = [];
+                list.Add(st.StopId);
+            }
         }
 
-        var shapeIdSet = new HashSet<string>(parsed.Shapes.Keys, StringComparer.OrdinalIgnoreCase);
+        var shapeIdSet = new HashSet<string>(document.Shapes.Keys, StringComparer.OrdinalIgnoreCase);
 
         foreach (var oldShape in oldEditedShapes)
         {
@@ -802,7 +806,7 @@ public class FeedManager
             if (!oldSequences.TryGetValue(oldShape.ShapeId, out var oldByTrip))
                 continue;
 
-            var newTrips = parsed.Trips.Where(t =>
+            var newTrips = document.Trips.Where(t =>
                 string.Equals(t.ShapeId, oldShape.ShapeId, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (newTrips.Count == 0)
@@ -842,7 +846,7 @@ public class FeedManager
             if (allMatch && oldShape.Geometry is not null)
             {
                 result.Add(oldShape.ShapeId);
-                parsed.Shapes[oldShape.ShapeId] = oldShape.Geometry;
+                document.Shapes[oldShape.ShapeId] = oldShape.Geometry;
             }
         }
 
@@ -850,54 +854,6 @@ public class FeedManager
             _logStore.AddEntry(feedVersionId, $"Carried forward {result.Count} manually-edited shape(s) from previous feed version");
 
         return result;
-    }
-
-    private record ParsedGtfsData(
-        List<RawAgencyRecord> Agencies,
-        List<RawStopRecord> RawStops,
-        List<RawRouteRecord> Routes,
-        List<RawTripRecord> Trips,
-        List<RawCalendarRecord> Calendar,
-        List<RawCalendarDateRecord> CalendarDates,
-        Dictionary<string, NetTopologySuite.Geometries.LineString> Shapes,
-        int OperatorId,
-        Dictionary<string, RouteType> RouteTypeByRoute,
-        Dictionary<string, string> RouteByTrip);
-
-    private async Task<ParsedGtfsData?> ParseGtfsFilesAsync(int feedVersionId, FeedVersion version, ZipArchive archive, string tempZipPath, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
-    {
-        _logStore.AddEntry(feedVersionId, "Parsing GTFS files...");
-        var agencies = _gtfs.ParseAgencies(archive);
-        var (rawStops, droppedStops) = _gtfs.ParseStops(archive);
-        if (droppedStops > 0)
-            _logStore.AddEntry(feedVersionId, $"Skipped {droppedStops} stop(s) with invalid coordinates");
-        var routes = _gtfs.ParseRoutes(archive);
-        var trips = _gtfs.ParseTrips(archive);
-        var calendar = _gtfs.ParseCalendar(archive);
-        var calendarDates = _gtfs.ParseCalendarDates(archive);
-        var shapes = _gtfs.ParseShapes(archive);
-        _logStore.AddEntry(feedVersionId, $"Parsed: {agencies.Count} agencies, {rawStops.Count} stops, {routes.Count} routes, {trips.Count} trips, {calendar.Count} calendars, {calendarDates.Count} calendar_dates, {shapes.Count} shapes");
-
-        if (calendar.Count == 0 && calendarDates.Count == 0)
-        {
-            version.ImportStatus = FeedImportStatus.Failed;
-            version.ImportError = "Feed has no calendar or calendar_dates data — zero valid services. No departures will appear for any stop.";
-            _logStore.AddEntry(feedVersionId, $"Import failed: {version.ImportError}");
-            await _db.SaveChangesAsync(ct);
-            await sqlTx.CommitAsync(ct);
-            try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp file {Path}", tempZipPath); }
-            return null;
-        }
-
-        var operatorId = version.Feed.OperatorId;
-        var routeTypeByRoute = routes
-            .GroupBy(r => r.RouteId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().RouteTypeEnum, StringComparer.OrdinalIgnoreCase);
-        var routeByTrip = trips
-            .GroupBy(t => t.TripId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().RouteId, StringComparer.OrdinalIgnoreCase);
-
-        return new ParsedGtfsData(agencies, rawStops, routes, trips, calendar, calendarDates, shapes, operatorId, routeTypeByRoute, routeByTrip);
     }
 
     private async Task<Dictionary<string, int>> ImportRoutesPhaseAsync(int feedVersionId, FeedVersion version, List<RawRouteRecord> routes, List<RawStopRecord> rawStops, int operatorId, CancellationToken ct)
@@ -968,10 +924,19 @@ public class FeedManager
         {
             if (onestopToRouteIds.TryGetValue(cr.OnestopId, out var routeIds))
             {
+                // Stamped so the deactivation sweep can tell a route this import just wrote from one
+                // left behind by an earlier feed. Without it a feed carrying routes but no timetable
+                // has every route switched off moments after creating it.
+                cr.LastSeenFeedVersionId = feedVersionId;
+
                 foreach (var routeId in routeIds)
                     result[prefix + routeId.ToLowerInvariant()] = cr.Id;
             }
         }
+
+        _db.ChangeTracker.DetectChanges();
+        await _db.SaveChangesAsync(ct);
+
         return result;
     }
 
@@ -1082,7 +1047,7 @@ public class FeedManager
         _logStore.AddEntry(feedVersionId, "Phase 2: route geometries backfilled from trip shapes");
     }
 
-    private async Task<Dictionary<string, RouteType>> ImportStopTimesBulkPhaseAsync(int feedVersionId, ZipArchive archive, Dictionary<string, int> tripLookup, Dictionary<string, string> routeByTrip, Dictionary<string, RouteType> routeTypeByRoute, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
+    private async Task<Dictionary<string, RouteType>> ImportStopTimesBulkPhaseAsync(int feedVersionId, Func<IAsyncEnumerable<List<RawStopTimeRecord>>> stopTimes, Dictionary<string, int> tripLookup, Dictionary<string, string> routeByTrip, Dictionary<string, RouteType> routeTypeByRoute, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, "Phase 3: Bulk importing stop_times...");
         var routeTypesPerStop = new Dictionary<string, RouteType>(StringComparer.OrdinalIgnoreCase);
@@ -1109,7 +1074,7 @@ public class FeedManager
         bulkCopy.ColumnMappings.Add(7, "DropOffType");
         bulkCopy.ColumnMappings.Add(8, "Timepoint");
 
-        await foreach (var batch in _gtfs.ParseStopTimesBatchedAsync(archive, 50000))
+        await foreach (var batch in stopTimes().WithCancellation(ct))
         {
             var rows = new List<object?[]>(50000);
             foreach (var st in batch)
@@ -1158,7 +1123,7 @@ public class FeedManager
         return routeTypesPerStop;
     }
 
-    private async Task ImportAgenciesAndStopsPhaseAsync(int feedVersionId, List<RawAgencyRecord> agencies, List<RawStopRecord> rawStops, Dictionary<string, RouteType> routeTypesPerStop, int operatorId, CancellationToken ct)
+    private async Task ImportAgenciesAndStopsPhaseAsync(int feedVersionId, List<RawAgencyRecord> agencies, List<RawStopRecord> rawStops, Dictionary<string, RouteType> routeTypesPerStop, int operatorId, RouteType? defaultRouteType, CancellationToken ct)
     {
         _logStore.AddEntry(feedVersionId, $"Phase 4: Saving {agencies.Count} agencies and {rawStops.Count} stops...");
         var seenAgencyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1207,7 +1172,10 @@ public class FeedManager
                 ZoneId = s.ZoneId,
                 PlatformCode = s.PlatformCode,
                 WheelchairBoarding = s.WheelchairBoarding.HasValue ? s.WheelchairBoarding == 1 : null,
-                RouteType = routeTypesPerStop.TryGetValue(s.StopId, out var rt) ? rt : null,
+                // Falls back to the feed's own mode when no stop time reaches this stop.
+                // Reconciliation parks a stop with no route type as Inactive, which for a feed
+                // carrying no timetable at all would be every one of them.
+                RouteType = routeTypesPerStop.TryGetValue(s.StopId, out var rt) ? rt : defaultRouteType,
                 IsActive = true,
                 ReconciliationStatus = ReconciliationStatus.Pending
             });
@@ -1321,8 +1289,16 @@ public class FeedManager
         _logStore.AddEntry(0, "Place matching complete");
     }
 
-    private async Task FinalizeVersionPhaseAsync(int feedVersionId, FeedVersion version, int operatorId, List<RawRouteRecord> routes, List<RawStopRecord> rawStops, List<RawTripRecord> trips, List<RawCalendarRecord> calendar, List<RawCalendarDateRecord> calendarDates, List<RawAgencyRecord> agencies, string tempZipPath, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
+    private async Task FinalizeVersionPhaseAsync(int feedVersionId, FeedVersion version, TransitDocument document, Microsoft.Data.SqlClient.SqlTransaction sqlTx, CancellationToken ct)
     {
+        var operatorId = document.OperatorId;
+        var routes = document.Routes ?? [];
+        var rawStops = document.Stops ?? [];
+        var trips = document.Trips ?? [];
+        var calendar = document.Calendar ?? [];
+        var calendarDates = document.CalendarDates ?? [];
+        var agencies = document.Agencies ?? [];
+
         version = (await _db.FeedVersions.Include(fv => fv.Feed).FirstOrDefaultAsync(fv => fv.Id == feedVersionId, ct))!;
 
         var prevActive = await _db.FeedVersions
@@ -1345,6 +1321,13 @@ public class FeedManager
         version.TripCount = trips.Count;
         version.AgencyCount = agencies.Count;
         version.ConvexHull = _gtfs.ComputeConvexHull(rawStops);
+
+        // Recorded so a consumer can tell a stops-only feed from one whose timetable failed to
+        // import, and so the admin console can show which sections were inferred rather than read.
+        version.Completeness = document.Completeness;
+        version.SynthesizedSections = document.SynthesizedSections.Count > 0
+            ? string.Join(",", document.SynthesizedSections)
+            : null;
 
         if (calendar.Count > 0)
         {
@@ -1386,22 +1369,28 @@ public class FeedManager
         if (reactivated > 0)
             _logger.LogInformation("Reactivated {Count} CanonicalStations for all operators (FeedVersion {VersionId})", reactivated, feedVersionId);
 
+        // A route stays active while it has trips in an active version, OR while an active version
+        // still lists it. The second clause is what keeps a Network-completeness feed usable: its
+        // routes are real and current, they simply have no timetable attached, and judging them
+        // solely by trip count switched off everything such a feed had just imported.
         var deactivatedRoutes = await _db.Database.ExecuteSqlRawAsync(
-            "UPDATE cr SET IsActive = 0 FROM CanonicalRoutes cr WHERE cr.IsActive = 1 AND cr.OperatorId = @p0 AND NOT EXISTS (SELECT 1 FROM Trips t INNER JOIN FeedVersions fv ON fv.Id = t.FeedVersionId WHERE t.CanonicalRouteId = cr.Id AND fv.IsActive = 1)",
+            "UPDATE cr SET IsActive = 0 FROM CanonicalRoutes cr WHERE cr.IsActive = 1 AND cr.OperatorId = @p0 "
+            + "AND NOT EXISTS (SELECT 1 FROM Trips t INNER JOIN FeedVersions fv ON fv.Id = t.FeedVersionId WHERE t.CanonicalRouteId = cr.Id AND fv.IsActive = 1) "
+            + "AND NOT EXISTS (SELECT 1 FROM FeedVersions fv2 WHERE fv2.Id = cr.LastSeenFeedVersionId AND fv2.IsActive = 1)",
             new object[] { operatorId }, ct);
         if (deactivatedRoutes > 0)
             _logger.LogInformation("Deactivated {Count} CanonicalRoutes for FeedVersion {VersionId} with no active trips", deactivatedRoutes, feedVersionId);
 
         var reactivatedRoutes = await _db.Database.ExecuteSqlRawAsync(
-            "UPDATE cr SET IsActive = 1 FROM CanonicalRoutes cr WHERE cr.IsActive = 0 AND cr.OperatorId = @p0 AND EXISTS (SELECT 1 FROM Trips t INNER JOIN FeedVersions fv ON fv.Id = t.FeedVersionId WHERE t.CanonicalRouteId = cr.Id AND fv.IsActive = 1)",
+            "UPDATE cr SET IsActive = 1 FROM CanonicalRoutes cr WHERE cr.IsActive = 0 AND cr.OperatorId = @p0 "
+            + "AND (EXISTS (SELECT 1 FROM Trips t INNER JOIN FeedVersions fv ON fv.Id = t.FeedVersionId WHERE t.CanonicalRouteId = cr.Id AND fv.IsActive = 1) "
+            + "OR EXISTS (SELECT 1 FROM FeedVersions fv2 WHERE fv2.Id = cr.LastSeenFeedVersionId AND fv2.IsActive = 1))",
             new object[] { operatorId }, ct);
         if (reactivatedRoutes > 0)
             _logger.LogInformation("Reactivated {Count} CanonicalRoutes for FeedVersion {VersionId}", reactivatedRoutes, feedVersionId);
-
-        try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete temp file {Path}", tempZipPath); }
     }
 
-    private async Task HandleImportErrorAsync(int feedVersionId, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, Exception ex, string tempZipPath, CancellationToken ct)
+    private async Task HandleImportErrorAsync(int feedVersionId, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, Exception ex, CancellationToken ct)
     {
         try { using var rollbackCts = CancellationTokenSource.CreateLinkedTokenSource(ct, new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token); await sqlTx.RollbackAsync(rollbackCts.Token); } catch (Exception rollbackEx) { _logger.LogWarning(rollbackEx, "Rollback failed for FeedVersion {VersionId}", feedVersionId); }
         _logStore.AddEntry(feedVersionId, $"Import failed: {ex.Message}");
@@ -1420,7 +1409,6 @@ public class FeedManager
         {
             _logger.LogError(innerEx, "Failed to write ImportStatus=Failed for FeedVersion {VersionId}", feedVersionId);
         }
-        try { if (File.Exists(tempZipPath)) File.Delete(tempZipPath); } catch (Exception deleteEx) { _logger.LogWarning(deleteEx, "Failed to delete temp file {Path}", tempZipPath); }
         _logger.LogError(ex, "Import failed for FeedVersion {VersionId}", feedVersionId);
 
         // Released here as well as on the success path. Clear() was only called by

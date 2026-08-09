@@ -52,9 +52,9 @@ and maps the responses into its own types. Nothing here knows GetThereAPI exists
 ```
 Controllers/   HTTP shape only
 Managers/      Business logic and database access
-Services/      GtfsParser, ExternalFeedSource, ImportLogStore, DynamicClaimsTransformation
+Services/      GtfsParser, GtfsZipSource, ExternalFeedSource, ImportLogStore, DynamicClaimsTransformation
 Workers/       Three BackgroundServices that keep data fresh
-Core/          IFeedSource abstraction, GBFS models
+Core/          ITransitSource + TransitDocument, TransitSourceResolver, GBFS models
 Entities/      EF Core model
 Contracts/     Response DTOs — this service's own, not shared
 Mapping/       Entity → contract projections

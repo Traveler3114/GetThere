@@ -89,20 +89,30 @@ The import runs as a sequence of phases. Ordering is not arbitrary — each phas
 next one consumes.
 
 ```
-1.  PrepareImportTempZip         copy to a temp file so the live zip is not held open
-2.  decompression-bomb guard     reject if declared expansion > 4 GB
-3.  ValidateAndCleanupAsync      validate structure, remove any partial prior attempt
-4.  ParseGtfsFilesAsync          CSV → in-memory models (CsvHelper)
-5.  AutoGenerateShapesIfMissing  synthesise route geometry when shapes.txt is absent
-6.  CarryForwardManualEditsAsync preserve hand-edited shapes across the re-import
-7.  ImportRoutesPhaseAsync       → canonicalRouteLookup
-8.  ImportTripsShapesCalendars   → tripLookup
-9.  BackfillRouteGeometries      derive route geometry from its trips' shapes
-10. ImportStopTimesBulkPhase     SqlBulkCopy; → routeTypesPerStop
-11. ImportAgenciesAndStopsPhase  RawStops, tagged with the route types serving them
-12. ReconcileAndBackfillAsync    raw stops → canonical stations, then FK backfill
-13. FinalizeVersionPhaseAsync    counts, convex hull, service window, activate
+1.  ITransitSource.OpenAsync     artifact → TransitDocument (+ a stop-times stream)
+2.  CleanupExistingDataAsync     remove any partial prior attempt
+3.  AutoGenerateShapesIfMissing  synthesise route geometry when shapes.txt is absent
+4.  CarryForwardManualEditsAsync preserve hand-edited shapes across the re-import
+5.  ImportRoutesPhaseAsync       → canonicalRouteLookup
+6.  ImportTripsShapesCalendars   → tripLookup
+7.  BackfillRouteGeometries      derive route geometry from its trips' shapes
+8.  ImportStopTimesBulkPhase     SqlBulkCopy; → routeTypesPerStop
+9.  ImportAgenciesAndStopsPhase  RawStops, tagged with the route types serving them
+10. ReconcileAndBackfillAsync    raw stops → canonical stations, then FK backfill
+11. FinalizeVersionPhaseAsync    counts, convex hull, service window, activate
 ```
+
+Everything format-specific happens in step 1, inside the source. `GtfsZipSource` owns the temp-file
+copy, the 4 GB decompression-bomb guard, required-file validation, and the rule that a feed with no
+calendar data is a failed import — those are properties of the archive format, not of importing, and
+a source that carries neither a calendar nor a trip must not inherit them.
+
+Steps 3–9 each skip when their section of the `TransitDocument` is null, which is how a feed carrying
+only stops imports as `FeedCompleteness.StopsOnly` instead of failing validation for files it was
+never going to have. A GTFS archive always populates every section, so for a zip nothing is skipped.
+
+**Reading now happens before cleanup**, not after. A feed that fails to parse leaves the previous
+rows for that version in place rather than deleting them first and then failing.
 
 Two dependencies are worth calling out because they explain the odd ordering:
 
@@ -223,9 +233,11 @@ constructor, so a configuration change takes effect on the next cycle without a 
 
 ## Internal feeds
 
-`Feed.IsInternal` marks a feed whose source handles fetching **and** importing itself, signalled by
-`FeedFetchResult.AlreadyHandled`. The code is explicit that these must not fall through to the zip
-pipeline — there is no zip on disk for them.
+`Feed.IsInternal` marks a feed whose source handles fetching **and** importing itself. The code is
+explicit that these must not fall through to the zip pipeline — there is no zip on disk for them.
+(The old `FeedFetchResult.AlreadyHandled` flag that signalled this is gone: `TransitSourceResolver`
+now picks a source per feed, so "this feed is not a zip" is answered by which `ITransitSource`
+claims it rather than by a flag on the fetch result.)
 
 The `feeds/` directory shows the deployed set: `zet`, `hžpp`, `obb`, `gp`, and two
 `custom-N-autotrolejstatic` directories. The `custom-` prefix and the non-ASCII `hžpp` directory name
@@ -263,3 +275,86 @@ checks them before serving data.
 They exist because GTFS feeds carry real licence terms and redistributing one commercially without
 checking is a genuine legal risk. Treat these fields as a compliance record to consult, not a control
 that operates.
+
+---
+
+## Custom sources — operators that don't publish GTFS
+
+Most operators outside the large agencies publish no GTFS at all: they expose a REST API, a
+timetable page, or email a spreadsheet once a quarter. A **custom source** is a description of one
+of those, sufficient to import it through the pipeline above.
+
+### The seam
+
+`ITransitSource` is what the pipeline actually fetches through, and it has two implementations:
+`GtfsZipSource` (downloads an archive, parses it) and `CustomHttpSource` (runs a custom source's
+requests, or delegates to a C# extractor). Both produce a **`TransitDocument`** — the normalized
+network the import phases consume.
+
+This is the design decision that matters. Two earlier attempts failed the other way round:
+
+- **Writing straight into entities** (the deleted `CustomFeedDirectImporter`, 962 lines) duplicated
+  versioning, bulk import and reconciliation, and drifted from the GTFS path.
+- **Synthesizing a GTFS archive** for the real parser to re-read fails because custom sources
+  routinely have no `calendar.txt`, no `trips.txt` and no `agency.txt` — a strict GTFS parse rejects
+  data that is perfectly usable.
+
+`TransitDocument` makes every section nullable, and **null means the source does not carry it**,
+distinct from an empty list. Import phases skip absent sections instead of failing on them, so a feed
+that is only a stop list imports as a stop list.
+
+### Completeness
+
+`FeedVersion.Completeness` records what a version actually carries:
+
+| Level | Means |
+|---|---|
+| `StopsOnly` | Stops render on the map; no routes, no departures |
+| `Network` | Stops and routes — the shape of the network, no timetable |
+| `Schedule` | A full timetable. Every GTFS archive is this |
+
+`CanonicalRoute.LastSeenFeedVersionId` exists for `Network`: the deactivation sweep judges routes by
+whether they have trips, which switched off every route a timetable-less feed had just imported.
+
+### Completion
+
+`TransitDocumentCompleter` fills gaps using only rules with an unambiguous answer — an agency from
+the `Operator` row, an always-on calendar across a declared service window, a trip list recovered
+from the stop times that already name their trips, and a stop's mode when the feed has exactly one.
+What it invented is recorded in `FeedVersion.SynthesizedSections` so an inferred calendar is never
+mistaken for a published one. It never invents stops, routes or times.
+
+### Source formats
+
+| Format | Read by | Notes |
+|---|---|---|
+| JSON | `ParseJsonRows` | Dotted data path, `[]` walks arrays |
+| CSV | `ParseCsvRows` | Header row required |
+| XML | `ParseXmlRows` | Attributes and elements share one flat namespace |
+| HTML | `ParseHtmlRows` (AngleSharp) | Data path is a CSS selector picking the table |
+| XLSX | `DocumentTableReader.ReadXlsx` | Upload only; first sheet, first row as headers |
+| PDF | `DocumentTableReader.ReadPdf` | Upload only; see below |
+
+Polled sources use `http(s)://`; uploaded files use `upload://name` and are read from the source's
+storage directory. Both go through the same mappings, deduplication and completion.
+
+**PDF is a starting point, not an answer.** A PDF has no table structure — only glyphs at
+coordinates — so the reader reconstructs one: words sharing a baseline form a row, and the first
+row's x-positions define the columns everything else snaps to. That works on the ruled grids
+operators publish and breaks on merged or wrapped cells. It is surfaced through the editor's preview
+precisely so a human sees what came out before anything is imported, and a scanned PDF (no text
+layer) is reported as needing OCR rather than silently returning nothing.
+
+### When configuration isn't enough
+
+`ICustomExtractor` is the escape hatch: implement it, register it, and put its `Key` on the source.
+The engine steps aside entirely and the extractor returns a `TransitDocument` directly; completion,
+versioning and import are unchanged. It exists so the declarative config never has to grow into a
+bad programming language to accommodate one awkward operator.
+
+### Admin
+
+`/admin/custom-sources.html` lists and runs them; the editor configures requests and mappings, with
+**discover** (fetch a sample, show the response's own shape, click a path) and **preview** (run the
+extraction and show the mapped rows without importing). Run history is per source, including runs
+that produced no version.

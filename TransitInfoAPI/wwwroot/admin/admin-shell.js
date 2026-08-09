@@ -25,6 +25,7 @@
       label: 'NETWORK',
       items: [
         { key: 'feeds', text: 'Feeds', href: '/admin/feeds.html', count: 'feeds' },
+        { key: 'custom-sources', text: 'Custom sources', href: '/admin/custom-sources.html' },
         { key: 'feed-versions', text: 'Feed versions', href: '/admin/feed-versions.html' },
         { key: 'stations', text: 'Stations', href: '/admin/stations.html', count: 'stations' },
         { key: 'routes', text: 'Routes', href: '/admin/routes.html' },

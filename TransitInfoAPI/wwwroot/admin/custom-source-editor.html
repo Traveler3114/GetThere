@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Custom source editor - Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="style.css">
+<script src="/admin/admin-auth.js"></script>
+<style>
+  .structure-tree { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.5; }
+  .structure-tree .node { padding: 1px 4px; border-radius: 3px; }
+  .structure-tree .pickable { cursor: pointer; }
+  .structure-tree .pickable:hover { background: #e7f1ff; }
+  .structure-tree .kind { color: #6c757d; }
+  .structure-tree .sample { color: #0a7d33; }
+  .request-card { border-left: 3px solid #0d6efd; }
+  .mapping-row td { padding: .25rem; }
+</style>
+</head>
+<body class="bs">
+<div id="shell"></div>
+<div id="page">
+<div class="container-fluid">
+  <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
+  <div id="error" class="alert alert-danger d-none"></div>
+
+  <div id="editor" class="d-none">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h5 class="mb-1" id="sourceName"></h5>
+        <div class="small text-muted" id="sourceMeta"></div>
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="/admin/custom-sources.html"><i class="bi bi-arrow-left"></i> Back</a>
+        <button class="btn btn-outline-info btn-sm" onclick="previewSource()"><i class="bi bi-eye"></i> Preview</button>
+        <button class="btn btn-success btn-sm" onclick="saveSource()"><i class="bi bi-save"></i> Save</button>
+      </div>
+    </div>
+
+    <div id="saveStatus"></div>
+
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card mb-3">
+          <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <strong class="small">Source settings</strong>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label small">Name</label>
+                <input class="form-control form-control-sm" id="fName">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Kind</label>
+                <select class="form-select form-select-sm" id="fKind">
+                  <option value="Http">Http</option>
+                  <option value="Html">Html</option>
+                  <option value="Pdf">Pdf</option>
+                  <option value="Upload">Upload</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Refresh (s)</label>
+                <input type="number" class="form-control form-control-sm" id="fRefresh" min="60">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Service window start</label>
+                <input type="date" class="form-control form-control-sm" id="fWindowStart">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Service window end</label>
+                <input type="date" class="form-control form-control-sm" id="fWindowEnd">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small">C# extractor key <span class="text-muted">(optional)</span></label>
+                <input class="form-control form-control-sm" id="fExtractor" placeholder="leave blank to use the requests below">
+              </div>
+              <div class="col-12">
+                <label class="form-label small">Auth config (JSON)</label>
+                <input class="form-control form-control-sm font-monospace" id="fAuth"
+                       placeholder='{"type":"bearer","token":"..."} or {"type":"header","name":"X-Api-Key","value":"..."}'>
+              </div>
+              <div class="col-12">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="fActive">
+                  <label class="form-check-label small" for="fActive">Active</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong class="small">Requests <span class="text-muted fw-normal">— one per section of the network</span></strong>
+          <button class="btn btn-sm btn-outline-success" onclick="addRequest()"><i class="bi bi-plus-lg"></i> Add request</button>
+        </div>
+        <div id="requests"></div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card mb-3">
+          <div class="card-header py-2"><strong class="small">Response structure</strong></div>
+          <div class="card-body">
+            <p class="small text-muted">
+              Fetch a sample to see the response's own shape. Click a field to copy its path.
+            </p>
+            <div id="discoverTarget" class="mb-2"></div>
+            <div id="discoverOut" class="structure-tree border rounded p-2 bg-light" style="max-height:420px;overflow:auto">
+              <span class="text-muted">Nothing fetched yet.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header py-2"><strong class="small">Uploaded files</strong></div>
+          <div class="card-body">
+            <p class="small text-muted">
+              For operators who send a spreadsheet or PDF instead of hosting an endpoint. Upload it,
+              then paste the <code>upload://</code> URL into a request.
+            </p>
+            <input type="file" class="form-control form-control-sm mb-2" id="uploadFile"
+                   accept=".csv,.xlsx,.xls,.pdf,.json,.xml,.html,.htm">
+            <button class="btn btn-sm btn-outline-primary mb-2" onclick="uploadFile()"><i class="bi bi-upload"></i> Upload</button>
+            <div id="uploadList"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header py-2"><strong class="small">Preview</strong></div>
+          <div class="card-body">
+            <div id="previewOut"><span class="text-muted small">Run a preview to see what the mapping produces.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/admin/admin-shell.js"></script>
+<script>
+  Shell.mountLegacy({ active: 'custom-sources', crumb: 'Network', title: 'Custom source editor' });
+</script>
+<script src="custom-source-editor.page.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

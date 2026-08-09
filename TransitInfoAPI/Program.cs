@@ -83,6 +83,20 @@ builder.Services.AddSingleton<RealtimeManager>();
 
 builder.Services.AddSingleton<TransitInfoAPI.Services.ExternalFeedSource>();
 
+// Scoped rather than singleton because GtfsParser is: registration order here decides which source
+// claims a feed when more than one CanHandle it. CustomHttpSource is first because a feed carrying
+// a CustomSourceId is a custom feed regardless of what else is set on it.
+builder.Services.AddScoped<TransitInfoAPI.Core.ITransitSource, TransitInfoAPI.Services.CustomHttpSource>();
+builder.Services.AddScoped<TransitInfoAPI.Core.ITransitSource, TransitInfoAPI.Services.GtfsZipSource>();
+builder.Services.AddScoped<TransitInfoAPI.Core.TransitSourceResolver>();
+
+// Register an ICustomExtractor to take over a source that configuration cannot describe.
+builder.Services.AddScoped<TransitInfoAPI.Core.CustomExtractorRegistry>();
+builder.Services.AddScoped<TransitInfoAPI.Services.CustomSourceEngine>();
+builder.Services.AddScoped<TransitInfoAPI.Services.CustomHttpSource>();
+builder.Services.AddScoped<TransitDocumentCompleter>();
+builder.Services.AddScoped<CustomSourceManager>();
+
 // Auth Managers
 builder.Services.AddScoped<TokenManager>();
 builder.Services.AddScoped<AuthManager>();
@@ -378,25 +392,70 @@ using (var scope = app.Services.CreateScope())
     if (app.Configuration.GetValue("Database:MigrateOnStartup", app.Environment.IsDevelopment()))
         await db.Database.MigrateAsync();
 
-    var stuck = await db.FeedVersions
-        .Where(fv => fv.ImportStatus == FeedImportStatus.Importing)
-        .ToListAsync();
-    var stuckIds = stuck.Select(v => v.Id).ToList();
-    foreach (var version in stuck)
+    // Discards the half-written data of any import the previous process died in the middle of.
+    //
+    // Both properties below are load-bearing and were both missing:
+    //
+    // 1. It is one transaction. The status write used to commit on its own and each delete ran in
+    //    its own implicit transaction, so a failure partway through left a version marked Failed
+    //    with its StopTimes already gone and everything else intact — which is exactly what
+    //    happened to the active ZET version.
+    //
+    // 2. StopTimes are unlinked from the doomed RawStops first. The reconciliation backfill joins
+    //    StopTimes to RawStops on the id *string* with no version scoping, so other versions' rows
+    //    point at this version's stops; deleting them directly fails on
+    //    FK_StopTimes_RawStops_RawStopEntityId. FeedManager.CleanupExistingDataAsync has always
+    //    done this — this path never did.
+    //
+    // A failure here is logged and swallowed. Cleanup is housekeeping, and the previous behaviour
+    // was an unhandled exception during startup, so the service crash-looped and could not be
+    // started again until someone edited the database by hand.
+    try
     {
-        version.ImportStatus = FeedImportStatus.Failed;
-        version.ImportError = "Import interrupted by application restart";
-    }
-    await db.SaveChangesAsync();
+        var stuckIds = await db.FeedVersions
+            .Where(fv => fv.ImportStatus == FeedImportStatus.Importing)
+            .Select(fv => fv.Id)
+            .ToListAsync();
 
-    if (stuckIds.Count > 0)
+        if (stuckIds.Count > 0)
+        {
+            var recoveryLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("StuckImportRecovery");
+            recoveryLogger.LogWarning("Discarding {Count} import(s) interrupted by an application restart: {Ids}",
+                stuckIds.Count, string.Join(", ", stuckIds));
+
+            await using var recoveryTx = await db.Database.BeginTransactionAsync();
+
+            await db.FeedVersions
+                .Where(fv => stuckIds.Contains(fv.Id))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(fv => fv.ImportStatus, FeedImportStatus.Failed)
+                    .SetProperty(fv => fv.ImportError, "Import interrupted by application restart"));
+
+            await db.StopTimes.Where(st => stuckIds.Contains(st.Trip.FeedVersionId)).ExecuteDeleteAsync();
+
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE StopTimes SET RawStopEntityId = NULL, CanonicalStationId = NULL "
+                + "WHERE RawStopEntityId IN (SELECT Id FROM RawStops WHERE FeedVersionId IN (SELECT value FROM STRING_SPLIT(@p0, ',')))",
+                new object[] { string.Join(",", stuckIds) });
+
+            await db.ReconciliationCandidates.Where(rc => stuckIds.Contains(rc.RawStop.FeedVersionId)).ExecuteDeleteAsync();
+            await db.RawStops.Where(rs => stuckIds.Contains(rs.FeedVersionId)).ExecuteDeleteAsync();
+            await db.Trips.Where(t => stuckIds.Contains(t.FeedVersionId)).ExecuteDeleteAsync();
+            await db.Calendars.Where(c => stuckIds.Contains(c.FeedVersionId)).ExecuteDeleteAsync();
+            await db.CalendarDates.Where(cd => stuckIds.Contains(cd.FeedVersionId)).ExecuteDeleteAsync();
+            await db.Shapes.Where(s => stuckIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync();
+            await db.Agencies.Where(a => stuckIds.Contains(a.FeedVersionId)).ExecuteDeleteAsync();
+
+            await recoveryTx.CommitAsync();
+            recoveryLogger.LogInformation("Discarded {Count} interrupted import(s)", stuckIds.Count);
+        }
+    }
+    catch (Exception ex)
     {
-        await db.StopTimes.Where(st => stuckIds.Contains(st.Trip.FeedVersionId)).ExecuteDeleteAsync();
-        await db.RawStops.Where(rs => stuckIds.Contains(rs.FeedVersionId)).ExecuteDeleteAsync();
-        await db.Trips.Where(t => stuckIds.Contains(t.FeedVersionId)).ExecuteDeleteAsync();
-        await db.Calendars.Where(c => stuckIds.Contains(c.FeedVersionId)).ExecuteDeleteAsync();
-        await db.CalendarDates.Where(cd => stuckIds.Contains(cd.FeedVersionId)).ExecuteDeleteAsync();
-        await db.Shapes.Where(s => stuckIds.Contains(s.FeedVersionId)).ExecuteDeleteAsync();
+        app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("StuckImportRecovery")
+            .LogError(ex, "Could not discard interrupted imports. The service is starting anyway; "
+                + "re-import the affected feeds to repair them.");
     }
 
     // Seed roles and users.

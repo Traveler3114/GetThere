@@ -37,7 +37,7 @@ public class FeedsController : ControllerBase
         [FromBody] CreateFeedRequest request,
         CancellationToken ct = default)
     {
-        var feed = await _feedService.CreateAsync(request.OperatorId, request.FeedType, request.FeedId, request.Url, request.RefreshIntervalSeconds, ct);
+        var feed = await _feedService.CreateAsync(request.OperatorId, request.FeedType, request.FeedId, request.Url, request.RefreshIntervalSeconds, ct, request.CustomSourceId);
         var dto = await _feedService.GetByIdAsync(feed.Id, ct);
         return CreatedAtAction(nameof(GetAll), new { }, dto);
     }

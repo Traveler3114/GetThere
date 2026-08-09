@@ -25,5 +25,13 @@ public class Feed
     public int OperatorId { get; set; }
     public Operator Operator { get; set; } = null!;
 
+    /// <summary>
+    /// Set when this feed is backed by a non-GTFS source rather than a URL to an archive.
+    /// Mutually exclusive with <see cref="Url"/> in practice, though nothing enforces that —
+    /// <c>TransitSourceResolver</c> decides by asking each source whether it can handle the feed.
+    /// </summary>
+    public int? CustomSourceId { get; set; }
+    public CustomSource? CustomSource { get; set; }
+
     public ICollection<FeedVersion> FeedVersions { get; set; } = [];
 }

@@ -106,7 +106,7 @@ function renderFeeds(feeds, totalCount) {
       ${!isInternal && f.feedType === 'GTFSStatic' ? `<button class="btn btn-sm btn-outline-primary" onclick="fetchFeed(${f.id})" title="Fetch & Import"><i class="bi bi-download"></i></button>` : ''}
       ${!isInternal ? `<button class="btn btn-sm btn-outline-warning" onclick="editFeed(${f.id})" title="Edit"><i class="bi bi-pencil"></i></button>` : ''}
       ${!isInternal ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteFeed(${f.id})" title="Delete"><i class="bi bi-trash"></i></button>` : ''}
-      ${isInternal && f.customFeedId ? `<a href="/admin/custom-source-editor.html?id=${f.customFeedId}" class="btn btn-sm btn-outline-info" title="View Custom Source"><i class="bi bi-gear"></i></a>` : ''}
+      ${f.customSourceId ? `<a href="/admin/custom-source-editor.html?id=${f.customSourceId}" class="btn btn-sm btn-outline-info" title="Edit custom source"><i class="bi bi-gear"></i></a>` : ''}
     </td>
   </tr>`;
   }).join('');

@@ -23,7 +23,9 @@ public static class FeedVersionMapper
             StopCount = fv.StopCount,
             RouteCount = fv.RouteCount,
             TripCount = fv.TripCount,
-            AgencyCount = fv.AgencyCount
+            AgencyCount = fv.AgencyCount,
+            Completeness = fv.Completeness.ToString(),
+            SynthesizedSections = fv.SynthesizedSections
         };
 
     public static FeedVersionResponse ToResponse(FeedVersion fv) => new()
@@ -41,6 +43,8 @@ public static class FeedVersionMapper
         StopCount = fv.StopCount,
         RouteCount = fv.RouteCount,
         TripCount = fv.TripCount,
-        AgencyCount = fv.AgencyCount
+        AgencyCount = fv.AgencyCount,
+        Completeness = fv.Completeness.ToString(),
+        SynthesizedSections = fv.SynthesizedSections
     };
 }

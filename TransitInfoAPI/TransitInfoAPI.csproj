@@ -16,6 +16,9 @@
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="CsvHelper" />
+    <PackageReference Include="AngleSharp" />
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="PdfPig" />
     <PackageReference Include="Grpc.Tools">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

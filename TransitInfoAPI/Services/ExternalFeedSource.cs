@@ -7,7 +7,14 @@ using TransitInfoAPI.Entities;
 
 namespace TransitInfoAPI.Services;
 
-public class ExternalFeedSource : IFeedSource
+/// <summary>
+/// Fetches a feed's raw bytes over HTTP, with the SSRF and size guards every caller needs.
+/// <para>
+/// Deliberately format-blind: <see cref="GtfsZipSource"/> composes it for GTFS archives, and the
+/// realtime and mobility pollers use it directly for protobuf and GBFS.
+/// </para>
+/// </summary>
+public class ExternalFeedSource
 {
     /// <summary>
     /// Hard ceiling on a single feed download. Feeds are buffered in memory before hashing, so an

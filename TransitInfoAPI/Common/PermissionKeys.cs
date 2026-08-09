@@ -7,6 +7,9 @@ public static class PermissionKeys
 
     public const string FeedVersionsView = "feedversions.view";
 
+    public const string CustomSourcesView = "customsources.view";
+    public const string CustomSourcesManage = "customsources.manage";
+
     public const string OperatorsView = "operators.view";
     public const string OperatorsManage = "operators.manage";
 
@@ -39,6 +42,7 @@ public static class PermissionKeys
     public static readonly string[] All =
     [
         FeedsView, FeedsManage, FeedVersionsView,
+        CustomSourcesView, CustomSourcesManage,
         OperatorsView, OperatorsManage, StationsView, StationsManage,
         RoutesView, RoutesManage, RealtimeView, MobilityView,
         AgenciesView, PlacesView, CountriesView, CountriesManage,
@@ -51,6 +55,8 @@ public static class PermissionKeys
         [FeedsView] = ("View Feeds", "List and view GTFS feeds", "Feeds"),
         [FeedsManage] = ("Manage Feeds", "Create, update, delete, import feeds", "Feeds"),
         [FeedVersionsView] = ("View Feed Versions", "List feed versions and logs", "Feeds"),
+        [CustomSourcesView] = ("View Custom Sources", "List and inspect non-GTFS sources", "Feeds"),
+        [CustomSourcesManage] = ("Manage Custom Sources", "Create, edit, preview and run non-GTFS sources", "Feeds"),
         [OperatorsView] = ("View Operators", "List and view operators", "Operators"),
         [OperatorsManage] = ("Manage Operators", "Create, update, delete operators", "Operators"),
         [StationsView] = ("View Stations", "List and view stations", "Stations"),

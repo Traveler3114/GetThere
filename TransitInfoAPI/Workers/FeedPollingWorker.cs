@@ -53,10 +53,10 @@ public class FeedPollingWorker : BackgroundService
         using (var scope = _scopeFactory.CreateScope())
         {
             var feedManager = scope.ServiceProvider.GetRequiredService<FeedManager>();
-            staticFeeds = await feedManager.GetActiveGtfsFeedsAsync(ct);
+            staticFeeds = await feedManager.GetActiveImportableFeedsAsync(ct);
         }
 
-        _logger.LogInformation("Checking {Count} active GTFS-static feeds", staticFeeds.Count);
+        _logger.LogInformation("Checking {Count} active importable feeds", staticFeeds.Count);
 
         await Parallel.ForEachAsync(staticFeeds, new ParallelOptions
         {

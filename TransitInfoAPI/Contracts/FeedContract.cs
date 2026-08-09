@@ -15,6 +15,9 @@ public class FeedResponse
     public bool IsInternal { get; set; }
     public int RefreshIntervalSeconds { get; set; }
     public string? OperatorName { get; set; }
+
+    /// <summary>Set when this feed is backed by a custom source rather than a GTFS archive URL.</summary>
+    public int? CustomSourceId { get; set; }
     public string? LicenseName { get; set; }
     public string? LicenseUrl { get; set; }
     public bool? LicenseCommercialUseAllowed { get; set; }
@@ -39,6 +42,12 @@ public class FeedVersionResponse
     public int RouteCount { get; set; }
     public int TripCount { get; set; }
     public int AgencyCount { get; set; }
+
+    /// <summary>StopsOnly, Network or Schedule — how much of a network this version carries.</summary>
+    public string Completeness { get; set; } = string.Empty;
+
+    /// <summary>Comma-separated sections that were inferred rather than read from the source.</summary>
+    public string? SynthesizedSections { get; set; }
 }
 
 /// <summary>Request body for creating a new feed.</summary>
@@ -53,6 +62,9 @@ public record CreateFeedRequest
     public string FeedId { get; set; } = string.Empty;
     [JsonPropertyName("externalUrl"), Url] public string? Url { get; set; }
     [Range(60, int.MaxValue)] public int RefreshIntervalSeconds { get; set; } = 3600;
+
+    /// <summary>Set instead of a URL to back this feed with a non-GTFS source.</summary>
+    public int? CustomSourceId { get; set; }
 }
 
 /// <summary>Request body for updating an existing feed.</summary>

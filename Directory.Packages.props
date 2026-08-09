@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
 
   <!--
     Central package management. Versions were previously repeated across four .csproj files, so a
@@ -59,6 +59,8 @@
 
   <ItemGroup Label="Transit data">
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
+    <PackageVersion Include="AngleSharp" Version="1.7.1" />
+    <PackageVersion Include="ClosedXML" Version="0.104.2" />
     <PackageVersion Include="Google.Protobuf" Version="3.35.1" />
     <PackageVersion Include="Grpc.Tools" Version="2.82.0" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />

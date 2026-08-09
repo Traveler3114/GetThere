@@ -61,12 +61,21 @@ Comparing the baseline's tables against the live schema showed the squash was no
 Verified afterwards: 9 auth tables present, `StopTimes` still 4,242,325 rows, TransitInfoAPI starts
 and answers `/health` with 200.
 
-## Left behind
+## Left behind — resolved
 
-The five `CustomFeed*` tables are now orphans — the current model has no entities for them, so EF
-ignores them entirely. They still hold data (597 `CustomFeedRuns`, 4 table configs, 27 field
-mappings). Decide whether that feature is coming back; if not, drop them in a migration. They are
-harmless where they are.
+The five `CustomFeed*` tables were orphans: the model had no entities for them, so EF ignored them
+entirely while they went on holding data (597 `CustomFeedRuns`, 4 table configs, 27 field mappings).
+
+**Dropped in `20260808133107_AddCustomSources`**, along with one more orphan the audit above missed:
+`Feeds.CustomFeedId`, a column *and* foreign key that outlived the entity property mapping it. That
+FK is why the first attempt at the drop failed with "Could not drop object 'CustomFeeds' because it
+is referenced by a FOREIGN KEY constraint" — worth knowing if another environment is still on the
+pre-drop schema, because the same order applies there: drop `FK_Feeds_CustomFeeds_CustomFeedId` and
+the column, then the five tables children-first.
+
+The replacement is the `CustomSource*` set in the same migration. It models the same problem
+differently — one request per `TransitDocument` section rather than per output table — so nothing was
+migrated forward and the old rows are gone. Restore from backup if that history matters.
 
 ## If another environment was stamped the same way
 
