@@ -33,7 +33,11 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey == "CHANGE-ME" || Encoding.UTF8.
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
-builder.Services.AddMemoryCache();
+// Bounded, matching GetThereAPI. An unbounded IMemoryCache has no eviction pressure at all: it grows
+// until the GC's memory-pressure heuristics happen to trim it, which is not a policy. Both consumers
+// here — ScheduleManager's service-calendar sets and SharedAuth's claims cache — already declare
+// Size = 1 on their entries in anticipation of this, so the limit is an entry count.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 2_000);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
@@ -245,6 +249,11 @@ builder.Services.AddRateLimiter(limiter =>
 
 builder.Services.AddResponseCompression(options =>
 {
+    // See GetThereAPI's identical note: this defaults to false, so with UseHttpsRedirection in the
+    // pipeline nothing was ever compressed. It matters more here than there — the anonymous station
+    // and route GeoJSON reads return up to 5000 features each, straight to the public map page.
+    options.EnableForHttps = true;
+
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });

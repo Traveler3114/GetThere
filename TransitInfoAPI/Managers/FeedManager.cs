@@ -1400,7 +1400,16 @@ public class FeedManager
             await errConn.OpenAsync(ct);
             await using var cmd = errConn.CreateCommand();
             cmd.CommandText = "UPDATE FeedVersions SET ImportStatus = @status, ImportError = @error WHERE Id = @id";
-            cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@status", (int)FeedImportStatus.Failed));
+
+            // The enum NAME, not its ordinal. TransitDbContext applies EnumToStringConverter to every
+            // enum property in the model, so ImportStatus is an nvarchar holding "Failed" — and this
+            // raw command bypasses EF entirely, so nothing was applying that conversion. Passing
+            // (int)FeedImportStatus.Failed made SQL Server implicitly convert it and store the string
+            // "3", which no EF query could find: every `Where(fv => fv.ImportStatus ==
+            // FeedImportStatus.Failed)` compiles to `WHERE ImportStatus = N'Failed'` and matched
+            // none of the rows this method had written. Failed imports were invisible to the admin
+            // console's status filter for exactly that reason.
+            cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@status", nameof(FeedImportStatus.Failed)));
             cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@error", ex.InnerException?.Message ?? ex.Message));
             cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@id", feedVersionId));
             await cmd.ExecuteNonQueryAsync(ct);

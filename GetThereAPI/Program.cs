@@ -213,6 +213,16 @@ builder.Services.AddRateLimiter(limiter =>
 
 builder.Services.AddResponseCompression(options =>
 {
+    // Without this the whole registration is inert in every environment that matters: it defaults
+    // to false, UseHttpsRedirection sends every caller to https, and so nothing was ever compressed
+    // outside a plain-http local run.
+    //
+    // The default exists because of BREACH, which needs a secret in the response body and an
+    // attacker able to inject into the same body. Neither holds here: these responses carry the
+    // caller's own data or public transit reference data, and the API is stateless bearer-token
+    // authentication with no CSRF token or session cookie reflected anywhere in a payload.
+    options.EnableForHttps = true;
+
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });

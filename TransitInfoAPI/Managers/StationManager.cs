@@ -23,6 +23,12 @@ public class StationManager
     public StationManager(TransitDbContext db, ScheduleManager schedule, IConfiguration config) { _db = db; _schedule = schedule; _config = config; }
 
     /// <summary>
+    /// Shortest search term that actually filters. Below this the term is ignored — see
+    /// <see cref="BuildQuery"/> for why that is better than rejecting it.
+    /// </summary>
+    internal const int MinimumSearchTermLength = 3;
+
+    /// <summary>
     /// The one definition of what filters a station list. Every read below composes it, and so does
     /// <see cref="GetTotalCountAsync"/>.
     /// <para>
@@ -54,8 +60,25 @@ public class StationManager
         else
             query = query.Where(cs => cs.StationType == StationType.Stop);
 
-        if (!string.IsNullOrWhiteSpace(q))
-            query = query.Where(cs => cs.Name.Contains(q));
+        // Still Contains, deliberately, despite `LIKE '%q%'` being unable to use an index: station
+        // names are searched by their middle at least as often as their start — "Glavni" has to find
+        // "Zagreb Glavni Kolodvor" — and a prefix match would quietly break the public map's search
+        // box to make it fast.
+        //
+        // The floor is what stops the scan being free to trigger. This endpoint is anonymous and the
+        // map calls it per keystroke, so a one- or two-character query used to scan the whole table
+        // before the user had typed anything selective. Below the floor the term is ignored rather
+        // than rejected: the caller still gets a valid (unfiltered) page, which is what the search
+        // box wants while someone is still typing.
+        //
+        // The durable fix is a full-text index on CanonicalStations.Name and CONTAINS() instead of
+        // LIKE. That needs a migration, which could not be generated here — see
+        // docs/database-drift.md for the other one owed.
+        if (!string.IsNullOrWhiteSpace(q) && q.Trim().Length >= MinimumSearchTermLength)
+        {
+            var term = q.Trim();
+            query = query.Where(cs => cs.Name.Contains(term));
+        }
 
         if (routeType.HasValue)
             query = query.Where(cs => cs.PrimaryRouteType == routeType.Value);
@@ -259,8 +282,76 @@ public class StationManager
                 .ToListAsync(ct);
             var stationLineIds = stationRoutes.Select(r => r.Display).ToHashSet();
 
-            // Filled on first use inside the loop below and reused for the rest of the request.
-            Dictionary<string, HashSet<int>>? stationByLine = null;
+            // ── Everything the loop below needs, loaded once ──────────────────────────────────
+            //
+            // These three reads used to sit *inside* the candidate loop, one or two round trips per
+            // iteration against an unbounded candidate list — a station with 200 raw stops cost
+            // roughly 400 queries to render one page. Only stationByLine had been hoisted, and only
+            // as far as "fill it on first use", which still left the other two per-candidate.
+            //
+            // Each is the same query the loop issued, widened from one raw stop to all of them and
+            // grouped in memory afterwards. The Contains lists are not chunked: EF Core translates
+            // them to OPENJSON on SQL Server rather than to a parameter per element, so the old
+            // 2100-parameter ceiling does not apply.
+            var loopRawStopIds = candidates
+                .Where(c => c.RawStop is not null)
+                .Select(c => c.RawStop!.Id)
+                .Distinct()
+                .ToList();
+
+            var linesByRawStop = (await _db.StopTimes
+                    .Where(st => st.RawStopEntityId != null
+                        && loopRawStopIds.Contains(st.RawStopEntityId.Value)
+                        && st.Trip.CanonicalRoute != null)
+                    .Select(st => new
+                    {
+                        RawStopId = st.RawStopEntityId!.Value,
+                        Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
+                            ? st.Trip.CanonicalRoute!.ShortName
+                            : st.Trip.CanonicalRoute!.LongName
+                    })
+                    .Distinct()
+                    .ToListAsync(ct))
+                .GroupBy(x => x.RawStopId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.Line).ToHashSet());
+
+            var directionsByRawStop = (await _db.StopTimes
+                    .Where(st => st.RawStopEntityId != null
+                        && loopRawStopIds.Contains(st.RawStopEntityId.Value)
+                        && st.Trip.CanonicalRoute != null
+                        && st.Trip.DirectionId.HasValue)
+                    .Select(st => new
+                    {
+                        RawStopId = st.RawStopEntityId!.Value,
+                        Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
+                            ? st.Trip.CanonicalRoute!.ShortName
+                            : st.Trip.CanonicalRoute!.LongName,
+                        st.Trip.DirectionId
+                    })
+                    .Distinct()
+                    .ToListAsync(ct))
+                .GroupBy(x => x.RawStopId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(x => x.Line)
+                          .ToDictionary(l => l.Key, l => l.Select(x => x.DirectionId!.Value).ToHashSet()));
+
+            // Depends only on the station id, so it returned identical rows on every iteration.
+            var stationByLine = (await _db.StopTimes
+                    .Where(st => st.CanonicalStationId == id
+                        && st.Trip.CanonicalRoute != null
+                        && st.Trip.DirectionId.HasValue)
+                    .Select(st => new
+                    {
+                        Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
+                            ? st.Trip.CanonicalRoute!.ShortName
+                            : st.Trip.CanonicalRoute!.LongName,
+                        st.Trip.DirectionId
+                    })
+                    .Distinct()
+                    .ToListAsync(ct))
+                .GroupBy(d => d.Line)
+                .ToDictionary(g => g.Key, g => g.Select(d => d.DirectionId!.Value).ToHashSet());
 
             foreach (var candidate in candidates)
             {
@@ -283,61 +374,18 @@ public class StationManager
 
                 if (candidate.RawStop is not null)
                 {
-                    var rawStopRoutes = await _db.CanonicalRoutes
-                        .Where(r => _db.StopTimes.Any(st =>
-                            st.RawStopEntityId == candidate.RawStop.Id
-                            && st.Trip.CanonicalRouteId == r.Id))
-                        .Select(r => new
-                        {
-                            r.ShortName,
-                            r.LongName,
-                            Display = r.ShortName != null && r.ShortName != "" ? r.ShortName : r.LongName
-                        })
-                        .Distinct()
-                        .ToListAsync(ct);
-
-                    var rawLineIds = rawStopRoutes.Select(r => r.Display).ToHashSet();
+                    // Both lookups are dictionary hits now. A raw stop with no rows in either read
+                    // simply has no lines, which is what the queries returned for it before.
+                    HashSet<string> rawLineIds = linesByRawStop.TryGetValue(candidate.RawStop.Id, out var lines)
+                        ? lines
+                        : [];
 
                     matchedLines = rawLineIds.Intersect(stationLineIds).OrderBy(x => x).ToList();
                     unmatchedLines = rawLineIds.Except(stationLineIds).OrderBy(x => x).ToList();
 
-                    if (matchedLines.Count > 0)
+                    if (matchedLines.Count > 0
+                        && directionsByRawStop.TryGetValue(candidate.RawStop.Id, out var rawByLine))
                     {
-                        var rawDirections = await _db.StopTimes
-                            .Where(st => st.RawStopEntityId == candidate.RawStop.Id
-                                && st.Trip.CanonicalRoute != null
-                                && st.Trip.DirectionId.HasValue)
-                            .Select(st => new
-                            {
-                                Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
-                                    ? st.Trip.CanonicalRoute!.ShortName
-                                    : st.Trip.CanonicalRoute!.LongName,
-                                st.Trip.DirectionId
-                            })
-                            .Distinct()
-                            .ToListAsync(ct);
-
-                        // Loaded once for the whole request rather than per candidate: this query
-                        // depends only on the station id, so it returned identical rows on every
-                        // iteration of the loop.
-                        stationByLine ??= (await _db.StopTimes
-                                .Where(st => st.CanonicalStationId == id
-                                    && st.Trip.CanonicalRoute != null
-                                    && st.Trip.DirectionId.HasValue)
-                                .Select(st => new
-                                {
-                                    Line = st.Trip.CanonicalRoute!.ShortName != null && st.Trip.CanonicalRoute!.ShortName != ""
-                                        ? st.Trip.CanonicalRoute!.ShortName
-                                        : st.Trip.CanonicalRoute!.LongName,
-                                    st.Trip.DirectionId
-                                })
-                                .Distinct()
-                                .ToListAsync(ct))
-                            .GroupBy(d => d.Line)
-                            .ToDictionary(g => g.Key, g => g.Select(d => d.DirectionId!.Value).ToHashSet());
-
-                        var rawByLine = rawDirections.GroupBy(d => d.Line).ToDictionary(g => g.Key, g => g.Select(d => d.DirectionId!.Value).ToHashSet());
-
                         foreach (var line in matchedLines)
                         {
                             if (!rawByLine.TryGetValue(line, out var rDirs) || !stationByLine.TryGetValue(line, out var sDirs))
