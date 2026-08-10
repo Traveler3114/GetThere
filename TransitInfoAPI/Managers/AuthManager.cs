@@ -159,12 +159,43 @@ public class AuthManager
                 oldValues: existingRefreshToken.IpAddress, newValues: ipAddress);
         }
 
-        existingRefreshToken.RevokedAt = DateTime.UtcNow;
-
         var newRawRefreshToken = _tokenManager.GenerateRefreshToken();
         var newHashedRefreshToken = _tokenManager.HashToken(newRawRefreshToken);
         var wasRememberMeToken = _tokenManager.IsRememberMeRefreshToken(
             existingRefreshToken.CreatedAt, existingRefreshToken.ExpiresAt);
+
+        // Claim the token before issuing a successor, in one conditional statement. Kept identical
+        // to GetThereAPI's — the rules live in SharedAuth.RefreshTokenEvaluator so the two services
+        // cannot disagree about what counts as theft, and this is the write that makes the rules
+        // enforceable rather than advisory.
+        //
+        // The read-modify-write it replaces let two concurrent presentations of the same token both
+        // pass Evaluate as Rotate and both mint a valid successor, because neither had written
+        // ReplacedByToken when the other read it. Rotation only detects reuse if rotating is atomic.
+        var rotatedAt = DateTime.UtcNow;
+        var claimed = await _db.RefreshTokens
+            .Where(rt => rt.Id == existingRefreshToken.Id
+                && rt.RevokedAt == null
+                && rt.ReplacedByToken == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(rt => rt.RevokedAt, rotatedAt)
+                .SetProperty(rt => rt.ReplacedByToken, newHashedRefreshToken), ct);
+
+        if (claimed == 0)
+        {
+            // Lost the race, which is the same event as presenting an already-rotated token: assume
+            // theft and revoke the family.
+            var racedRevokedAt = DateTime.UtcNow;
+            var raced = await _db.RefreshTokens
+                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.RevokedAt == null && rt.ExpiresAt > racedRevokedAt)
+                .ToListAsync(ct);
+            foreach (var t in raced)
+                t.RevokedAt = racedRevokedAt;
+
+            LogAudit(existingRefreshToken.UserId, "RefreshTokenReuseDetected", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
+            await _db.SaveChangesAsync(ct);
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
 
         var newRefreshTokenEntity = new RefreshToken
         {
@@ -175,7 +206,6 @@ public class AuthManager
             IpAddress = ipAddress
         };
 
-        existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
         _db.RefreshTokens.Add(newRefreshTokenEntity);
 
         LogAudit(existingRefreshToken.UserId, "TokenRefresh", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));

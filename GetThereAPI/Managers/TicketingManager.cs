@@ -382,11 +382,16 @@ public class TicketingManager
         // inserted — and the two writers are a designed-in pair (the live path and the sweep), not a
         // hypothetical.
         //
-        // The durable fix is a filtered unique index on (Type, ReferenceId), which needs a migration.
-        // Until that exists, the check is moved inside the transaction and made lock-taking:
-        // UPDLOCK + HOLDLOCK takes a range lock on the key being tested, so a second writer asking
-        // the same question blocks here until the first commits, and then sees the row it wrote.
-        // That is the part an EF `AnyAsync` cannot express, which is why it is raw SQL.
+        // The check is inside the transaction and lock-taking: UPDLOCK + HOLDLOCK takes a range lock
+        // on the key being tested, so a second writer asking the same question blocks here until the
+        // first commits, and then sees the row it wrote. That is the part an EF `AnyAsync` cannot
+        // express, which is why it is raw SQL.
+        //
+        // The filtered unique index on (Type, ReferenceId) that this wanted now exists in the model
+        // — see AppDbContext — which is what makes the lock cheap. Without it neither column could
+        // be indexed at all (both were nvarchar(max)), so this range lock was taken over a full
+        // table scan and serialised every refund in the system against every other. The index is
+        // also the backstop: a writer that somehow passed this check still collides on insert.
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         var refundMarker = WalletTransactionType.Refund.ToString();
         var existingRefunds = await _db.Database

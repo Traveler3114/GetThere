@@ -49,14 +49,34 @@ builder.Services.AddHealthChecks()
 // Inert unless Otel:Endpoint is configured. See SharedAuth.TelemetryRegistration.
 builder.Services.AddSharedTelemetry(builder.Configuration, "TransitInfoAPI");
 
-builder.Services.AddHttpClient("gtfs", client =>
+// Both clients fetch operator-supplied URLs, so both connect through the SSRF guard.
+//
+// The guard lives on the handler rather than only in front of the call because a pre-flight DNS
+// check cannot close the window between resolving a name and connecting to it — see
+// ExternalFeedSource.ConnectToPublicOnlyAsync. Putting it here also covers redirect hops, which the
+// pre-flight check could only catch after the response had already been fetched.
+//
+// Feeds:AllowPrivateNetworkUrls is the development escape hatch, and it has to be honoured here as
+// well as in the callers, or a locally hosted GTFS zip becomes unreachable.
+var allowPrivateFeedNetworks = builder.Configuration.GetValue("Feeds:AllowPrivateNetworkUrls", false);
+
+static void ConfigureFeedHandler(IHttpClientBuilder http, bool allowPrivateNetworks) =>
+    http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        ConnectCallback = allowPrivateNetworks
+            ? null
+            : TransitInfoAPI.Services.ExternalFeedSource.ConnectToPublicOnlyAsync
+    });
+
+ConfigureFeedHandler(builder.Services.AddHttpClient("gtfs", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(10);
-});
-builder.Services.AddHttpClient("gtfsrt", client =>
+}), allowPrivateFeedNetworks);
+
+ConfigureFeedHandler(builder.Services.AddHttpClient("gtfsrt", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}), allowPrivateFeedNetworks);
 
 builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
 builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("FeedImport"));

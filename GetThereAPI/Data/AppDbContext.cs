@@ -78,6 +78,26 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.Property(wt => wt.Amount).HasPrecision(18, 2);
             entity.Property(wt => wt.BalanceBefore).HasPrecision(18, 2);
             entity.Property(wt => wt.BalanceAfter).HasPrecision(18, 2);
+
+            // Lengths are explicit so these two columns can be indexed at all. Both were unbounded,
+            // which makes them nvarchar(max), and SQL Server cannot index that — so the duplicate-
+            // refund guard in TicketingManager.RefundAsync, which reads
+            // WHERE Type = @type AND ReferenceId = @ref WITH (UPDLOCK, HOLDLOCK),
+            // had no index to seek and took its range lock over a full table scan instead. Every
+            // refund therefore serialised against every other refund and blocked inserts of any
+            // wallet transaction for the length of the transaction.
+            entity.Property(wt => wt.Type).HasMaxLength(32);
+            entity.Property(wt => wt.ReferenceId).HasMaxLength(64);
+
+            // Filtered unique: a purchase may be refunded exactly once. This is the durable form of
+            // the guard RefundAsync currently spells out by hand — with it, a second writer collides
+            // on insert rather than depending on having taken the right lock first. Filtered because
+            // only refunds carry a ReferenceId; every other transaction type leaves it null, and
+            // SQL Server treats nulls as equal in a unique index.
+            entity.HasIndex(wt => new { wt.Type, wt.ReferenceId })
+                  .IsUnique()
+                  .HasFilter("[ReferenceId] IS NOT NULL AND [Type] = 'Refund'");
+
             entity.HasOne(wt => wt.Wallet)
                   .WithMany(w => w.Transactions)
                   .HasForeignKey(wt => wt.WalletId);

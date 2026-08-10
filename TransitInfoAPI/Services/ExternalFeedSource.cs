@@ -126,7 +126,52 @@ public class ExternalFeedSource
                 $"Feed host '{uri.Host}' resolves to a non-public address.", 400, "INVALID_FEED_URL");
     }
 
-    private static bool IsInternal(IPAddress address)
+    /// <summary>
+    /// Connects only to addresses <see cref="IsInternal"/> accepts, and is what actually enforces
+    /// the SSRF rule.
+    /// <para>
+    /// <see cref="EnsurePublicDestination"/> alone could not: it resolves the name, and then
+    /// <c>HttpClient</c> resolves it again when it connects. A record with a short TTL that answers
+    /// public on the first lookup and <c>169.254.169.254</c> on the second walks straight past the
+    /// check — the classic DNS-rebinding bypass. Deciding at connect time removes the window,
+    /// because the address vetted here is the address the socket is opened to.
+    /// </para>
+    /// <para>
+    /// It also covers redirects, which the pre-flight check could only ever handle after the fact.
+    /// The callback runs for <em>every</em> connection the handler makes, so a 302 into the private
+    /// network fails at the hop rather than being noticed once the body is already read.
+    /// </para>
+    /// </summary>
+    public static async ValueTask<Stream> ConnectToPublicOnlyAsync(
+        SocketsHttpConnectionContext context, CancellationToken ct)
+    {
+        var host = context.DnsEndPoint.Host;
+
+        IPAddress[] addresses = IPAddress.TryParse(host, out var literal)
+            ? [literal]
+            : await Dns.GetHostAddressesAsync(host, ct);
+
+        // Every candidate must be public. Filtering to the acceptable ones rather than rejecting the
+        // whole set on one bad entry would let a host publish one public and one private address and
+        // still be reachable on the private one by a later connection.
+        if (addresses.Length == 0 || addresses.Any(IsInternal))
+            throw new Exceptions.AppException(
+                $"Feed host '{host}' resolves to a non-public address.", 400, "INVALID_FEED_URL");
+
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(addresses, context.DnsEndPoint.Port, ct);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
+
+    internal static bool IsInternal(IPAddress address)
     {
         if (IPAddress.IsLoopback(address) || address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast)
             return true;
@@ -146,10 +191,13 @@ public class ExternalFeedSource
         {
             0 => true,                                          // 0.0.0.0/8
             10 => true,                                         // 10.0.0.0/8
+            100 when octets[1] >= 64 && octets[1] <= 127 => true,// 100.64.0.0/10 carrier-grade NAT
             127 => true,                                        // loopback
             169 when octets[1] == 254 => true,                  // link-local, incl. 169.254.169.254 metadata
             172 when octets[1] >= 16 && octets[1] <= 31 => true, // 172.16.0.0/12
-            192 when octets[1] == 168 => true,                  // 192.168.0.0/16
+            192 when octets[1] == 0 && octets[2] == 0 => true,   // 192.0.0.0/24 IETF protocol assignments
+            192 when octets[1] == 168 => true,                   // 192.168.0.0/16
+            198 when octets[1] is 18 or 19 => true,              // 198.18.0.0/15 benchmarking
             >= 224 => true,                                     // multicast + reserved
             _ => false
         };

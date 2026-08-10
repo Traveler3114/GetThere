@@ -42,6 +42,21 @@ public partial class CustomSourceEngine
     private const int MaxPages = 500;
     private const int MaxRows = 500_000;
 
+    /// <summary>
+    /// Ceiling on a single response body.
+    /// <para>
+    /// These reads were <c>ReadAsStringAsync</c> with no bound at all, in a loop of up to
+    /// <see cref="MaxPages"/> pages — a hostile or merely broken operator endpoint could hand back
+    /// an endless body and exhaust the server's memory. <see cref="ExternalFeedSource"/> has capped
+    /// its downloads at 512 MB since it was written; this path never did.
+    /// </para>
+    /// <para>
+    /// Much smaller than the feed ceiling on purpose: these are JSON/CSV/XML pages of rows, not
+    /// whole GTFS archives, and 32 MB of any of them is already far past what a page should carry.
+    /// </para>
+    /// </summary>
+    private const long MaxResponseBytes = 32L * 1024 * 1024;
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly IHttpClientFactory _httpFactory;
@@ -106,7 +121,20 @@ public partial class CustomSourceEngine
                 break;
             }
 
-            var body = await response.Content.ReadAsStringAsync(ct);
+            if (!EnsureCredentialStayedHome(message, response, authConfig, result, request.TargetSection.ToString()))
+                break;
+
+            string body;
+            try
+            {
+                body = await ReadCappedAsync(response, ct);
+            }
+            catch (Exceptions.AppException ex)
+            {
+                result.Warnings.Add($"{request.TargetSection}: {ex.Message}");
+                break;
+            }
+
             result.Log.Add($"{request.TargetSection}: page {page + 1}, {body.Length:N0} chars");
 
             var pageRows = request.Format switch
@@ -169,7 +197,82 @@ public partial class CustomSourceEngine
 
         using var response = await http.SendAsync(message, ct);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync(ct);
+
+        var discovery = new ExtractionResult();
+        if (!EnsureCredentialStayedHome(message, response, authConfig, discovery, "discover"))
+            throw new Exceptions.AppException(discovery.Warnings[^1], 502, "REDIRECTED_OFF_HOST");
+
+        return await ReadCappedAsync(response, ct);
+    }
+
+    /// <summary>
+    /// Reads a response body, aborting past <see cref="MaxResponseBytes"/> so a lying or absent
+    /// Content-Length cannot exhaust memory.
+    /// </summary>
+    private static async Task<string> ReadCappedAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.Content.Headers.ContentLength > MaxResponseBytes)
+            throw new Exceptions.AppException(
+                $"Response exceeds the {MaxResponseBytes / (1024 * 1024)} MB limit.", 413, "RESPONSE_TOO_LARGE");
+
+        await using var source = await response.Content.ReadAsStreamAsync(ct);
+        using var buffer = new MemoryStream();
+
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await source.ReadAsync(chunk, ct)) > 0)
+        {
+            if (buffer.Length + read > MaxResponseBytes)
+                throw new Exceptions.AppException(
+                    $"Response exceeds the {MaxResponseBytes / (1024 * 1024)} MB limit.", 413, "RESPONSE_TOO_LARGE");
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        // The charset the server declared, falling back to UTF-8. Reading bytes rather than letting
+        // HttpContent decode is what makes the cap enforceable, so the decode happens here instead.
+        var encoding = Encoding.UTF8;
+        var charset = response.Content.Headers.ContentType?.CharSet;
+        if (!string.IsNullOrWhiteSpace(charset))
+        {
+            try { encoding = Encoding.GetEncoding(charset.Trim('"')); }
+            catch (ArgumentException) { /* unknown charset — UTF-8 is the better guess than failing */ }
+        }
+
+        return encoding.GetString(buffer.ToArray());
+    }
+
+    /// <summary>
+    /// Refuses a response that arrived on a different host than the one the credential was attached
+    /// to.
+    /// <para>
+    /// <c>HttpClient</c> strips <c>Authorization</c> when a redirect crosses origins, but it does not
+    /// strip anything else — and <see cref="ApplyAuth"/>'s <c>header</c> mode sets an arbitrary
+    /// header name, typically an API key. A source that redirects off-host therefore handed the
+    /// operator's key to wherever it pointed. The connect-time SSRF guard stops that being an
+    /// internal address; it cannot stop it being someone else's public server.
+    /// </para>
+    /// <para>
+    /// Only checked when a credential was actually applied: an unauthenticated source is free to
+    /// redirect wherever it likes.
+    /// </para>
+    /// </summary>
+    private static bool EnsureCredentialStayedHome(
+        HttpRequestMessage message, HttpResponseMessage response, string? authConfig,
+        ExtractionResult result, string section)
+    {
+        if (string.IsNullOrWhiteSpace(authConfig)) return true;
+
+        var requested = message.RequestUri;
+        var final = response.RequestMessage?.RequestUri;
+        if (requested is null || final is null) return true;
+
+        if (string.Equals(requested.Host, final.Host, StringComparison.OrdinalIgnoreCase)) return true;
+
+        result.Warnings.Add(
+            $"{section}: request to {requested.Host} was redirected to {final.Host} while carrying a credential — "
+            + "refusing the response. Point the source at its final address instead.");
+        return false;
     }
 
     /// <summary>
