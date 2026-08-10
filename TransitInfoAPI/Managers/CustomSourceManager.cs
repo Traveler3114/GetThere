@@ -21,6 +21,7 @@ public class CustomSourceManager
 
     private readonly IWebHostEnvironment _env;
     private readonly CustomExtractorRegistry _extractors;
+    private readonly SecretProtector _secrets;
 
     public CustomSourceManager(
         TransitDbContext db,
@@ -29,6 +30,7 @@ public class CustomSourceManager
         FeedManager feeds,
         IWebHostEnvironment env,
         CustomExtractorRegistry extractors,
+        SecretProtector secrets,
         ILogger<CustomSourceManager> logger)
     {
         _db = db;
@@ -37,6 +39,7 @@ public class CustomSourceManager
         _feeds = feeds;
         _env = env;
         _extractors = extractors;
+        _secrets = secrets;
         _logger = logger;
     }
 
@@ -146,7 +149,8 @@ public class CustomSourceManager
             Name = request.Name,
             Kind = ParseEnum<CustomSourceKind>(request.Kind, nameof(request.Kind)),
             ExtractorKey = request.ExtractorKey,
-            AuthConfig = request.AuthConfig,
+            // Encrypted before it reaches the column. See SecretProtector.
+            AuthConfig = _secrets.Protect(request.AuthConfig),
             RefreshIntervalSeconds = request.RefreshIntervalSeconds,
             ServiceWindowStart = request.ServiceWindowStart,
             ServiceWindowEnd = request.ServiceWindowEnd,
@@ -178,7 +182,9 @@ public class CustomSourceManager
         if (request.Name is not null) source.Name = request.Name;
         if (request.Kind is not null) source.Kind = ParseEnum<CustomSourceKind>(request.Kind, nameof(request.Kind));
         if (request.ExtractorKey is not null) source.ExtractorKey = request.ExtractorKey;
-        if (request.AuthConfig is not null) source.AuthConfig = request.AuthConfig;
+        // Null means "leave the stored credential alone", which is what lets the editor render a
+        // source without ever being sent the secret it holds. An empty string clears it.
+        if (request.AuthConfig is not null) source.AuthConfig = _secrets.Protect(request.AuthConfig);
         if (request.RefreshIntervalSeconds is { } interval) source.RefreshIntervalSeconds = interval;
         if (request.IsActive is { } active) source.IsActive = active;
         if (request.ServiceWindowStart is { } start) source.ServiceWindowStart = start;
@@ -250,7 +256,7 @@ public class CustomSourceManager
         string body;
         try
         {
-            body = await _engine.FetchRawAsync(request, source.AuthConfig, ct);
+            body = await _engine.FetchRawAsync(request, _secrets.Unprotect(source.AuthConfig), ct);
         }
         catch (HttpRequestException ex)
         {

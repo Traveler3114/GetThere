@@ -367,3 +367,14 @@ FodyWeavers.xsd
 secrets.json
 appsettings.*.local.json
 
+# Runtime storage roots. These hold files real users and operators uploaded, and both had already
+# been committed once: a user's ticket image under GetThereAPI/ticket-files/<their user id>/, and
+# three operator spreadsheets under TransitInfoAPI/custom-sources/4/. /TransitInfoAPI/feeds above
+# was ignored for exactly this reason; these two were missed when they were added.
+#
+# The paths match LocalTicketFileStore's default root (ContentRootPath + "ticket-files") and
+# CustomSourceStorage's ("custom-sources"). A deployment that sets TicketFiles:RootPath elsewhere
+# should keep that location outside the working tree.
+/GetThereAPI/ticket-files/
+/TransitInfoAPI/custom-sources/
+

@@ -54,7 +54,12 @@ async function load() {
   document.getElementById('fWindowStart').value = model.serviceWindowStart || '';
   document.getElementById('fWindowEnd').value = model.serviceWindowEnd || '';
   document.getElementById('fExtractor').value = model.extractorKey || '';
-  document.getElementById('fAuth').value = model.authConfig || '';
+  // Deliberately not populated from the model: the server no longer returns the credential, only
+  // whether one exists. Blank means "keep what is stored" on save.
+  document.getElementById('fAuth').value = '';
+  document.getElementById('fAuthState').textContent = model.hasAuth
+    ? 'A credential is stored. Leave blank to keep it, or type a new one to replace it.'
+    : 'No credential stored.';
   document.getElementById('fActive').checked = !!model.isActive;
 
   renderRequests();

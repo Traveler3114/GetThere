@@ -18,7 +18,8 @@ public static class CustomSourceMapper
         Name = cs.Name,
         Kind = cs.Kind.ToString(),
         ExtractorKey = cs.ExtractorKey,
-        AuthConfig = cs.AuthConfig,
+        // Presence only. The credential itself never leaves the service — see CustomSourceResponse.
+        HasAuth = !string.IsNullOrWhiteSpace(cs.AuthConfig),
         RefreshIntervalSeconds = cs.RefreshIntervalSeconds,
         IsActive = cs.IsActive,
         ServiceWindowStart = cs.ServiceWindowStart,

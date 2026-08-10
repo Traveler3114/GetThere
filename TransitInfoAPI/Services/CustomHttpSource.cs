@@ -29,6 +29,7 @@ public class CustomHttpSource : ITransitSource
     private readonly IWebHostEnvironment _env;
     private readonly CustomExtractorRegistry _extractors;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly SecretProtector _secrets;
     private readonly ILogger<CustomHttpSource> _logger;
 
     public CustomHttpSource(
@@ -39,6 +40,7 @@ public class CustomHttpSource : ITransitSource
         IWebHostEnvironment env,
         CustomExtractorRegistry extractors,
         IHttpClientFactory httpFactory,
+        SecretProtector secrets,
         ILogger<CustomHttpSource> logger)
     {
         _db = db;
@@ -48,6 +50,7 @@ public class CustomHttpSource : ITransitSource
         _env = env;
         _extractors = extractors;
         _httpFactory = httpFactory;
+        _secrets = secrets;
         _logger = logger;
     }
 
@@ -248,7 +251,7 @@ public class CustomHttpSource : ITransitSource
 
         foreach (var request in source.Requests.OrderBy(r => r.SortOrder))
         {
-            var extraction = await _engine.ExecuteAsync(request, source.AuthConfig, maxRowsPerRequest, ct);
+            var extraction = await _engine.ExecuteAsync(request, _secrets.Unprotect(source.AuthConfig), maxRowsPerRequest, ct);
             snapshot.Log.AddRange(extraction.Log);
             snapshot.Warnings.AddRange(extraction.Warnings);
 

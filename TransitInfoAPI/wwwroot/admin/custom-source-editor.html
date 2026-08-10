@@ -82,6 +82,12 @@
                 <label class="form-label small">Auth config (JSON)</label>
                 <input class="form-control form-control-sm font-monospace" id="fAuth"
                        placeholder='{"type":"bearer","token":"..."} or {"type":"header","name":"X-Api-Key","value":"..."}'>
+                <!--
+                  Write-only. The server stores this encrypted and never sends it back, so this box
+                  is always blank on load: leaving it blank keeps the stored credential, and typing
+                  a new value replaces it. fAuthState below says which of those is in effect.
+                -->
+                <div class="form-text small" id="fAuthState"></div>
               </div>
               <div class="col-12">
                 <div class="form-check form-switch">

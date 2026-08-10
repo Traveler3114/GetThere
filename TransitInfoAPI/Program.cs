@@ -97,6 +97,12 @@ builder.Services.AddScoped<TransitInfoAPI.Services.CustomHttpSource>();
 builder.Services.AddScoped<TransitDocumentCompleter>();
 builder.Services.AddScoped<CustomSourceManager>();
 
+// Encrypts the operator credentials on CustomSource.AuthConfig, which were previously written to
+// the column in plaintext and returned over the API. See TransitInfoAPI.Services.SecretProtector —
+// note its warning about key-ring persistence before scaling this service out.
+builder.Services.AddDataProtection();
+builder.Services.AddSingleton<TransitInfoAPI.Services.SecretProtector>();
+
 // Auth Managers
 builder.Services.AddScoped<TokenManager>();
 builder.Services.AddScoped<AuthManager>();
@@ -485,11 +491,26 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
     foreach (var perm in PermissionKeys.All.Where(p => !adminClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(adminRole!, new Claim("permission", perm));
 
-    // Add permission claims to Client role (all .view permissions)
+    // Add permission claims to Client role (transit-data .view permissions).
+    //
+    // Narrowed from "every .view permission". Client is the read-only console role, and account
+    // administration is not transit data: users.view returns the user list of this service, and
+    // roles.view its permission model. Neither is something a read-only data account needs, and
+    // granting them by a blanket suffix match meant any future *.view permission — on anything —
+    // was handed to this role automatically the moment it was added to PermissionKeys.All.
     var clientRole = await roleManager.FindByNameAsync(RoleNames.Client);
     var clientClaims = await roleManager.GetClaimsAsync(clientRole!);
-    foreach (var perm in PermissionKeys.All.Where(p => p.EndsWith(".view", StringComparison.Ordinal) && !clientClaims.Any(c => c.Value == p)))
+    string[] clientExcluded = [PermissionKeys.UsersView, PermissionKeys.RolesView];
+    foreach (var perm in PermissionKeys.All.Where(p =>
+                 p.EndsWith(".view", StringComparison.Ordinal)
+                 && !clientExcluded.Contains(p)
+                 && !clientClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(clientRole!, new Claim("permission", perm));
+
+    // Removes the two claims from a role seeded before the narrowing above. Without this the grant
+    // persists on every existing database, since the loop only ever adds.
+    foreach (var stale in clientClaims.Where(c => c.Type == "permission" && clientExcluded.Contains(c.Value)))
+        await roleManager.RemoveClaimAsync(clientRole!, stale);
 
     // Admin user
     var admin = await userManager.FindByNameAsync("admin@transit.local");
@@ -545,58 +566,22 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
         }
     }
 
-    // Service account for GetThereAPI
-    var client = await userManager.FindByNameAsync("getthere-api");
-    if (client is null)
-    {
-        // Must match GetThereAPI's TransitInfoApi:ClientSecret, so it is configuration-driven
-        // outside Development rather than generated and written to disk.
-        var configuredSecret = app.Configuration["Seed:ServiceAccountPassword"];
-
-        if (string.IsNullOrWhiteSpace(configuredSecret) && !app.Environment.IsDevelopment())
-        {
-            app.Logger.LogWarning(
-                "No service account exists and Seed:ServiceAccountPassword is not configured — skipping. " +
-                "GetThereAPI will not be able to authenticate until it is created.");
-        }
-        else
-        {
-            var pwd = configuredSecret ?? GenerateSecurePassword(32);
-            client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
-
-            // A silent failure here is the worst of the three: GetThereAPI cannot authenticate at
-            // all, and every map read it proxies answers 502 with nothing in this service's log to
-            // say why.
-            var createResult = await userManager.CreateAsync(client, pwd);
-            if (!createResult.Succeeded)
-            {
-                app.Logger.LogError(
-                    "Could not create the getthere-api service account: {Errors}. GetThereAPI will not be able to authenticate.",
-                    string.Join("; ", createResult.Errors.Select(e => e.Description)));
-            }
-            else
-            {
-                var roleResult = await userManager.AddToRoleAsync(client, RoleNames.Client);
-                if (!roleResult.Succeeded)
-                {
-                    app.Logger.LogError("Service account could not be given the {Role} role: {Errors}",
-                        RoleNames.Client, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
-                }
-
-                if (configuredSecret is null)
-                {
-                    var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
-                    await File.WriteAllTextAsync(svcCredFile,
-                        $"Username: getthere-api\nPassword: {pwd}\n");
-                    Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
-                }
-                else
-                {
-                    app.Logger.LogInformation("Service account created from Seed:ServiceAccountPassword.");
-                }
-            }
-        }
-    }
+    // The `getthere-api` service account that used to be seeded here is gone, deliberately.
+    //
+    // It existed for the map proxy: GetThereAPI authenticated to this service as that account and
+    // proxied the map's reads. The proxy was removed on 2026-08-02 — the map page is served from
+    // here and calls this service anonymously — and with it went TransitInfoApiClient,
+    // MapProxyController, MapManager and the map.view permission. The seeding was missed, so every
+    // boot kept re-creating a Client-role account with read access to the whole dataset that
+    // nothing had called since. In Development it also wrote its password to
+    // .service-account-credentials on disk.
+    //
+    // AGENTS.md records this as a regression to watch for: do not reintroduce it. GetThereAPI makes
+    // no call to this service. Existing deployments should delete the row — see
+    // docs/changelog.md for the query.
+    //
+    // Seed:ServiceAccountPassword is no longer read anywhere and can be removed from any
+    // configuration that still sets it.
 }
 
 static string GenerateSecurePassword(int length)
