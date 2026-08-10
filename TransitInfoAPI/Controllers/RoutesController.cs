@@ -31,7 +31,7 @@ public class RoutesController : ControllerBase
         [FromQuery] double? maxLon,
         [FromQuery] string? q = null,
         [FromQuery] string? format = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {

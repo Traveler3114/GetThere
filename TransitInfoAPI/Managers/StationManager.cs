@@ -22,24 +22,61 @@ public class StationManager
 
     public StationManager(TransitDbContext db, ScheduleManager schedule, IConfiguration config) { _db = db; _schedule = schedule; _config = config; }
 
-    public async Task<List<StationResponse>> GetAllAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId, int page = 1, int perPage = 50, CancellationToken ct = default)
+    /// <summary>
+    /// The one definition of what filters a station list. Every read below composes it, and so does
+    /// <see cref="GetTotalCountAsync"/>.
+    /// <para>
+    /// It exists because those were four hand-maintained copies of the same predicates, and they had
+    /// drifted: <see cref="SearchAsync"/> filtered on <c>q</c> and <c>routeType</c> while the count
+    /// beside it had no parameters for either, so every search reported the total number of stations
+    /// in the country rather than the number it had matched — a search returning eight rows
+    /// advertised tens of thousands, and the map's pager offered hundreds of empty pages.
+    /// </para>
+    /// </summary>
+    private IQueryable<CanonicalStation> BuildQuery(
+        string? q = null,
+        RouteType? routeType = null,
+        int? countryId = null,
+        string? countryName = null,
+        string? stationType = null,
+        double? lat = null,
+        double? lon = null,
+        double? radiusKm = null)
     {
-        // No Include here: the query projects through StationMapper.ToResponseExpression, and EF
-        // drops an Include on a projecting query — the expression pulls the country columns it needs
-        // itself. The Include was silently doing nothing.
         var query = _db.CanonicalStations
             .AsNoTracking()
-            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
-            .AsQueryable();
+            .Where(cs => cs.IsActive);
+
+        // An unrecognised value falls back to Stop rather than erroring, which is what every caller
+        // did before.
+        if (!string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out var parsedStationType))
+            query = query.Where(cs => cs.StationType == parsedStationType);
+        else
+            query = query.Where(cs => cs.StationType == StationType.Stop);
+
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(cs => cs.Name.Contains(q));
+
+        if (routeType.HasValue)
+            query = query.Where(cs => cs.PrimaryRouteType == routeType.Value);
 
         if (countryId.HasValue)
             query = query.Where(cs => cs.CountryId == countryId.Value);
 
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(cs =>
+                _db.Countries.Any(c => c.Name == countryName && c.Id == cs.CountryId));
+
         if (lat is not null && lon is not null && radiusKm is not null)
         {
             var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
+
+            // Latitude is clamped before the cosine: at the poles cos() reaches zero and the
+            // division produces Infinity, which makes the longitude bounds meaningless. No transit
+            // stop sits at 90°, but a caller-supplied lat does not have to be sane.
+            var clampedLat = Math.Clamp(lat.Value, -89.9, 89.9);
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(clampedLat * Math.PI / 180));
+
             query = query.Where(cs =>
                 cs.Latitude >= lat.Value - latRange &&
                 cs.Latitude <= lat.Value + latRange &&
@@ -47,7 +84,16 @@ public class StationManager
                 cs.Longitude <= lon.Value + lonRange);
         }
 
-        return await query
+        return query;
+    }
+
+    public async Task<List<StationResponse>> GetAllAsync(
+        double? lat, double? lon, double? radiusKm, int? countryId, int page = 1, int perPage = 50, CancellationToken ct = default)
+    {
+        // No Include here: the query projects through StationMapper.ToResponseExpression, and EF
+        // drops an Include on a projecting query — the expression pulls the country columns it needs
+        // itself. The Include was silently doing nothing.
+        return await BuildQuery(countryId: countryId, lat: lat, lon: lon, radiusKm: radiusKm)
             .OrderBy(cs => cs.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
@@ -58,26 +104,7 @@ public class StationManager
     public async Task<object> GetAllGeoJsonAsync(
         double? lat, double? lon, double? radiusKm, int? countryId, int limit, CancellationToken ct)
     {
-        var query = _db.CanonicalStations
-            .AsNoTracking()
-            .Where(cs => cs.IsActive && cs.StationType == StationType.Stop)
-            .AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(cs => cs.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(cs =>
-                cs.Latitude >= lat.Value - latRange &&
-                cs.Latitude <= lat.Value + latRange &&
-                cs.Longitude >= lon.Value - lonRange &&
-                cs.Longitude <= lon.Value + lonRange);
-        }
-
-        var allStations = await query
+        var allStations = await BuildQuery(countryId: countryId, lat: lat, lon: lon, radiusKm: radiusKm)
             .OrderBy(cs => cs.Id)
             .Take(limit)
             .Select(StationMapper.ToResponseExpression)
@@ -118,31 +145,7 @@ public class StationManager
 
     public async Task<List<StationResponse>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
-        var query = _db.CanonicalStations
-            .AsNoTracking()
-            .AsQueryable();
-
-        StationType parsedStationType = default;
-        var hasExplicitStationType = !string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out parsedStationType);
-        if (hasExplicitStationType)
-            query = query.Where(cs => cs.IsActive && cs.StationType == parsedStationType);
-        else
-            query = query.Where(cs => cs.IsActive && cs.StationType == StationType.Stop);
-
-        if (!string.IsNullOrWhiteSpace(q))
-            query = query.Where(cs => cs.Name.Contains(q));
-
-        if (routeType.HasValue)
-            query = query.Where(cs => cs.PrimaryRouteType == routeType.Value);
-
-        if (countryId.HasValue)
-            query = query.Where(cs => cs.CountryId == countryId.Value);
-
-        if (!string.IsNullOrWhiteSpace(countryName))
-            query = query.Where(cs =>
-                _db.Countries.Any(c => c.Name == countryName && c.Id == cs.CountryId));
-
-        return await query
+        return await BuildQuery(q, routeType, countryId, countryName, stationType)
             .OrderBy(cs => cs.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
@@ -185,35 +188,18 @@ public class StationManager
         return await _schedule.GetDeparturesAsync(stationId, from ?? DateTime.UtcNow, count, ct);
     }
 
-    public async Task<int> GetTotalCountAsync(double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, string? stationType = null, CancellationToken ct = default)
+    /// <summary>
+    /// Counts what <see cref="SearchAsync"/> and <see cref="GetAllAsync"/> would return. It takes
+    /// every filter they do — including <paramref name="q"/> and <paramref name="routeType"/>, which
+    /// it previously had no parameters for at all — so a caller cannot pair a filtered page with an
+    /// unfiltered total.
+    /// </summary>
+    public async Task<int> GetTotalCountAsync(
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName,
+        string? stationType = null, string? q = null, RouteType? routeType = null, CancellationToken ct = default)
     {
-        var query = _db.CanonicalStations.Where(cs => cs.IsActive);
-
-        StationType parsedStationType = default;
-        if (!string.IsNullOrWhiteSpace(stationType) && Enum.TryParse<StationType>(stationType, out parsedStationType))
-            query = query.Where(cs => cs.StationType == parsedStationType);
-        else
-            query = query.Where(cs => cs.StationType == StationType.Stop);
-
-        if (countryId.HasValue)
-            query = query.Where(cs => cs.CountryId == countryId.Value);
-
-        if (!string.IsNullOrWhiteSpace(countryName))
-            query = query.Where(cs =>
-                _db.Countries.Any(c => c.Name == countryName && c.Id == cs.CountryId));
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(cs =>
-                cs.Latitude >= lat.Value - latRange &&
-                cs.Latitude <= lat.Value + latRange &&
-                cs.Longitude >= lon.Value - lonRange &&
-                cs.Longitude <= lon.Value + lonRange);
-        }
-
-        return await query.CountAsync(ct);
+        return await BuildQuery(q, routeType, countryId, countryName, stationType, lat, lon, radiusKm)
+            .CountAsync(ct);
     }
 
     public async Task<StationReconciliationDetailResponse?> GetReconciliationDetailAsync(int id, CancellationToken ct)

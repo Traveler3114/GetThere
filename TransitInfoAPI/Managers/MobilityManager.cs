@@ -22,6 +22,47 @@ public class MobilityManager
 
     public MobilityManager(TransitDbContext db, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching) { _db = db; _logger = logger; _placeMatching = placeMatching; }
 
+    /// <summary>
+    /// The one definition of what filters a mobility-station list, composed by the list, the count
+    /// and the GeoJSON read below.
+    /// <para>
+    /// Same reasoning as <see cref="StationManager"/>'s: these were three copies of the same
+    /// bounding-box arithmetic, and <c>countryName</c> was accepted by the controller and passed to
+    /// none of them — the admin console's country filter on the mobility page built the query string
+    /// and the server ignored it.
+    /// </para>
+    /// </summary>
+    private IQueryable<MobilityStation> BuildQuery(
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName)
+    {
+        var query = _db.MobilityStations.AsQueryable();
+
+        if (countryId.HasValue)
+            query = query.Where(ms => ms.CountryId == countryId.Value);
+
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(ms =>
+                _db.Countries.Any(c => c.Name == countryName && c.Id == ms.CountryId));
+
+        if (lat is not null && lon is not null && radiusKm is not null)
+        {
+            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
+
+            // Clamped before the cosine: at the poles it reaches zero and the division yields
+            // Infinity, which makes the longitude bounds meaningless.
+            var clampedLat = Math.Clamp(lat.Value, -89.9, 89.9);
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(clampedLat * Math.PI / 180));
+
+            query = query.Where(ms =>
+                ms.Latitude >= lat.Value - latRange &&
+                ms.Latitude <= lat.Value + latRange &&
+                ms.Longitude >= lon.Value - lonRange &&
+                ms.Longitude <= lon.Value + lonRange);
+        }
+
+        return query;
+    }
+
     public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
     {
         var query = _db.MobilityStations
@@ -44,29 +85,12 @@ public class MobilityManager
     }
 
     public async Task<List<MobilityStationResponse>> GetAllAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId,
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName,
         int page, int perPage, CancellationToken ct)
     {
-        var query = _db.MobilityStations
-            .Include(ms => ms.Operator)
-            .Include(ms => ms.Country)
-            .AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(ms => ms.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(ms =>
-                ms.Latitude >= lat.Value - latRange &&
-                ms.Latitude <= lat.Value + latRange &&
-                ms.Longitude >= lon.Value - lonRange &&
-                ms.Longitude <= lon.Value + lonRange);
-        }
-
-        return await query
+        // No Include: the query projects through MobilityStationMapper.ToResponseExpression, which
+        // pulls the operator and country columns it needs itself.
+        return await BuildQuery(lat, lon, radiusKm, countryId, countryName)
             .OrderBy(ms => ms.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
@@ -75,49 +99,16 @@ public class MobilityManager
     }
 
     public async Task<int> GetTotalCountAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId, CancellationToken ct)
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, CancellationToken ct)
     {
-        var query = _db.MobilityStations.AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(ms => ms.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(ms =>
-                ms.Latitude >= lat.Value - latRange &&
-                ms.Latitude <= lat.Value + latRange &&
-                ms.Longitude >= lon.Value - lonRange &&
-                ms.Longitude <= lon.Value + lonRange);
-        }
-
-        return await query.CountAsync(ct);
+        return await BuildQuery(lat, lon, radiusKm, countryId, countryName).CountAsync(ct);
     }
 
     public async Task<object> GetAllGeoJsonAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId, int limit, CancellationToken ct)
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, int limit, CancellationToken ct)
     {
-        var query = _db.MobilityStations
-            .Include(ms => ms.Country)
-            .AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(ms => ms.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(ms =>
-                ms.Latitude >= lat.Value - latRange &&
-                ms.Latitude <= lat.Value + latRange &&
-                ms.Longitude >= lon.Value - lonRange &&
-                ms.Longitude <= lon.Value + lonRange);
-        }
-
-        var stations = await query.OrderBy(ms => ms.Id).Take(limit)
+        var stations = await BuildQuery(lat, lon, radiusKm, countryId, countryName)
+            .OrderBy(ms => ms.Id).Take(limit)
             .Select(MobilityStationMapper.ToResponseExpression)
             .ToListAsync(ct);
 

@@ -25,7 +25,7 @@ public class AgenciesController : ControllerBase
     public async Task<ActionResult<Paginated<AgencyResponse>>> GetAll(
         [FromQuery] int? feedId = null,
         [FromQuery] int? operatorId = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {

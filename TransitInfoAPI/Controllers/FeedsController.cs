@@ -22,7 +22,7 @@ public class FeedsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionKeys.FeedsView)]
     public async Task<ActionResult<Paginated<FeedResponse>>> GetAll(
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         [FromQuery] bool showInternal = false,
         CancellationToken ct = default)

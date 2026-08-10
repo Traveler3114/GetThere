@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -59,8 +61,10 @@ public class RoleController : ControllerBase
     [HttpGet("users")]
     [Authorize(Policy = PermissionKeys.UsersView)]
     public async Task<ActionResult<List<UserDto>>> GetUsers(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        // Bounded like every other paginated endpoint in both services. This was the one that was
+        // not, so ?pageSize=1000000 returned the entire user table in a single response.
+        [FromQuery, Range(1, 500)] int pageSize = 20,
         CancellationToken ct = default)
     {
         return Ok(await _roleManager.GetUsersAsync(page, pageSize, ct));

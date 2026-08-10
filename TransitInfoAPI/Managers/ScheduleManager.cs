@@ -88,7 +88,11 @@ public class ScheduleManager
         // a single fixed over-fetch is a guess. Measured against a real ZET station, 60 rows yielded
         // 6 valid departures — a fixed multiplier silently returned fewer than asked for. So the scan
         // widens until it has enough, the source is exhausted, or it reaches the hard cap.
-        var scanLimit = Math.Min(count * CalendarFilterOverfetchFactor, MaxDepartureScanRows);
+        // The multiply is done in long and clamped low as well as high. The controller bounds count,
+        // but this is a public method and a large value used to overflow int here — Math.Min then
+        // picked the negative product and Take() threw. Defending at the point of arithmetic means
+        // the guard does not depend on every caller remembering the attribute.
+        var scanLimit = (int)Math.Clamp((long)count * CalendarFilterOverfetchFactor, 1, MaxDepartureScanRows);
         List<DepartureRow> rawDepartures;
         List<DepartureRow> filteredDepartures;
 
