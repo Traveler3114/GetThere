@@ -363,11 +363,26 @@ app.UseStaticFiles(new StaticFileOptions
         //
         // script-src still allows 'unsafe-inline', unlike GetThereAPI's console, which no longer
         // does. The inline <script> blocks have been moved into per-page .js files, but these pages
-        // also wire behaviour through inline on* attributes — 48 in the markup and 63 more inside
-        // generated HTML strings — and 'unsafe-inline' is what makes those run. Dropping it before
-        // all 111 are converted to addEventListener would leave buttons that silently do nothing.
-        // That conversion is the remaining work; it needs the pages exercised against a populated
-        // database, since a missed handler is invisible until someone clicks it.
+        // also wire behaviour through inline on* attributes and 'unsafe-inline' is what makes those
+        // run. Dropping it before they are all converted to addEventListener would leave buttons
+        // that silently do nothing.
+        //
+        // Recounted 2026-08-10: 56 in the markup and 156 more inside generated HTML strings, across
+        // 17 pages — 212, not the 111 recorded here previously. The generated-string ones are the
+        // awkward half: they are built inside render functions, so converting them means moving to
+        // event delegation on the container rather than a mechanical find-and-replace.
+        // operators.page.js and custom-sources.page.js already do this with data-* attributes and a
+        // single delegated listener, and are the pattern to follow.
+        //
+        // Why this is worth finishing rather than living with: the console holds the operator's
+        // refresh token in sessionStorage, which any executing script can read. So an escaping miss
+        // anywhere in these pages — which render feed- and operator-supplied text — is not a
+        // defacement, it is a full admin session handed over. The escaping itself is now in one
+        // place (Shell.esc) rather than copy-pasted per page, which shrinks the surface but does not
+        // close it.
+        //
+        // It needs the pages exercised against a populated database: a missed handler is invisible
+        // until someone clicks it, and no test in this repo covers the console.
         // unpkg is no longer listed: it served MapLibre to the two admin map pages, which now load it
         // from wwwroot/vendor like everything else. jsdelivr stays for Bootstrap.
         //

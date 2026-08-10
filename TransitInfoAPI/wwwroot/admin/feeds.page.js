@@ -561,7 +561,11 @@ function showError(msg) {
   document.getElementById('loading')?.classList.add('d-none');
   const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
 }
-function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
-function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
+// Delegates to Shell.esc rather than redefining it. This exact function was copy-pasted into a
+// dozen page scripts, which means an escaping fix has to be found in a dozen places -- not what you
+// want of the control that stops feed- and operator-supplied text becoming script. admin-shell.js
+// is loaded before every page script, so Shell is always defined here.
+function esc(s) { return Shell.esc(s); }
+function safeUrl(u) { return Shell.safeUrl(u); }
 
 loadFeeds();
