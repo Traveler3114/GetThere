@@ -183,3 +183,10 @@ jobs:
 
       - name: Build GetThere (Android)
         run: dotnet build GetThere/GetThere.csproj --no-restore -f net10.0-android -warnaserror
+
+      # The other five projects have had this since the workflow was written; the MAUI project was
+      # the one exception, so formatting drift could only ever land here. Runs after the build
+      # because dotnet format needs the project to restore, and a compile error is the more useful
+      # failure to see first.
+      - name: Lint GetThere
+        run: dotnet format GetThere/GetThere.csproj --verify-no-changes --no-restore

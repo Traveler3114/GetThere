@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -287,21 +286,14 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-app.UseAuthentication();
-
-// After authentication, deliberately: the limiter partitions on the caller's user id when there is
-// one, and context.User is not populated until the authentication middleware has run. Ordered the
-// other way the claim is always absent and every authenticated caller silently falls back to being
-// bucketed by IP address, which is the behaviour this partitioning exists to avoid.
-app.UseRateLimiter();
-
-app.UseAuthorization();
-
-// The /admin console is served as plain static files. It deliberately carries no authorization
-// gate: authentication here is bearer-token based, and a browser navigation to an .html file
-// cannot send an Authorization header — a gate on these paths 401s the login page itself and
-// makes the console unreachable. The console holds no secrets; every byte of data it renders
-// comes from API endpoints that are authorized per-endpoint.
+// Transport and static assets before authentication, matching GetThereAPI.
+//
+// The order here used to be the other way round — authentication, rate limiting and authorization
+// all ran, and only then did the pipeline decide to redirect the caller to https. That meant a
+// bearer token presented over plain http was parsed, validated and used to look up claims before
+// the request was told to go away and come back over TLS, and every static asset was fetched
+// through the whole auth stack for nothing.
+//
 // Guarded by environment, matching GetThereAPI. Sending HSTS from a Development run pins localhost
 // to HTTPS in the developer's browser for the max-age, which then breaks every other local project
 // served over plain HTTP on the same host.
@@ -310,6 +302,12 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseResponseCompression();
+
+// The /admin console is served as plain static files. It deliberately carries no authorization
+// gate: authentication here is bearer-token based, and a browser navigation to an .html file
+// cannot send an Authorization header — a gate on these paths 401s the login page itself and
+// makes the console unreachable. The console holds no secrets; every byte of data it renders
+// comes from API endpoints that are authorized per-endpoint.
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -406,6 +404,17 @@ app.UseStaticFiles(new StaticFileOptions
         headers["Referrer-Policy"] = "no-referrer";
     }
 });
+
+app.UseAuthentication();
+
+// After authentication, deliberately: the limiter partitions on the caller's user id when there is
+// one, and context.User is not populated until the authentication middleware has run. Ordered the
+// other way the claim is always absent and every authenticated caller silently falls back to being
+// bucketed by IP address, which is the behaviour this partitioning exists to avoid.
+app.UseRateLimiter();
+
+app.UseAuthorization();
+
 // Kept for anything already pointing at it, and still a pure liveness answer.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
 
@@ -572,7 +581,7 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
         }
         else
         {
-            var pwd = configuredPassword ?? GenerateSecurePassword(24);
+            var pwd = configuredPassword ?? SeedPasswordGenerator.Generate(24);
             admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
 
             // Checked, because a configured password that misses the policy fails here silently:
@@ -628,12 +637,5 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
     // configuration that still sets it.
 }
 
-static string GenerateSecurePassword(int length)
-{
-    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)];
-    return new string(result);
-}
 
 await app.RunAsync();

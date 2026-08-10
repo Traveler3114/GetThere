@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using GetThere.Localization;
 using GetThere.Services;
 
 using GetThereShared.Common;
@@ -140,7 +141,7 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
 
         if (string.IsNullOrWhiteSpace(TicketName))
         {
-            ErrorText = "Ticket name is required."; HasError = true; return;
+            ErrorText = LocalizationService.Instance["Error_TicketNameRequired"]; HasError = true; return;
         }
         // Sent as the calendar days the pickers show, with no timezone conversion. A ticket's
         // validity is a date printed on the ticket, not an instant: marking the picked day Local and
@@ -152,7 +153,7 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
         var validTo = ValidTo.Date.AddDays(1).AddTicks(-1);
         if (validTo <= validFrom)
         {
-            ErrorText = "Valid To must be after Valid From."; HasError = true; return;
+            ErrorText = LocalizationService.Instance["Error_ValidToBeforeValidFrom"]; HasError = true; return;
         }
 
         decimal? price = null;
@@ -166,7 +167,7 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
 
             if (!decimal.TryParse(PriceText.Replace(',', '.'), PriceStyles, CultureInfo.InvariantCulture, out var p) || p < 0)
             {
-                ErrorText = "Invalid price."; HasError = true; return;
+                ErrorText = LocalizationService.Instance["Error_InvalidPrice"]; HasError = true; return;
             }
             price = p;
         }

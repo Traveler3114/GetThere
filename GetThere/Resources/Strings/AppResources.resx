@@ -283,6 +283,9 @@
   <data name="Error_CouldNotLoadWallet" xml:space="preserve"><value>Could not load wallet: </value></data>
   <data name="Error_CouldNotLoadHistory" xml:space="preserve"><value>Could not load history: </value></data>
   <data name="Error_CouldNotLoadRegions" xml:space="preserve"><value>Could not load regions: </value></data>
+  <data name="Error_TicketNameRequired" xml:space="preserve"><value>Ticket name is required.</value></data>
+  <data name="Error_ValidToBeforeValidFrom" xml:space="preserve"><value>Valid To must be after Valid From.</value></data>
+  <data name="Error_InvalidPrice" xml:space="preserve"><value>Invalid price.</value></data>
   <data name="Error_CouldNotLoadBikeStations" xml:space="preserve"><value>Could not load bike stations: </value></data>
   <data name="Error_CouldNotLoadStops" xml:space="preserve"><value>Could not load stops: </value></data>
   <data name="Error_CouldNotLoadRoutes" xml:space="preserve"><value>Could not load routes: </value></data>

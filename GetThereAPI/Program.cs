@@ -398,7 +398,7 @@ if (app.Configuration.GetValue("Seed:Enabled", true))
         }
         else
         {
-            var pwd = configuredPassword ?? GenerateSecurePassword(24);
+            var pwd = configuredPassword ?? SeedPasswordGenerator.Generate(24);
             admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
 
             // Checked, because a Seed:AdminPassword that misses the 12-character/digit/upper/symbol
@@ -441,10 +441,3 @@ if (app.Configuration.GetValue("Seed:Enabled", true))
 
 app.Run();
 
-static string GenerateSecurePassword(int length)
-{
-    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)];
-    return new string(result);
-}

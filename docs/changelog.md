@@ -732,3 +732,121 @@ contracts-only consumer ever appears.
 **Verified.** GetThereShared, GetThereAPI and the test project build with `-warnaserror`; the MAUI
 app builds for both `net10.0-windows` and `net10.0-android`; 39 extraction and sniffer tests pass;
 `dotnet format --verify-no-changes` clean on all three non-MAUI projects.
+
+---
+
+## Session — August 10, 2026
+
+### Full-solution audit, remediated in six waves
+
+A read-only audit across all six projects (security, performance, magic numbers, stubs, tech debt,
+bugs, hardcoding, architecture), then the fixes. Findings were concentrated in `TransitInfoAPI`,
+which has had less hardening attention than `GetThereAPI`.
+
+**No .NET SDK was available in the container this was written in.** Nothing here was compiled and no
+test was run. The JavaScript was checked with `node --check`; the C# was not checked by anything.
+Treat CI as the first real verification.
+
+#### Wave 1 — credential exposure and data in git
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Secret at rest** | `Services/SecretProtector.cs` (new), `Managers/CustomSourceManager.cs`, `Services/CustomHttpSource.cs`, `Program.cs` | `CustomSource.AuthConfig` (operator bearer tokens, basic-auth passwords, API-key headers) was plaintext in the column. Now protected via `IDataProtection` at the two write sites and unprotected at the two that spend it. Applied in the manager, not as an EF value converter, so no migration and no DbContext change. Unprefixed legacy values pass through and are protected on next save. |
+| **Secret over the wire** | `Contracts/CustomSourceContract.cs`, `Mapping/CustomSourceMapper.cs`, `wwwroot/admin/custom-source-editor.{html,page.js}` | `CustomSourceResponse.AuthConfig` → `HasAuth` bool. Every holder of `customsources.view` could read every operator credential from `GET /custom-sources`. The editor field is now write-only: blank keeps the stored value, which `UpdateAsync` already honoured. |
+| **Dead credentialed account** | `Program.cs` | The `getthere-api` service account was still seeded on every boot, eight days after the map proxy that used it was removed. Nothing called it; it held `Client`; in Development it wrote its password to disk. `Seed:ServiceAccountPassword` is no longer read. |
+| **Over-broad role** | `Program.cs` | `Client` was granted every `*.view` by suffix match, including `users.view` and `roles.view`. Narrowed, and stale claims are removed from existing databases rather than only skipped on new ones. |
+| **User data in git** | `.gitignore`, `git rm --cached` | A user's ticket image (under their user id) and three operator spreadsheets were tracked. `/TransitInfoAPI/feeds` was already ignored; these two roots were missed. **History still contains them** — rewriting it was deliberately left as a separate decision. |
+
+#### Wave 2 — input validation
+
+- `[Range(1, int.MaxValue)]` on `page` across TransitInfoAPI's fifteen paginated actions. `?page=0`
+  produced `OFFSET -50 ROWS` → `SqlException` → 500, on anonymous endpoints included. GetThereAPI's
+  five were already bounded.
+- `RoleController.GetUsers` `pageSize` bounded — the only paginated endpoint in either service with
+  no ceiling at all.
+- `/stations/{id}/departures` `count` bounded at 100, and `ScheduleManager`'s over-fetch multiply
+  moved to `long` with a clamp: past ~358M it overflowed `int`, `Math.Min` picked the negative
+  product, and `Take()` threw.
+- **Station search reported the wrong total.** `GetTotalCountAsync` had no `q`/`routeType`
+  parameters, so a search matching 8 rows advertised every station in the country. The four copies
+  of the station predicates are now one `BuildQuery`.
+- **`MobilityController` accepted `countryName` and passed it nowhere** — found while applying the
+  same refactor. The admin console's country filter had been building the query string and having it
+  ignored.
+- Both bounding boxes clamp latitude before `Math.Cos` (Infinity at the poles).
+
+#### Wave 3 — auth race, SSRF, OOM, lock contention
+
+- **Refresh-token rotation was a read-modify-write.** Two concurrent presentations of one token both
+  passed `Evaluate` as `Rotate` and both minted a successor — the unique index is on `Token` and the
+  hashes differ, so nothing collided. Rotation only detects reuse if rotating is atomic. Now a single
+  conditional `ExecuteUpdate` whose `WHERE` is the lock; losing the race is treated as reuse.
+  Identical change in both APIs. **This is an authorised change to the JWT pipeline** — see
+  `AGENTS.md`.
+- **SSRF guard could not hold.** `EnsurePublicDestination` resolves, then `HttpClient` resolves again
+  at connect — classic DNS rebinding. Moved to a `ConnectCallback` on both feed clients, which also
+  covers redirect hops (`CustomSourceEngine` re-checked nothing after a redirect). `100.64/10`,
+  `192.0.0/24` and `198.18/15` added.
+- Custom-source responses capped at 32 MB; they were `ReadAsStringAsync` with no bound, in a loop of
+  up to 500 pages.
+- A credential-carrying source that redirects off-host is refused: `HttpClient` strips
+  `Authorization` across origins but not the arbitrary API-key header `ApplyAuth` sets.
+- `WalletTransaction.Type`/`ReferenceId` given lengths + a filtered unique index. Both were
+  `nvarchar(max)` and unindexable, so `RefundAsync`'s `UPDLOCK, HOLDLOCK` guard locked a full table
+  scan and serialised every refund. **Migration not generated** — see `docs/database-drift.md`.
+
+#### Wave 4 — performance
+
+- `EnableForHttps = true` on both APIs. Compression was registered and inert in every environment
+  with HTTPS redirection, which is all of them.
+- Reconciliation detail: two per-candidate queries hoisted out of an unbounded loop (~400 round
+  trips for a station with 200 raw stops → 3).
+- Station search keeps `Contains` — a prefix match would break "Glavni" finding "Zagreb Glavni
+  Kolodvor" — but gains a three-character floor. Full-text index is the durable fix.
+- TransitInfoAPI's `IMemoryCache` bounded; abandoned-upload sweep batched.
+- **Bug:** `HandleImportErrorAsync` wrote `(int)FeedImportStatus.Failed` through raw ADO.NET into a
+  column EF stores as the enum *name*, so SQL Server stored `"3"` and every
+  `Where(fv => fv.ImportStatus == Failed)` matched none of those rows. Failed imports were invisible
+  to the admin console's status filter.
+
+#### Wave 5 — admin console
+
+- `esc` was copy-pasted into twelve page scripts and `safeUrl` into three. Both now live on `Shell`;
+  the copies delegate. That is the control stopping operator-supplied text becoming script.
+- **`admin-auth.js` and `admin-shell.js` each had a refresh implementation with its own in-flight
+  guard**, both loaded on every page but `index.html`. Two guards serialise nothing. Harmless until
+  wave 3 — now the loser of that race trips reuse detection and revokes the operator's session
+  family. `admin-auth.js` exports the single implementation; `Shell.refresh` defers to it, keeping
+  its body only as the fallback for `index.html`.
+- `'unsafe-inline'` **stays**. The comment claimed 111 inline handlers remained; the real count is
+  212 across 17 pages, and 156 of them are built inside render functions, needing event delegation
+  rather than a mechanical replace. No test covers the console and none could be run here.
+
+#### Wave 6 — consistency
+
+| Area | File(s) | What |
+|------|---------|------|
+| **Middleware order** | `TransitInfoAPI/Program.cs` | HSTS/redirect/static now run *before* authentication, matching GetThereAPI. A bearer token presented over plain http was being parsed, validated and used for a claims lookup before the pipeline redirected it to TLS. |
+| **Duplication** | `SharedAuth/SeedPasswordGenerator.cs` (new), both `Program.cs` | Identical generator in both files. Also fixed: it drew uniformly from a combined alphabet and so did not *guarantee* the digit/uppercase/symbol the password policy requires — a miss meant `CreateAsync` rejected it and the environment came up with no admin. |
+| **Localization** | `ImportTicketViewModel.cs`, both `.resx` | Three hardcoded English validation strings on the ticket-import path. Parity now 284/284. |
+| **CI** | `.github/workflows/build-check.yml` | `dotnet format` step for the MAUI project — the one project of six without one. |
+
+#### Findings withdrawn
+
+Two audit findings were wrong and are recorded here so they are not re-reported:
+
+- **`ImportLogStore` does clear on the failure path.** `HandleImportErrorAsync` has called `Clear`
+  since it was written, with a comment explaining why.
+- **GetThereAPI's paginated endpoints already bounded `page`.** Only TransitInfoAPI's did not.
+
+Separately, the eight `NotImplementedException`s in `GetThere/Helpers/PageUtility.cs` are
+`IValueConverter.ConvertBack` on one-way converters — idiomatic MAUI, not stubs.
+
+#### Still owed
+
+- The `AddWalletTransactionRefundIndex` migration (`docs/database-drift.md`).
+- A full-text index on `CanonicalStations.Name`.
+- The 212 inline handlers, and then `'unsafe-inline'`.
+- Unchanged and still owed from before: a real `ITicketingAdapter`, a payment provider behind
+  `/wallet/topup`, an email sender, password reset and email confirmation, and a real
+  `ITicketFileScanner` in place of the no-op.
