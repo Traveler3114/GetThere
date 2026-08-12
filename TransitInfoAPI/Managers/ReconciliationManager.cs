@@ -787,6 +787,20 @@ public class ReconciliationManager
 
     public async Task UnmergeStationsAsync(int mergeLogId, CancellationToken ct)
     {
+        // One transaction, like MergeStationsAsync — this had none.
+        //
+        // It writes in two separate places: ExecuteUpdateAsync moves the StopTimes back, which
+        // commits immediately in its own implicit transaction, and SaveChangesAsync then writes the
+        // RawStop reassignment, the candidate moves and the source reactivation. A failure between
+        // them left the StopTimes pointing at the source station while its RawStops still belonged
+        // to the target — departures resolving through a station whose stops are somewhere else,
+        // with no record that it happened.
+        //
+        // Exactly the shape of the interrupted-import bug in Program.cs, whose comment says it:
+        // "It is one transaction. The status write used to commit on its own and each delete ran in
+        // its own implicit transaction."
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         var log = await _db.StationMergeLogs
             .Include(ml => ml.MovedRawStops)
             .FirstOrDefaultAsync(ml => ml.Id == mergeLogId, ct);
@@ -847,7 +861,19 @@ public class ReconciliationManager
             c.SuggestedCanonicalStationId = log.SourceStationId;
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
+        // KNOWN GAP, not fixed here: the operator links the merge copied onto the target are not
+        // removed. MergeStationsAsync adds a CanonicalStationOperator row to the target for every
+        // operator the source had and the target did not, and nothing takes them away again — so a
+        // merge/unmerge cycle leaves the target permanently claiming the source's operators, and
+        // repeating it accumulates more.
+        //
+        // Fixing it needs a decision rather than a patch: either the merge log records which links
+        // it created (a schema change, so a migration), or the unmerge re-derives support the way
+        // FeedManager.DeleteAsync does — "remove CanonicalStationOperator links that no longer have
+        // any active RawStop support". The second needs no migration but changes behaviour for links
+        // that were never created by a merge at all.
         _logger.LogInformation(
             "Unmerged station {SourceId} from {TargetId}: {RawCount} raw stops returned",
             log.SourceStationId, log.TargetStationId, movedRawStops.Count);
