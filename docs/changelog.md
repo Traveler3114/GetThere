@@ -956,3 +956,87 @@ That cannot be converged on by hand — each guess at what the formatter wants c
 so **the step reports without failing the job**. One `dotnet format GetThere/GetThere.csproj` on a
 machine with the MAUI workload fixes all of it in a single commit; delete the `continue-on-error`
 straight afterwards. A permanently non-blocking lint step is exactly the gap it was added to close.
+
+---
+
+## Session — August 12, 2026 (continued)
+
+### Audit round 3 — the reconciliation decision core, and the last unread areas
+
+Rounds 1–2 had sampled `ReconciliationManager` and `FeedManager` rather than read them. This round
+read the parts that decide things, plus the MAUI XAML layer and the migrations.
+
+#### The significant finding: the matcher ranks on name alone
+
+`FindBestMatch` selects the winning station by name similarity only. Distance is computed but used
+solely for the search-radius cutoff — never for ranking. The caller then judges **that one winner**
+against `Reconciliation:AutoMergeDistanceMeters`.
+
+With the shipped thresholds (name 0.90, distance 100 m, radius 200 m):
+
+| Candidate | Name | Distance | What happens |
+|---|---|---|---|
+| Station X | 0.95 | 180 m | Wins on name → caller rejects it as too far → manual review |
+| Station Y | 0.93 | 10 m | Met **both** thresholds. Never considered. |
+
+Transit stops share names constantly — both sides of a street, several around one square — so
+near-ties in name with large differences in distance are the normal case here. The mild effect is
+avoidable manual reconciliation; the harmful one is auto-merging onto the wrong stop of a pair, which
+is destructive and silent.
+
+**Not fixed.** Ranking on a combined score changes what every existing feed reconciles to, and
+nothing in this container can run a reconciliation to measure that. Documented at the site with the
+worked example above.
+
+Three more recorded at the same place:
+
+- `RouteTypeMatch` in the returned tuple is always `true` — the loop pre-filters on route type — so
+  the "route type mismatch" reason `ComputeAutoMergeVerdict` can render is unreachable for any
+  candidate that has a match.
+- The `nameScore < 0.3` floor is a fourth threshold that is **not** configurable, unlike the other
+  three. Lowering `ManualReviewNameThreshold` beneath it silently does nothing.
+- Ties fall to grid-cell order (`>` with no stable secondary key), so re-importing an unchanged feed
+  can reconcile differently.
+
+And on `HasRouteOverlap`: every early return is `false`, so a stop with no route data can never match
+and is forced to a new station. Correct for a normal GTFS feed; wrong for the Network-completeness
+case this codebase supports elsewhere, where it duplicates an operator's whole station set. Which it
+should be is a product decision.
+
+#### Fixed
+
+| Area | File(s) | What |
+|---|---|---|
+| **Untyped ticket template** | `Pages/TicketsPage.xaml` | The ticket-card `DataTemplate` had no `x:DataType`, so its bindings resolved reflectively — a renamed property fails as a blank label, not a build error, and CI compiles this XAML once at the end of the Android build. `VERIFY.md` flagged it by name. All twelve bindings were checked against `WalletTicket` by hand first; CI then confirmed the typed template compiles. |
+| **Map escaping** | `wwwroot/map/public.js`, `index.js` | Both `esc()` implementations used a `textContent`/`innerHTML` round-trip, which escapes `<`, `>` and `&` but **not** `"` or `'`. Every use is a text context so nothing was broken — but the admin console's `Shell.esc` does escape them, and assuming the two match while writing into an attribute would introduce an injection. |
+| **Route colours** | `wwwroot/route-colors.js` | `ROUTE_COLORS[type]` read inherited properties, so a feed-supplied type of `"constructor"` returned a function that stringified into a `style` attribute instead of falling back to the default. Now `Object.hasOwn`. |
+| **Date parsing** | `Managers/FeedManager.cs` | All seven `DateOnly` parses used the ambient culture. `"yyyyMMdd"` is digits-only so separators do not matter, but the culture's *calendar* does — on a non-Gregorian default every service date lands wrong, silently. The rest of the codebase is already explicit about culture; these were the exception. |
+| **Bulk timeout** | `Managers/FeedManager.cs` | `BulkCopyTimeout` was hardcoded to 180 while every other long step honours `FeedImport:BulkCommandTimeoutSeconds` (default 600) — so the setting was absent from the longest operation in the pipeline, with a value *lower* than the default it overrides. |
+
+#### Recorded, not changed
+
+`ParseExact` on calendar dates **throws**, while the guard three lines above skips a bad
+`exception_type` with a warning, `ParseStops` drops impossible coordinates and counts them, and
+`ParseGtfsTimeToSeconds` returns null so the row is skipped. The convention for malformed operator
+data is skip-and-log; one unparseable date in `calendar_dates.txt` rejects the whole feed.
+
+Left alone because the obvious fix is worse: the exceptions that matter most say a service does
+**not** run on a date, so silently dropping one shows departures for a service that is not running.
+Failing loudly beats showing wrong times. Changing it means deciding that explicitly and surfacing a
+dropped count the way `droppedStops` already is.
+
+#### Verified clean
+
+**The migrations**, which had never been reviewed, are careful work: `AddCustomSources` drops five
+legacy tables with `IF EXISTS` guards throughout, children before parents, removes the orphaned
+`Feeds.CustomFeedId` foreign key first because it would otherwise block the parent drop, provides a
+real `Down()`, and states plainly that `Down()` will not recreate them and to take a backup if the
+historical run log matters.
+
+Also clean: `FeedManager`'s version activation (previous versions deactivated, stale shapes deleted
+and the new version activated inside one committed transaction), and the other 11 MAUI XAML files —
+`TicketsPage` was the only one with an untyped `DataTemplate`.
+
+#### Still un-audited
+
+`ReconciliationManager`'s spatial grid and `PlaceMatchingManager`; the MAUI page code-behind.
