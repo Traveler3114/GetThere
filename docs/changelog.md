@@ -984,9 +984,20 @@ near-ties in name with large differences in distance are the normal case here. T
 avoidable manual reconciliation; the harmful one is auto-merging onto the wrong stop of a pair, which
 is destructive and silent.
 
+**The widened search radius makes it worse, not better.** `CandidateSearchRadiusFactor = 2.0` is
+documented as existing so "a near-miss should surface for manual review rather than never be
+considered" — reasonable alone. But widening the candidate set is only safe if ranking accounts for
+distance, and it does not: every extra station the wider radius admits is another chance for
+something far away to win on name and displace a qualifying candidate. The two decisions are
+individually sensible and jointly wrong, so raising the factor to surface more near-misses would
+*increase* the number of good matches never considered.
+
 **Not fixed.** Ranking on a combined score changes what every existing feed reconciles to, and
 nothing in this container can run a reconciliation to measure that. Documented at the site with the
 worked example above.
+
+The spatial grid itself is fine: 0.2° cells with a 3×3 neighbourhood scan vastly over-cover the
+200 m search radius, so no candidate is missed by the indexing.
 
 Three more recorded at the same place:
 

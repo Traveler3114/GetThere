@@ -947,6 +947,16 @@ public class ReconciliationManager
     /// reconciliation; the harmful one is an auto-merge onto the wrong stop of a pair.
     /// </para>
     /// <para>
+    /// <b>The widened search radius makes it worse, not better.</b>
+    /// <see cref="CandidateSearchRadiusFactor"/> exists so that "a near-miss should surface for
+    /// manual review rather than never be considered" — reasonable on its own. But widening the
+    /// candidate set is only safe if ranking accounts for distance, and it does not: every extra
+    /// station the wider radius admits is another chance for something far away to win on name and
+    /// displace a qualifying candidate. The two decisions are individually sensible and jointly
+    /// wrong, which is why raising the factor to surface more near-misses would increase the number
+    /// of good matches that never get considered.
+    /// </para>
+    /// <para>
     /// Fixing it means ranking on a combined score rather than name alone, which changes what every
     /// existing feed reconciles to. That needs to be measured against real feeds before it is
     /// changed — not adjusted blind. See docs/changelog.md.
