@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Data;
-using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 
@@ -17,6 +16,13 @@ using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Services;
+
+// Aliased rather than `using System.Globalization;`, which does not compile here: this file writes
+// GTFS Calendar entities, and System.Globalization has a Calendar of its own, so importing the whole
+// namespace makes every `new Calendar { ... }` below an ambiguous reference (CS0104). Only the two
+// types the date parsing needs are pulled in.
+using CultureInfo = System.Globalization.CultureInfo;
+using DateTimeStyles = System.Globalization.DateTimeStyles;
 
 namespace TransitInfoAPI.Managers;
 
