@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main, develop]
 
+  # Lets this run against any branch on demand.
+  #
+  # Without it the only way to compile a feature branch is to open a pull request, because the two
+  # triggers above match `main`/`develop` and nothing else. So work sat on a branch unbuilt until
+  # someone decided it was ready enough to propose — which is exactly backwards, since the reason to
+  # build it is to find out whether it is ready. It also means a branch pushed for review, or one a
+  # tool pushed without opening a PR, gets no signal at all.
+  workflow_dispatch:
+
 # Read-only by default; nothing here writes to the repository.
 permissions:
   contents: read
