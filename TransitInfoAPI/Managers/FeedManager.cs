@@ -4,6 +4,8 @@ using System.IO.Compression;
 using System.Text.Json;
 
 using Microsoft.Data.SqlClient;
+using System.Globalization;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -977,8 +979,8 @@ public class FeedManager
                 Friday = c.Friday == 1,
                 Saturday = c.Saturday == 1,
                 Sunday = c.Sunday == 1,
-                StartDate = DateOnly.ParseExact(c.StartDate, "yyyyMMdd"),
-                EndDate = DateOnly.ParseExact(c.EndDate, "yyyyMMdd")
+                StartDate = DateOnly.ParseExact(c.StartDate, "yyyyMMdd", CultureInfo.InvariantCulture),
+                EndDate = DateOnly.ParseExact(c.EndDate, "yyyyMMdd", CultureInfo.InvariantCulture)
             });
 
         foreach (var cd in calendarDates)
@@ -988,11 +990,23 @@ public class FeedManager
                 _logger.LogWarning("Skipping calendar_date with invalid exception_type {Type} for service {ServiceId}", cd.ExceptionType, cd.ServiceId);
                 continue;
             }
+            // NOTE: ParseExact throws, unlike everything around it. The guard directly above skips a
+            // bad exception_type with a warning, ParseStops drops stops with impossible coordinates
+            // and counts them, and ParseGtfsTimeToSeconds returns null so the stop_time is skipped —
+            // the pipeline's whole convention for malformed operator data is skip-and-log. One
+            // unparseable date in calendar_dates.txt instead throws, which HandleImportErrorAsync
+            // turns into a failed import: the entire feed is rejected over one row.
+            //
+            // Left as-is because the alternative is not obviously better. Dropping a calendar_date
+            // silently loses a service *exception*, and the ones that matter most say "this service
+            // does NOT run today" — so a skipped row shows departures for a service that is not
+            // running, which is worse than showing none. Changing it means deciding that explicitly,
+            // and probably surfacing the count the way droppedStops already is.
             _db.CalendarDates.Add(new CalendarDate
             {
                 FeedVersionId = feedVersionId,
                 ServiceId = cd.ServiceId,
-                Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd"),
+                Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd", CultureInfo.InvariantCulture),
                 ExceptionType = cd.ExceptionType
             });
         }
@@ -1338,16 +1352,16 @@ public class FeedManager
 
         if (calendar.Count > 0)
         {
-            if (DateOnly.TryParseExact(calendar.Min(c => c.StartDate), "yyyyMMdd", out var start))
+            if (DateOnly.TryParseExact(calendar.Min(c => c.StartDate), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
                 version.ServiceLevelStart = start;
-            if (DateOnly.TryParseExact(calendar.Max(c => c.EndDate), "yyyyMMdd", out var end))
+            if (DateOnly.TryParseExact(calendar.Max(c => c.EndDate), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
                 version.ServiceLevelEnd = end;
         }
         else if (calendarDates.Count > 0)
         {
-            if (DateOnly.TryParseExact(calendarDates.Min(cd => cd.Date), "yyyyMMdd", out var start))
+            if (DateOnly.TryParseExact(calendarDates.Min(cd => cd.Date), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
                 version.ServiceLevelStart = start;
-            if (DateOnly.TryParseExact(calendarDates.Max(cd => cd.Date), "yyyyMMdd", out var end))
+            if (DateOnly.TryParseExact(calendarDates.Max(cd => cd.Date), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
                 version.ServiceLevelEnd = end;
         }
 
