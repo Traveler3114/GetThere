@@ -850,3 +850,89 @@ Separately, the eight `NotImplementedException`s in `GetThere/Helpers/PageUtilit
 - Unchanged and still owed from before: a real `ITicketingAdapter`, a payment provider behind
   `/wallet/topup`, an email sender, password reset and email confirmation, and a real
   `ITicketFileScanner` in place of the no-op.
+
+---
+
+## Session — August 12, 2026
+
+### Audit round 2, and the first CI run this branch ever had
+
+Round 1 (previous entry) shipped uncompiled — the container had no .NET SDK. This session got CI
+running against the branch, fixed what it found, and audited the areas round 1 had only sampled.
+
+#### CI could not run on a feature branch at all
+
+`build-check.yml` triggered on push to `main`/`develop` and pull requests targeting them, and carried
+no `workflow_dispatch`. A branch could therefore not be compiled until someone opened a pull request
+for it, which inverts the point — building it is how you find out whether it is worth proposing.
+`workflow_dispatch` added.
+
+#### What the first run found
+
+**All four `-warnaserror` builds passed**, and 305 of 359 tests. The 54 failures were one cause:
+
+> `PendingModelChangesWarning: The model for context 'AppDbContext' has pending changes.`
+
+Round 1 added a filtered unique index and two column lengths to `WalletTransaction` without
+generating the migration, on the stated assumption that a model change ahead of its migration is
+inert. **It is not** — EF Core raises that warning as an *error* from inside `Database.Migrate()`,
+which all three database-backed fixtures call in their constructors. The round-1 commit message said
+"nothing regresses in the meantime"; that was wrong.
+
+Both model edits were reverted (the wallet one and the `TransitInfoAPI` column sizes written the same
+day). Neither finding is lost: the intended shape of each is a comment at the site, and
+`docs/database-drift.md` carries both, the sizes to use, and what to check before generating each
+migration. **The rule: a model change and its migration land in the same commit.**
+
+The `maui` job was also already failing, before this branch touched it. `GetThere.csproj`
+multi-targets, so on Windows `dotnet restore` resolves `net10.0-ios` and `net10.0-maccatalyst` while
+only `maui-android` was installed — `NETSDK1147`. Fixed by installing the full `maui` workload; CI
+still only *builds* Android.
+
+#### New findings, fixed
+
+| Finding | File(s) | What |
+|---|---|---|
+| **A config typo stopped the whole service** | `Workers/PollingInterval.cs` (new), `RealtimePollingWorker.cs`, `MobilityPollingWorker.cs`, `FeedPollingWorker.cs` | Two of the three workers passed `IOptionsMonitor.CurrentValue` straight to `Task.Delay`. Zero spun the loop; **negative threw `ArgumentOutOfRangeException` from a `Task.Delay` outside the try/catch**, so it escaped `ExecuteAsync` where the default `BackgroundServiceExceptionBehavior.StopHost` stops the service. `InitialDelaySeconds` runs before the loop, so that one killed the host at startup, and `CurrentValue` is re-read each cycle so a bad hot-reload could stop a healthy service. GetThereAPI's workers already clamped, with the reason written down; that idea is now shared. |
+| **Unmerge was not atomic** | `ReconciliationManager.cs` | `UnmergeStationsAsync` had no transaction while the merge it reverses does. `ExecuteUpdateAsync` moves the StopTimes back and commits immediately; `SaveChangesAsync` then writes the RawStop reassignment, candidate moves and source reactivation. A failure between left StopTimes pointing at the source while its RawStops still belonged to the target — departures resolving through a station whose stops are elsewhere. Same shape as the interrupted-import bug `Program.cs` documents. |
+
+#### New findings, recorded not fixed
+
+- **`nvarchar(450)` on every indexed string column in TransitInfoAPI.** EF widens an indexed string
+  with no length to the 900-byte key limit — so the indexes exist (unlike the `nvarchar(max)` case)
+  but each key reserves up to 900 bytes for a 2-character ISO code or a short GTFS id, on
+  `StopTimes` and `Trips`, the two largest tables. GetThereAPI reached this conclusion already, on
+  `Purchase.Status`. Sizes and verification steps in `docs/database-drift.md`; needs a migration.
+- **Merge leaks operator links.** `MergeStationsAsync` copies `CanonicalStationOperator` rows onto
+  the target and `UnmergeStationsAsync` never removes them, so a merge/unmerge cycle leaves the
+  target permanently claiming the source's operators. Fixing it needs a decision — record the created
+  links in the merge log (schema change) or re-derive support as `FeedManager` does — so it is
+  documented at the site rather than patched blind.
+- **`map/public.js`'s `esc()` does not escape quotes.** It round-trips through `textContent`, which
+  escapes `<`, `>` and `&` but not `"` or `'`. Every current use is a text context, so it is correct
+  today — but the admin console's `esc` *does* escape quotes, and anyone assuming these match while
+  interpolating into an attribute would introduce an injection. The `/map` CSP has no
+  `'unsafe-inline'`, which is the backstop.
+- **`ROUTE_COLORS[type]` reads inherited properties.** `type = "constructor"` returns a function
+  rather than falling back to the default colour. Not injectable — the result cannot contain a quote
+  — but it produces broken CSS. `Object.hasOwn` or a null-prototype map fixes it.
+
+#### Tests added
+
+`PollingIntervalTests` and `CustomSourceSecretExposureTests` — both dependency-free. The second
+guards the *shape* of `CustomSourceResponse` rather than a call site, because the way that regresses
+is someone adding `AuthConfig` back for the editor's convenience.
+
+#### Verified clean this round
+
+XXE (`XDocument.Parse` defaults to `DtdProcessing.Prohibit`), zip slip (nothing extracts to a path),
+IDOR (every business-manager read filters on `UserId`), rate-limiter policies (all defined ones are
+applied), `ReconciliationManager`'s four transactions (all commit), MAUI fire-and-forget `LoadAsync`
+(each self-handles), `RealtimeManager`'s singleton caches (pruned against the active feed set), and
+`GtfsParser`'s entry lookup (`ValidateGtfs` and `ParseCsv` both key on `e.Name`, so nested-directory
+feeds behave consistently).
+
+#### Still un-audited
+
+`FeedManager`'s import pipeline and bulk-copy reader, `ReconciliationManager`'s matching heuristics
+and auto-merge thresholds, the MAUI XAML layer, and the migrations themselves.
