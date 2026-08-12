@@ -22,9 +22,14 @@ public class RealtimePollingWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        // Clamped rather than passed through. See PollingInterval: a zero here spun the loop, and a
+        // negative threw out of ExecuteAsync and stopped the whole host.
+        var initialDelay = PollingInterval.InitialDelaySeconds(
+            _options.CurrentValue.InitialDelaySeconds, 10, _logger, "RealtimePolling:InitialDelaySeconds");
+
         _logger.LogInformation("Realtime polling worker started with {Interval}s interval", _options.CurrentValue.IntervalSeconds);
 
-        await Task.Delay(TimeSpan.FromSeconds(_options.CurrentValue.InitialDelaySeconds), ct);
+        await Task.Delay(initialDelay, ct);
 
         while (!ct.IsCancellationRequested)
         {
@@ -39,7 +44,11 @@ public class RealtimePollingWorker : BackgroundService
                 _logger.LogWarning(ex, "Unexpected error during realtime polling cycle");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(_options.CurrentValue.IntervalSeconds), ct);
+            // Re-read each cycle so a configuration change takes effect without a restart — which is
+            // also why the clamp has to be here rather than only in the constructor.
+            await Task.Delay(
+                PollingInterval.Seconds(_options.CurrentValue.IntervalSeconds, 30, _logger, "RealtimePolling:IntervalSeconds"),
+                ct);
         }
     }
 }

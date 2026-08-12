@@ -25,10 +25,13 @@ public class FeedPollingWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        var intervalMinutes = _options.CurrentValue.IntervalMinutes;
-        if (intervalMinutes <= 0) intervalMinutes = 60;
+        // This worker already guarded against a non-positive interval inline; it now shares the
+        // clamp with the other two, which did not. PollingInterval also raises anything below its
+        // floor, which the inline `<= 0` check let through.
+        var interval = PollingInterval.Minutes(
+            _options.CurrentValue.IntervalMinutes, 60, _logger, "FeedPolling:IntervalMinutes");
 
-        _logger.LogInformation("Feed polling worker started with {Interval} min interval", intervalMinutes);
+        _logger.LogInformation("Feed polling worker started with {Interval} interval", interval);
 
         while (!ct.IsCancellationRequested)
         {
@@ -41,9 +44,9 @@ public class FeedPollingWorker : BackgroundService
                 _logger.LogWarning(ex, "Error during feed polling cycle");
             }
 
-            intervalMinutes = _options.CurrentValue.IntervalMinutes;
-            if (intervalMinutes <= 0) intervalMinutes = 60;
-            await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), ct);
+            await Task.Delay(
+                PollingInterval.Minutes(_options.CurrentValue.IntervalMinutes, 60, _logger, "FeedPolling:IntervalMinutes"),
+                ct);
         }
     }
 

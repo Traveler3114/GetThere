@@ -184,8 +184,16 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # The full workload, not maui-android.
+      #
+      # GetThere.csproj multi-targets: on a non-Linux host its TargetFrameworks include net10.0-ios
+      # and net10.0-maccatalyst, and on Windows net10.0-windows too. `dotnet restore` resolves every
+      # one of them, so with only maui-android installed the restore fails before anything is built:
+      #   error NETSDK1147: To build this project, the following workloads must be installed: ios
+      # Installing the rest satisfies the imports. It does not build those heads — the build step
+      # below is still Android-only, and iOS/Windows remain uncovered by CI.
       - name: Install MAUI workload
-        run: dotnet workload install maui-android
+        run: dotnet workload install maui
 
       - name: Restore GetThere
         run: dotnet restore GetThere/GetThere.csproj

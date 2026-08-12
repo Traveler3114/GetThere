@@ -116,6 +116,38 @@ public class TransitDbContext : IdentityDbContext<AppUser>
             entity.Property(e => e.ManualReviewDistanceMetersAtDecision).HasPrecision(14, 4);
         });
 
+        // ── Lengths on indexed string columns ─────────────────────────────────────────────────
+        //
+        // Every string column indexed below had no configured length, so EF widened each to
+        // nvarchar(450) — the 900-byte limit for an index key. That is why these indexes exist at
+        // all rather than failing to create (SQL Server refuses to index nvarchar(max)), and it is
+        // the other half of the bug docs/database-drift.md records for RefreshTokens.Token: one
+        // shape makes the index impossible, the other makes it enormous.
+        //
+        // GetThereAPI already worked this out, on Purchase.Status: "letting EF widen it to the
+        // 450-char key limit would put ~900 bytes per row in an index over four short words". The
+        // project that never applied it is the one with StopTimes and Trips in it — the two largest
+        // tables in the system, both carrying an index keyed on one of these columns.
+        //
+        // NOT APPLIED YET, deliberately. The sizes below are the intended ones:
+        //
+        //   Country.IsoCode            8     Operator.OnestopId          128
+        //   FeedVersion.Sha1          64     CanonicalStation.OnestopId  128
+        //   RawStop.RawStopId        128     CanonicalRoute.OnestopId    128
+        //   StopTime.RawStopId       128     Feed.FeedId                 128
+        //   Trip.TripId              128     Feed.OnestopId              128 (nvarchar(max) today,
+        //                                    the one OnestopId with no index)
+        //
+        // They are written here rather than applied because a model change without its migration is
+        // not inert: EF Core raises PendingModelChangesWarning as an error inside Database.Migrate(),
+        // which every database-backed fixture calls, so adding these alone turns the test suite red.
+        // They have to land in the same commit as `dotnet ef migrations add`, which needs an SDK.
+        //
+        // Sizes are generous against real data rather than minimal, because a length below what a
+        // live row already holds fails the migration: GTFS ids and Onestop slugs run to tens of
+        // characters, not hundreds, and Sha1 is exactly 40 hex digits (64 leaves room should
+        // ExternalFeedSource.ComputeHash ever move off SHA-1, which it should).
+
         // Country IsoCode unique index
         modelBuilder.Entity<Country>()
             .HasIndex(c => c.IsoCode)

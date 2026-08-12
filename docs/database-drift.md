@@ -87,12 +87,24 @@ serialised against every other refund and blocked inserts of any wallet transact
 of its transaction. The code comment beside it already named the filtered unique index as the
 durable fix; what it did not say is that the missing lengths were what made that index impossible.
 
-`AppDbContext.OnModelCreating` now sets `HasMaxLength(32)` on `Type`, `HasMaxLength(64)` on
-`ReferenceId`, and declares the filtered unique index on `(Type, ReferenceId)`.
+**The fix is written down but NOT applied**, and the reason is worth recording because it caught us
+out. The intended change is `HasMaxLength(32)` on `Type`, `HasMaxLength(64)` on `ReferenceId`, and a
+filtered unique index on `(Type, ReferenceId)`.
 
-**The migration has not been generated.** It was written in a container with no .NET SDK, so
-`dotnet ef` could not be run, and `AGENTS.md` rules out hand-editing migrations and the model
-snapshot. Until someone runs:
+It was applied on 2026-08-10 without a migration, on the assumption that a model change ahead of its
+migration is inert — the index simply would not exist yet. **That assumption is wrong.** EF Core
+raises `PendingModelChangesWarning` as an *error* from inside `Database.Migrate()`, and all three
+database-backed fixtures call it in their constructors. The result was 54 failed tests, every one of
+them:
+
+```
+System.InvalidOperationException : An error was generated for warning
+'Microsoft.EntityFrameworkCore.Migrations.PendingModelChangesWarning':
+The model for context 'AppDbContext' has pending changes.
+```
+
+So the model edit was reverted, and the comment in `AppDbContext` now points here. **The model change
+and its migration have to land in the same commit:**
 
 ```bash
 cd GetThereAPI
@@ -100,9 +112,10 @@ dotnet ef migrations add AddWalletTransactionRefundIndex
 dotnet ef database update
 ```
 
-the model and the database disagree: the index does not exist and the refund guard keeps scanning.
-Nothing regresses in the meantime — the guard is still correct, just as slow as it was — but the
-performance fix is not live until the migration is applied.
+The same trap applies to the `TransitInfoAPI` column sizes described in the next section — they are
+written as a comment in `TransitDbContext` for exactly this reason.
+
+Until then the refund guard keeps scanning: still correct, still slow.
 
 Two things to check when generating it, because the filter is not free:
 
@@ -129,3 +142,50 @@ Two things to check when generating it, because the filter is not free:
 
 Whichever you pick, check any other environment before assuming it is only local: if a shared or
 staging database was stamped the same way, it has the same broken endpoints.
+
+## nvarchar(450) on every indexed string column in TransitInfoAPI — MIGRATION OWED
+
+**Found:** 2026-08-12, audit round 2.
+
+The mirror image of the two bugs above. `TransitDbContext` declares 7 `HasMaxLength` calls for ~157
+string properties, and every string column it indexes has no configured length — so EF widened each
+to `nvarchar(450)`, the 900-byte index-key limit. The indexes therefore exist (SQL Server refuses to
+index `nvarchar(max)`, so the alternative would have been a failed migration), but each key reserves
+up to 900 bytes for content that is tens of characters:
+
+| Entity | Column | Now | Intended | Real content |
+|---|---|---|---|---|
+| `StopTime` | `RawStopId` | `nvarchar(450)` | 128 | GTFS stop id |
+| `Trip` | `TripId` | `nvarchar(450)` | 128 | GTFS trip id |
+| `RawStop` | `RawStopId` | `nvarchar(450)` | 128 | GTFS stop id |
+| `FeedVersion` | `Sha1` | `nvarchar(450)` | 64 | exactly 40 hex chars |
+| `Country` | `IsoCode` | `nvarchar(450)` | 8 | **2 chars**, unique index |
+| `Operator`, `CanonicalStation`, `CanonicalRoute` | `OnestopId` | `nvarchar(450)` | 128 | short slug |
+| `Feed` | `FeedId` | `nvarchar(450)` | 128 | short slug |
+| `Feed` | `OnestopId` | `nvarchar(max)` | 128 | the one `OnestopId` with no index |
+
+`StopTimes` and `Trips` are the largest tables in the system — the import path streams "a million
+stop_times rows" — and both carry an index keyed on one of these.
+
+GetThereAPI already reached this conclusion, on `Purchase.Status`: *"letting EF widen it to the
+450-char key limit would put ~900 bytes per row in an index over four short words."* The project that
+never applied it is the one with the big tables.
+
+The sizes are recorded as a comment in `TransitDbContext.OnModelCreating` rather than applied, for
+the reason in the section above: a model change without its migration turns the suite red. Generate
+both together:
+
+```bash
+cd TransitInfoAPI
+dotnet ef migrations add SizeIndexedStringColumns
+dotnet ef database update
+```
+
+Two things to check when doing it:
+
+- A length below what a live row already holds fails the migration. Query the current maxima first
+  (`SELECT MAX(LEN(RawStopId)) FROM StopTimes` and so on) and raise the target if any feed carries
+  something unusual.
+- The point of the change is index size, so measure it. `sys.dm_db_partition_stats` before and after
+  on `IX_StopTimes_RawStopId`, `IX_Trips_FeedVersionId_TripId` and `IX_Countries_IsoCode` is the
+  evidence that it worked.

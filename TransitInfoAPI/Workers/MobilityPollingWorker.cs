@@ -34,10 +34,14 @@ public class MobilityPollingWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        // Clamped rather than passed through — see PollingInterval and RealtimePollingWorker.
+        var initialDelay = PollingInterval.InitialDelaySeconds(
+            _options.CurrentValue.InitialDelaySeconds, 15, _logger, "MobilityPolling:InitialDelaySeconds");
+
         _logger.LogInformation("Mobility polling worker started with {Interval}s interval",
             _options.CurrentValue.IntervalSeconds);
 
-        await Task.Delay(TimeSpan.FromSeconds(_options.CurrentValue.InitialDelaySeconds), ct);
+        await Task.Delay(initialDelay, ct);
 
         while (!ct.IsCancellationRequested)
         {
@@ -50,7 +54,9 @@ public class MobilityPollingWorker : BackgroundService
                 _logger.LogWarning(ex, "Unexpected error during mobility polling cycle");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(_options.CurrentValue.IntervalSeconds), ct);
+            await Task.Delay(
+                PollingInterval.Seconds(_options.CurrentValue.IntervalSeconds, 120, _logger, "MobilityPolling:IntervalSeconds"),
+                ct);
         }
     }
 
