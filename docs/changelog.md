@@ -829,7 +829,7 @@ Treat CI as the first real verification.
 | **Middleware order** | `TransitInfoAPI/Program.cs` | HSTS/redirect/static now run *before* authentication, matching GetThereAPI. A bearer token presented over plain http was being parsed, validated and used for a claims lookup before the pipeline redirected it to TLS. |
 | **Duplication** | `SharedAuth/SeedPasswordGenerator.cs` (new), both `Program.cs` | Identical generator in both files. Also fixed: it drew uniformly from a combined alphabet and so did not *guarantee* the digit/uppercase/symbol the password policy requires — a miss meant `CreateAsync` rejected it and the environment came up with no admin. |
 | **Localization** | `ImportTicketViewModel.cs`, both `.resx` | Three hardcoded English validation strings on the ticket-import path. Parity now 284/284. |
-| **CI** | `.github/workflows/build-check.yml` | `dotnet format` step for the MAUI project — the one project of six without one. |
+| **CI** | `.github/workflows/build-check.yml` | `dotnet format` step for the MAUI project — the one project of six without one. **It is non-blocking**; see the round-2 entry below for what it found and what is still owed. |
 
 #### Findings withdrawn
 
@@ -936,3 +936,23 @@ feeds behave consistently).
 
 `FeedManager`'s import pipeline and bulk-copy reader, `ReconciliationManager`'s matching heuristics
 and auto-merge thresholds, the MAUI XAML layer, and the migrations themselves.
+
+#### Postscript — the MAUI lint step is non-blocking
+
+The step added in wave 6 ran for the first time this session and found years of drift, which is what
+it was for. Two of the three kinds are fixed and CI confirms they are gone:
+
+- seven files carried a UTF-8 BOM against `charset = utf-8`;
+- ten files declared a file-scoped namespace and then indented the body four spaces anyway — the
+  shape you get converting `namespace X { … }` to `namespace X;` without reflowing. Six were MAUI
+  template boilerplate under `Platforms/`, and two of those are for heads CI has never built.
+
+What surfaced behind them is left: `dotnet format` reports a bounded number of diagnostics per run,
+so the first batch masked a second. It wants blank lines between import groups
+(`dotnet_separate_import_directive_groups`) across about eight files in `Services/`, `ViewModels/`
+and `Helpers/`, plus multi-line expression reflow in `Components/AnimatedBackground.xaml.cs`.
+
+That cannot be converged on by hand — each guess at what the formatter wants costs a CI round trip —
+so **the step reports without failing the job**. One `dotnet format GetThere/GetThere.csproj` on a
+machine with the MAUI workload fixes all of it in a single commit; delete the `continue-on-error`
+straight afterwards. A permanently non-blocking lint step is exactly the gap it was added to close.
