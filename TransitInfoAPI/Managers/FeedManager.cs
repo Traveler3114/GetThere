@@ -1056,7 +1056,14 @@ public class FeedManager
         {
             DestinationTableName = "StopTimes",
             BatchSize = 50000,
-            BulkCopyTimeout = 180
+
+            // The configured timeout, not a hardcoded 180. FeedImport:BulkCommandTimeoutSeconds
+            // exists because "bulk statements far exceed the 30 s default", and every other
+            // long-running step of the import honours it — but this one, the longest of them and the
+            // one that streams millions of stop_times rows, quietly used its own smaller number. So
+            // raising the setting to get a big feed through had no effect on the operation most
+            // likely to need it.
+            BulkCopyTimeout = _bulkCommandTimeoutSeconds
         };
 
         // Mapped by source *ordinal*, not by source name. ObjectArrayReader below is positional —
