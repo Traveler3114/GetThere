@@ -17,12 +17,16 @@ const ROUTE_COLORS = {
 
 function rtBadge(type) {
   if (!type) return '';
-  const color = ROUTE_COLORS[type] || ROUTE_COLORS.default;
+  const color = getRouteColor(type);
   return `<span class="rt-badge" style="background:${color}">${formatEnumName(type)}</span>`;
 }
 
 function getRouteColor(type) {
-  return ROUTE_COLORS[type] || ROUTE_COLORS.default;
+  // hasOwn, not a bare index: ROUTE_COLORS inherits from Object.prototype, so a feed-supplied
+  // route type of "constructor" or "toString" returned a *function* instead of falling through
+  // to the default colour, and that function stringified into the style attribute as CSS.
+  // Not injectable — the result cannot contain a quote — but it renders a broken badge.
+  return Object.hasOwn(ROUTE_COLORS, type) ? ROUTE_COLORS[type] : ROUTE_COLORS.default;
 }
 
 function formatEnumName(name) {

@@ -423,10 +423,19 @@ function closeSidebar() {
 }
 
 function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+  // Escapes quotes as well as angle brackets, unlike the textContent/innerHTML round-trip this
+  // replaces. That trick escapes < > and &, but leaves " and ' untouched — which is safe only for
+  // as long as every caller interpolates into text. The moment one puts esc() output inside a
+  // quoted HTML attribute, an operator-supplied name containing a quote breaks out of it.
+  //
+  // Every current use here is a text context, so this fixes no live bug. It removes a trap: the
+  // admin console's Shell.esc does escape quotes, and anyone reasonably assuming these two match
+  // would introduce an injection. The /map CSP has no 'unsafe-inline' in script-src, which is the
+  // backstop rather than the control.
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(vehiclesInterval); });
