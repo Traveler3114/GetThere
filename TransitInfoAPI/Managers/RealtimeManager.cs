@@ -134,6 +134,18 @@ public class RealtimeManager
         Interlocked.Exchange(ref _tripUpdateCache, merged);
 
         // Vehicle stale cutoff matches realtime poll interval. Move to per-feed config if needed.
+        //
+        // KNOWN GAP: this prunes on LastUpdated, which is the operator's own `vp.Timestamp` (see
+        // PollFeedAsync) and is therefore untrusted. A feed publishing a timestamp in the future
+        // produces entries that are never older than the cutoff and so are never evicted — and the
+        // cache key includes the operator-supplied vehicle id, so the number of such entries is
+        // bounded by what the feed chooses to emit rather than by how many vehicles exist. A broken
+        // producer with a clock fault does this as readily as a hostile one.
+        //
+        // The fix is to clamp on ingest — a vehicle position cannot be from the future, so
+        // LastUpdated should be `min(vp.Timestamp, UtcNow)` — but that changes what the map displays
+        // for every feed whose clock runs fast, and there is no way to check the effect on real
+        // feeds from here. Recorded rather than applied.
         var cutoff = DateTime.UtcNow.AddMinutes(-_vehicleStaleCutoffMinutes);
         foreach (var key in _vehicleCache.Keys)
         {
