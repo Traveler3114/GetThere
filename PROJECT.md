@@ -229,7 +229,13 @@ Managers return data directly (no envelope wrapper):
 ### Auto-registration
 - MAUI services in `GetThere.Services` namespace are registered individually in `MauiProgram.cs`
 - API managers in `GetThereAPI.Managers` namespace are auto-registered as scoped by reflection in `Program.cs`
-- Exceptions (explicitly registered): `MobilityManager` (singleton + hosted), `AdapterRegistry` (singleton)
+- The one exception there is `AdapterRegistry`, registered explicitly as a singleton
+- **TransitInfoAPI does not use reflection at all** — every manager is registered by hand in its own `Program.cs`. Its singletons are `OnestopIdManager`, `RealtimeManager`, `ImportLogStore`, `ExternalFeedSource` and `SecretProtector`; everything else, `MobilityManager` included, is scoped because it depends on `TransitDbContext`
+
+> This previously read "`MobilityManager` (singleton + hosted)", which was wrong twice over:
+> `MobilityManager` belongs to TransitInfoAPI rather than GetThereAPI, and it is registered
+> `AddScoped`. Acting on the old line — capturing it from a singleton — captures a scoped
+> `TransitDbContext` with it. `AGENTS.md` has had the correct lifetime all along.
 
 ## Conventions — Validation
 
