@@ -185,9 +185,9 @@ public class MobilityManager
                 continue;
             }
 
-            // Same range check ParseStops applies to GTFS stops. A (0,0) dock is a missing coordinate,
-            // not a dock in the Gulf of Guinea.
-            if (lat is < -90 or > 90 || lon is < -180 or > 180 || (lat == 0.0 && lon == 0.0))
+            // The shared predicate, which is also what ParseStops applies to GTFS stops. A (0,0)
+            // dock is a missing coordinate, not a dock in the Gulf of Guinea.
+            if (!GeoBounds.IsUsable(lat.Value, lon.Value))
             {
                 _logger.LogWarning("Skipping mobility station {StationId} with invalid coordinates ({Lat}, {Lon})", stationId, lat, lon);
                 skipped++;
@@ -298,7 +298,7 @@ public class MobilityManager
             // The same range check the GBFS path applies. This path had none at all, so a record
             // whose coordinate had been misread — see GetDouble, which parsed under the server's
             // culture until this commit — was written to the database unchallenged.
-            if (lat is < -90 or > 90 || lon is < -180 or > 180 || (lat == 0.0 && lon == 0.0))
+            if (!GeoBounds.IsUsable(lat.Value, lon.Value))
             {
                 _logger.LogWarning("Skipping mobility station {StationId} with invalid coordinates ({Lat}, {Lon})", stationId, lat, lon);
                 continue;

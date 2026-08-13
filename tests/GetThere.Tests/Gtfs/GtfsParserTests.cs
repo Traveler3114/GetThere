@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using NetTopologySuite.Geometries;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Services;
 
 namespace GetThere.Tests.Gtfs;
@@ -89,6 +90,53 @@ public class GtfsParserTests
         Assert.Equal("S1", Assert.Single(stops).StopId);
     }
 
+    [Theory]
+    [InlineData("NaN", "15.9619")]
+    [InlineData("45.8131", "NaN")]
+    [InlineData("Infinity", "15.9619")]
+    [InlineData("45.8131", "-Infinity")]
+    public void A_stop_with_a_non_finite_coordinate_never_reaches_the_import(string lat, string lon)
+    {
+        // Regression: the guard was a chain of relational comparisons, and every comparison with
+        // NaN is false — so neither the range test nor the (0,0) test rejected it. Neither CSV nor
+        // JSON can write a non-finite number, but both reach a text parse, and double.TryParse
+        // accepts these spellings against InvariantCulture. The value then went to a SQL Server
+        // float column that cannot hold it and into the convex hull the map draws.
+        //
+        // Asserted on what comes out rather than on the dropped count, because whether CsvHelper
+        // yields NaN or refuses the row outright is not the point: either way the stop must not
+        // survive the parser.
+        using var archive = GtfsFeedBuilder.Minimal()
+            .With("stops.txt",
+                "stop_id,stop_name,stop_lat,stop_lon,location_type\n" +
+                "S1,Britanski trg,45.8131,15.9619,0\n" +
+                $"BAD,Broken,{lat},{lon},0\n")
+            .Build();
+
+        var (stops, _) = CreateParser().ParseStops(archive);
+
+        Assert.Equal("S1", Assert.Single(stops).StopId);
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 15.9619)]
+    [InlineData(45.8131, double.NaN)]
+    [InlineData(double.PositiveInfinity, 15.9619)]
+    [InlineData(45.8131, double.NegativeInfinity)]
+    [InlineData(91.0, 15.9619)]
+    [InlineData(45.8131, 181.0)]
+    [InlineData(0.0, 0.0)]
+    [InlineData(-0.0, 0.0)]
+    public void An_unusable_coordinate_is_rejected_by_the_shared_predicate(double lat, double lon)
+        => Assert.False(GeoBounds.IsUsable(lat, lon));
+
+    [Theory]
+    [InlineData(45.8131, 15.9619)]
+    [InlineData(-90.0, -180.0)]
+    [InlineData(0.0, 15.9619)]
+    public void A_usable_coordinate_is_accepted_by_the_shared_predicate(double lat, double lon)
+        => Assert.True(GeoBounds.IsUsable(lat, lon));
+
     [Fact]
     public void Shape_points_are_ordered_by_sequence_not_by_file_order()
     {
@@ -140,12 +188,16 @@ public class GtfsParserTests
     [Theory]
     [InlineData("08:00:00", 28800)]
     [InlineData("00:00:00", 0)]
-    [InlineData("8:05:00", 29100)]      // seven characters, zero-padded on read
+    [InlineData("8:05:00", 29100)]      // a single-digit hour, which int.Parse handles unpadded
     [InlineData("25:30:00", 91800)]     // past midnight, which GTFS allows and must not wrap
     [InlineData("", null)]
     [InlineData("   ", null)]
     [InlineData("not-a-time", null)]
     [InlineData("08:00", null)]
+    // int.TryParse accepts a leading sign, so this used to come back as -18000 seconds.
+    [InlineData("-05:00:00", null)]
+    // h * 3600 was unchecked int arithmetic; past ~596,000 hours it wrapped, often to a negative.
+    [InlineData("999999999:00:00", null)]
     public void Gtfs_times_are_seconds_since_midnight(string raw, int? expected)
     {
         Assert.Equal(expected, GtfsParser.ParseGtfsTimeToSeconds(raw));

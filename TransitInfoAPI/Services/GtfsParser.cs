@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using NetTopologySuite.Algorithm;
 using NetTopologySuite.Geometries;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Enums;
 
 namespace TransitInfoAPI.Services;
@@ -99,8 +100,7 @@ public class GtfsParser
         var dropped = 0;
         foreach (var stop in stops)
         {
-            if (stop.StopLat < -90 || stop.StopLat > 90 || stop.StopLon < -180 || stop.StopLon > 180
-                || (stop.StopLat == 0.0 && stop.StopLon == 0.0))
+            if (!GeoBounds.IsUsable(stop.StopLat, stop.StopLon))
             {
                 _logger.LogWarning("Skipping stop {StopId} with invalid coordinates ({Lat}, {Lon})",
                     stop.StopId, stop.StopLat, stop.StopLon);
@@ -180,11 +180,11 @@ public class GtfsParser
 
         foreach (var record in csv.GetRecords<ShapePointRecord>())
         {
-            // Range-checked exactly as ParseStops checks stops. This accepted anything, so a (0,0)
-            // or out-of-range point drew a route line across the world — and the geometry is what the
+            // Range-checked exactly as ParseStops checks stops — through the same predicate now,
+            // rather than through a second copy of it. This accepted anything, so a (0,0) or
+            // out-of-range point drew a route line across the world, and the geometry is what the
             // map renders.
-            if (record.ShapePtLat is < -90 or > 90 || record.ShapePtLon is < -180 or > 180
-                || (record.ShapePtLat == 0.0 && record.ShapePtLon == 0.0))
+            if (!GeoBounds.IsUsable(record.ShapePtLat, record.ShapePtLon))
             {
                 droppedPoints++;
                 continue;
@@ -345,17 +345,43 @@ public class GtfsParser
 
     private static string Truncate(string? value) =>
         value is null ? "" : value.Length <= 200 ? value : value[..200] + "…";
+
+    /// <summary>
+    /// A week, as the ceiling on a GTFS time.
+    /// <para>
+    /// GTFS times deliberately run past 24:00:00 for a trip that crosses midnight into the next
+    /// service day, so a cap is needed but a tight one would reject real feeds. A week is far above
+    /// anything meaningful and far below where the arithmetic below stops being trustworthy.
+    /// </para>
+    /// </summary>
+    private const int MaxSecondsAfterMidnight = 7 * 24 * 3600;
+
+    /// <summary>
+    /// Converts a GTFS <c>HH:MM:SS</c> to seconds after midnight, keeping hours past 24 intact.
+    /// </summary>
+    /// <remarks>
+    /// Two things this used to return rather than reject. <c>int.TryParse</c> accepts a leading
+    /// sign, so <c>"-05:00:00"</c> became -18,000 — a departure before midnight, which nothing
+    /// downstream can interpret. And <c>h * 3600</c> is unchecked <c>int</c> arithmetic, so an hour
+    /// past about 596,000 wrapped silently, often into a negative. Both now come back null, which
+    /// is the answer the caller already handles: <c>FeedManager</c> skips a stop_time whose time
+    /// will not parse and counts it.
+    /// </remarks>
     public static int? ParseGtfsTimeToSeconds(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
-        if (raw.Length == 7) raw = "0" + raw;
+
         var parts = raw.Split(':');
-        if (parts.Length == 3
-            && int.TryParse(parts[0], out var h)
-            && int.TryParse(parts[1], out var m)
-            && int.TryParse(parts[2], out var s))
-            return h * 3600 + m * 60 + s;
-        return null;
+        if (parts.Length != 3
+            || !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var h)
+            || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var m)
+            || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var s))
+            return null;
+
+        // Widened before multiplying, so an absurd hour is rejected by the range test below rather
+        // than wrapping into a plausible-looking one.
+        var total = ((long)h * 3600) + ((long)m * 60) + s;
+        return total is >= 0 and <= MaxSecondsAfterMidnight ? (int)total : null;
     }
 }
 

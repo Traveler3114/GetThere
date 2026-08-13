@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -326,9 +327,9 @@ public class CustomHttpSource : ITransitSource
             var lat = Num(row, "StopLat");
             var lon = Num(row, "StopLon");
 
-            // Same range check the GTFS parser applies: a (0,0) stop puts a pin in the Atlantic and
-            // drags the feed's convex hull with it.
-            if (lat is null || lon is null || lat is < -90 or > 90 || lon is < -180 or > 180 || (lat == 0 && lon == 0))
+            // The shared predicate the GTFS parser also applies: a (0,0) stop puts a pin in the
+            // Atlantic and drags the feed's convex hull with it.
+            if (lat is null || lon is null || !GeoBounds.IsUsable(lat.Value, lon.Value))
             {
                 dropped++;
                 continue;
