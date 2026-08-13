@@ -1144,3 +1144,95 @@ the one a credential was attached to — the case `HttpClient` does not cover, b
 
 The MAUI client (~7,400 lines of C# and 3,700 of XAML), the 31 `wwwroot` scripts in logic detail,
 the 31 test files read for coverage quality, and `Contracts`/`Entities`/`Mapping`.
+
+---
+
+## Audit round 4 — tier 3: the MAUI client (in progress)
+
+Verified green on run 45 (`06a1fc2`).
+
+### The one that moves someone else's ticket
+
+`PendingImportQueue` and `ImportSyncService` — written up in full at both sites, summarised here.
+
+The queue holds tickets created on the device and not yet accepted by the server. It records **no
+owner**, and `FlushAsync` gates only on `IsLoggedInAsync()`. So: a guest imports a ticket on a shared
+or second-hand phone; someone else signs in; `LoadTickets` calls `FlushAsync`, which finds a
+logged-in user and pushes the first person's ticket — barcode payload included — into the second
+person's account. `TicketStore` keys every file by an owner hash precisely to prevent this, and says
+so: "a device is not a person."
+
+It is also the only ticket store left in plaintext. `TicketStore` encrypts the identical payloads
+with AES-GCM under a `SecureStorage` key, on the stated grounds that a ticket payload is a bearer
+credential and `AppDataDirectory` is not proof against a rooted device or an ADB backup. The queue
+is also the copy that lives longest — a guest never signs in, so nothing ever drains it.
+
+**Not fixed.** The owner half is a product decision, not a defect with one right answer: a guest's
+entries are *meant* to follow the next sign-in — that is the guest-to-account upgrade the path
+exists for — and nothing can tell whether the guest and the new account are the same person. The
+encryption half has no trade-off, but the MAUI head cannot be built or run in this container, and
+lifting `TicketStore`'s key handling somewhere both classes can reach is not a change to make blind.
+
+### A translation the app does not reach
+
+The client ships a **complete** Croatian translation: `AppResources.resx` and `AppResources.hr.resx`
+both hold exactly 284 keys, in sync. **87 of those 284 — 31% — are referenced by nothing**, in
+either C# or XAML.
+
+They are not stale leftovers from deleted screens. Ten of them are the `Error_CouldNotLoad*` family,
+and the code that should use them says the English out loud instead:
+
+| Where | What the code says | What the resource says |
+|---|---|---|
+| `Services/WalletService.cs:36` | `"Could not load wallet"` | `Error_CouldNotLoadWallet` → "Nije moguće učitati novčanik: " |
+| `Services/CountryService.cs:35` | `"Could not load countries"` | `Error_CouldNotLoadCountries` → "Nije moguće učitati države: " |
+
+The same split runs through the dialogs: **28 `DisplayAlertAsync` / `DisplayActionSheetAsync` /
+`DisplayPromptAsync` call sites** pass hardcoded English — "Add a ticket", "Take a photo", "Mark as
+used", "Cancel this ticket?" — spread across `ProfileViewModel` (14), `TicketsViewModel` (5),
+`JourneyDetailViewModel` (4), `ProfilePage.xaml.cs` (2), and one each in `RegistrationViewModel`,
+`JourneysViewModel` and `ImportTicketViewModel`. A Croatian user gets a fully translated screen and
+then an English dialog on top of it.
+
+`TicketsViewModel` is half and half in one file — `Common_Offline`, `Tickets_SavedAgo` and
+`Tickets_PendingNotOpenable` go through `LocalizationService`, while "Could not load tickets." and
+every action-sheet label do not.
+
+**Not fixed**, and the reason is specific rather than general caution: the action-sheet *labels* are
+also the values the `switch` compares against (`choice == EnterManually`). Localising a label
+without localising its comparison breaks the branch **silently** — the sheet still opens, the tap
+still dismisses it, and nothing happens. That is a change to make with the app running in front of
+you, in a language you can read, which is not available here.
+
+### A reachable stub
+
+`ProfileViewModel.SubmitChangePassword` validates that the new password matches its confirmation and
+then shows "Password change is not yet available through the app." It never reads
+`SubSettingsCurrentPassword` and never calls anything. The screen's other six strings —
+`Profile_SubSettings_CurrentPassword`, `NewPassword`, `ConfirmNewPassword`, `UpdateButton`,
+`PasswordSuccess`, `PasswordDesc` — are among the 87 unreferenced keys, translated and waiting.
+
+Honest as stubs go: it says it does nothing rather than claiming success. Listed because the entry
+point is reachable from the profile screen.
+
+### Smaller
+
+- **The brand palette is in three places.** `#134E4A` and `#5EEAD4` appear as named statics in
+  `ShopViewModel` and again as literals in `PageUtility`, alongside the XAML resource dictionary.
+- **`ApiEndpoints.Resolve` catches three exception types** and runs inside a `Lazy<string>`. Anything
+  else `OpenAppPackageFileAsync` throws is cached by the `Lazy` and rethrown on every later access,
+  so a single unexpected failure at startup leaves the app unable to resolve any backend address.
+
+### Verified clean
+
+`TicketStore`, which is careful work: AES-GCM under a `SecureStorage` key, a fresh nonce per write,
+authenticated decryption so a file edited on a rooted device fails rather than deserialising into a
+chosen ticket, temp-then-move writes, per-owner directories named by hash rather than by user id,
+and a documented reason for *not* clearing on a 401. `AuthService`'s serialised refresh, and its
+handling of the case where the server rotated the token but the reply was lost. `ApiEndpoints`
+otherwise — addresses come from the packaged `appsettings.json` with the compile-time values only as
+a fallback.
+
+`TicketPurchaseViewModel`'s `walletTask.Result` reads like sync-over-async but is not: it follows
+`await Task.WhenAll(...)`, so both tasks are already complete and a fault would have thrown at the
+await.
