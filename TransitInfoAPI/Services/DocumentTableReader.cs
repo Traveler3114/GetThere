@@ -17,7 +17,24 @@ namespace TransitInfoAPI.Services;
 /// </summary>
 public static class DocumentTableReader
 {
-    /// <summary>First sheet, first row as headers — the shape a small operator's timetable export has.</summary>
+    /// <summary>
+    /// First sheet, first row as headers — the shape a small operator's timetable export has.
+    /// <para>
+    /// <b>Unbounded in memory relative to the upload size.</b> An .xlsx is a zip, and
+    /// <c>XLWorkbook</c> materialises the whole model — every sheet, not just the first one this
+    /// reads. The upload endpoint caps the <em>compressed</em> bytes at 64 MB
+    /// (<c>CustomSourcesController.Upload</c>), which says nothing about what they expand to: a
+    /// deliberately-crafted or merely enormous workbook expands far past that, and the failure is an
+    /// <c>OutOfMemoryException</c> rather than a rejected upload.
+    /// </para>
+    /// <para>
+    /// Not treated as a live vulnerability because reaching it needs <c>CustomSourcesManage</c> —
+    /// an admin can already run arbitrary imports — but it is a foot-gun on a legitimate large
+    /// workbook, not only a hostile one. Fixing it properly means a streaming reader
+    /// (<c>OpenXml</c>'s <c>SAX</c> path) rather than a size check, since the compressed size is not
+    /// the quantity that matters.
+    /// </para>
+    /// </summary>
     public static List<Dictionary<string, object?>> ReadXlsx(byte[] content, List<string> warnings)
     {
         var rows = new List<Dictionary<string, object?>>();
@@ -85,11 +102,6 @@ public static class DocumentTableReader
             return rows;
         }
 
-        foreach (var header in csv.HeaderRecord ?? [])
-        {
-            _ = header;
-        }
-
         while (csv.Read())
         {
             var record = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -117,6 +129,15 @@ public static class DocumentTableReader
     /// editor's preview so a human can see what came out before anything is imported, and a layout
     /// this cannot read is a case for an <see cref="Core.ICustomExtractor"/>.
     /// </para>
+    /// <para>
+    /// <b>One page.</b> <c>CustomSourceEngine.ReadUploadedRows</c> is the only caller and never
+    /// passes <paramref name="pageNumber"/>, so a 40-page timetable imports its first page and
+    /// nothing else. That is a real limit rather than an oversight — the column geometry is derived
+    /// per page from that page's header row, and operator PDFs repeat the header, shift the columns,
+    /// or split a route across pages often enough that concatenating them blind produces plausible
+    /// rows out of the wrong columns. It warns rather than guessing, so the omission is visible in
+    /// the preview instead of surfacing later as a feed missing four fifths of its stops.
+    /// </para>
     /// </summary>
     public static List<Dictionary<string, object?>> ReadPdf(byte[] content, List<string> warnings, int pageNumber = 1)
     {
@@ -127,6 +148,13 @@ public static class DocumentTableReader
         {
             warnings.Add($"PDF has {pdf.NumberOfPages} page(s); page {pageNumber} was requested");
             return rows;
+        }
+
+        if (pdf.NumberOfPages > 1)
+        {
+            warnings.Add(
+                $"PDF has {pdf.NumberOfPages} pages and only page {pageNumber} was read — "
+                + "the other pages are not imported. Split the file, or use a named extractor.");
         }
 
         var page = pdf.GetPage(pageNumber);

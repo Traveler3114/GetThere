@@ -91,7 +91,17 @@ public partial class CustomSourceEngine
         // is configured exactly like an endpoint they host.
         if (request.Url.StartsWith(UploadScheme, StringComparison.OrdinalIgnoreCase))
         {
-            result.Rows.AddRange(ReadUploadedRows(request, result));
+            // Capped like the HTTP path. This return used to skip the limit entirely, so a preview
+            // of an upload-backed source ran the full file through mapping and completion instead of
+            // the 200 rows it asked for — and MaxRows never applied to an uploaded file at all.
+            var uploaded = ReadUploadedRows(request, result);
+            if (uploaded.Count > limit)
+            {
+                result.Log.Add($"{request.TargetSection}: reached the {limit:N0} row cap");
+                uploaded = uploaded.GetRange(0, limit);
+            }
+
+            result.Rows.AddRange(uploaded);
             return result;
         }
 
@@ -625,18 +635,52 @@ public partial class CustomSourceEngine
                     current.SelectMany(e => e.Elements().Where(c =>
                         string.Equals(c.Name.LocalName, segment, StringComparison.OrdinalIgnoreCase))));
 
+        var truncated = false;
         foreach (var element in elements)
         {
             var row = new ExtractedRow();
-            FlattenXml(element, row, string.Empty);
+            truncated |= FlattenXml(element, row, string.Empty, depth: 0);
             if (row.Count > 0) rows.Add(row);
+        }
+
+        if (truncated)
+        {
+            result.Warnings.Add(
+                $"XML nested deeper than {MaxXmlDepth} levels; the levels below that were not flattened into keys");
         }
 
         return rows;
     }
 
-    private static void FlattenXml(XElement element, ExtractedRow row, string prefix)
+    /// <summary>
+    /// How far <see cref="FlattenXml"/> follows nesting before it stops.
+    /// <para>
+    /// <see cref="FlattenXml"/> recurses once per level, and nothing upstream bounds how deep an
+    /// operator's XML goes: <c>XmlReaderSettings</c> has no depth limit to set, and
+    /// <c>XDocument.Parse</c> builds its tree iteratively, so it happily returns a document nested
+    /// tens of thousands deep. Recursing that far overflows the stack, and a
+    /// <c>StackOverflowException</c> cannot be caught — it takes the process down, which on a polled
+    /// source means one broken operator endpoint stops every feed.
+    /// </para>
+    /// <para>
+    /// A document that reaches the ceiling costs about 40 KB, far under
+    /// <see cref="MaxResponseBytes"/>, so the size cap is no defence here.
+    /// </para>
+    /// <para>
+    /// 64 to match <c>JsonDocument</c>'s own default maximum depth, which is what has been quietly
+    /// protecting <see cref="Flatten"/> on the JSON path all along. Real operator XML is nowhere
+    /// near it — even NeTEx, the deepest schema in this domain, is well under 32.
+    /// </para>
+    /// </summary>
+    private const int MaxXmlDepth = 64;
+
+    /// <returns><c>true</c> if nesting below <see cref="MaxXmlDepth"/> was left unread.</returns>
+    private static bool FlattenXml(XElement element, ExtractedRow row, string prefix, int depth)
     {
+        if (depth >= MaxXmlDepth) return true;
+
+        var truncated = false;
+
         foreach (var attr in element.Attributes())
             row[prefix + attr.Name.LocalName] = attr.Value;
 
@@ -644,11 +688,13 @@ public partial class CustomSourceEngine
         {
             var key = prefix + child.Name.LocalName;
             if (child.HasElements || child.HasAttributes)
-                FlattenXml(child, row, key + ".");
+                truncated |= FlattenXml(child, row, key + ".", depth + 1);
 
             if (!child.HasElements)
                 row[key] = child.Value.Trim();
         }
+
+        return truncated;
     }
 
     /// <summary>
