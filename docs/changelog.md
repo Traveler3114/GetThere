@@ -1327,3 +1327,24 @@ assumption, and this set had never been looked at in any round.
 had to fix in `map/public.js`, which silently passes `"` and `'` through. All 38 `innerHTML`
 assignments either build from constants or escape every interpolated value, and the one `href` sink
 (`admin.js:325`) reads from a hardcoded navigation table rather than from data.
+
+### A client document that was wrong about encryption
+
+`getthere-client/architecture.md` describes the offline wallet in absolutes:
+
+> "**Everything** is keyed by owner — the `sub` claim, or a generated guest id — because a device is
+> not a person, and two accounts on one phone must never see each other's tickets."
+>
+> "**Files** are AES-GCM encrypted under a key in `SecureStorage` … A barcode payload is a bearer
+> credential for travel — whoever renders it rides — so it belongs at the same protection level as
+> the tokens."
+
+Both sentences are true of `TicketStore` and false of `PendingImportQueue`, which the same document
+lists one table earlier as its sibling — "*`TicketStore`, `PendingImportQueue` — each owns a file and
+a write lock*" — with nothing to suggest they differ in anything else. They differ in both things
+that paragraph claims.
+
+This is the `PROJECT.md` failure again, on a security property rather than a service lifetime: a
+reader checking whether on-device ticket data is protected gets an unambiguous yes, and it is only
+true of one of the two stores. Corrected in place, with the consequence spelled out and the reason
+it is recorded rather than fixed.

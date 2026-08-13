@@ -60,7 +60,7 @@ navigation time rather than at startup.
 | **Singleton** | `AuthService` | Holds the token cache and the refresh lock — see below |
 | **Singleton** | `TicketCaptureService` | Stateless; wraps platform pickers and a Skia re-encode |
 | **Singleton** | `BarcodeRenderService`, `LocalExtractionService` | Stateless; payload in, image or draft out |
-| **Singleton** | `TicketStore`, `PendingImportQueue` | Each owns a file and a write lock — two screens finishing a load at once must not interleave into a half-written file |
+| **Singleton** | `TicketStore`, `PendingImportQueue` | Each owns a file and a write lock — two screens finishing a load at once must not interleave into a half-written file. They are **not** otherwise equivalent: only `TicketStore` encrypts and scopes by owner — see [the caveat below](#the-wallet-offline) |
 | **Singleton** | `CountryPreferenceService`, `IAnalyticsService` | Stateless preference access |
 | **Singleton** | `AppShell`, `LoginShell` | Navigation roots |
 | **Transient** | Pages, view models, API services | Fresh state per navigation |
@@ -311,6 +311,24 @@ point.
 Files are AES-GCM encrypted under a key in `SecureStorage`, and the tickets directory is excluded
 from Android's Auto Backup *and* device transfer. A barcode payload is a bearer credential for
 travel — whoever renders it rides — so it belongs at the same protection level as the tokens.
+
+> **This describes `TicketStore` only. `PendingImportQueue` does neither.**
+>
+> It holds the same `CreateImportedTicketRequest` payloads — barcode included — as plain JSON in
+> `pending-imports.json`, in one file with **no owner recorded anywhere**. Two consequences follow,
+> and both contradict the paragraph above:
+>
+> - `ImportSyncService.FlushAsync` can only gate on "someone is signed in", because no entry says
+>   whose it is. A guest imports on a shared phone, a different person signs in, and the first
+>   person's ticket is pushed into the second person's account.
+> - It is the copy that persists **longest**: a guest never signs in, so nothing ever drains their
+>   queue. The least-protected store therefore holds the credential the longest, while the encrypted
+>   one holds only the copy the server already has.
+>
+> Recorded rather than fixed. The owner half is a product decision — a guest's entries are *meant* to
+> follow the next sign-in, that being the whole guest-to-account upgrade, and nothing can tell whether
+> the guest and the new account are the same person. The encryption half has no such trade-off; it
+> wants `TicketStore`'s cipher lifted somewhere both classes can reach.
 
 **Status needs care, and gets a rule of its own.** The server owns status; `TicketExpiryWorker` sweeps
 hourly. A cached ticket can therefore claim `Active` long after its window shut, which at a barrier is
