@@ -190,6 +190,28 @@ The ordering here is load-bearing, and the code says so:
 
 Check reuse first, *then* check active. Reversed, reuse detection would be dead code.
 
+**The rotation itself is a conditional update, not a read-then-write** (2026-08-10). The revoke is
+issued as a single statement whose `WHERE` re-asserts the precondition:
+
+```csharp
+var claimed = await _db.RefreshTokens
+    .Where(rt => rt.Id == existingRefreshToken.Id
+        && rt.RevokedAt == null
+        && rt.ReplacedByToken == null)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(rt => rt.RevokedAt, rotatedAt)
+        .SetProperty(rt => rt.ReplacedByToken, newHashedRefreshToken), ct);
+```
+
+`claimed == 0` means someone else rotated this exact token between the read above and this write.
+That is the same event as presenting an already-rotated token, so it gets the same answer — revoke
+the whole family. Treating the race as benign would mean a stolen token that beats the real client
+to the server is rewarded with a working session.
+
+Without this, two concurrent refreshes both pass the reuse check, both write, and both succeed:
+reuse detection is intact for a *replay*, and blind to a *race*. TransitInfoAPI's `AuthManager`
+carries the identical rotation, for the same reason.
+
 ### The address is recorded, not enforced
 
 A refresh used to be **rejected** when the token was issued with an IP address and the request

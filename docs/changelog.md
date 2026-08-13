@@ -1291,3 +1291,27 @@ misinformed**: a lifetime table with no `SecretProtector` row reads as complete,
 reference listing 23 of 27 tables gives no sign that four are missing. Both were caught only by
 diffing the documents against code this audit had already read — which is the cheapest that check
 will ever be, and the reason `docs/` moved up the queue rather than staying at the end of it.
+
+### Two references that had fallen behind the code
+
+Coverage was the first check; the second was whether what the documents *say* still matches what the
+code *does*. GetThereAPI's references came out clean on coverage — 12 of 12 tables, 9 of 9
+controllers, 35 of 35 shared contract types — so the drift is one feature rather than a systemic
+habit. Two behavioural gaps did turn up:
+
+- **`getthere-api/architecture.md` described rotation as a read-then-write.** It documents reuse
+  detection and the load-bearing ordering correctly, and it records the 2026-07-31 address-check
+  removal, but not the 2026-08-10 change that made the revoke a conditional `ExecuteUpdateAsync`
+  whose `WHERE` re-asserts `RevokedAt == null && ReplacedByToken == null`. That distinction is the
+  whole mechanism: without it two concurrent refreshes both pass the reuse check and both succeed,
+  so detection is intact for a *replay* and blind to a *race*. Added, with the `claimed == 0`
+  branch and why a race is treated as theft.
+- **`transitinfo-api/realtime.md` listed the three workers' default intervals** with no mention of
+  the 5-second floor. A configured `0` binds silently and turns the poll loop into a busy spin. Added.
+
+### Verified clean
+
+`GetThereAPI`'s reflection-based manager registration is described accurately, including the trade it
+names — that the namespace is load-bearing, so a class dropped into `GetThereAPI.Managers` becomes an
+injectable scoped service whether or not that was intended. The reuse-detection ordering note, the
+`nvarchar(max)` index bug write-up, and the address-check removal rationale all match the code.

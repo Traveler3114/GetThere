@@ -12,6 +12,13 @@ different rates.
 The startup delays on the two live workers are deliberate: they let migrations and seeding finish
 before the first poll, so a cold start does not race the schema.
 
+All three read their interval through `Workers/PollingInterval`, which **floors it at 5 seconds** and
+logs when it has to. A configured `0` — from a typo, or a config file that omits the key so it binds
+to the type default — otherwise becomes a `Task.Delay(0)` inside a `while (!ct.IsCancellationRequested)`
+loop: a busy spin that hammers the operator's endpoint and pins a core, on a `BackgroundService`
+nothing is watching. GetThereAPI's `TicketExpiryWorker` had clamped in its constructor for the same
+reason; these three did not until the floor was extracted.
+
 ---
 
 ## Why realtime data lives in memory
