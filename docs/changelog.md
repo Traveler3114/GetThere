@@ -1315,3 +1315,15 @@ habit. Two behavioural gaps did turn up:
 names — that the namespace is load-bearing, so a class dropped into `GetThereAPI.Managers` becomes an
 injectable scoped service whether or not that was intended. The reuse-detection ordering note, the
 `nvarchar(max)` index bug write-up, and the address-check removal rationale all match the code.
+
+### The admin console I had never counted
+
+`GetThereAPI/wwwroot` is a **second** admin console — 7 scripts, 1,239 lines — separate from
+TransitInfoAPI's 25. Round 4's scope said "31 wwwroot scripts"; that was TransitInfoAPI's 25 plus an
+assumption, and this set had never been looked at in any round.
+
+**Clean on the question that matters.** `Admin.esc` is the correct five-character implementation —
+`& < > " '` through a regex replace — not the `textContent`/`innerHTML` round-trip that rounds 1–3
+had to fix in `map/public.js`, which silently passes `"` and `'` through. All 38 `innerHTML`
+assignments either build from constants or escape every interpolated value, and the one `href` sink
+(`admin.js:325`) reads from a hardcoded navigation table rather than from data.
