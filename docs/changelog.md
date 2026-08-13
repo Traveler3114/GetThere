@@ -1051,3 +1051,96 @@ and the new version activated inside one committed transaction), and the other 1
 #### Still un-audited
 
 `ReconciliationManager`'s spatial grid and `PlaceMatchingManager`; the MAUI page code-behind.
+
+---
+
+## Audit round 4 — tier 2: the custom-source path, mobility, operators, the GTFS parser
+
+Round 3 stopped with "`ReconciliationManager`'s spatial grid and `PlaceMatchingManager`" listed as
+un-audited. Both are now read, along with the whole custom-source stack, `MobilityManager`,
+`OperatorManager` and the rest of `GtfsParser`.
+
+Verified green on run 43 (`16d9c13`) and run 44.
+
+### The one that takes the process down
+
+`CustomSourceEngine.FlattenXml` recursed once per level of nesting with nothing bounding the depth.
+`XmlReaderSettings` has no depth limit to set and `XDocument.Parse` builds its tree iteratively, so
+it happily returns a document nested tens of thousands deep — and roughly **40 KB** of XML, far
+under the 32 MB response cap, is enough to overflow the stack. A `StackOverflowException` cannot be
+caught: the process dies, and because this runs from the poller, one broken operator endpoint stops
+every other feed with it.
+
+Capped at 64 levels, matching `JsonDocument`'s own default maximum depth — which is what had been
+quietly protecting the JSON path all along.
+
+### One check, five copies, one hole
+
+`GtfsParser.ParseStops`, `GtfsParser.ParseShapes`, both `MobilityManager` upserts and
+`CustomHttpSource.ToStops` each carried their own copy of the coordinate guard, each commented as
+matching one of the others.
+
+Every comparison with NaN is false. So `lat < -90 || lat > 90` rejects nothing when `lat` is NaN,
+and `lat == 0 && lon == 0` does not catch it either. Neither CSV nor JSON can write a non-finite
+number — but all five paths reach a text parse, and `double.TryParse` accepts the strings `"NaN"`
+and `"Infinity"` against `InvariantCulture`'s symbols. A feed only has to contain three characters
+in `stop_lat`.
+
+What that bought: the value passed the guard whose entire purpose is keeping junk out of the feed's
+geometry, reached a SQL Server `float` column with no NaN to store it in — so the import failed on a
+bulk-copy error naming neither the stop nor the reason — and entered the convex hull that draws the
+operator's service area.
+
+`Common/GeoBounds.IsUsable` is now the single definition, called from all five.
+
+### Fixed
+
+| Area | File(s) | What |
+|---|---|---|
+| **Preview cap ignored** | `Services/CustomSourceEngine.cs` | `ExecuteAsync` returned early for `upload://` requests and never applied its row limit, so `PreviewAsync`'s 200-row cap ran the entire file through mapping and completion, and `MaxRows` never applied to an uploaded file at all. |
+| **Non-finite numbers** | `Services/CustomHttpSource.cs` | `Num` returned NaN and Infinity to every caller, not just the coordinate one. `(int?)double.NaN` is 0 under .NET's saturating conversions, so a NaN `LocationType` or `StopSequence` became a meaningful zero. |
+| **Negative GTFS times** | `Services/GtfsParser.cs` | `int.TryParse` accepts a leading sign, so `"-05:00:00"` became −18,000 seconds; and `h * 3600` is unchecked `int` arithmetic that wrapped past ~596,000 hours, often into a negative. Widened before multiplying, range-checked after, null otherwise — which is what `FeedManager` already handles by skipping and counting. |
+| **Operator map pin** | `Managers/OperatorManager.cs` | Latitude and longitude were two independent unordered `FirstOrDefault` subqueries. For an operator serving more than one station nothing tied them to the same row, so the pin could land at a coordinate belonging to neither — and could move between two identical requests. |
+| **Arbitrary truncation** | `Managers/OperatorManager.cs` | `GetStationsAsync` and `GetRoutesAsync` cap at 500 with no `ORDER BY`. `TOP` without one lets SQL Server return any 500 rows, so an operator past the ceiling showed a shifting subset and the rest were unreachable. |
+| **Delete loads everything** | `Managers/OperatorManager.cs` | `DeleteAsync` `Include`d all four association collections purely to count them, materialising every route and station association into the change tracker on the path that then refuses the delete. Four `COUNT`s answer the same question. |
+| **Culture-sensitive parse** | `Managers/MobilityManager.cs` | `GetDouble` used a bare `double.TryParse`, whose default styles include `AllowThousands` — so under any server culture that groups with a dot, `"45.81"` reads as `4581`. Silently. `CA1305`, the analyzer for exactly this, is off in `.editorconfig`. |
+| **Missing range check** | `Managers/MobilityManager.cs` | `UpsertStationsFromRecordsAsync` applied no coordinate check at all before writing, unlike its GBFS sibling — so the mis-parsed value above went straight to the database. |
+| **Unclamped cosine** | `Managers/MobilityManager.cs` | `GetStationsAsync` was a fourth copy of the bounding-box arithmetic and the one copy that never got the latitude clamp, so it still divided by `Math.Cos` at the pole and built longitude bounds out of Infinity. Now routed through `BuildQuery`. |
+| **Leaked pooled buffer** | `Managers/MobilityManager.cs` | The GBFS `JsonDocument` was never disposed. It rents from the array pool and runs on every poll of every GBFS operator. |
+| **Uploads outlive deletes** | `Managers/CustomSourceManager.cs` | Deleting a custom source left its directory behind, so every spreadsheet and PDF uploaded for it stayed on disk indefinitely — unreferenced and unreachable through the API. |
+| **Permanent "Running"** | `Managers/CustomSourceManager.cs` | The run row is written as `Running` before the import starts, and a cancellation escaped without touching it. `GetAllAsync` reports the latest run's status, so one abandoned request left the console showing an import in flight for good. |
+| **Whole-array copy** | `Managers/CustomSourceManager.cs` | The discovery walker did `EnumerateArray().ToList()` for a count and a first element, at every depth — one `JsonElement` copy per stop, on the response it exists to describe. |
+| **Dead loop** | `Services/DocumentTableReader.cs` | A `foreach` over the header record whose body was `_ = header;`. |
+| **Wrong lifetime** | `PROJECT.md` | Listed `MobilityManager` as a "singleton + hosted" exception to GetThereAPI's reflection registration. It belongs to TransitInfoAPI, which uses no reflection, and it is `AddScoped`. Following the old line — capturing it from a singleton — captures a scoped `TransitDbContext`. `AGENTS.md` had it right. |
+
+### Recorded, not changed
+
+- **Uploaded `.xlsx` expands without bound.** The upload endpoint caps the *compressed* bytes at
+  64 MB, which says nothing about what they expand to, and `XLWorkbook` materialises every sheet —
+  not just the first one that gets read. Reaching it needs `CustomSourcesManage`, so it is a
+  foot-gun rather than a live vulnerability, and the real fix is a streaming reader rather than a
+  size check, because compressed size is not the quantity that matters.
+- **A multi-page PDF imports its first page.** The column geometry is derived per page from that
+  page's header row, and operator PDFs shift columns or split routes across pages often enough that
+  concatenating blind produces plausible rows from the wrong columns. It now warns, so the omission
+  is visible in the preview instead of surfacing later as a feed missing four fifths of its stops.
+- **Two methods have no callers.** `MobilityManager.GetStationsAsync` and
+  `UpsertStationsFromRecordsAsync` — which is exactly why both kept defects their live siblings had
+  fixed. Both are corrected rather than deleted; whether to keep them is a roadmap call.
+- **Zip entry shadowing.** `ParseCsv` takes the first archive entry whose `Name` matches, so an
+  archive containing both `stops.txt` and `sub/stops.txt` parses whichever the zip lists first, and
+  `ComputeGtfsSha1` hashes both in an order that ties on `Name` alone.
+
+### Verified clean
+
+`CustomSourceEngine`'s SSRF handling, which is thorough: the connect-time guard covers redirects,
+and `EnsureCredentialStayedHome` separately refuses a response that arrived on a different host than
+the one a credential was attached to — the case `HttpClient` does not cover, because it strips
+`Authorization` across origins but not the arbitrary header name the `header` auth mode sets.
+`CustomSourceStorage` resolves and containment-checks every path. `ParseXmlRows` parses with
+`DtdProcessing.Prohibit`, so the XXE vector is closed.
+
+### Still un-audited
+
+The MAUI client (~7,400 lines of C# and 3,700 of XAML), the 31 `wwwroot` scripts in logic detail,
+the 31 test files read for coverage quality, and `Contracts`/`Entities`/`Mapping`.
