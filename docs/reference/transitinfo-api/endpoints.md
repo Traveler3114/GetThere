@@ -226,6 +226,50 @@ stations. `/countries` lists which countries have mobility data, for populating 
 
 ---
 
+## `/custom-sources` — CustomSourcesController
+
+| Method | Route | Permission |
+|---|---|---|
+| GET | `/custom-sources` | `customsources.view` |
+| GET | `/custom-sources/{id}` | `customsources.view` |
+| GET | `/custom-sources/{id}/uploads` | `customsources.view` |
+| GET | `/custom-sources/{id}/runs` | `customsources.view` |
+| GET | `/custom-sources/extractors` | `customsources.view` |
+| POST | `/custom-sources` | `customsources.manage` |
+| PUT | `/custom-sources/{id}` | `customsources.manage` |
+| DELETE | `/custom-sources/{id}` | `customsources.manage` |
+| POST | `/custom-sources/{id}/discover` | `customsources.manage` |
+| POST | `/custom-sources/{id}/preview` | `customsources.manage` |
+| POST | `/custom-sources/{id}/upload` | `customsources.manage` |
+| POST | `/custom-sources/{id}/run` | `customsources.manage` |
+
+How an operator with no GTFS gets imported: a source is a list of configured HTTP requests, each
+filling one `TransitSection`, with field mappings from the operator's own JSON/CSV/XML/HTML shape
+onto GTFS-shaped fields. `TransitDocumentCompleter` synthesises whatever can be derived without
+guessing. See [feed-pipeline.md](feed-pipeline.md).
+
+`/discover` fetches one page and reports its structure so the editor can offer real data paths
+instead of asking an admin to guess. `/preview` runs the full extraction, capped, without importing.
+`/run` fetches, versions and imports through the same path the poller takes — deliberately, so "run
+now" exercises what a scheduled run will do rather than a parallel implementation.
+
+`/upload` accepts `.csv`, `.xlsx`, `.xls`, `.pdf`, `.json`, `.xml`, `.html`, `.htm`, capped at 64 MB
+by `[RequestSizeLimit]`, for the operator who emails a spreadsheet once a quarter. The returned
+`upload://name` goes in a request's URL and everything past that is identical to a polled endpoint.
+
+`AuthConfig` is **encrypted at rest** by `SecretProtector` and never returned — the response carries
+a `HasAuth` boolean instead. A `null` `authConfig` on update means "leave the stored credential
+alone", which is what lets the editor render a source it was never sent the secret for; an empty
+string clears it.
+
+Two guards worth knowing about, because they are not obvious from the routes: the SSRF check runs at
+**connect time** rather than on the configured URL, so it covers redirects; and a response that
+arrives on a different host than the one a credential was attached to is refused outright, because
+`HttpClient` strips `Authorization` across origins but not the arbitrary header name the `header`
+auth mode sets.
+
+---
+
 ## `/reconciliation` — ReconciliationController
 
 The admin surface for the station identity problem. See [reconciliation.md](reconciliation.md).

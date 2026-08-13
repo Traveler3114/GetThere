@@ -256,6 +256,75 @@ needed to fix it is already here.
 
 ---
 
+## Custom-source tables
+
+How an operator with no GTFS is described well enough to import. Four tables, all `Restrict` on
+delete like everything else here — `CustomSourceManager.DeleteAsync` removes children explicitly and
+in order, and refuses outright while any `Feed` still points at the source.
+
+### `CustomSources`
+
+| Column | Notes |
+|---|---|
+| `Id` | PK |
+| `OperatorId` | FK |
+| `Name` | |
+| `Kind` | `CustomSourceKind`, stored as its **name** |
+| `ExtractorKey` | When set, a registered `ICustomExtractor` produces the whole document and the requests below are ignored entirely |
+| `AuthConfig` | JSON. **Encrypted at rest** by `SecretProtector` (`enc:v1:` prefix); never returned by the API, which reports a `HasAuth` boolean instead |
+| `RefreshIntervalSeconds` | Default 3600 |
+| `IsActive` | |
+| `ServiceWindowStart` / `End` | `DateOnly?`. The window a *synthesised* calendar covers, for sources publishing departures with no calendar of their own. Null means none is invented |
+| `CreatedAt`, `LastRunAt` | |
+
+### `CustomSourceRequests`
+
+One fetch, filling one section of the document.
+
+| Column | Notes |
+|---|---|
+| `Id` | PK |
+| `CustomSourceId` | FK |
+| `SortOrder` | Execution order |
+| `TargetSection` | `TransitSection` — which part of the document this fills |
+| `Url` | `http(s)://` **or** `upload://name` for a file an admin uploaded. SSRF-checked at connect time, so redirects are covered |
+| `HttpMethod` | Default `GET` |
+| `Format` | `Json`, `Csv`, `Xml`, `Html`, `Xlsx`, `Pdf` — the last two upload-only |
+| `DataPath` | Path to the row array, e.g. `data.stops`. A CSS selector for `Html` |
+| `PaginationConfig` | JSON; null or `None` means a single request |
+| `DistinctBy` | Deduplication key, applied to **mapped** rows so it names a target field like `StopId` |
+
+### `CustomSourceMappings`
+
+| Column | Notes |
+|---|---|
+| `Id` | PK |
+| `CustomSourceRequestId` | FK |
+| `SortOrder` | |
+| `SourceExpression` | Source field, dotted path, or `{a} - {b}` for `Expression` |
+| `TargetField` | The `Raw*Record` field it fills |
+| `Kind` | `Direct`, `Static`, `Expression`, `TimeExtract`, `DateExtract` |
+
+### `CustomSourceRuns`
+
+Kept even when a run produced no feed version — a source that silently stops returning rows is the
+failure mode worth seeing.
+
+| Column | Notes |
+|---|---|
+| `Id` | PK |
+| `CustomSourceId` | FK |
+| `StartedAt`, `CompletedAt` | |
+| `Status` | `Running`, `Success`, `Failed`. Written as `Running` **before** the import starts |
+| `RecordsProduced` | Stops + routes + trips |
+| `LogText` | |
+| `FeedVersionId` | Nullable — null when the run failed, or produced content identical to the active version |
+
+`Feeds.CustomSourceId` is the join back: a feed with one set points at a custom source rather than a
+GTFS URL, and `CustomHttpSource.CanHandle` selects on exactly that.
+
+---
+
 ## Reconciliation tables
 
 ### `ReconciliationCandidates`

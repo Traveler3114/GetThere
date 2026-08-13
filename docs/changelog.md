@@ -1250,3 +1250,44 @@ a fallback.
 `TicketPurchaseViewModel`'s `walletTask.Result` reads like sync-over-async but is not: it follows
 `await Task.WhenAll(...)`, so both tasks are already complete and a fault would have thrown at the
 await.
+
+---
+
+## Audit round 4 — the `docs/` tree
+
+`docs/` was never in the audit's scope. It was promoted after `PROJECT.md` turned out to claim
+`MobilityManager` is a singleton when `Program.cs` registers it `AddScoped` — a document that, if
+followed, produces a captive `DbContext`. That was one file out of 26; the question was how much
+else was wrong.
+
+### The custom-source subsystem is missing from three references
+
+A feature with **4 database tables, a 12-endpoint controller and ~2,000 lines of service code** —
+the one round 4 found a process-killing stack overflow in — appears in `feed-pipeline.md` and
+`transitinfodb-rebaseline.md` and **nowhere else**:
+
+| Reference | Coverage |
+|---|---|
+| `db/transitinfo-schema.md` | 4 of 27 tables undocumented, and all four are the `CustomSource*` set |
+| `transitinfo-api/endpoints.md` | 1 of 14 controllers undocumented — `/custom-sources`, the **second-largest** at 12 endpoints |
+| `transitinfo-api/architecture.md` | The `Services/` listing named 5 of 11 files; the DI table omitted 9 scoped registrations |
+
+`SecretProtector` — which encrypts an operator's stored credentials — appeared in **no** document at
+all outside this changelog.
+
+The architecture doc's DI table is the exact hazard `PROJECT.md` was, and worse for looking
+authoritative: two closed lists headed "Scoped" and "Singleton", with `SecretProtector` in neither.
+A reader resolving it from a singleton has no way to know from the docs whether that is safe.
+
+**Fixed.** All three references now describe the subsystem, written from the entities, the
+controller and `Program.cs` rather than from memory, and every claim spot-checked back against
+source — the permission strings against `PermissionKeys`, the enum members against
+`CustomSourceEnums`, `Feeds.CustomSourceId` against the entity.
+
+### Why this is worth the pages
+
+The failure mode is not a reader being under-informed. It is a reader being **confidently
+misinformed**: a lifetime table with no `SecretProtector` row reads as complete, and a schema
+reference listing 23 of 27 tables gives no sign that four are missing. Both were caught only by
+diffing the documents against code this audit had already read — which is the cheapest that check
+will ever be, and the reason `docs/` moved up the queue rather than staying at the end of it.

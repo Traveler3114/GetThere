@@ -53,6 +53,8 @@ and maps the responses into its own types. Nothing here knows GetThereAPI exists
 Controllers/   HTTP shape only
 Managers/      Business logic and database access
 Services/      GtfsParser, GtfsZipSource, ExternalFeedSource, ImportLogStore, DynamicClaimsTransformation
+               CustomHttpSource, CustomSourceEngine, DocumentTableReader, SecretProtector
+               CustomSourceStorage, FeedStorage
 Workers/       Three BackgroundServices that keep data fresh
 Core/          ITransitSource + TransitDocument, TransitSourceResolver, GBFS models
 Entities/      EF Core model
@@ -67,8 +69,13 @@ because their lifetimes genuinely differ:
 
 | Lifetime | Services | Why |
 |---|---|---|
-| **Scoped** | `FeedManager`, `ReconciliationManager`, `StationManager`, `RouteManager`, `OperatorManager`, `ScheduleManager`, `PlaceMatchingManager`, `MobilityManager`, `CountryManager`, `GtfsParser`, auth managers | Hold a `DbContext` |
-| **Singleton** | `RealtimeManager`, `OnestopIdManager`, `ImportLogStore`, `ExternalFeedSource` | Hold process-wide state or are pure |
+| **Scoped** | `FeedManager`, `ReconciliationManager`, `StationManager`, `RouteManager`, `OperatorManager`, `ScheduleManager`, `PlaceMatchingManager`, `MobilityManager`, `CountryManager`, `PlaceManager`, `CustomSourceManager`, `GtfsParser`, `CustomSourceEngine`, `CustomHttpSource`, `GtfsZipSource`, `CustomExtractorRegistry`, `TransitDocumentCompleter`, `TransitSourceResolver`, auth managers (`TokenManager`, `AuthManager`, `RolePermissionManager`) | Hold a `DbContext`, or depend on something that does |
+| **Singleton** | `RealtimeManager`, `OnestopIdManager`, `ImportLogStore`, `ExternalFeedSource`, `SecretProtector` | Hold process-wide state, or are pure |
+| **Transient** | `DynamicClaimsTransformation` (as `IClaimsTransformation`) | ASP.NET Core resolves it per request |
+
+`SecretProtector` is a singleton because it wraps `IDataProtectionProvider`, which is itself a
+singleton and keeps the key ring. It is what encrypts a custom source's `AuthConfig` before it
+reaches the column — see [endpoints.md](endpoints.md#custom-sources--customsourcescontroller).
 
 `RealtimeManager` being a **singleton is load-bearing** — it holds the in-memory vehicle and trip-update
 caches, which are the live data. It takes an `IServiceScopeFactory` rather than a `DbContext`, because
