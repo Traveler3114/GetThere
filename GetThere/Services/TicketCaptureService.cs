@@ -24,6 +24,26 @@ public class TicketCaptureService
     /// <summary>
     /// Mirrors <c>TicketUploadManager.MaxFileBytes</c>. Checked here only so an oversized pick
     /// fails immediately instead of after uploading 10 MB to be rejected; the server enforces it.
+    /// <para>
+    /// <b>It bounds what is sent, not what is read.</b> <see cref="ReadAsync"/> copies the whole
+    /// picked file into a <c>MemoryStream</c> before this is consulted, so the check cannot save the
+    /// device from a file too large to hold — by the time it runs, the bytes are already resident.
+    /// A phone is where that matters: a multi-gigabyte pick is an out-of-memory kill, not an error
+    /// message.
+    /// </para>
+    /// <para>
+    /// Reaching it needs the platform's own filter to be bypassed, which is possible rather than
+    /// routine — Android's <c>image/*</c> intent filter is advisory, and a file manager may hand
+    /// back anything. The fix is a length check against <c>source.CanSeek ? source.Length</c>
+    /// <em>before</em> the copy.
+    /// </para>
+    /// <para>
+    /// The reason that is written down rather than applied: the pre-read ceiling cannot be this
+    /// constant. An image is re-encoded down to fit it, so a 25 MB HEIC from a recent phone is a
+    /// perfectly ordinary ticket photo that must still import. The pre-read limit therefore has to
+    /// be a separate, much larger number, and picking it wrong rejects a real ticket at the barrier
+    /// — which needs measuring against actual device captures, on a device.
+    /// </para>
     /// </summary>
     public const long MaxFileBytes = 10 * 1024 * 1024;
 
