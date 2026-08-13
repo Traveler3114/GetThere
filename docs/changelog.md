@@ -1187,16 +1187,24 @@ and the code that should use them says the English out loud instead:
 | `Services/WalletService.cs:36` | `"Could not load wallet"` | `Error_CouldNotLoadWallet` → "Nije moguće učitati novčanik: " |
 | `Services/CountryService.cs:35` | `"Could not load countries"` | `Error_CouldNotLoadCountries` → "Nije moguće učitati države: " |
 
-The same split runs through the dialogs: **28 `DisplayAlertAsync` / `DisplayActionSheetAsync` /
-`DisplayPromptAsync` call sites** pass hardcoded English — "Add a ticket", "Take a photo", "Mark as
-used", "Cancel this ticket?" — spread across `ProfileViewModel` (14), `TicketsViewModel` (5),
-`JourneyDetailViewModel` (4), `ProfilePage.xaml.cs` (2), and one each in `RegistrationViewModel`,
-`JourneysViewModel` and `ImportTicketViewModel`. A Croatian user gets a fully translated screen and
-then an English dialog on top of it.
+The dialogs are a much narrower problem than the unreferenced-key count suggests, and this entry
+said otherwise before it was measured. Counted properly:
 
-`TicketsViewModel` is half and half in one file — `Common_Offline`, `Tickets_SavedAgo` and
-`Tickets_PendingNotOpenable` go through `LocalizationService`, while "Could not load tickets." and
-every action-sheet label do not.
+| | Sites | Where |
+|---|---|---|
+| Dialog calls with a hardcoded string | **5** of 27 | `TicketsViewModel` ×4, `ImportTicketViewModel` ×1 |
+| Dialog calls fully localized | 22 of 27 | everywhere else, including all 14 in `ProfileViewModel` |
+| `ErrorText`/`WarningText` set from a literal | **8** | all 8 in `TicketsViewModel` |
+| …set from `LocalizationService` | 19 | everywhere else |
+
+So this is not a client-wide pattern. It is **`TicketsViewModel`**, which is half and half inside one
+file: `Common_Offline`, `Tickets_SavedAgo` and `Tickets_PendingNotOpenable` go through
+`LocalizationService`, while "Could not load tickets." and every action-sheet label do not.
+
+> An earlier version of this entry claimed 28 hardcoded dialog sites and named `ProfileViewModel` as
+> the worst with 14. That was wrong: it counted dialog call sites and asserted what they contained
+> without opening them. `ProfileViewModel`'s 14 are all localized. The 87 unreferenced keys and the
+> `WalletService`/`CountryService` pairs above were measured and stand.
 
 **Not fixed**, and the reason is specific rather than general caution: the action-sheet *labels* are
 also the values the `switch` compares against (`choice == EnterManually`). Localising a label
