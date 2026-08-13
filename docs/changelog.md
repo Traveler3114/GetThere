@@ -1176,10 +1176,16 @@ lifting `TicketStore`'s key handling somewhere both classes can reach is not a c
 ### A translation the app does not reach
 
 The client ships a **complete** Croatian translation: `AppResources.resx` and `AppResources.hr.resx`
-both hold exactly 284 keys, in sync. **87 of those 284 — 31% — are referenced by nothing**, in
+both hold exactly 284 keys, in sync. **83 of those 284 — 29% — are referenced by nothing**, in
 either C# or XAML.
 
-They are not stale leftovers from deleted screens. Ten of them are the `Error_CouldNotLoad*` family,
+That count is net of indirection, which a plain search gets wrong: 87 keys have no literal
+occurrence anywhere, but four of them — the `JourneyStatus_*` set — are reached through
+`JourneyDetailViewModel`'s `Instance[$"JourneyStatus_{journey.Status}"]`. It is the only interpolated
+lookup in the client; `ApiMessageMapper`'s table and `AppShell`'s `TitleKey` values both spell their
+keys out, so they were already counted as live.
+
+The rest are not stale leftovers from deleted screens. Ten are the `Error_CouldNotLoad*` family,
 and the code that should use them says the English out loud instead:
 
 | Where | What the code says | What the resource says |
