@@ -17,6 +17,44 @@ namespace GetThere.Services;
 /// and are dropped once accepted. There is no conflict resolution here because there is no conflict:
 /// nothing else can have edited a ticket the server has never seen.
 /// </para>
+/// <para>
+/// <b>Two gaps against <see cref="TicketStore"/>, which holds the same payloads.</b> Recorded here
+/// rather than fixed because neither can be verified in the environment this was audited from — the
+/// MAUI head cannot be built or run there — and the first of the two is a product decision rather
+/// than a defect with one right answer.
+/// </para>
+/// <para>
+/// <b>1. No owner.</b> <see cref="TicketStore"/> keys every file by a hash of the owner, and says
+/// why: "a device is not a person: two accounts, or an account and the guest who used the phone
+/// before them, must never see each other's tickets." This queue is one global file with no owner
+/// recorded anywhere, and <c>ImportSyncService.FlushAsync</c> gates only on
+/// <c>IsLoggedInAsync()</c> — it cannot check whose entries these are, because none of them say.
+/// So: a guest imports a ticket on a shared or second-hand phone; a different person signs in;
+/// <c>TicketsViewModel.LoadTickets</c> calls <c>FlushAsync</c>, which finds a logged-in user and
+/// pushes the first person's ticket — barcode payload included — into the second person's account.
+/// </para>
+/// <para>
+/// What makes this a decision and not a bug fix: entries created by a guest are <em>supposed</em>
+/// to migrate to whoever signs in next. That is the guest-to-account upgrade this whole path exists
+/// for, and the app has no way to know whether the guest and the new account are the same person.
+/// Recording the owner would fix the signed-in-user case cleanly; the guest case needs someone to
+/// decide whether an unclaimed ticket follows the next sign-in or is discarded at the account
+/// boundary.
+/// </para>
+/// <para>
+/// <b>2. Plaintext.</b> <see cref="TicketStore"/> encrypts with AES-GCM under a key in
+/// <c>SecureStorage</c>, on the stated grounds that "a ticket payload is a bearer credential for
+/// travel: whoever renders it rides", and that <c>AppDataDirectory</c> is app-private but not proof
+/// against a rooted device or an ADB backup. This file holds the identical
+/// <see cref="CreateImportedTicketRequest"/> payloads as readable JSON. It is also the copy that
+/// persists longest: a guest never signs in, so nothing ever drains their queue.
+/// </para>
+/// <para>
+/// The least-protected store therefore holds the credential for the longest, and the encrypted one
+/// holds only the copy the server already has. Unlike the first gap this one has no trade-off —
+/// it wants the same cipher, which means lifting <c>TicketStore</c>'s key handling somewhere both
+/// can reach.
+/// </para>
 /// </summary>
 public sealed class PendingImportQueue : IDisposable
 {
