@@ -48,6 +48,15 @@ public partial class JourneyLegItem : ObservableObject
     {
         get
         {
+            // ToLocalTime is wrong for an imported leg and right for a purchased one — see the
+            // worked example in ImportedTicketDetailViewModel. An imported ticket's validity is a
+            // calendar date stored unconverted by agreement between the client and the API, so
+            // shifting it makes a one-day ticket render as "29 Jul 02:00 → 30 Jul 01:59" east of
+            // UTC. A purchased ticket's comes from an operator SDK and is a real instant.
+            //
+            // This class already carries Leg.IsImported, and its own summary explains that mixing
+            // the two kinds up "removes the wrong ticket". The same distinction applies here and is
+            // not being made: both kinds get converted.
             var from = Leg.ValidFrom?.ToLocalTime();
             var to = Leg.ValidTo?.ToLocalTime();
 
