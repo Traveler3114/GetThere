@@ -163,8 +163,49 @@ sides of a road are ~15 m apart with identical names — indistinguishable by na
 they serve **opposite directions of the same line**, and `HasDirectionMismatch` separates them. Two
 unrelated stops that merely share a name are separated by `HasRouteOverlap` finding no common line.
 
+**`HasRouteOverlap` returns `false` from every early exit**, so *no route data* means *no match,
+ever*: a raw stop the route lookup does not know, or a station whose linked stops carry no lines, is
+forced to a new station. Correct for a normal GTFS feed — absent routes there mean absent
+`stop_times`, so there is genuinely nothing to compare. Wrong for a feed carrying stops and no
+timetable, which is the "Network-completeness" case this codebase supports elsewhere (see the
+`CanonicalRoutes` reactivation rule in `FeedManager`, which exists precisely because such a feed's
+routes are real but have no trips). For those, every stop looks unmatched on every import and the
+operator's whole station set duplicates. Whether such a feed should fall back to name-and-distance
+matching or stay unmatched by design is a product decision, so it is recorded rather than changed.
+
 The best candidate is the one with the highest **name score** — not the closest. Distance is a filter,
 not the ranking, because coordinates disagree between operators far more than names do.
+
+> **That rationale is sound and the implementation is still a known defect.** `FindBestMatch` ranks
+> on `nameScore` alone; the caller then judges *that one winner* against `AutoMergeDistanceMeters`.
+> A nearer candidate that would have auto-merged is never reconsidered once a marginally
+> better-named one has won.
+>
+> With the shipped thresholds (name 0.90, distance 100 m, search radius 200 m): a station scoring
+> **0.95 at 180 m beats one scoring 0.93 at 10 m**, and the caller then rejects the 180 m winner as
+> too far and sends it to manual review — while the 10 m candidate, which met *both* thresholds, is
+> discarded unseen. Transit stops share names constantly, so near-ties in name with large
+> differences in distance are the normal case here, not an edge case.
+>
+> `CandidateSearchRadiusFactor` compounds it. Widening the candidate set is only safe if ranking
+> accounts for distance, and it does not — every extra station the wider radius admits is another
+> chance for something far away to win on name and displace a qualifying candidate. Raising the
+> factor to surface more near-misses would *increase* the number of good matches never considered.
+>
+> Not changed: ranking on a combined score alters what every existing feed reconciles to, and that
+> needs measuring against real feeds. See the `<remarks>` on `FindBestMatch`.
+
+Three smaller things the code carries that this document did not:
+
+- **`RouteTypeMatch` is always `true`.** The candidate loop pre-filters on
+  `PrimaryRouteType == rawRouteType`, so a candidate that failed it never reaches the comparison —
+  which makes the "route type mismatch" reason `ComputeAutoMergeVerdict` can render unreachable for
+  any candidate that has a match.
+- **The 0.3 name floor is a fourth threshold, and the only one that is not configurable.** Lowering
+  `ManualReviewNameThreshold` beneath it silently does nothing.
+- **Ties are not stable.** The comparison is `>` with no secondary key, so a tie falls to whichever
+  station the grid cell happened to yield first — and re-importing an unchanged feed can reconcile
+  differently.
 
 ### Name similarity
 

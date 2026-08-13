@@ -1348,3 +1348,28 @@ This is the `PROJECT.md` failure again, on a security property rather than a ser
 reader checking whether on-device ticket data is protected gets an unambiguous yes, and it is only
 true of one of the two stores. Corrected in place, with the consequence spelled out and the reason
 it is recorded rather than fixed.
+
+### A document that contradicted its own code
+
+`transitinfo-api/reconciliation.md` stated the ranking rule as settled design:
+
+> "The best candidate is the one with the highest **name score** — not the closest. Distance is a
+> filter, not the ranking, because coordinates disagree between operators far more than names do."
+
+Round 3 had already written the opposite into `FindBestMatch`'s `<remarks>`, as a **known defect**
+with a worked example: a station scoring 0.95 at 180 m beats one scoring 0.93 at 10 m, and the caller
+then rejects the 180 m winner as too far and sends it to manual review, while the 10 m candidate —
+which met both thresholds — is discarded unseen.
+
+The rationale in the document is not wrong; the omission is. Both statements were live at once, so a
+reader of the reference concluded the ranking was correct by design while a reader of the code
+learned it was a defect awaiting measurement. The document now carries the defect, the worked
+example, the `CandidateSearchRadiusFactor` interaction that compounds it, and the reason it has not
+been changed.
+
+Three smaller behaviours the code documented and the reference did not — `RouteTypeMatch` always
+being `true` (making one of `ComputeAutoMergeVerdict`'s rendered reasons unreachable), the 0.3 name
+floor being the one threshold that is not configurable, and ties falling to grid-cell order so an
+unchanged feed can reconcile differently on re-import — are now in both. As is `HasRouteOverlap`
+returning `false` from every early exit, which forces a stops-only "Network-completeness" feed to
+duplicate an operator's entire station set on every import.
