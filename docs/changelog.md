@@ -1889,3 +1889,34 @@ field's own help text promises that.
 
 Confirmed while checking this that the endpoints reference added earlier this round states the
 `null` / `""` distinction correctly.
+
+### A reset button that cannot do what it says
+
+`shape-editor.page.js` offers *"Reset to auto-generated shape? This will discard your manual edits."*
+and implements it as `location.reload()`.
+
+Reload re-fetches `GET /routes/{id}/shape` — the **saved** shape. So the control has two behaviours
+and the label describes neither accurately:
+
+- **Before a save**, it discards unsaved edits. Fine, and roughly what the message says.
+- **After a save**, it reloads the same manual shape it claims to be replacing. Nothing resets.
+
+And the auto-generated geometry is not recoverable at that point. The `PUT` overwrote it, and
+`AutoGenerateShapesIfMissing` lives inside `FeedManager`'s import path with nothing in front of it —
+`RoutesController` exposes only `GET` and `PUT` for a shape. There is no regenerate endpoint, so
+"reset to auto-generated" is not implementable from this page at all.
+
+The honest version of the button is *"revert to the shape as loaded"*, and the file is already set up
+for it and does not use it: **`originalGeometry` is written on load and again after every successful
+save, and read nowhere.** Two assignments, no reads — it is the state a real revert needs.
+
+Annotated rather than changed: making the behaviour match the label needs a regenerate endpoint, and
+making the label match the behaviour is a wording decision on a destructive control. Both are calls
+for whoever owns the page.
+
+### Verified clean
+
+`shape-editor.page.js`'s save path itself — disables the button while in flight, restores it in
+`finally`, and updates `originalGeometry` only after the server confirms. `operators.page.js`'s
+delete confirms by name with "This action cannot be undone", which matches the API: `DeleteAsync`
+refuses while any agency, feed, route or station association remains.

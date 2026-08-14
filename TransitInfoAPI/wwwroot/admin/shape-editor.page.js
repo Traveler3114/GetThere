@@ -108,6 +108,18 @@ function fitMapToShape(geometry) {
   map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
 }
 
+// The label and the confirmation both promise something this cannot do.
+//
+// location.reload() re-fetches GET /routes/{id}/shape — the *saved* shape. So this discards unsaved
+// edits, which matches the wording, and after a save it reloads the very manual shape it claims to
+// be replacing. The auto-generated geometry is not recoverable at that point: PUT overwrote it, and
+// AutoGenerateShapesIfMissing lives inside FeedManager's import path with no endpoint in front of
+// it — RoutesController exposes only GET and PUT for a shape.
+//
+// So "reset to auto-generated" is not implementable from here today. The honest version of this
+// button is "revert to the shape as loaded", which the file is already set up for and does not use:
+// `originalGeometry` is written on load and again after each successful save, and read nowhere.
+// Making that real is a small change; making the label true needs a regenerate endpoint.
 function resetShape() {
   if (!confirm('Reset to auto-generated shape? This will discard your manual edits.')) return;
   location.reload();
