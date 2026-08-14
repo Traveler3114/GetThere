@@ -1770,3 +1770,42 @@ confirm they still parse, and nothing would confirm they still work.
 
 The cheapest real fix is probably neither: vendoring `bootstrap.bundle.min.js` into `wwwroot` removes
 the CDN and the SRI question together, and leaves only the inline-handler work behind `'unsafe-inline'`.
+
+## Audit round 4 — the declarative layer
+
+Entities, contracts and EF configuration. Three checks, all against the generated schema rather than
+the source, because the source does not say what the database does.
+
+**Decimal precision: 14 of 14 configured.** Every `decimal` property in either service has an explicit
+`HasPrecision` — money at `(18,2)`, and the reconciliation scores at `(5,4)` with distances at
+`(14,4)`, which are the right shapes for a 0..1 score and a metre measurement. Nothing falls back to
+a provider default.
+
+**Delete behaviour: 62 of 64 foreign keys are `Restrict`, and the two exceptions are the right two.**
+
+| Schema | Restrict | SetNull | Cascade |
+|---|---|---|---|
+| GetThereAPI | 18 | 4 | **0** |
+| TransitInfoAPI | 42 | 0 | **2** |
+
+Both cascades are deliberate: `AspNetRoleClaims → AspNetRoles`, which is Identity's own default and
+correct — a deleted role should not leave orphaned claims — and `RefreshTokens → AspNetUsers`, added
+by a migration named for it. Nothing in the domain cascades: deleting an operator, a feed, a wallet
+or a purchase is refused rather than allowed to take history with it, which is what the managers'
+explicit ordered deletes exist to work with.
+
+`AppDbContext` gets there by convention rather than per-relationship — a loop over
+`entityType.GetForeignKeys()` setting `Restrict` on all of them, with the four `SetNull` cases
+configured afterwards to override it. Worth knowing before reading that file: twelve `HasOne` chains
+carry no `OnDelete` call and are nonetheless `Restrict` in the schema.
+
+**Enum storage** is `EnumToStringConverter` applied by the same convention loop, so an enum is a
+readable string in the database rather than an ordinal that shifts when a member is inserted.
+
+### A note on method
+
+Two of the three checks above started as source-level greps that produced alarming numbers — "12
+relationships with no delete behaviour", "24 catch blocks that swallow". One was a false alarm and
+one was real. The difference was only ever visible by going to the artefact rather than the source:
+the migrations for the schema, and the catch bodies for the logging. Recorded here because the same
+mistake recurred several times in this round, and the correction is cheap when it is remembered.
