@@ -26,7 +26,16 @@ const routesSource = 'routes';
 const vehiclesSource = 'vehicles';
 const mobilitySource = 'mobility-stations';
 
+// Same abort guard as the public map — see the note there. Two drags 600 ms apart put two sets of
+// requests in flight and the map shows whichever responds last, so the slower dense-area response
+// paints over the sparser view the operator has already moved to.
+let mapDataAbort = null;
+
 function loadMapData() {
+  if (mapDataAbort) mapDataAbort.abort();
+  mapDataAbort = new AbortController();
+  const signal = mapDataAbort.signal;
+
   const bounds = map.getBounds();
   const center = map.getCenter();
   const sw = bounds.getSouthWest();
@@ -41,26 +50,38 @@ function loadMapData() {
   const routeUrl = `/routes?format=geojson&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
   const mobilityUrl = `/mobility/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
 
-  fetch(stationUrl).then(r => r.json()).then(data => {
+  fetch(stationUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load stations'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load stations');
+  });
 
-  fetch(routeUrl).then(r => r.json()).then(data => {
+  fetch(routeUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(routesSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load routes'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load routes');
+  });
 
-  fetch(mobilityUrl).then(r => r.json()).then(data => {
+  fetch(mobilityUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(mobilitySource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load mobility stations'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load mobility stations');
+  });
 }
 
 function loadVehicles() {

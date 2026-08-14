@@ -1624,3 +1624,40 @@ So the accurate statement of this whole thread, replacing the vaguer ones above:
 
 None of it is fixed. Fixing 2 and 3 without 1 would produce a fully translated app that still cannot
 be switched into Croatian.
+
+## Audit round 4 — the map scripts
+
+### Fixed: a stale response could paint the map with the wrong region
+
+Both maps — `map/public.js` (anonymous) and `map/index.js` (admin) — reload three GeoJSON layers on
+`moveend`, debounced 500 ms. The debounce stops a burst *during* one drag; it orders nothing
+*between* drags. Two pans 600 ms apart put two sets of requests in flight, and the map keeps
+whichever **responds** last.
+
+That is not a rare interleaving, it is the common case with a predictable direction: the dense-area
+response is the slow one, so panning from a city to open country reliably repaints the city's
+stations over the view the user has already moved to. Nothing corrects it until the next pan.
+
+Each map now aborts its previous set before issuing a new one, and treats `AbortError` as "superseded
+by a newer view" rather than a failure. That is not a new idea in this codebase — `public.js`'s own
+`runSearch`, 600 lines further down, has done exactly this since it was written:
+
+```js
+if (searchAbort) searchAbort.abort();
+searchAbort = new AbortController();
+```
+
+The pattern was present and simply not applied to the layer fetches.
+
+Verified with `node --check` on both files. Worth stating plainly: **CI has no JavaScript step at
+all** — no lint, no syntax check, no tests — so 6,013 lines of `wwwroot` script are covered by
+nothing. A syntax error in any of them ships.
+
+### Verified clean
+
+`admin/admin-auth.js`, which is the console's credential path and has clearly had attention: it reads
+the token per request rather than baking it in at load, shares one in-flight refresh across
+concurrent callers (with the reasoning recorded — a second parallel refresh presents a replayed token
+and trips reuse detection, revoking every session the operator has), copies the caller's options
+rather than mutating them, uses a `Headers` instance so a caller passing one is not silently ignored,
+and refuses to attach the token to anything that is not same-origin.

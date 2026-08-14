@@ -26,7 +26,20 @@ const routesSource = 'routes';
 const vehiclesSource = 'vehicles';
 const mobilitySource = 'mobility-stations';
 
+// Abort controller for the three bounding-box fetches below.
+//
+// The 500 ms debounce on `moveend` stops a burst during one drag, but it does not order anything:
+// two drags 600 ms apart put two sets of requests in flight, and the map shows whichever *responds*
+// last. Panning from a dense city to an empty region reliably paints the city's stations over the
+// empty view, because the dense response is the slow one. Aborting the previous set makes the
+// newest view win, which is the same thing `runSearch` already does further down this file.
+let mapDataAbort = null;
+
 function loadMapData() {
+  if (mapDataAbort) mapDataAbort.abort();
+  mapDataAbort = new AbortController();
+  const signal = mapDataAbort.signal;
+
   const bounds = map.getBounds();
   const center = map.getCenter();
   const sw = bounds.getSouthWest();
@@ -41,26 +54,38 @@ function loadMapData() {
   const routeUrl = `/routes?format=geojson&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
   const mobilityUrl = `/mobility/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
 
-  fetch(stationUrl).then(r => r.json()).then(data => {
+  fetch(stationUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load stations'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load stations');
+  });
 
-  fetch(routeUrl).then(r => r.json()).then(data => {
+  fetch(routeUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(routesSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load routes'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load routes');
+  });
 
-  fetch(mobilityUrl).then(r => r.json()).then(data => {
+  fetch(mobilityUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(mobilitySource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load mobility stations'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load mobility stations');
+  });
 }
 
 function loadVehicles() {
