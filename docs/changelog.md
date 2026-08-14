@@ -1405,3 +1405,59 @@ them.
 `db/transitinfo-schema.md`'s `StationMergeMovedRawStops` is the table for entity
 `StationMergeMovedRawStop`; `database-drift.md` names the legacy tables it exists to describe
 dropping.
+
+## Audit round 4 — full sweep of the MAUI view models
+
+### Fixed
+
+**`JourneysViewModel.AcceptSuggestion` swallowed its own error.** The non-success branch returns; the
+`catch` did not, so it fell through to the `await Load()` at the end of the method — which opens with
+`HasError = false` and, on a successful reload, never sets it again. A thrown failure while accepting
+a suggestion therefore told the user nothing at all: no error, no suggestion removed, no journey
+created. Now returns.
+
+### Recorded
+
+**An entire Shop UI state cannot occur.** `ShopOperator.IsBuyable` is documented as "false when the
+operator has no sellable options — the design still lists them, dimmed, as *Timetable only — no
+ticketing yet*". It is never false: `BuildDirectory` groups the fare list, a LINQ group always has at
+least one element, so `items.Count > 0` holds for every row that can exist. An operator with nothing
+to sell produces no group and is absent from the screen entirely — the opposite of the design.
+
+Everything downstream is dead with it: `RowOpacity` is always `1.0`, the muted monogram palette never
+applies, `Shop_NoOperators` can never render, and `OpenOperator`'s `!IsBuyable` guard never fires.
+Not fixed, because the fix is not in the class: listing a ticketless operator needs the directory
+built from an operator list rather than a fare list, and `GET /tickets/options` returns only fares.
+
+**The localized failure strings for login and registration can never display.** Both call sites read
+
+```csharp
+ErrorText = ApiMessageMapper.Localize(result.Code, result.Message)
+    ?? LocalizationService.Instance["Login_Failed"];   // and Register_Failed
+```
+
+`Localize` returns non-nullable `string` — `englishFallback ?? string.Empty` on the unmapped path —
+so the `??` can never evaluate. It reads as a safety net and is not one. It is also *harmless*, which
+is worth stating precisely: `AuthService` builds every failure through
+`OperationResult.Fail(problem ?? "Registration failed")`, so the message is never null and the user
+never sees a blank banner. The cost is only that two translated strings are unreachable, and the
+server's English wins in every case — the same mechanism as `JourneysViewModel.Fail`, which prefers
+`result.Message` over its `fallbackKey` whenever the server said anything at all.
+
+That is most of the answer to why 83 resource keys are unreferenced: the pattern across the client is
+to show the server's message and keep the translation as a fallback that rarely fires.
+
+**Two smaller ones.** `ShopViewModel.BuildSubtitle` hardcodes `"{n} fares · from {price}"` in a file
+that otherwise goes through `LocalizationService`; and `ShopOperator.Subtitle`'s own doc comment
+advertises `"Tram, bus · 4 fares from €0.66"`, a shape the code never produces — it emits
+`"{name} · {price}"` or `"{n} fares · from {price}"`, with no transport modes in either.
+
+### Verified clean
+
+`TicketPurchaseViewModel`, which is the client half of the money path: a fresh idempotency key per
+selection (so a retry of one intent replays rather than double-charges, and a new intent cannot),
+client-side affordability that the server's conditional `UPDATE` enforces independently, and no
+balance state carried across the navigation to the ticket. `BaseViewModel`'s `IsOfflineNow` is
+correctly documented as advisory — "use it to choose what to *say* about a failure that already
+happened, never to decide whether to attempt a request". `RegistrationViewModel`'s validation defers
+password rules to Identity rather than reimplementing them.
