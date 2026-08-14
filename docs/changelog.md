@@ -1809,3 +1809,26 @@ relationships with no delete behaviour", "24 catch blocks that swallow". One was
 one was real. The difference was only ever visible by going to the artefact rather than the source:
 the migrations for the schema, and the catch bodies for the logging. Recorded here because the same
 mistake recurred several times in this round, and the correction is cheap when it is remembered.
+
+### Fixed: a bulk approve was an unbounded lock storm
+
+`reconciliation.page.js`'s `batchApprove` ran `Promise.all` over every selected candidate, issuing
+all of them at once. An approval is not a read: `ReconciliationManager.ApproveCandidateAsync` opens
+its own transaction and merges stations, moving `RawStops` and `CanonicalStationOperators` rows. The
+console pages 50 at a time, so a select-all is fifty concurrent write transactions contending for the
+same canonical rows.
+
+SQL Server resolves that by choosing deadlock victims. Those arrive back as `r.ok === false` and are
+counted by the existing `.catch(() => false)` as ordinary failures — so a deadlocked batch is
+indistinguishable from one the server legitimately rejected, and the operator is told "31 of 50
+approved, 19 failed" with no way to tell which kind of failure it was.
+
+There is no batch endpoint to defer to; the API exposes only `POST /reconciliation/{id}/approve`. So
+the fix is a client-side window: a `mapLimit` helper running four at a time, preserving result order
+so the existing success/failure tally still lines up with the ids.
+
+Verified beyond the syntax check — the helper was executed here over 23 items with an instrumented
+worker: peak concurrency 4, output order identical to input order.
+
+The same `Promise.all`-over-a-selection shape is worth looking for elsewhere in the console; this is
+the only one that drives a merge, which is why it is the one that mattered.

@@ -371,13 +371,39 @@ function updateBatchBtn() {
   if (checked > 0) { btn.classList.remove('d-none'); btn.textContent = 'Approve (' + checked + ')'; }
   else { btn.classList.add('d-none'); }
 }
+// How many approvals may be in flight at once.
+//
+// Promise.all over the selection issued every request simultaneously, and an approval is not a read:
+// ReconciliationManager.ApproveCandidateAsync opens its own transaction and merges stations, moving
+// RawStops and CanonicalStationOperators rows. Fifty of those at once contend for the same rows, and
+// SQL Server resolves that by picking deadlock victims — which arrive here as `r.ok === false` and
+// are counted as plain failures, so a deadlocked batch looks identical to a rejected one.
+//
+// There is no batch endpoint to defer to; the API exposes only POST {id}/approve. A small window
+// keeps the work moving without turning a bulk approve into a lock storm.
+const APPROVE_CONCURRENCY = 4;
+
+/** Runs `worker` over `items`, at most `limit` at a time, preserving result order. */
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function run() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await worker(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
+}
+
 async function batchApprove() {
   const ids = [...document.querySelectorAll('.batch-check:checked')].map(cb => parseInt(cb.value));
   if (!ids.length || !confirm('Approve ' + ids.length + ' selected items?')) return;
-  const results = await Promise.all(ids.map(id =>
+  const results = await mapLimit(ids, APPROVE_CONCURRENCY, id =>
     fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' })
       .then(r => r.ok).catch(() => false)
-  ));
+  );
   const ok = results.filter(Boolean).length;
   const fail = results.length - ok;
   // Reported after the reload, not before: loadAll() clears the error pane on its way in, so a
