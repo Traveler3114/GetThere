@@ -1486,3 +1486,29 @@ that does it, because that is where someone changing the upgrade will be looking
 - **`WalletTicket`** — projects two contracts that deliberately share no base type, and documents
   the coupling it does create (the two status enums must keep spelling `Active` the same way, or
   `TicketStatusColorConverter` silently leaves a badge unstyled).
+
+### The most-shown error string in the app is untranslated
+
+Every API service catches transport failures the same way:
+
+```csharp
+catch (Exception ex)
+{
+    Trace.WriteLine($"[TicketService] {ex}");
+    return OperationResult<T>.Fail("Something went wrong. Check your connection and try again.");
+}
+```
+
+**20 occurrences** across `ImportedTicketService` (7), `JourneyService` (8), `TicketService` (3) and
+`WalletService` (2) — and `AppResources.resx` has **no key for it**, so there is nothing to
+translate it to.
+
+This is the sharpest version of the localization finding, and it inverts the usual shape of one. The
+translated strings that go unused are the *specific* errors; the string a user actually meets — any
+dropped connection, any timeout, any DNS failure, on every screen — is the hardcoded English one.
+A Croatian user gets a fully translated app until the moment something goes wrong, which is exactly
+when the wording matters.
+
+Not fixed here: adding the key is trivial, but the string is also the wrong *content* in some of
+those 20 places — a 500 from the server is not "check your connection" — and deciding what each one
+should say is a product call that wants doing once, properly, rather than twenty times mechanically.
