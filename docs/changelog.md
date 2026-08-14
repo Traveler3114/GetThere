@@ -2005,3 +2005,34 @@ fonts appear, the SRI question disappears with the CDN, and `script-src`/`style-
 Not done here. It means fetching three assets and committing them, and I can neither verify their
 contents from this container nor test the pages afterwards; guessing at vendored library bytes is a
 worse failure than the one being fixed.
+
+### The root-level markdown
+
+`VERIFY.md` (215 lines) opens with its own disposal condition:
+
+> **Disposable.** This exists to get one branch verified. Delete it once the branch is merged — it is
+> not part of the permanent docs.
+
+That branch is `claude/maui-ui-to-transitinfo-map-9cj09m`, and it merged — `12e5982`, "Merge pull
+request #72". The condition is met and the file is still here, which is how it has started to drift:
+it states `.resx` parity at **281 keys in both cultures**, and both files now hold **284**.
+
+Left in place. It is a self-declared temporary file whose deletion its own text authorises, but it
+also contains the only written record of a set of manual verification steps — the map checks, the
+scanner checks, the two-service-independence checks — that nothing else in the repository covers.
+Deleting it is a judgement about whether that record is worth keeping somewhere permanent, which is
+not mine to make; the drift is worth knowing about either way.
+
+`ROADMAP.md`, `README.md` and `.opencode/` carry no claims that this audit contradicts.
+
+### Configuration
+
+`appsettings.json` in both services, `launchSettings.json`, `Directory.Packages.props` and every
+`.csproj` read. Nothing outstanding. Worth recording two things that are *right*, because both are
+the kind of thing that is usually wrong:
+
+- `Jwt:Key` ships as the placeholder `CHANGE-ME`, and **both** `Program.cs` files refuse to start on
+  it, on empty, or on anything under 32 bytes — with the `dotnet user-secrets` command in the
+  exception message.
+- Package versions are centralised in `Directory.Packages.props`, so the two services and the test
+  project cannot drift onto different versions of the same dependency.
