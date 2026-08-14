@@ -1373,3 +1373,35 @@ floor being the one threshold that is not configurable, and ties falling to grid
 unchanged feed can reconcile differently on re-import — are now in both. As is `HasRouteOverlap`
 returning `false` from every early exit, which forces a stops-only "Network-completeness" feed to
 duplicate an operator's entire station set on every import.
+
+### Documents describing things that are not there
+
+A mechanical check — every backticked identifier in `docs/` that appears nowhere in the source —
+found four real cases and confirmed the rest are deliberate history.
+
+**`shared/contracts.md` documented a deleted subsystem as current.** Its "Map" section, 78 lines,
+described six types (`MapStationResponse`, `MapRouteResponse`, `MapMobilityStationResponse`,
+`MapVehicleResponse`, `MapDepartureResponse`, `MapOperatorResponse`) with full property tables,
+cited `Contracts/MapContract.cs`, and gave the rationale "*GetThereAPI proxies TransitInfoAPI and
+re-maps into these*". None of the six exist; neither does the file; and the proxy was deleted on
+2026-08-02. The section was listed in the document's own index as live.
+
+What makes this worth recording is that the deletion was done *carefully*.
+`map-proxy-migration.md` and `getthere-api/transit-integration.md` both carry full SUPERSEDED
+banners explaining what went and why — `transit-integration.md`'s even says "read it as history, not
+as a description of running code". The contracts reference, which is the canonical list of shared
+DTOs and the one most likely to be consulted, was the file that got missed. Now marked the same way,
+with the tables kept as the only written record of the shapes.
+
+**`getthere-client/ticket-import.md` named two things that never existed under those names.**
+`TicketPriceConverter` is `PriceCurrencyConverter`, and `MapViewModel` was said to raise
+`ModeFilterChanged` — it exposes `MapUrl` and a `LoadMap` command, and its own class comment says
+the chips it used to own moved into the page. The link beside it pointed at an anchor that went with
+them.
+
+**Confirmed *not* defects**, which is the other half of the check: `feed-pipeline.md` names
+`CustomFeedDirectImporter` and says explicitly it is deleted; `transit-integration.md` and
+`map-proxy-migration.md` name a dozen removed types under their banners;
+`db/transitinfo-schema.md`'s `StationMergeMovedRawStops` is the table for entity
+`StationMergeMovedRawStop`; `database-drift.md` names the legacy tables it exists to describe
+dropping.

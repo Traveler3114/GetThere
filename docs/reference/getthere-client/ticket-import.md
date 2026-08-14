@@ -242,8 +242,10 @@ The API distinguishes *retrying the same user action* (same key) from *a new pur
 
 ### `MapViewModel`
 
-Owns the map URL and the transport-mode chips, and raises `ModeFilterChanged` rather than touching the
-WebView. See [architecture.md](architecture.md#the-map-a-webview-and-how-the-token-reaches-it).
+Owns the map URL and nothing else — `MapUrl` plus a `LoadMap` command that picks the language. It
+used to own the transport-mode chips and push them into the page through the host; the page owns its
+own chrome now, so that went with the proxy migration, and there is no `ModeFilterChanged`. See
+[architecture.md](architecture.md#the-map-a-webview-and-nothing-else).
 
 ---
 
