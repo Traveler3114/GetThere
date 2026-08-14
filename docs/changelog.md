@@ -1920,3 +1920,30 @@ for whoever owns the page.
 `finally`, and updates `originalGeometry` only after the server confirms. `operators.page.js`'s
 delete confirms by name with "This action cannot be undone", which matches the API: `DeleteAsync`
 refuses while any agency, feed, route or station association remains.
+
+### Fixed: a blank operator dropdown with no explanation
+
+`feeds.page.js` carried seven empty catches, the most of any file here. Five are defensible and are
+left alone: four sit inside the import log-polling loop, where a failed tick is retried a second
+later and the import is observable elsewhere, and one is MapLibre's idiomatic remove-if-present.
+
+The other two are the same five lines duplicated in `editFeed` and `showAddModal`:
+
+```js
+try {
+  const r = await fetch(BASE + '/operators');
+  const j = await r.json();
+  _operators = j.data || [];
+} catch(e) {}
+```
+
+When `/operators` fails, `_operators` stays `[]` and the modal renders an empty operator `<select>`.
+On the add path that is a dead end — a feed cannot be created without an operator — and the console
+said nothing about why the list was blank. Both now report through the page's existing `showError`.
+
+### Verified clean across the remaining console pages
+
+- **Every `DELETE` in both consoles is behind a `confirm()`.** Checked mechanically rather than by
+  eye: no destructive verb appears without one in the preceding lines.
+- `operators.page.js` confirms by name and states the action cannot be undone, which the API backs —
+  `DeleteAsync` refuses while any agency, feed, route or station association remains.

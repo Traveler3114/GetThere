@@ -329,7 +329,12 @@ async function editFeed(id) {
     const r = await fetch(BASE + '/operators');
     const j = await r.json();
     _operators = j.data || [];
-  } catch(e) {}
+  } catch(e) {
+    // Surfaced rather than swallowed: _operators stays [] and the modal below renders an empty
+    // operator <select>. On the add path that is a dead end — a feed cannot be created without an
+    // operator — and the operator was told nothing at all about why the list was blank.
+    showError('Could not load the operator list: ' + e.message + '. The operator dropdown will be empty.');
+  }
   const html = `<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Edit Feed: ${esc(feed.feedId)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
@@ -448,7 +453,12 @@ async function showAddModal() {
     const r = await fetch(BASE + '/operators');
     const j = await r.json();
     _operators = j.data || [];
-  } catch(e) {}
+  } catch(e) {
+    // Surfaced rather than swallowed: _operators stays [] and the modal below renders an empty
+    // operator <select>. On the add path that is a dead end — a feed cannot be created without an
+    // operator — and the operator was told nothing at all about why the list was blank.
+    showError('Could not load the operator list: ' + e.message + '. The operator dropdown will be empty.');
+  }
 
   const opOptions = _operators.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.globalId)})</option>`).join('');
   const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
