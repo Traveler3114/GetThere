@@ -1731,3 +1731,42 @@ This measures *reachability*, not line coverage: "no test names it and no integr
 it". A manager could still be indirectly exercised through a path I have not traced. What is not in
 doubt is the structural gap — one service has an integration host and the other does not, and the
 money-in path has neither a unit test nor a reachable endpoint test.
+
+## Audit round 4 — the admin console's Content-Security-Policy
+
+The two policies this service sends are not equally strict, and the weaker one guards the more
+valuable page.
+
+| | `script-src` |
+|---|---|
+| Public map (`/map`) | `'self'` |
+| **Admin console (`/admin`)** | **`'self' 'unsafe-inline' https://cdn.jsdelivr.net`** |
+
+**`'unsafe-inline'` removes the protection CSP exists to give.** It is there because the console uses
+**66 inline `onclick` handlers** across its page scripts. The console renders operator- and
+feed-supplied strings throughout — names, URLs, licence text — which is precisely why `Shell.esc` and
+`Shell.safeUrl` were written and consolidated. Those two functions are currently the *entire*
+defence: the policy that would normally catch anything they miss is disabled for the one directive
+that would have caught it.
+
+**Bootstrap is loaded from a third-party CDN with no Subresource Integrity.** Every admin page carries
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+```
+
+and **no page in the console uses `integrity=`**. The version is pinned in the path, which jsdelivr
+serves immutably, so this is not about version drift — it is that a compromise of that origin
+executes arbitrary script inside a page holding an operator's bearer token in `sessionStorage`.
+
+The map's policy is the useful comparison: `script-src 'self'`, no CDN, no inline. Strict is
+evidently achievable in this codebase; the console is where it was not achieved.
+
+**Not fixed, and both reasons are about not guessing.** Adding SRI needs the real digest for that
+exact asset, and inventing one breaks every admin page — it has to come from the file, fetched or
+vendored. Dropping `'unsafe-inline'` means converting 66 handlers to `addEventListener` across a
+dozen files that have no behavioural tests at all; the syntax check added earlier this round would
+confirm they still parse, and nothing would confirm they still work.
+
+The cheapest real fix is probably neither: vendoring `bootstrap.bundle.min.js` into `wwwroot` removes
+the CDN and the SRI question together, and leaves only the inline-handler work behind `'unsafe-inline'`.
