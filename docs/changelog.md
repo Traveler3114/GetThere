@@ -1680,3 +1680,54 @@ run verbatim here before committing, exit code and glob included.
 
 This is the same shape as the gap round 1 closed by adding `workflow_dispatch`: not a defect in any
 one file, but a blind spot in what the pipeline is willing to look at.
+
+## Audit round 4 — the test suite, read for what it does not cover
+
+252 test methods across 31 files, and they are good tests — the ones this audit has leaned on
+(`TicketValidityTests`, `GtfsParserTests`, `PurchaseFlowTests`) are precise about *why* each case
+exists. The question here is the other one: what has no test at all.
+
+### The integration host covers one service
+
+`ApiFactory` is `WebApplicationFactory<GetThereAPI.ApiEntryPoint>`. **There is no equivalent for
+TransitInfoAPI**, so nothing exercises its HTTP surface, and its coverage is exactly the pure-logic
+tests — the GTFS parser, the custom-source engine, the document completer, the reconciliation grid,
+Levenshtein, `PollingInterval`, feed storage, the SSRF guard and the secret-exposure check.
+
+Everything else in that service is untouched by any test:
+
+| Not exercised by any test | Lines |
+|---|---|
+| `FeedManager` — the whole import pipeline, largest file in the project | 1,494 |
+| `CustomSourceManager` | 554 |
+| `RealtimeManager` — the singleton holding live vehicle state | 500 |
+| `StationManager` — the anonymous-facing search and GeoJSON reads | 452 |
+| `MobilityManager`, `PlaceMatchingManager`, `OperatorManager`, `ScheduleManager` | 1,443 |
+| `RouteManager`, `OnestopIdManager`, `PlaceManager`, `CountryManager`, `GeoCountryDetector`, `GeoUtils` | 569 |
+| `FeedPollingWorker`, `RealtimePollingWorker`, `MobilityPollingWorker` | 312 |
+
+**5,012 lines of manager code and 312 of worker code**, in the service where rounds 1–4 found most of
+the defects.
+
+### The money asymmetry
+
+This is the one worth acting on. The suite tests taking money *out* of a wallet thoroughly —
+`PurchaseFlowTests`, `PurchaseReconciliationTests` and a 213-line `MoneyPathFixture` that runs
+against real SQL Server, covering the conditional debit, idempotent replay, the refund compensation
+and the reconciliation sweep.
+
+**Putting money in has no test at all.** `WalletManager` (130 lines — `TopUpAsync`, balance, wallet
+creation) is named by nothing. `/wallet` does appear in `HttpSurfaceTests`, but only in
+`Anonymous_callers_are_challenged`, which asserts a 401 — authorization rejects the request before
+the controller runs, so the manager is never reached. `AdminManager` (305 lines, including the
+`volume / sold` money aggregation) is in the same position via `/admin/stats`.
+
+So the credit path and the money-reporting path are both unexercised, while the debit path beside
+them is the best-covered code in the repository.
+
+### Caveat, stated because the distinction matters
+
+This measures *reachability*, not line coverage: "no test names it and no integration host reaches
+it". A manager could still be indirectly exercised through a path I have not traced. What is not in
+doubt is the structural gap — one service has an integration host and the other does not, and the
+money-in path has neither a unit test nor a reachable endpoint test.
