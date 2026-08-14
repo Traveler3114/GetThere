@@ -1586,3 +1586,41 @@ already on screen. None of the three can be judged without the app running.
   disappearing, and its body computes `isDark` and discards it under a comment explaining that icons
   use `AppThemeBinding` so no manual update is needed. The handler is the leftover of the manual
   update that is no longer done.
+
+### Where the untranslated UI actually is
+
+Counting `{localization:Translate}` against hardcoded literals per screen resolves the localization
+thread into something bounded:
+
+| Page | Translated | Hardcoded |
+|---|---|---|
+| `ProfilePage` | 24 | 0 |
+| `TicketsPage` | 19 | 0 |
+| `RegistrationPage` | 15 | 0 |
+| `LoginPage` | 13 | 0 |
+| `ShopPage` | 9 | 0 |
+| `JourneyDetailPage` / `TicketDetailPage` | 8 | 0 |
+| `TicketPurchasePage` | 7 | 0 |
+| `ImportedTicketDetailPage` | 4 | 0 |
+| `MapPage` | 0 | 0 |
+| **`ImportTicketPage`** | **1** | **17** |
+
+Every content page is fully translated except one. `MapPage`'s zero is correct — it is a WebView and
+the page it loads labels itself from the `lang` parameter in its URL.
+
+`ImportTicketPage` is the outlier, and it is not an isolated file: the same flow's view models carry
+the rest of it — `TicketsViewModel`'s four hardcoded action sheets and eight hardcoded `ErrorText`
+assignments, and `ImportTicketViewModel`'s prompt and `SummariseFor` text. That is the ticket-import
+flow, end to end, and it is the newest feature in the client. It reads as a feature built after the
+localization pass and never put through it.
+
+So the accurate statement of this whole thread, replacing the vaguer ones above:
+
+1. **The language switch does not work at all** (`CultureChanged` has no subscribers, the shell is a
+   singleton, `TranslateExtension` is not a binding). This is the one that matters.
+2. **One flow was never localized** — ticket import, ~26 strings across three files.
+3. **The generic transport error is hardcoded** in all 20 service catch blocks, with no key for it.
+4. 83 unused keys are a *consequence* of 1–3 rather than a defect in their own right.
+
+None of it is fixed. Fixing 2 and 3 without 1 would produce a fully translated app that still cannot
+be switched into Croatian.
