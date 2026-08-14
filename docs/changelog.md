@@ -1832,3 +1832,34 @@ worker: peak concurrency 4, output order identical to input order.
 
 The same `Promise.all`-over-a-selection shape is worth looking for elsewhere in the console; this is
 the only one that drives a merge, which is why it is the one that mattered.
+
+### Fixed: the post-action refresh failed silently
+
+`reconciliation-map.page.js` calls `reFetchCandidate` / `reFetchStationTimeline` immediately after an
+approve or reject has **already succeeded** — they are the refresh that shows the operator the new
+state. Both ended `.catch(() => {})`.
+
+So a failed refresh left the sidebar showing the pre-action state, with the action already applied on
+the server. The obvious response to a panel that did not change is to click the button again.
+
+What makes it worth calling out rather than filing under "another empty catch": both chains
+*construct* distinct errors — `throw new Error('Station not found')`,
+`throw new Error('Failed to load candidates')` — purely to discard them one line later. The
+information existed and was deliberately dropped. Both now surface through `alert`, which is what the
+other five error paths on this page already use, and say which half failed: the action succeeded, the
+panel did not refresh, reload.
+
+### The parallel-write sweep, closed
+
+`batchApprove` was flagged as possibly one instance of a pattern. It is not — it was the only one.
+Every other `Promise.all` in either console fans out **reads**: dashboard KPIs, map layers,
+related-entity lookups. The one that looked riskiest, the overview's per-feed version fetch, is
+already `.slice(0, 20)`.
+
+### Recorded, not fixed
+
+`reFetchStationTimeline` and the `map.on('load')` handler in the same file are near-identical
+35-line duplicates — same two fetches, same marker plotting, same bounds fitting. Only the second
+carries the explanatory comments. A change to one will not reach the other, which is the ordinary way
+these drift; left alone because collapsing them is a refactor rather than a fix, on a page with no
+test of any kind.
