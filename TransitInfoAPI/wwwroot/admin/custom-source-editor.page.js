@@ -250,6 +250,13 @@ function collect() {
     serviceWindowStart: document.getElementById('fWindowStart').value || null,
     serviceWindowEnd: document.getElementById('fWindowEnd').value || null,
     extractorKey: document.getElementById('fExtractor').value.trim() || null,
+    // `|| null` collapses the two states the API distinguishes into one. The server treats null as
+    // "keep the stored credential" and an empty string as "clear it" — Protect passes blank through
+    // unchanged and HasAuth is `!IsNullOrWhiteSpace`, so "" genuinely removes it. Because a blank
+    // box becomes null here, the editor can replace a credential but has no way to remove one,
+    // which is exactly what rotating away from an integration needs. Adding it means a deliberate
+    // control ("Clear stored credential") rather than overloading the blank box, since blank
+    // already means keep and the field's own help text says so.
     authConfig: document.getElementById('fAuth').value.trim() || null,
     isActive: document.getElementById('fActive').checked,
     requests: model.requests.map(function (r) {

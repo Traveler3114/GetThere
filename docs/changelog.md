@@ -1863,3 +1863,29 @@ already `.slice(0, 20)`.
 carries the explanatory comments. A change to one will not reach the other, which is the ordinary way
 these drift; left alone because collapsing them is a refactor rather than a fix, on a page with no
 test of any kind.
+
+### A stored credential can be replaced but not removed
+
+The custom-source editor handles the credential correctly on the way in — it never populates the
+field from the model, because the server stopped returning `AuthConfig` and now sends only a
+`HasAuth` boolean, and the help text says what blank means: *"A credential is stored. Leave blank to
+keep it, or type a new one to replace it."*
+
+On the way out it collapses two states into one. `collect()` sends
+`document.getElementById('fAuth').value.trim() || null`, so a blank box becomes `null` — and the API
+distinguishes:
+
+- `null` → `UpdateAsync` skips the assignment; the stored credential stays.
+- `""` → assigned. `SecretProtector.Protect` passes blank through unchanged (encrypting "no
+  credential" would only make it indistinguishable from one), and `HasAuth` is
+  `!string.IsNullOrWhiteSpace(cs.AuthConfig)` — so an empty string genuinely clears it.
+
+The clearing path exists in the API and is unreachable from the console. Removing a stored credential
+is exactly what rotating away from an integration requires, and today it needs a direct `PUT`.
+
+Recorded rather than fixed: the repair is a deliberate control — a "Clear stored credential" checkbox
+or button — not a change to how the blank box is read, since blank already means *keep* and the
+field's own help text promises that.
+
+Confirmed while checking this that the endpoints reference added earlier this round states the
+`null` / `""` distinction correctly.
