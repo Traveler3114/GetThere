@@ -1947,3 +1947,61 @@ said nothing about why the list was blank. Both now report through the page's ex
   eye: no destructive verb appears without one in the preceding lines.
 - `operators.page.js` confirms by name and states the action cannot be undone, which the API backs —
   `DeleteAsync` refuses while any agency, feed, route or station association remains.
+
+## Audit round 4 — the console's own CSP breaks one of its pages
+
+### The shape editor cannot draw
+
+`/admin/shape-editor.html` loads its drawing library from Mapbox:
+
+```html
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.css">
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.js"></script>
+```
+
+The CSP this service sends for `/admin` is:
+
+```
+script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net
+style-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net
+```
+
+**`api.mapbox.com` is in neither.** The script is blocked, so `MapboxDraw` is never defined — and
+`shape-editor.page.js:142` is `draw = new MapboxDraw({ … })`, which then throws `ReferenceError`.
+The page's entire purpose is drawing route geometry, and it cannot, in any browser that enforces the
+policy the same server sets.
+
+This is not a subtle interaction. It is one file asking for an origin another file forbids, and
+nothing in the build or the test suite looks at either — which is the same gap that let the missing
+JavaScript check sit unnoticed.
+
+### The console's fonts have never loaded either
+
+Both `admin/style.css` files — TransitInfoAPI's and GetThereAPI's, 25 pages each — open with
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:…&family=IBM+Plex+Mono:…');
+```
+
+`style-src` does not list `fonts.googleapis.com`, so the stylesheet is blocked; `font-src` does not
+list `fonts.gstatic.com`, so the files it would have pulled are blocked too. Open Sans and IBM Plex
+Mono have never rendered on any admin page — every one has been falling through to the next entry in
+its font stack.
+
+### One root cause, three symptoms
+
+The console depends on **three** external origins and its CSP permits **one**:
+
+| Origin | Used for | Allowed? |
+|---|---|---|
+| `cdn.jsdelivr.net` | Bootstrap | yes — but with no SRI |
+| `api.mapbox.com` | mapbox-gl-draw | **no** — shape editor broken |
+| `fonts.googleapis.com` / `gstatic.com` | web fonts | **no** — fonts never load |
+
+Vendoring all three into `wwwroot` fixes every row at once: the shape editor starts working, the
+fonts appear, the SRI question disappears with the CDN, and `script-src`/`style-src` can drop to
+`'self'` — leaving only the 66 inline handlers behind `'unsafe-inline'`.
+
+Not done here. It means fetching three assets and committing them, and I can neither verify their
+contents from this container nor test the pages afterwards; guessing at vendored library bytes is a
+worse failure than the one being fixed.
