@@ -1547,3 +1547,42 @@ Also fixed while here: **the auth `HttpClient` had no timeout.** `MauiProgram` b
 the only operations that waited more than three times as long before admitting the network was gone
 — and refresh is the worst of the three, because `AuthenticatedHttpHandler` awaits it mid-request
 after a 401, stacking that delay on top of a request the user is already waiting on.
+
+### Changing the language does not change the language
+
+`LocalizationService.SetCulture` raises `CultureChanged`. **Nothing subscribes to it** — the event is
+declared, raised, and listened to by no one. That matters because every string in the client resolves
+exactly once:
+
+- `TranslateExtension` is a **markup extension**, not a binding. `ProvideValue` returns a plain
+  `string` at XAML parse time, so a page keeps whatever language it was constructed in.
+- `AppShell` reads its tab titles once in `BuildNavigation`, called from a constructor that runs once
+  — the shell is registered `AddSingleton`.
+
+So `ProfileViewModel.SelectLanguage` sets the culture and calls `App.GoToApp()`, evidently meaning to
+rebuild the UI in the new language. `GoToApp` does
+`Windows[0].Page = Services.GetRequiredService<AppShell>()`, which resolves **the same singleton
+instance already on screen**. The tab bar and the visible page do not change. Pages are transient, so
+navigating somewhere new afterwards *does* pick the new culture up — which is what makes this present
+as intermittent rather than plainly broken.
+
+Documented at both sites rather than fixed: the repair is a design choice, not a line. Subscribe and
+rebuild the shell; or register `AppShell` transient so `GoToApp` constructs a fresh one; or make
+`TranslateExtension` return a binding that tracks the event — only the last also updates a page
+already on screen. None of the three can be judged without the app running.
+
+### Three more members that exist and do nothing
+
+- **`AppShell.NavItem.DesktopOnly`** — declared, defaulted false, never set true, and filtered on.
+  It described a Settings destination that was desktop-only because the phone frames had no room for
+  a fifth tab. Settings was folded into Profile → Account, so the destination is gone, the filter
+  removes nothing, and the desktop and phone navigation lists are identical.
+- **`AppShell.UpdateProfileIcon`** — public, carefully written (it looks the tab up by route, because
+  the tree is a `TabBar` on phones and `FlyoutItem`s on desktop), given its own section in
+  `getthere-client/architecture.md` — and called by nothing. Nor could it be:
+  `ProfilePage.OnAvatarClicked` offers "Take Photo" / "Upload" and answers either with
+  `Profile_PhotoResult`, whose text is *"Camera/Gallery integration would go here."*
+- **`ProfilePage.OnRequestedThemeChanged`** — subscribed in the constructor, unsubscribed on
+  disappearing, and its body computes `isDark` and discards it under a comment explaining that icons
+  use `AppThemeBinding` so no manual update is needed. The handler is the leftover of the manual
+  update that is no longer done.
