@@ -127,6 +127,26 @@ jobs:
       - name: Lint GetThere.Tests
         run: dotnet format tests/GetThere.Tests/GetThere.Tests.csproj --verify-no-changes --no-restore
 
+      # Until this step existed the workflow touched no JavaScript at all — no lint, no syntax
+      # check, no tests — so the 7,252 lines of console and map script across the two wwwroot trees
+      # were the only code here that could ship broken without any signal. A missing brace in
+      # public.js is a blank map for every anonymous visitor and a green build.
+      #
+      # `node --check` parses without executing, so it needs no dependencies, no browser and no
+      # network. It catches the class of failure that has no other guard; it is not a linter and is
+      # not pretending to be one. All 32 files pass today.
+      - name: Syntax-check wwwroot scripts
+        run: |
+          shopt -s globstar nullglob
+          failed=0
+          for f in TransitInfoAPI/wwwroot/**/*.js GetThereAPI/wwwroot/**/*.js; do
+            if ! node --check "$f"; then
+              echo "::error file=$f::JavaScript syntax error"
+              failed=1
+            fi
+          done
+          exit $failed
+
   # Fails the build on a known-vulnerable package. NU1903 (high severity) was previously worked
   # around with <NoWarn> so that -warnaserror would pass; this job makes that hard to repeat quietly.
   vulnerability-scan:

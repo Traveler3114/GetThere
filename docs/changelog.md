@@ -1661,3 +1661,22 @@ concurrent callers (with the reasoning recorded — a second parallel refresh pr
 and trips reuse detection, revoking every session the operator has), copies the caller's options
 rather than mutating them, uses a `Headers` instance so a caller passing one is not silently ignored,
 and refuses to attach the token to anything that is not same-origin.
+
+### CI never looked at any JavaScript
+
+The workflow builds four C# projects with `-warnaserror`, runs the test suite against a real SQL
+Server, and runs `dotnet format` over five projects. It touched **no JavaScript** — no lint, no
+syntax check, no tests.
+
+That leaves **7,252 lines** across the two `wwwroot` trees (6,013 in TransitInfoAPI, 1,239 in
+GetThereAPI) as the only code in the repository that can ship broken with a green build. A missing
+brace in `map/public.js` is a blank map for every anonymous visitor and a passing run.
+
+Added a `node --check` step to the `build` job. It parses without executing, so it needs no
+dependencies, no browser and no network — and it catches exactly the class of failure that currently
+has no guard anywhere. It is not a linter and does not pretend to be one; a real one would want
+`eslint` and a config, which is a larger decision. All 32 files pass today, and the step's script was
+run verbatim here before committing, exit code and glob included.
+
+This is the same shape as the gap round 1 closed by adding `workflow_dispatch`: not a defect in any
+one file, but a blind spot in what the pipeline is willing to look at.
