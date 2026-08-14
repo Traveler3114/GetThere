@@ -1461,3 +1461,28 @@ balance state carried across the navigation to the ticket. `BaseViewModel`'s `Is
 correctly documented as advisory — "use it to choose what to *say* about a failure that already
 happened, never to decide whether to attempt a request". `RegistrationViewModel`'s validation defers
 password rules to Identity rather than reimplementing them.
+
+### The sharp edge of the guest upgrade, marked where it happens
+
+`LoginViewModel.Login` is the call site that pushes a guest's queue into the account that just signed
+in. The queue's own notes explain why that can be the wrong account; this now says so at the line
+that does it, because that is where someone changing the upgrade will be looking.
+
+### Verified clean in this pass
+
+- **`TicketValidity`** — and it is worth naming, because it already contains the rule the ticket
+  detail screens break. It treats `DateTimeKind.Unspecified` as **UTC**, with the reasoning written
+  out ("the server stores and compares UTC; treating it as local would shift it by the device's
+  offset"), only ever downgrades a status, and never expires a null window. Seven tests pin it.
+  `ImportedTicketDetailViewModel.Apply` uses it correctly for the *status* and then calls
+  `.ToLocalTime()` on the *dates* four lines later — the same method, two opposite rules.
+- **`TicketBarcode.ChooseSymbology`** — refuses to draw a UIC 918-3 payload as Code 128 because
+  compressed binary will not round-trip, on the stated grounds that a confident wrong code at a
+  barrier is worse than no code. Lives in `GetThereShared` rather than the MAUI project specifically
+  so it can be tested.
+- **`BarcodeRenderService`** — error correction Q for phone screens, a 4-module quiet zone, PNG
+  rather than JPEG because lossy artefacts land on the module boundaries a scanner measures, and a
+  pinned-buffer `InstallPixels` whose handle outlives the encode.
+- **`WalletTicket`** — projects two contracts that deliberately share no base type, and documents
+  the coupling it does create (the two status enums must keep spelling `Active` the same way, or
+  `TicketStatusColorConverter` silently leaves a badge unstyled).

@@ -88,6 +88,14 @@ public partial class LoginViewModel : BaseViewModel
                 //
                 // Best-effort on purpose: a failed push leaves the queue intact for the next attempt
                 // and must not block a sign-in that otherwise worked.
+                //
+                // This is the sharp edge of that upgrade, and it is worth seeing here rather than
+                // only in PendingImportQueue's notes: the queue records no owner, so "anything
+                // imported before signing in" means anything at all — including tickets a
+                // *different* person imported on this device. On a shared or second-hand phone this
+                // line hands their barcode to whoever signs in next. Whether an unclaimed ticket
+                // should follow the next sign-in or be discarded at the account boundary is the
+                // product decision that has to be made before this can be tightened.
                 var pushed = await _importSync.FlushAsync();
                 if (pushed > 0)
                     _analytics.TrackEvent("guest_imports_claimed", new() { ["count"] = pushed.ToString() });
