@@ -1512,3 +1512,38 @@ when the wording matters.
 Not fixed here: adding the key is trivial, but the string is also the wrong *content* in some of
 those 20 places — a 500 from the server is not "check your connection" — and deciding what each one
 should say is a product call that wants doing once, properly, rather than twenty times mechanically.
+
+### Correcting round 4's own scoping: there *are* silent catch blocks
+
+Round 4's scoping listed "no silently-swallowing catch blocks in any of the four source projects"
+among the things it had ruled out. That was wrong, and wrong for a reason worth naming: it came from
+a grep for `catch { }` with an *empty* body, which is not the question. The question is which catch
+blocks neither log nor rethrow.
+
+Asked properly, that returns **24**. Most are fine — `OperationCanceledException` on a worker's
+shutdown path, a `JsonException` that degrades to a default config, a `FileNotFoundException` that
+means "first fetch for this feed", and the view-model handlers that call `Fail(ex.Message)` and put
+the text on screen. Four are genuinely silent and have consequences:
+
+| Where | What it swallows | What the user sees |
+|---|---|---|
+| `AuthService.GetFullNameAsync` / `GetEmailAsync` | An unreadable JWT claim | Both return null, and `ProfileViewModel` reads *both null* as "this is a guest" — a signed-in user gets the signed-out profile |
+| `LocalizationService`'s indexer | A missing or unreadable resource | The **key name** renders on screen (`Tickets_SavedAgo`), with nothing logged |
+| `App.InitializeWindowAsync` | Anything, including DI failing to construct `AppShell` | A signed-in user silently lands on the login shell |
+| `ProfileViewModel` history load | Any failure | The transactions list is simply empty |
+
+**Fixed the first.** `AuthService` already logs exactly this failure in `GetOwnerKeyAsync` — "Could
+not read the subject claim" — so its two sibling methods reading the *same token* now do too. The
+inconsistency was inside one class.
+
+The other three are left as they are: `LocalizationService` returning the key is a deliberate and
+common fallback, and `App`'s catch has a real argument for being broad (failing to open *any* window
+is worse than opening the wrong one). Both would be better with a log line, which is a judgement for
+whoever owns the startup path.
+
+Also fixed while here: **the auth `HttpClient` had no timeout.** `MauiProgram` builds
+`AuthService`'s client by hand rather than through the factory, so it kept `HttpClient`'s default of
+100 seconds while every other call in the app times out at 30. Login, registration and refresh were
+the only operations that waited more than three times as long before admitting the network was gone
+— and refresh is the worst of the three, because `AuthenticatedHttpHandler` awaits it mid-request
+after a 401, stacking that delay on top of a request the user is already waiting on.
