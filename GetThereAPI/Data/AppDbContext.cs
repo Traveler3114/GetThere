@@ -79,20 +79,29 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.Property(wt => wt.BalanceBefore).HasPrecision(18, 2);
             entity.Property(wt => wt.BalanceAfter).HasPrecision(18, 2);
 
-            // NOTE: Type and ReferenceId still have no length, so both are nvarchar(max) and neither
-            // can be indexed — which is why TicketingManager.RefundAsync's duplicate-refund guard
-            // takes its UPDLOCK/HOLDLOCK range lock over a full table scan and serialises every
-            // refund in the system against every other.
+            // Both of these were unbounded and therefore nvarchar(max), which SQL Server will not
+            // index — the same shape as the RefreshTokens.Token bug above. Bounding them is what
+            // makes the index below possible at all, not a separate tidy-up. 32 clears the longest
+            // WalletTransactionType name (TicketPurchase, 14); 64 clears a stringified Purchase.Id
+            // with room for whatever a future reference scheme uses.
+            entity.Property(wt => wt.Type).HasMaxLength(32);
+            entity.Property(wt => wt.ReferenceId).HasMaxLength(64);
+
+            // TicketingManager.RefundAsync probes for an existing refund under UPDLOCK/HOLDLOCK
+            // before crediting. Without this index that range lock is taken over a full table scan,
+            // so every refund serialises against every other and blocks inserts of any wallet
+            // transaction for the length of its transaction. Unique, so it is also the backstop: a
+            // writer that somehow got past the probe still collides on insert.
             //
-            // The fix is HasMaxLength(32)/HasMaxLength(64) plus a filtered unique index on
-            // (Type, ReferenceId). It was written here and then reverted, deliberately: a model
-            // change without its migration is not inert. EF Core turns PendingModelChangesWarning
-            // into an error inside Database.Migrate(), so all three database-backed fixtures threw
-            // on construction and 54 tests failed — the model change has to land in the same commit
-            // as `dotnet ef migrations add AddWalletTransactionRefundIndex`, which needs an SDK.
-            //
-            // docs/database-drift.md carries the full statement of the problem and what to check
-            // when generating it.
+            // Filtered, because only Refund rows carry the constraint — other types are free to
+            // reuse a ReferenceId. The filter compares Type to the enum *name*, which the
+            // EnumToStringConverter loop at the top of this method guarantees for every enum
+            // property in the model. If that convention ever goes, this filter matches nothing and
+            // the uniqueness is lost silently, with no error to notice.
+            entity.HasIndex(wt => new { wt.Type, wt.ReferenceId })
+                  .IsUnique()
+                  .HasFilter("[ReferenceId] IS NOT NULL AND [Type] = 'Refund'");
+
             entity.HasOne(wt => wt.Wallet)
                   .WithMany(w => w.Transactions)
                   .HasForeignKey(wt => wt.WalletId);

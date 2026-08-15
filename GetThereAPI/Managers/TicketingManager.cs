@@ -387,19 +387,14 @@ public class TicketingManager
         // first commits, and then sees the row it wrote. That is the part an EF `AnyAsync` cannot
         // express, which is why it is raw SQL.
         //
-        // The filtered unique index on (Type, ReferenceId) that would make this lock cheap does NOT
-        // exist yet. AppDbContext carries the intended shape as a comment rather than as
-        // configuration, because a model change without its migration is not inert — EF Core raises
-        // PendingModelChangesWarning as an error inside Database.Migrate(), which every
-        // database-backed fixture calls — so it has to land in the same commit as
-        // `dotnet ef migrations add AddWalletTransactionRefundIndex`.
+        // The lock is cheap because there is an index to take it on: AddWalletTransactionRefundIndex
+        // bounds Type and ReferenceId and puts a unique index on (Type, ReferenceId) filtered to
+        // Refund rows. Before it, both columns were nvarchar(max), nothing could be indexed, and
+        // this range lock was taken over a full table scan — every refund in the system serialised
+        // against every other.
         //
-        // So today neither column is indexable at all (both nvarchar(max)) and this range lock is
-        // taken over a full table scan, serialising every refund in the system against every other.
-        // Correct, and slower the larger WalletTransactions gets.
-        //
-        // When the index does land it is also the backstop: a writer that somehow passed this check
-        // still collides on insert. docs/database-drift.md has the migration and its pre-checks.
+        // That index is also the backstop: a writer that somehow passed this check still collides
+        // on insert. See AppDbContext for why the filter depends on the enum being stored by name.
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         var refundMarker = WalletTransactionType.Refund.ToString();
         var existingRefunds = await _db.Database

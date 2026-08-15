@@ -66,9 +66,28 @@ cannot index that. Every token refresh was a full table scan. Fixed in
 `20260727092919_HardenRefreshTokenIndex`, which bounds the column to 128 and creates the index as
 unique. That migration **is** applied and verified.
 
-## The same bug again, on WalletTransactions — MIGRATION STILL OWED
+## The same bug again, on WalletTransactions — RESOLVED
 
 **Found:** 2026-08-10, during the full-solution audit.
+
+**RESOLVED 2026-08-15** — `20260815145411_AddWalletTransactionRefundIndex` applied.
+`Type` is `nvarchar(32)`, `ReferenceId` is `nvarchar(64)`, and
+`IX_WalletTransactions_Type_ReferenceId` exists as unique with filter
+`([ReferenceId] IS NOT NULL AND [Type]='Refund')`, confirmed in `sys.indexes` rather than only in
+the model.
+
+Both pre-checks below passed, but **vacuously**: the local `WalletTransactions` was empty (0 rows),
+because this database was rebuilt from the migrations on 2026-07-27. So there were no duplicate
+refunds to find and no length to exceed. That is not evidence about any other environment — the
+narrowing `AlterColumn` and the unique index are exactly the two statements that fail on data, and
+an environment with real refund history must still run the two queries before applying it.
+
+The same visit found this database nine migrations behind (only `InitialCreate` and `AddIdentity`
+were in `__EFMigrationsHistory`, against eleven migration files). Those were applied first, after
+checking `RefreshTokens` for the duplicates and over-length tokens that
+`HardenRefreshTokenIndex` would reject — max token length 44, no duplicates across 9 rows.
+
+The history below is kept for the reasoning, which still applies to the next index like it.
 
 `WalletTransaction.Type` and `WalletTransaction.ReferenceId` had no configured length, so both were
 `nvarchar(max)` and neither could be indexed — exactly the shape of the `RefreshTokens.Token` bug
@@ -87,9 +106,9 @@ serialised against every other refund and blocked inserts of any wallet transact
 of its transaction. The code comment beside it already named the filtered unique index as the
 durable fix; what it did not say is that the missing lengths were what made that index impossible.
 
-**The fix is written down but NOT applied**, and the reason is worth recording because it caught us
-out. The intended change is `HasMaxLength(32)` on `Type`, `HasMaxLength(64)` on `ReferenceId`, and a
-filtered unique index on `(Type, ReferenceId)`.
+The fix was `HasMaxLength(32)` on `Type`, `HasMaxLength(64)` on `ReferenceId`, and a filtered unique
+index on `(Type, ReferenceId)`. Why it sat unapplied for five days is worth recording, because it
+caught us out.
 
 It was applied on 2026-08-10 without a migration, on the assumption that a model change ahead of its
 migration is inert — the index simply would not exist yet. **That assumption is wrong.** EF Core
@@ -103,21 +122,19 @@ System.InvalidOperationException : An error was generated for warning
 The model for context 'AppDbContext' has pending changes.
 ```
 
-So the model edit was reverted, and the comment in `AppDbContext` now points here. **The model change
-and its migration have to land in the same commit:**
+So the model edit was reverted until an SDK was available. **The model change and its migration have
+to land in the same commit**, which is how it was finally done:
 
 ```bash
-cd GetThereAPI
-dotnet ef migrations add AddWalletTransactionRefundIndex
-dotnet ef database update
+dotnet ef migrations add AddWalletTransactionRefundIndex --project GetThereAPI/GetThereAPI.csproj
+dotnet ef database update --project GetThereAPI/GetThereAPI.csproj
 ```
 
-The same trap applies to the `TransitInfoAPI` column sizes described in the next section — they are
-written as a comment in `TransitDbContext` for exactly this reason.
+The same trap applied to the `TransitInfoAPI` column sizes in the next section, for the same reason.
 
-Until then the refund guard keeps scanning: still correct, still slow.
+Until it landed the refund guard kept scanning: still correct, still slow.
 
-Two things to check when generating it, because the filter is not free:
+Two things to check before applying it anywhere else, because the filter is not free:
 
 - The filter `[ReferenceId] IS NOT NULL AND [Type] = 'Refund'` depends on `Type` being stored as its
   enum **name**, which it is: `AppDbContext` applies `EnumToStringConverter` to every enum property
