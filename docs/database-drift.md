@@ -160,15 +160,33 @@ Two things to check before applying it anywhere else, because the filter is not 
 Whichever you pick, check any other environment before assuming it is only local: if a shared or
 staging database was stamped the same way, it has the same broken endpoints.
 
-## nvarchar(450) on every indexed string column in TransitInfoAPI — MIGRATION OWED
+## nvarchar(450) on every indexed string column in TransitInfoAPI — APPLIED, PREMISE CORRECTED
 
 **Found:** 2026-08-12, audit round 2.
+
+**APPLIED 2026-08-15** as `20260815150045_SizeIndexedStringColumns`, ten `AlterColumn` calls.
+
+**And the reasoning below is wrong where it talks about size.** The measurement is in
+`docs/changelog.md`; the short version is that `nvarchar` stores the actual length of the value, not
+the declared maximum, so narrowing the declaration frees no storage. Measured on 500,000 seeded
+`StopTimes`, `IX_StopTimes_RawStopId` went 24.523 MB → 17.703 MB across the migration — but an
+`ALTER INDEX … REBUILD` at the **unchanged** `nvarchar(450)` reaches 17.727 MB, within 0.1%. All of
+the reduction is defragmentation, because `ALTER COLUMN` rebuilds the index. Estimated memory grant
+was identical before and after.
+
+The change is still worth having, for reasons that are not storage: it bounds the column so a
+malformed feed cannot write a 450-character id, it frees index-key budget (`int + 2 ×
+nvarchar(450)` = 1804 bytes, over the 1700-byte limit — SQL Server creates that index anyway and
+fails later on insert; at 128 the same shape is 516), and it moves `Feeds.OnestopId` off
+`nvarchar(max)`, the one column here that truly could not be indexed.
+
+Read the table below as "how wide the column is declared", not "how much space the index uses".
 
 The mirror image of the two bugs above. `TransitDbContext` declares 7 `HasMaxLength` calls for ~157
 string properties, and every string column it indexes has no configured length — so EF widened each
 to `nvarchar(450)`, the 900-byte index-key limit. The indexes therefore exist (SQL Server refuses to
-index `nvarchar(max)`, so the alternative would have been a failed migration), but each key reserves
-up to 900 bytes for content that is tens of characters:
+index `nvarchar(max)`, so the alternative would have been a failed migration), but each key *permits*
+900 bytes for content that is tens of characters — permits, not reserves; see the correction above:
 
 | Entity | Column | Now | Intended | Real content |
 |---|---|---|---|---|
@@ -185,12 +203,14 @@ up to 900 bytes for content that is tens of characters:
 stop_times rows" — and both carry an index keyed on one of these.
 
 GetThereAPI already reached this conclusion, on `Purchase.Status`: *"letting EF widen it to the
-450-char key limit would put ~900 bytes per row in an index over four short words."* The project that
-never applied it is the one with the big tables.
+450-char key limit would put ~900 bytes per row in an index over four short words."* That sentence
+is wrong in the same way as the one above — a variable-length column puts the length of the value in
+the index, not the declared maximum — and it is the sentence this whole section was argued from. The
+conclusion happened to be worth acting on for other reasons; the reason given for it was not one.
 
-The sizes are recorded as a comment in `TransitDbContext.OnModelCreating` rather than applied, for
-the reason in the section above: a model change without its migration turns the suite red. Generate
-both together:
+The sizes sat as a comment in `TransitDbContext.OnModelCreating` rather than applied, for the reason
+in the section above: a model change without its migration turns the suite red. They were generated
+together:
 
 ```bash
 cd TransitInfoAPI
@@ -198,11 +218,12 @@ dotnet ef migrations add SizeIndexedStringColumns
 dotnet ef database update
 ```
 
-Two things to check when doing it:
+Two things to check before applying it to a database that already holds a feed:
 
 - A length below what a live row already holds fails the migration. Query the current maxima first
   (`SELECT MAX(LEN(RawStopId)) FROM StopTimes` and so on) and raise the target if any feed carries
-  something unusual.
-- The point of the change is index size, so measure it. `sys.dm_db_partition_stats` before and after
-  on `IX_StopTimes_RawStopId`, `IX_Trips_FeedVersionId_TripId` and `IX_Countries_IsoCode` is the
-  evidence that it worked.
+  something unusual. The local run could not exercise this: every one of these tables was empty.
+- If you measure `sys.dm_db_partition_stats` before and after, **put a rebuild-only control beside
+  it.** `ALTER COLUMN` rebuilds the index, so the before/after difference is mostly defragmentation
+  and reads as a win the width change did not deliver. `ALTER INDEX … REBUILD` at the unchanged
+  width is what tells you which of the two you are looking at.

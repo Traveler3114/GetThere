@@ -119,54 +119,78 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         // ── Lengths on indexed string columns ─────────────────────────────────────────────────
         //
         // Every string column indexed below had no configured length, so EF widened each to
-        // nvarchar(450) — the 900-byte limit for an index key. That is why these indexes exist at
-        // all rather than failing to create (SQL Server refuses to index nvarchar(max)), and it is
-        // the other half of the bug docs/database-drift.md records for RefreshTokens.Token: one
-        // shape makes the index impossible, the other makes it enormous.
+        // nvarchar(450) — the largest declaration that still fits an index key. That is why these
+        // indexes exist at all rather than failing to create: SQL Server refuses to index
+        // nvarchar(max), which is the other half of the bug docs/database-drift.md records for
+        // RefreshTokens.Token.
         //
-        // GetThereAPI already worked this out, on Purchase.Status: "letting EF widen it to the
-        // 450-char key limit would put ~900 bytes per row in an index over four short words". The
-        // project that never applied it is the one with StopTimes and Trips in it — the two largest
-        // tables in the system, both carrying an index keyed on one of these columns.
+        // What 450 is NOT is a per-row cost. This block used to argue from GetThereAPI's
+        // Purchase.Status comment — "~900 bytes per row in an index over four short words" — and
+        // that is wrong: nvarchar stores the length of the value, not the declared maximum.
+        // Narrowing these columns freed no storage, measured on 500,000 seeded StopTimes with a
+        // rebuild-only control to separate the width change from the defragmentation that
+        // ALTER COLUMN causes. The numbers are in docs/changelog.md, 2026-08-15.
         //
-        // NOT APPLIED YET, deliberately. The sizes below are the intended ones:
+        // The sizes are still worth declaring, for reasons that are not storage: a malformed feed
+        // can no longer write a 450-character id, and a key of int + 2 × nvarchar(450) is 1804
+        // bytes, past the 1700-byte limit — SQL Server creates such an index anyway and fails later
+        // on an insert, so the headroom is what keeps a future composite index honest.
+        //
+        // Applied in SizeIndexedStringColumns. Each length now sits beside the index that motivates
+        // it, so the two cannot drift apart again:
         //
         //   Country.IsoCode            8     Operator.OnestopId          128
         //   FeedVersion.Sha1          64     CanonicalStation.OnestopId  128
         //   RawStop.RawStopId        128     CanonicalRoute.OnestopId    128
         //   StopTime.RawStopId       128     Feed.FeedId                 128
-        //   Trip.TripId              128     Feed.OnestopId              128 (nvarchar(max) today,
+        //   Trip.TripId              128     Feed.OnestopId              128 (was nvarchar(max),
         //                                    the one OnestopId with no index)
         //
-        // They are written here rather than applied because a model change without its migration is
-        // not inert: EF Core raises PendingModelChangesWarning as an error inside Database.Migrate(),
-        // which every database-backed fixture calls, so adding these alone turns the test suite red.
-        // They have to land in the same commit as `dotnet ef migrations add`, which needs an SDK.
+        // The lengths sat here as a comment until an SDK was available, because a model change
+        // without its migration is not inert: EF Core raises PendingModelChangesWarning as an error
+        // inside Database.Migrate(), which every database-backed fixture calls, so adding these
+        // alone turns the suite red. They landed in the same commit as `dotnet ef migrations add`.
         //
         // Sizes are generous against real data rather than minimal, because a length below what a
         // live row already holds fails the migration: GTFS ids and Onestop slugs run to tens of
         // characters, not hundreds, and Sha1 is exactly 40 hex digits (64 leaves room should
-        // ExternalFeedSource.ComputeHash ever move off SHA-1, which it should).
+        // ExternalFeedSource.ComputeHash ever move off SHA-1, which it should). Query the maxima
+        // before applying this to any database that already holds a feed.
 
         // Country IsoCode unique index
+        modelBuilder.Entity<Country>()
+            .Property(c => c.IsoCode)
+            .HasMaxLength(8);
         modelBuilder.Entity<Country>()
             .HasIndex(c => c.IsoCode)
             .IsUnique();
 
         // OnestopId unique indexes
         modelBuilder.Entity<Operator>()
+            .Property(o => o.OnestopId)
+            .HasMaxLength(128);
+        modelBuilder.Entity<Operator>()
             .HasIndex(o => o.OnestopId)
             .IsUnique();
 
+        modelBuilder.Entity<CanonicalStation>()
+            .Property(cs => cs.OnestopId)
+            .HasMaxLength(128);
         modelBuilder.Entity<CanonicalStation>()
             .HasIndex(cs => cs.OnestopId)
             .IsUnique();
 
         modelBuilder.Entity<CanonicalRoute>()
+            .Property(cr => cr.OnestopId)
+            .HasMaxLength(128);
+        modelBuilder.Entity<CanonicalRoute>()
             .HasIndex(cr => cr.OnestopId)
             .IsUnique();
 
         // FeedVersion
+        modelBuilder.Entity<FeedVersion>()
+            .Property(fv => fv.Sha1)
+            .HasMaxLength(64);
         modelBuilder.Entity<FeedVersion>()
             .HasIndex(fv => fv.Sha1)
             .IsUnique();
@@ -177,12 +201,18 @@ public class TransitDbContext : IdentityDbContext<AppUser>
 
         // RawStop
         modelBuilder.Entity<RawStop>()
+            .Property(rs => rs.RawStopId)
+            .HasMaxLength(128);
+        modelBuilder.Entity<RawStop>()
             .HasIndex(rs => new { rs.FeedVersionId, rs.RawStopId })
             .IsUnique();
         modelBuilder.Entity<RawStop>()
             .HasIndex(rs => rs.CanonicalStationId);
 
         // StopTime
+        modelBuilder.Entity<StopTime>()
+            .Property(st => st.RawStopId)
+            .HasMaxLength(128);
         modelBuilder.Entity<StopTime>()
             .HasIndex(st => st.RawStopId);
 
@@ -219,6 +249,9 @@ public class TransitDbContext : IdentityDbContext<AppUser>
 
         // Trip
         modelBuilder.Entity<Trip>()
+            .Property(t => t.TripId)
+            .HasMaxLength(128);
+        modelBuilder.Entity<Trip>()
             .HasIndex(t => new { t.FeedVersionId, t.TripId })
             .IsUnique();
         modelBuilder.Entity<Trip>()
@@ -243,6 +276,15 @@ public class TransitDbContext : IdentityDbContext<AppUser>
             .HasIndex(cso => cso.OperatorId);
         modelBuilder.Entity<CanonicalRoute>()
             .HasIndex(cr => cr.OperatorId);
+        modelBuilder.Entity<Feed>()
+            .Property(f => f.FeedId)
+            .HasMaxLength(128);
+        // Feed.OnestopId is the one OnestopId with no index; it was nvarchar(max) rather than
+        // nvarchar(450) for exactly that reason, and is bounded here for consistency with the other
+        // three, not to make an index possible.
+        modelBuilder.Entity<Feed>()
+            .Property(f => f.OnestopId)
+            .HasMaxLength(128);
         modelBuilder.Entity<Feed>()
             .HasIndex(f => f.FeedId)
             .IsUnique();
@@ -289,8 +331,9 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         // them, taking down the poll for that operator.
         //
         // The length is explicit because the column was nvarchar(max), which cannot be indexed at
-        // all; left implicit EF widens it to the 450-char key limit, which is far more than a GBFS
-        // station_id needs and puts ~900 bytes per row into the index.
+        // all; left implicit EF widens it to 450, far more than a GBFS station_id needs. (That
+        // widening costs no storage — see the correction in the lengths block above — but it does
+        // spend index-key budget and accept ids no feed should be sending.)
         modelBuilder.Entity<MobilityStation>()
             .Property(ms => ms.StationId)
             .HasMaxLength(128);

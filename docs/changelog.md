@@ -2140,3 +2140,103 @@ for a second one.
 
 That is twice in this review round that a finding was documented accurately and then not acted on.
 The write-up is the deliverable only when the fix cannot be verified here; neither of these was that.
+
+---
+
+## Session — August 15, 2026
+
+Three items the audit deliberately left undone because they need a .NET SDK and a real database.
+This box has both.
+
+### Task A — the MAUI project is formatted, and its lint step now blocks
+
+`dotnet format GetThere/GetThere.csproj` changed 11 files, all whitespace: blank lines between
+import groups, trailing whitespace, one alignment run in `CountryPreferenceService`. The step's own
+comment predicted "~8 files in `Services/`, `ViewModels/` and `Helpers/`" — it was also
+`Platforms/iOS`, `Platforms/MacCatalyst` and `State/`. The prediction came from reading the rule
+rather than running the tool, which is the same habit this log keeps catching.
+
+`continue-on-error: true` came off the `Lint GetThere` step in the same commit, so it starts
+blocking only once it passes. Also removed "There is also no `dotnet format` step for this project"
+from the `maui` job's header comment: that step has existed since it was added non-blocking, so the
+sentence was already false.
+
+### Task B — `AddWalletTransactionRefundIndex` (GetThereAPI)
+
+`WalletTransaction.Type` → `nvarchar(32)`, `ReferenceId` → `nvarchar(64)`, and a unique
+`IX_WalletTransactions_Type_ReferenceId` filtered
+`([ReferenceId] IS NOT NULL AND [Type]='Refund')`. Verified in `sys.indexes`, not in the model.
+Model and migration in one commit; `has-pending-model-changes` reports none and 407/407 tests pass.
+
+**Both pre-checks passed vacuously.** `WalletTransactions` held 0 rows, so there were no duplicate
+refunds to find and no length to exceed. That is not evidence about any environment with real refund
+history — the narrowing `AlterColumn` and the unique index are exactly the two statements that fail
+on data.
+
+The same visit found `GetThereDB` nine migrations behind: two rows in `__EFMigrationsHistory`
+against eleven migration files. Applied them after checking what `HardenRefreshTokenIndex` would
+reject (9 rows, max token 44 chars, no duplicates).
+
+### Task C — `SizeIndexedStringColumns` (TransitInfoAPI), and what the measurement actually showed
+
+Ten columns sized as the `TransitDbContext` comment specified. The migration is ten `AlterColumn`
+calls and nothing else; `Down` reverses each, including `Feeds.OnestopId` back to `nvarchar(max)`.
+
+The point of the change was index size, so it was measured — and **the headline claim does not
+survive the measurement.**
+
+`TransitInfoDB` is empty (0 rows in every one of these tables) and drifted, so the numbers below
+come from a scratch database built from the migrations and seeded with representative data: 500,000
+`StopTimes` with GTFS-shaped stop ids (~12 chars), 50,000 `Trips` (~24-char trip ids), 250
+`Countries` with 2-char ISO codes.
+
+| Index | Before | After migration | Control: rebuild only, width unchanged |
+|---|---|---|---|
+| `IX_StopTimes_RawStopId` | 3139 pages / 24.523 MB | 2266 / 17.703 MB | **2269 / 17.727 MB** |
+| `IX_Trips_FeedVersionId_TripId` | 481 / 3.758 MB | 390 / 3.047 MB | **391 / 3.055 MB** |
+| `IX_Countries_IsoCode` | 2 / 0.016 MB | 2 / 0.016 MB | 2 / 0.016 MB |
+
+Taken alone the first two columns look like a 28% and 19% win. They are not. `ALTER COLUMN` on an
+indexed column rebuilds the index, and the control — an `ALTER INDEX … REBUILD` at the **original**
+`nvarchar(450)`, changing no width at all — lands within 0.1% of the migrated result. The entire
+on-disk reduction is defragmentation from the rebuild. The declared width contributed nothing,
+because `nvarchar` stores the actual length of the value, not the declared maximum.
+
+Estimated memory grant for a hash aggregate over `StopTimes.RawStopId` was also identical on both
+databases: 3224 KB required, 4248 KB desired. With statistics present the optimizer sizes rows from
+the data, not from the declaration.
+
+So **the premise recorded in `docs/database-drift.md` is wrong**: "each key reserves up to 900 bytes
+for content that is tens of characters" — it does not reserve 900 bytes, it *permits* them. The
+`Purchase.Status` comment that entry quotes approvingly ("~900 bytes per row in an index over four
+short words") is wrong in the same way, and both are now corrected.
+
+What the change is actually worth, none of it storage:
+
+- **A real bound.** Nothing stopped a malformed feed writing a 450-character stop id; now it is
+  rejected at the column.
+- **Index key headroom.** Verified rather than asserted: `int + 2 × nvarchar(450)` is 1804 bytes and
+  SQL Server warns "the maximum key length for a nonclustered index is 1700 bytes … for some
+  combination of large values, the insert/update operation will fail" — it *creates the index
+  anyway*, so the failure arrives later, on an insert. At 128 the same shape is 516 bytes. Extending
+  `IX_Trips_FeedVersionId_TripId` with a bounded `RouteId` is possible after this change and a
+  latent insert failure before it.
+- **`Feeds.OnestopId` off `nvarchar(max)`**, which is the one column here that genuinely could not
+  be indexed at all.
+
+Keeping it for those reasons. The claim it was filed under does not hold, and a 28% number quoted
+without the rebuild control beside it would have been the third correction in this document of a
+figure nobody checked.
+
+### Not done — `TransitInfoDB` is drifted and was not touched
+
+`dotnet ef database update` was **not** run against the real `TransitInfoDB`. Its
+`__EFMigrationsHistory` holds one row, `20260712115532_InitialCreate`, and no migration file has
+that id — the repo's is `20260722145915_InitialCreate`. It is stamped from a different lineage, the
+same failure mode this document opens with for `GetThereDB`. It is also missing the four
+`CustomSources*` tables, so it is genuinely behind, and `database update` would fail applying
+`InitialCreate` over existing tables.
+
+Rebuilding it means dropping it, which is destructive and was not authorised, so it is left as
+found. Contents are 2 users, 2 roles, 34 role claims, 2 user-role rows and 13 refresh tokens; every
+transit table is empty. `docs/database-drift.md` option 1 is the fix.

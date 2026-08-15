@@ -149,8 +149,14 @@ public class AppDbContext : IdentityDbContext<AppUser>
             // on every pass, and it runs far more often than any user-facing query.
             //
             // The length is explicit because the status is stored as its enum name: left unbounded
-            // it is nvarchar(max), which cannot be indexed at all, and letting EF widen it to the
-            // 450-char key limit would put ~900 bytes per row in an index over four short words.
+            // it is nvarchar(max), which cannot be indexed at all, and EF's fallback of 450 declares
+            // a 900-byte ceiling over four short words.
+            //
+            // This comment used to say the 450 would "put ~900 bytes per row in an index". It does
+            // not — nvarchar stores the length of the value, not the declared maximum, so the width
+            // costs no storage. Measured in docs/changelog.md, 2026-08-15. The bound is still worth
+            // declaring: it rejects nonsense at the column and leaves index-key budget for a
+            // composite. It just is not a size saving.
             entity.Property(p => p.Status).HasMaxLength(20);
             entity.HasIndex(p => new { p.Status, p.PurchasedAt });
 
