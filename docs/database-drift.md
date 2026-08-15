@@ -166,6 +166,13 @@ staging database was stamped the same way, it has the same broken endpoints.
 
 **APPLIED 2026-08-15** as `20260815150045_SizeIndexedStringColumns`, ten `AlterColumn` calls.
 
+`TransitInfoDB` could not take it as an update: it was stamped `20260712115532_InitialCreate`, an id
+no migration file has, and was missing the four `CustomSources*` tables — the same drift this
+document opens with for `GetThereDB`, and `database update` would have failed applying
+`InitialCreate` over existing tables. It was dropped and rebuilt from the migrations (option 1) on
+2026-08-15, on request. That also removed the stale `getthere-api@transit.local` row and its `Client`
+grant, which `AGENTS.md` still expects to find in **other** environments.
+
 **And the reasoning below is wrong where it talks about size.** The measurement is in
 `docs/changelog.md`; the short version is that `nvarchar` stores the actual length of the value, not
 the declared maximum, so narrowing the declaration frees no storage. Measured on 500,000 seeded

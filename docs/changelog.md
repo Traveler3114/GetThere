@@ -2228,15 +2228,25 @@ Keeping it for those reasons. The claim it was filed under does not hold, and a 
 without the rebuild control beside it would have been the third correction in this document of a
 figure nobody checked.
 
-### Not done — `TransitInfoDB` is drifted and was not touched
+### `TransitInfoDB` was drifted, and was rebuilt on request
 
-`dotnet ef database update` was **not** run against the real `TransitInfoDB`. Its
-`__EFMigrationsHistory` holds one row, `20260712115532_InitialCreate`, and no migration file has
-that id — the repo's is `20260722145915_InitialCreate`. It is stamped from a different lineage, the
-same failure mode this document opens with for `GetThereDB`. It is also missing the four
-`CustomSources*` tables, so it is genuinely behind, and `database update` would fail applying
-`InitialCreate` over existing tables.
+It could not simply be updated. Its `__EFMigrationsHistory` held one row,
+`20260712115532_InitialCreate`, and no migration file has that id — the repo's is
+`20260722145915_InitialCreate`. Stamped from a different lineage, the same failure mode this
+document opens with for `GetThereDB`. It was also missing the four `CustomSources*` tables, so
+`database update` would have failed applying `InitialCreate` over existing tables.
 
-Rebuilding it means dropping it, which is destructive and was not authorised, so it is left as
-found. Contents are 2 users, 2 roles, 34 role claims, 2 user-role rows and 13 refresh tokens; every
-transit table is empty. `docs/database-drift.md` option 1 is the fix.
+Rebuilt with `database drop --force` then `database update` (option 1 in `database-drift.md`), on
+request, since that is destructive. All five migrations now apply cleanly and the schema was checked
+against the model rather than against the history table: the ten sized columns are at 8/64/128 as
+declared, `IX_StopTimes_RawStopId`, `IX_Trips_FeedVersionId_TripId` and `IX_Countries_IsoCode` all
+exist, and the four `CustomSources*` tables are present.
+
+What was lost, all of it local: 2 users, 2 roles, 34 role claims, 2 user-role rows, 13 refresh
+tokens. Every transit table was already empty. The database now holds nothing but its 5 history
+rows — roles and `admin@transit.local` are re-seeded on the next Development boot, which writes a
+freshly generated password to `.admin-credentials`.
+
+This also clears the stale service account `AGENTS.md` flags: `getthere-api@transit.local` was still
+present in the `Client` role, eight days after its seeding was deleted. Any *other* environment
+stamped the same way still has both problems.
