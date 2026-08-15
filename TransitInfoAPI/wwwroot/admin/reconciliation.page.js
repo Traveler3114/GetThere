@@ -230,7 +230,7 @@ function renderMatchExplanation(item) {
   if (item.rawStopDetail && item.rawStopDetail.routes && item.rawStopDetail.routes.length > 0) {
     html += '<div class="mt-2"><span class="text-danger small fw-bold">Raw stop routes: </span>';
     html += item.rawStopDetail.routes.map(r =>
-      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+      `<span class="rt-badge me-1" style="background:${getRouteColor(r.routeType)}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
     ).join(' ');
     html += '</div>';
   }
@@ -244,7 +244,7 @@ function renderMatchExplanation(item) {
   if (item.suggestedStationDetail && item.suggestedStationDetail.routes && item.suggestedStationDetail.routes.length > 0) {
     html += '<div class="mt-2"><span class="text-success small fw-bold">Matched station routes: </span>';
     html += item.suggestedStationDetail.routes.map(r =>
-      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+      `<span class="rt-badge me-1" style="background:${getRouteColor(r.routeType)}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
     ).join(' ');
     html += '</div>';
   }
@@ -371,13 +371,39 @@ function updateBatchBtn() {
   if (checked > 0) { btn.classList.remove('d-none'); btn.textContent = 'Approve (' + checked + ')'; }
   else { btn.classList.add('d-none'); }
 }
+// How many approvals may be in flight at once.
+//
+// Promise.all over the selection issued every request simultaneously, and an approval is not a read:
+// ReconciliationManager.ApproveCandidateAsync opens its own transaction and merges stations, moving
+// RawStops and CanonicalStationOperators rows. Fifty of those at once contend for the same rows, and
+// SQL Server resolves that by picking deadlock victims — which arrive here as `r.ok === false` and
+// are counted as plain failures, so a deadlocked batch looks identical to a rejected one.
+//
+// There is no batch endpoint to defer to; the API exposes only POST {id}/approve. A small window
+// keeps the work moving without turning a bulk approve into a lock storm.
+const APPROVE_CONCURRENCY = 4;
+
+/** Runs `worker` over `items`, at most `limit` at a time, preserving result order. */
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function run() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await worker(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
+}
+
 async function batchApprove() {
   const ids = [...document.querySelectorAll('.batch-check:checked')].map(cb => parseInt(cb.value));
   if (!ids.length || !confirm('Approve ' + ids.length + ' selected items?')) return;
-  const results = await Promise.all(ids.map(id =>
+  const results = await mapLimit(ids, APPROVE_CONCURRENCY, id =>
     fetch(BASE + '/reconciliation/' + id + '/approve', { method: 'POST' })
       .then(r => r.ok).catch(() => false)
-  ));
+  );
   const ok = results.filter(Boolean).length;
   const fail = results.length - ok;
   // Reported after the reload, not before: loadAll() clears the error pane on its way in, so a
@@ -439,6 +465,10 @@ function showError(msg) {
   document.getElementById('loading')?.classList.add('d-none');
   const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
 }
-function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+// Delegates to Shell.esc rather than redefining it. This exact function was copy-pasted into a
+// dozen page scripts, which means an escaping fix has to be found in a dozen places -- not what you
+// want of the control that stops feed- and operator-supplied text becoming script. admin-shell.js
+// is loaded before every page script, so Shell is always defined here.
+function esc(s) { return Shell.esc(s); }
 
 loadAll();

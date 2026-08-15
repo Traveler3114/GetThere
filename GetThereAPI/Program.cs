@@ -213,6 +213,16 @@ builder.Services.AddRateLimiter(limiter =>
 
 builder.Services.AddResponseCompression(options =>
 {
+    // Without this the whole registration is inert in every environment that matters: it defaults
+    // to false, UseHttpsRedirection sends every caller to https, and so nothing was ever compressed
+    // outside a plain-http local run.
+    //
+    // The default exists because of BREACH, which needs a secret in the response body and an
+    // attacker able to inject into the same body. Neither holds here: these responses carry the
+    // caller's own data or public transit reference data, and the API is stateless bearer-token
+    // authentication with no CSRF token or session cookie reflected anywhere in a payload.
+    options.EnableForHttps = true;
+
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });
@@ -388,7 +398,7 @@ if (app.Configuration.GetValue("Seed:Enabled", true))
         }
         else
         {
-            var pwd = configuredPassword ?? GenerateSecurePassword(24);
+            var pwd = configuredPassword ?? SeedPasswordGenerator.Generate(24);
             admin = new AppUser { UserName = "admin@getthere.local", Email = "admin@getthere.local", FullName = "GetThere Admin" };
 
             // Checked, because a Seed:AdminPassword that misses the 12-character/digit/upper/symbol
@@ -431,10 +441,3 @@ if (app.Configuration.GetValue("Seed:Enabled", true))
 
 app.Run();
 
-static string GenerateSecurePassword(int length)
-{
-    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)];
-    return new string(result);
-}

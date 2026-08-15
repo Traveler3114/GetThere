@@ -329,7 +329,12 @@ async function editFeed(id) {
     const r = await fetch(BASE + '/operators');
     const j = await r.json();
     _operators = j.data || [];
-  } catch(e) {}
+  } catch(e) {
+    // Surfaced rather than swallowed: _operators stays [] and the modal below renders an empty
+    // operator <select>. On the add path that is a dead end — a feed cannot be created without an
+    // operator — and the operator was told nothing at all about why the list was blank.
+    showError('Could not load the operator list: ' + e.message + '. The operator dropdown will be empty.');
+  }
   const html = `<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Edit Feed: ${esc(feed.feedId)}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
@@ -448,7 +453,12 @@ async function showAddModal() {
     const r = await fetch(BASE + '/operators');
     const j = await r.json();
     _operators = j.data || [];
-  } catch(e) {}
+  } catch(e) {
+    // Surfaced rather than swallowed: _operators stays [] and the modal below renders an empty
+    // operator <select>. On the add path that is a dead end — a feed cannot be created without an
+    // operator — and the operator was told nothing at all about why the list was blank.
+    showError('Could not load the operator list: ' + e.message + '. The operator dropdown will be empty.');
+  }
 
   const opOptions = _operators.map(o => `<option value="${o.id}">${esc(o.name)} (${esc(o.globalId)})</option>`).join('');
   const html = `<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
@@ -561,7 +571,11 @@ function showError(msg) {
   document.getElementById('loading')?.classList.add('d-none');
   const e = document.getElementById('error'); e.textContent = msg; e.classList.remove('d-none');
 }
-function esc(s) { if (s === null || s === undefined) return ''; return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
-function safeUrl(u) { if (!u) return '#'; try { const p = new URL(u, window.location.origin); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : '#'; } catch (e) { return '#'; } }
+// Delegates to Shell.esc rather than redefining it. This exact function was copy-pasted into a
+// dozen page scripts, which means an escaping fix has to be found in a dozen places -- not what you
+// want of the control that stops feed- and operator-supplied text becoming script. admin-shell.js
+// is loaded before every page script, so Shell is always defined here.
+function esc(s) { return Shell.esc(s); }
+function safeUrl(u) { return Shell.safeUrl(u); }
 
 loadFeeds();

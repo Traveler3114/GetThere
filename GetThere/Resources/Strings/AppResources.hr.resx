@@ -274,6 +274,9 @@
   <data name="Error_CouldNotLoadWallet" xml:space="preserve"><value>Nije moguće učitati novčanik: </value></data>
   <data name="Error_CouldNotLoadHistory" xml:space="preserve"><value>Nije moguće učitati povijest: </value></data>
   <data name="Error_CouldNotLoadRegions" xml:space="preserve"><value>Nije moguće učitati regije: </value></data>
+  <data name="Error_TicketNameRequired" xml:space="preserve"><value>Naziv karte je obavezan.</value></data>
+  <data name="Error_ValidToBeforeValidFrom" xml:space="preserve"><value>„Vrijedi do” mora biti nakon „Vrijedi od”.</value></data>
+  <data name="Error_InvalidPrice" xml:space="preserve"><value>Neispravna cijena.</value></data>
   <data name="Error_CouldNotLoadBikeStations" xml:space="preserve"><value>Nije moguće učitati stanice bicikala: </value></data>
   <data name="Error_CouldNotLoadStops" xml:space="preserve"><value>Nije moguće učitati stanice: </value></data>
   <data name="Error_CouldNotLoadRoutes" xml:space="preserve"><value>Nije moguće učitati linije: </value></data>

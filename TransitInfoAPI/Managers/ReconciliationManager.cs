@@ -787,6 +787,20 @@ public class ReconciliationManager
 
     public async Task UnmergeStationsAsync(int mergeLogId, CancellationToken ct)
     {
+        // One transaction, like MergeStationsAsync — this had none.
+        //
+        // It writes in two separate places: ExecuteUpdateAsync moves the StopTimes back, which
+        // commits immediately in its own implicit transaction, and SaveChangesAsync then writes the
+        // RawStop reassignment, the candidate moves and the source reactivation. A failure between
+        // them left the StopTimes pointing at the source station while its RawStops still belonged
+        // to the target — departures resolving through a station whose stops are somewhere else,
+        // with no record that it happened.
+        //
+        // Exactly the shape of the interrupted-import bug in Program.cs, whose comment says it:
+        // "It is one transaction. The status write used to commit on its own and each delete ran in
+        // its own implicit transaction."
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
         var log = await _db.StationMergeLogs
             .Include(ml => ml.MovedRawStops)
             .FirstOrDefaultAsync(ml => ml.Id == mergeLogId, ct);
@@ -847,7 +861,19 @@ public class ReconciliationManager
             c.SuggestedCanonicalStationId = log.SourceStationId;
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
+        // KNOWN GAP, not fixed here: the operator links the merge copied onto the target are not
+        // removed. MergeStationsAsync adds a CanonicalStationOperator row to the target for every
+        // operator the source had and the target did not, and nothing takes them away again — so a
+        // merge/unmerge cycle leaves the target permanently claiming the source's operators, and
+        // repeating it accumulates more.
+        //
+        // Fixing it needs a decision rather than a patch: either the merge log records which links
+        // it created (a schema change, so a migration), or the unmerge re-derives support the way
+        // FeedManager.DeleteAsync does — "remove CanonicalStationOperator links that no longer have
+        // any active RawStop support". The second needs no migration but changes behaviour for links
+        // that were never created by a merge at all.
         _logger.LogInformation(
             "Unmerged station {SourceId} from {TargetId}: {RawCount} raw stops returned",
             log.SourceStationId, log.TargetStationId, movedRawStops.Count);
@@ -900,6 +926,57 @@ public class ReconciliationManager
         };
     }
 
+    /// <summary>
+    /// Picks the station a raw stop should reconcile to, or null if none qualifies.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Known defect — the winner is chosen on name alone, then judged on distance.</b> Ranking
+    /// below compares <c>nameScore</c> only; <c>dist</c> is computed but used solely for the radius
+    /// cutoff. The caller then tests <em>that one winner</em> against
+    /// <c>Reconciliation:AutoMergeDistanceMeters</c>, so a nearer station that would have auto-merged
+    /// is never reconsidered once a marginally better-named one has won.
+    /// </para>
+    /// <para>
+    /// Concretely, with the shipped thresholds (name 0.90, distance 100 m, search radius 200 m): a
+    /// station scoring 0.95 at 180 m beats one scoring 0.93 at 10 m, and the caller then rejects the
+    /// 180 m winner as too far and sends it to manual review — while the 10 m candidate, which met
+    /// both thresholds, is discarded unseen. Transit stops share names constantly (both sides of a
+    /// street, several stops around one square), so near-ties in name with large differences in
+    /// distance are the normal case here, not an edge case. The visible effect is avoidable manual
+    /// reconciliation; the harmful one is an auto-merge onto the wrong stop of a pair.
+    /// </para>
+    /// <para>
+    /// <b>The widened search radius makes it worse, not better.</b>
+    /// <see cref="CandidateSearchRadiusFactor"/> exists so that "a near-miss should surface for
+    /// manual review rather than never be considered" — reasonable on its own. But widening the
+    /// candidate set is only safe if ranking accounts for distance, and it does not: every extra
+    /// station the wider radius admits is another chance for something far away to win on name and
+    /// displace a qualifying candidate. The two decisions are individually sensible and jointly
+    /// wrong, which is why raising the factor to surface more near-misses would increase the number
+    /// of good matches that never get considered.
+    /// </para>
+    /// <para>
+    /// Fixing it means ranking on a combined score rather than name alone, which changes what every
+    /// existing feed reconciles to. That needs to be measured against real feeds before it is
+    /// changed — not adjusted blind. See docs/changelog.md.
+    /// </para>
+    /// <para>
+    /// Two smaller things visible here. <c>RouteTypeMatch</c> in the returned tuple is always
+    /// <c>true</c>: the loop pre-filters on <c>PrimaryRouteType == rawRouteType</c>, so a candidate
+    /// that failed it never reaches the comparison. The caller's three <c>RouteTypeMatched = true</c>
+    /// literals agree, which means the "route type mismatch" reason
+    /// <see cref="ComputeAutoMergeVerdict"/> can render is unreachable for any candidate that has a
+    /// match. And the <c>nameScore &lt; 0.3</c> floor below is a fourth threshold that is not
+    /// configurable, unlike the other three — lowering <c>ManualReviewNameThreshold</c> beneath it
+    /// silently does nothing.
+    /// </para>
+    /// <para>
+    /// Ties fall to whichever station the grid cell yielded first, because the comparison is
+    /// <c>&gt;</c> rather than <c>&gt;=</c> with a stable secondary key. Re-importing an unchanged
+    /// feed can therefore reconcile differently.
+    /// </para>
+    /// </remarks>
     private (CanonicalStation Station, double NameScore, double Distance, bool RouteTypeMatch)? FindBestMatch(
         string rawName, double rawLat, double rawLon, RouteType rawRouteType,
         string rawStopId, List<CanonicalStation> stations, double searchRadiusMeters,
@@ -933,6 +1010,26 @@ public class ReconciliationManager
         return best;
     }
 
+    /// <summary>
+    /// Whether the incoming stop and the candidate station share at least one line.
+    /// </summary>
+    /// <remarks>
+    /// <b>No route data means no match, ever.</b> Every early return here is <c>false</c>, so a raw
+    /// stop the route lookup does not know, or a station whose linked stops have no lines, can never
+    /// reconcile to anything and is forced to a new station.
+    /// <para>
+    /// That is right for a normal GTFS feed, where absent routes mean absent <c>stop_times</c> and
+    /// there is genuinely nothing to compare. It is wrong for a feed carrying stops and no timetable
+    /// — the "Network-completeness" case this codebase explicitly supports elsewhere (see the
+    /// CanonicalRoutes reactivation rule in <c>FeedManager</c>, which exists precisely because such a
+    /// feed's routes are real but have no trips). For those, every stop looks unmatched on every
+    /// import, so the operator's whole station set duplicates.
+    /// <para>
+    /// Not changed here because the right answer depends on whether such a feed should fall back to
+    /// name-and-distance matching or stay unmatched by design, and that is a product decision.
+    /// </para>
+    /// </para>
+    /// </remarks>
     private static bool HasRouteOverlap(
         string rawStopId, int stationId,
         Dictionary<string, List<(string LineIdentity, int? DirectionId)>> routeLookup,

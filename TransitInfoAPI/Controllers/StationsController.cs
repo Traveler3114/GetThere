@@ -27,7 +27,7 @@ public class StationsController : ControllerBase
         [FromQuery] double? radiusKm,
         [FromQuery] int? countryId,
         [FromQuery] string? format = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -59,12 +59,14 @@ public class StationsController : ControllerBase
         [FromQuery] int? countryId,
         [FromQuery] string? countryName = null,
         [FromQuery] string? stationType = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
         var result = await _stationService.SearchAsync(q, routeType, countryId, countryName, stationType, page, perPage, ct);
-        var total = await _stationService.GetTotalCountAsync(null, null, null, countryId, countryName, stationType, ct);
+        // q and routeType are passed through: without them the total counted every station in the
+        // country instead of the ones the search matched.
+        var total = await _stationService.GetTotalCountAsync(null, null, null, countryId, countryName, stationType, q, routeType, ct);
         return Ok(new Paginated<StationResponse>(result, total, page, perPage));
     }
 
@@ -120,7 +122,10 @@ public class StationsController : ControllerBase
     public async Task<ActionResult<List<DepartureResponse>>> GetDepartures(
         int id,
         [FromQuery] DateTime? from = null,
-        [FromQuery] int count = 10,
+        // Bounded because ScheduleManager multiplies this by its over-fetch factor: an unbounded
+        // count overflowed the multiply to a negative scan limit and threw, so ?count=2147483647
+        // was a 500 on an anonymous endpoint. 100 departures is far past what any caller renders.
+        [FromQuery, Range(1, 100)] int count = 10,
         CancellationToken ct = default)
     {
         var departures = await _stationService.GetDeparturesAsync(id, from, count, ct);

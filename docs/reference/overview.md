@@ -186,8 +186,9 @@ never lapses for an active user.
 > This also retires what used to be the most common integration failure between the two services:
 > `Seed:ServiceAccountPassword` in TransitInfoAPI and `TransitInfoApi:ClientSecret` in GetThereAPI
 > were two halves of one credential configured in two places, with nothing validating that they
-> matched, and a mismatch surfaced as a 502 on every map endpoint. The `getthere-api` account still
-> exists upstream and is now dormant.
+> matched, and a mismatch surfaced as a 502 on every map endpoint. TransitInfoAPI stopped seeding the
+> `getthere-api` account on 2026-08-10 and no longer reads `Seed:ServiceAccountPassword`; databases
+> stamped before that still hold the row.
 
 ### Buying a ticket
 

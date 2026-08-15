@@ -21,7 +21,7 @@ public class CustomSourcesController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionKeys.CustomSourcesView)]
     public async Task<ActionResult<Paginated<CustomSourceResponse>>> GetAll(
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {

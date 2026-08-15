@@ -25,7 +25,7 @@ public class ReconciliationController : ControllerBase
         [FromQuery] string? routeType = null,
         [FromQuery] string? status = null,
         [FromQuery] string? q = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -38,7 +38,7 @@ public class ReconciliationController : ControllerBase
     public async Task<ActionResult<Paginated<ReconciliationResponse>>> GetAutoMerged(
         [FromQuery] string? routeType = null,
         [FromQuery] string? q = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {

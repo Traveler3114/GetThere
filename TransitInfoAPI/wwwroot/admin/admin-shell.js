@@ -75,10 +75,19 @@
     /**
      * Exchanges the stored refresh token for a new access token.
      * Access tokens live 15 minutes, so without this the console logged the operator out mid-task.
-     * Concurrent callers share one in-flight request — the server rotates refresh tokens and revokes
-     * the old one, so a second parallel refresh would present a replayed token and kill the session.
+     *
+     * Defers to admin-auth.js when it is present, which is every page but index.html. Both files
+     * implemented this, each with its own in-flight guard — and two guards serialise nothing, so a
+     * 401 inside Shell.api() could start this refresh while the fetch wrapper started its own and
+     * both presented the same refresh token. The server now claims that row conditionally, so the
+     * loser of that race is read as a replayed token and the operator's whole session family is
+     * revoked. One guard, shared, is the fix.
+     *
+     * The body below stays as the fallback for index.html, which loads no admin-auth.js.
      */
     refresh: function () {
+      if (window.AdminAuth && window.AdminAuth.refresh) return window.AdminAuth.refresh();
+
       if (Shell._refreshInFlight) return Shell._refreshInFlight;
 
       var refreshToken = sessionStorage.getItem('refresh_token');
@@ -156,6 +165,22 @@
       return String(value).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
       });
+    },
+
+    // Only http(s) survives. Operator- and feed-supplied URLs are rendered as links on several
+    // pages, and esc() alone does not help against a javascript: href -- escaping the quotes keeps
+    // the attribute well-formed, and the browser still runs the scheme. Anything else becomes '#'.
+    //
+    // Lives here for the same reason esc does: it was three identical copies, in feeds, operators
+    // and alerts.
+    safeUrl: function (value) {
+      if (!value) return '#';
+      try {
+        var parsed = new URL(value, window.location.origin);
+        return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? value : '#';
+      } catch (e) {
+        return '#';
+      }
     },
 
     num: function (value) {

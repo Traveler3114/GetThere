@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -33,7 +32,11 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey == "CHANGE-ME" || Encoding.UTF8.
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
-builder.Services.AddMemoryCache();
+// Bounded, matching GetThereAPI. An unbounded IMemoryCache has no eviction pressure at all: it grows
+// until the GC's memory-pressure heuristics happen to trim it, which is not a policy. Both consumers
+// here — ScheduleManager's service-calendar sets and SharedAuth's claims cache — already declare
+// Size = 1 on their entries in anticipation of this, so the limit is an entry count.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 2_000);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
 
@@ -49,14 +52,55 @@ builder.Services.AddHealthChecks()
 // Inert unless Otel:Endpoint is configured. See SharedAuth.TelemetryRegistration.
 builder.Services.AddSharedTelemetry(builder.Configuration, "TransitInfoAPI");
 
-builder.Services.AddHttpClient("gtfs", client =>
+// Both clients fetch operator-supplied URLs, so both connect through the SSRF guard.
+//
+// The guard lives on the handler rather than only in front of the call because a pre-flight DNS
+// check cannot close the window between resolving a name and connecting to it — see
+// ExternalFeedSource.ConnectToPublicOnlyAsync. Putting it here also covers redirect hops, which the
+// pre-flight check could only catch after the response had already been fetched.
+//
+// Feeds:AllowPrivateNetworkUrls is the development escape hatch, and it has to be honoured here as
+// well as in the callers, or a locally hosted GTFS zip becomes unreachable.
+var allowPrivateFeedNetworks = builder.Configuration.GetValue("Feeds:AllowPrivateNetworkUrls", false);
+
+static void ConfigureFeedHandler(IHttpClientBuilder http, bool allowPrivateNetworks, bool followRedirects = true) =>
+    http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = followRedirects,
+        ConnectCallback = allowPrivateNetworks
+            ? null
+            : TransitInfoAPI.Services.ExternalFeedSource.ConnectToPublicOnlyAsync
+    });
+
+ConfigureFeedHandler(builder.Services.AddHttpClient("gtfs", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(10);
-});
-builder.Services.AddHttpClient("gtfsrt", client =>
+}), allowPrivateFeedNetworks);
+
+ConfigureFeedHandler(builder.Services.AddHttpClient("gtfsrt", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}), allowPrivateFeedNetworks);
+
+// Custom sources are the one feed path that carries an operator's own credential, and this client is
+// separate from "gtfs" for exactly that reason: AllowAutoRedirect is off.
+//
+// It has to be off. SocketsHttpHandler follows redirects itself, inside SendAsync, before any code
+// here sees a response — and while HttpClient does strip Authorization when a redirect crosses
+// origins, it strips nothing else. CustomSourceEngine.ApplyAuth's `header` mode sets an arbitrary
+// header name, typically an API key, so an auto-followed redirect handed that key to wherever it
+// pointed. Checking the final URI afterwards, which is what this used to do, refuses the data but
+// cannot un-send the credential.
+//
+// With redirects off, CustomSourceEngine follows them itself and decides per hop whether the
+// credential goes along. See SendFollowingRedirectsAsync.
+//
+// Two minutes rather than the "gtfs" client's ten: these are pages of rows, not GTFS archives, and
+// the timeout is per request across up to MaxPages of them.
+ConfigureFeedHandler(builder.Services.AddHttpClient("customsource", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+}), allowPrivateFeedNetworks, followRedirects: false);
 
 builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
 builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("FeedImport"));
@@ -96,6 +140,12 @@ builder.Services.AddScoped<TransitInfoAPI.Services.CustomSourceEngine>();
 builder.Services.AddScoped<TransitInfoAPI.Services.CustomHttpSource>();
 builder.Services.AddScoped<TransitDocumentCompleter>();
 builder.Services.AddScoped<CustomSourceManager>();
+
+// Encrypts the operator credentials on CustomSource.AuthConfig, which were previously written to
+// the column in plaintext and returned over the API. See TransitInfoAPI.Services.SecretProtector —
+// note its warning about key-ring persistence before scaling this service out.
+builder.Services.AddDataProtection();
+builder.Services.AddSingleton<TransitInfoAPI.Services.SecretProtector>();
 
 // Auth Managers
 builder.Services.AddScoped<TokenManager>();
@@ -219,6 +269,11 @@ builder.Services.AddRateLimiter(limiter =>
 
 builder.Services.AddResponseCompression(options =>
 {
+    // See GetThereAPI's identical note: this defaults to false, so with UseHttpsRedirection in the
+    // pipeline nothing was ever compressed. It matters more here than there — the anonymous station
+    // and route GeoJSON reads return up to 5000 features each, straight to the public map page.
+    options.EnableForHttps = true;
+
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });
@@ -252,21 +307,14 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-app.UseAuthentication();
-
-// After authentication, deliberately: the limiter partitions on the caller's user id when there is
-// one, and context.User is not populated until the authentication middleware has run. Ordered the
-// other way the claim is always absent and every authenticated caller silently falls back to being
-// bucketed by IP address, which is the behaviour this partitioning exists to avoid.
-app.UseRateLimiter();
-
-app.UseAuthorization();
-
-// The /admin console is served as plain static files. It deliberately carries no authorization
-// gate: authentication here is bearer-token based, and a browser navigation to an .html file
-// cannot send an Authorization header — a gate on these paths 401s the login page itself and
-// makes the console unreachable. The console holds no secrets; every byte of data it renders
-// comes from API endpoints that are authorized per-endpoint.
+// Transport and static assets before authentication, matching GetThereAPI.
+//
+// The order here used to be the other way round — authentication, rate limiting and authorization
+// all ran, and only then did the pipeline decide to redirect the caller to https. That meant a
+// bearer token presented over plain http was parsed, validated and used to look up claims before
+// the request was told to go away and come back over TLS, and every static asset was fetched
+// through the whole auth stack for nothing.
+//
 // Guarded by environment, matching GetThereAPI. Sending HSTS from a Development run pins localhost
 // to HTTPS in the developer's browser for the max-age, which then breaks every other local project
 // served over plain HTTP on the same host.
@@ -275,6 +323,12 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseResponseCompression();
+
+// The /admin console is served as plain static files. It deliberately carries no authorization
+// gate: authentication here is bearer-token based, and a browser navigation to an .html file
+// cannot send an Authorization header — a gate on these paths 401s the login page itself and
+// makes the console unreachable. The console holds no secrets; every byte of data it renders
+// comes from API endpoints that are authorized per-endpoint.
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -328,11 +382,26 @@ app.UseStaticFiles(new StaticFileOptions
         //
         // script-src still allows 'unsafe-inline', unlike GetThereAPI's console, which no longer
         // does. The inline <script> blocks have been moved into per-page .js files, but these pages
-        // also wire behaviour through inline on* attributes — 48 in the markup and 63 more inside
-        // generated HTML strings — and 'unsafe-inline' is what makes those run. Dropping it before
-        // all 111 are converted to addEventListener would leave buttons that silently do nothing.
-        // That conversion is the remaining work; it needs the pages exercised against a populated
-        // database, since a missed handler is invisible until someone clicks it.
+        // also wire behaviour through inline on* attributes and 'unsafe-inline' is what makes those
+        // run. Dropping it before they are all converted to addEventListener would leave buttons
+        // that silently do nothing.
+        //
+        // Recounted 2026-08-10: 56 in the markup and 156 more inside generated HTML strings, across
+        // 17 pages — 212, not the 111 recorded here previously. The generated-string ones are the
+        // awkward half: they are built inside render functions, so converting them means moving to
+        // event delegation on the container rather than a mechanical find-and-replace.
+        // operators.page.js and custom-sources.page.js already do this with data-* attributes and a
+        // single delegated listener, and are the pattern to follow.
+        //
+        // Why this is worth finishing rather than living with: the console holds the operator's
+        // refresh token in sessionStorage, which any executing script can read. So an escaping miss
+        // anywhere in these pages — which render feed- and operator-supplied text — is not a
+        // defacement, it is a full admin session handed over. The escaping itself is now in one
+        // place (Shell.esc) rather than copy-pasted per page, which shrinks the surface but does not
+        // close it.
+        //
+        // It needs the pages exercised against a populated database: a missed handler is invisible
+        // until someone clicks it, and no test in this repo covers the console.
         // unpkg is no longer listed: it served MapLibre to the two admin map pages, which now load it
         // from wwwroot/vendor like everything else. jsdelivr stays for Bootstrap.
         //
@@ -356,6 +425,17 @@ app.UseStaticFiles(new StaticFileOptions
         headers["Referrer-Policy"] = "no-referrer";
     }
 });
+
+app.UseAuthentication();
+
+// After authentication, deliberately: the limiter partitions on the caller's user id when there is
+// one, and context.User is not populated until the authentication middleware has run. Ordered the
+// other way the claim is always absent and every authenticated caller silently falls back to being
+// bucketed by IP address, which is the behaviour this partitioning exists to avoid.
+app.UseRateLimiter();
+
+app.UseAuthorization();
+
 // Kept for anything already pointing at it, and still a pure liveness answer.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
 
@@ -485,11 +565,26 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
     foreach (var perm in PermissionKeys.All.Where(p => !adminClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(adminRole!, new Claim("permission", perm));
 
-    // Add permission claims to Client role (all .view permissions)
+    // Add permission claims to Client role (transit-data .view permissions).
+    //
+    // Narrowed from "every .view permission". Client is the read-only console role, and account
+    // administration is not transit data: users.view returns the user list of this service, and
+    // roles.view its permission model. Neither is something a read-only data account needs, and
+    // granting them by a blanket suffix match meant any future *.view permission — on anything —
+    // was handed to this role automatically the moment it was added to PermissionKeys.All.
     var clientRole = await roleManager.FindByNameAsync(RoleNames.Client);
     var clientClaims = await roleManager.GetClaimsAsync(clientRole!);
-    foreach (var perm in PermissionKeys.All.Where(p => p.EndsWith(".view", StringComparison.Ordinal) && !clientClaims.Any(c => c.Value == p)))
+    string[] clientExcluded = [PermissionKeys.UsersView, PermissionKeys.RolesView];
+    foreach (var perm in PermissionKeys.All.Where(p =>
+                 p.EndsWith(".view", StringComparison.Ordinal)
+                 && !clientExcluded.Contains(p)
+                 && !clientClaims.Any(c => c.Value == p)))
         await roleManager.AddClaimAsync(clientRole!, new Claim("permission", perm));
+
+    // Removes the two claims from a role seeded before the narrowing above. Without this the grant
+    // persists on every existing database, since the loop only ever adds.
+    foreach (var stale in clientClaims.Where(c => c.Type == "permission" && clientExcluded.Contains(c.Value)))
+        await roleManager.RemoveClaimAsync(clientRole!, stale);
 
     // Admin user
     var admin = await userManager.FindByNameAsync("admin@transit.local");
@@ -507,7 +602,7 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
         }
         else
         {
-            var pwd = configuredPassword ?? GenerateSecurePassword(24);
+            var pwd = configuredPassword ?? SeedPasswordGenerator.Generate(24);
             admin = new AppUser { UserName = "admin@transit.local", Email = "admin@transit.local", FullName = "Transit Admin" };
 
             // Checked, because a configured password that misses the policy fails here silently:
@@ -545,66 +640,23 @@ static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
         }
     }
 
-    // Service account for GetThereAPI
-    var client = await userManager.FindByNameAsync("getthere-api");
-    if (client is null)
-    {
-        // Must match GetThereAPI's TransitInfoApi:ClientSecret, so it is configuration-driven
-        // outside Development rather than generated and written to disk.
-        var configuredSecret = app.Configuration["Seed:ServiceAccountPassword"];
-
-        if (string.IsNullOrWhiteSpace(configuredSecret) && !app.Environment.IsDevelopment())
-        {
-            app.Logger.LogWarning(
-                "No service account exists and Seed:ServiceAccountPassword is not configured — skipping. " +
-                "GetThereAPI will not be able to authenticate until it is created.");
-        }
-        else
-        {
-            var pwd = configuredSecret ?? GenerateSecurePassword(32);
-            client = new AppUser { UserName = "getthere-api", Email = "getthere-api@transit.local", FullName = "GetThere API Client" };
-
-            // A silent failure here is the worst of the three: GetThereAPI cannot authenticate at
-            // all, and every map read it proxies answers 502 with nothing in this service's log to
-            // say why.
-            var createResult = await userManager.CreateAsync(client, pwd);
-            if (!createResult.Succeeded)
-            {
-                app.Logger.LogError(
-                    "Could not create the getthere-api service account: {Errors}. GetThereAPI will not be able to authenticate.",
-                    string.Join("; ", createResult.Errors.Select(e => e.Description)));
-            }
-            else
-            {
-                var roleResult = await userManager.AddToRoleAsync(client, RoleNames.Client);
-                if (!roleResult.Succeeded)
-                {
-                    app.Logger.LogError("Service account could not be given the {Role} role: {Errors}",
-                        RoleNames.Client, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
-                }
-
-                if (configuredSecret is null)
-                {
-                    var svcCredFile = Path.Combine(AppContext.BaseDirectory, ".service-account-credentials");
-                    await File.WriteAllTextAsync(svcCredFile,
-                        $"Username: getthere-api\nPassword: {pwd}\n");
-                    Console.WriteLine($"Service account created. Credentials saved to: {svcCredFile}");
-                }
-                else
-                {
-                    app.Logger.LogInformation("Service account created from Seed:ServiceAccountPassword.");
-                }
-            }
-        }
-    }
+    // The `getthere-api` service account that used to be seeded here is gone, deliberately.
+    //
+    // It existed for the map proxy: GetThereAPI authenticated to this service as that account and
+    // proxied the map's reads. The proxy was removed on 2026-08-02 — the map page is served from
+    // here and calls this service anonymously — and with it went TransitInfoApiClient,
+    // MapProxyController, MapManager and the map.view permission. The seeding was missed, so every
+    // boot kept re-creating a Client-role account with read access to the whole dataset that
+    // nothing had called since. In Development it also wrote its password to
+    // .service-account-credentials on disk.
+    //
+    // AGENTS.md records this as a regression to watch for: do not reintroduce it. GetThereAPI makes
+    // no call to this service. Existing deployments should delete the row — see
+    // docs/changelog.md for the query.
+    //
+    // Seed:ServiceAccountPassword is no longer read anywhere and can be removed from any
+    // configuration that still sets it.
 }
 
-static string GenerateSecurePassword(int length)
-{
-    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    var result = new char[length];
-    for (int i = 0; i < length; i++) result[i] = chars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(chars.Length)];
-    return new string(result);
-}
 
 await app.RunAsync();

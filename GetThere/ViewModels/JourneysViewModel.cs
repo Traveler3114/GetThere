@@ -202,6 +202,11 @@ public partial class JourneysViewModel : BaseViewModel
         catch (Exception ex)
         {
             Fail(ex.Message, "Journeys_CouldNotCreate");
+
+            // Returning matters: the reload below opens with HasError = false, so falling through
+            // to it wiped the error just set and the user was told nothing at all. The non-success
+            // branch above already returns; this path did not.
+            return;
         }
         finally { IsBusy = false; }
 

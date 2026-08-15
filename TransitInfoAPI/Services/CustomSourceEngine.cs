@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -42,6 +43,21 @@ public partial class CustomSourceEngine
     private const int MaxPages = 500;
     private const int MaxRows = 500_000;
 
+    /// <summary>
+    /// Ceiling on a single response body.
+    /// <para>
+    /// These reads were <c>ReadAsStringAsync</c> with no bound at all, in a loop of up to
+    /// <see cref="MaxPages"/> pages — a hostile or merely broken operator endpoint could hand back
+    /// an endless body and exhaust the server's memory. <see cref="ExternalFeedSource"/> has capped
+    /// its downloads at 512 MB since it was written; this path never did.
+    /// </para>
+    /// <para>
+    /// Much smaller than the feed ceiling on purpose: these are JSON/CSV/XML pages of rows, not
+    /// whole GTFS archives, and 32 MB of any of them is already far past what a page should carry.
+    /// </para>
+    /// </summary>
+    private const long MaxResponseBytes = 32L * 1024 * 1024;
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly IHttpClientFactory _httpFactory;
@@ -76,7 +92,17 @@ public partial class CustomSourceEngine
         // is configured exactly like an endpoint they host.
         if (request.Url.StartsWith(UploadScheme, StringComparison.OrdinalIgnoreCase))
         {
-            result.Rows.AddRange(ReadUploadedRows(request, result));
+            // Capped like the HTTP path. This return used to skip the limit entirely, so a preview
+            // of an upload-backed source ran the full file through mapping and completion instead of
+            // the 200 rows it asked for — and MaxRows never applied to an uploaded file at all.
+            var uploaded = ReadUploadedRows(request, result);
+            if (uploaded.Count > limit)
+            {
+                result.Log.Add($"{request.TargetSection}: reached the {limit:N0} row cap");
+                uploaded = uploaded.GetRange(0, limit);
+            }
+
+            result.Rows.AddRange(uploaded);
             return result;
         }
 
@@ -90,23 +116,33 @@ public partial class CustomSourceEngine
         {
             var url = ApplyPagination(request.Url, pagination, page, totalSoFar, cursor);
 
-            // Same SSRF rule as GTFS feeds: these URLs are operator-supplied and would otherwise
-            // make the importer a proxy into the server's own network.
-            if (!_allowPrivateNetworkUrls)
-                ExternalFeedSource.EnsurePublicDestination(url);
+            // The SSRF check now lives inside SendFollowingRedirectsAsync, which applies it to this
+            // URL and to every redirect hop after it — the hops being the part a pre-flight check
+            // here could never cover.
+            var http = _httpFactory.CreateClient("customsource");
+            using var response = await SendFollowingRedirectsAsync(
+                http, request.HttpMethod, url, authConfig, result, request.TargetSection.ToString(), ct);
 
-            var http = _httpFactory.CreateClient("gtfs");
-            using var message = new HttpRequestMessage(new HttpMethod(request.HttpMethod), url);
-            ApplyAuth(message, authConfig);
+            // Null means the hop chain was refused and the reason is already in Warnings.
+            if (response is null) break;
 
-            using var response = await http.SendAsync(message, ct);
             if (!response.IsSuccessStatusCode)
             {
                 result.Warnings.Add($"{request.TargetSection}: {(int)response.StatusCode} from {url}");
                 break;
             }
 
-            var body = await response.Content.ReadAsStringAsync(ct);
+            string body;
+            try
+            {
+                body = await ReadCappedAsync(response, ct);
+            }
+            catch (Exceptions.AppException ex)
+            {
+                result.Warnings.Add($"{request.TargetSection}: {ex.Message}");
+                break;
+            }
+
             result.Log.Add($"{request.TargetSection}: page {page + 1}, {body.Length:N0} chars");
 
             var pageRows = request.Format switch
@@ -160,17 +196,202 @@ public partial class CustomSourceEngine
     /// </summary>
     public async Task<string> FetchRawAsync(CustomSourceRequest request, string? authConfig, CancellationToken ct)
     {
-        if (!_allowPrivateNetworkUrls)
-            ExternalFeedSource.EnsurePublicDestination(request.Url);
+        var http = _httpFactory.CreateClient("customsource");
+        var discovery = new ExtractionResult();
 
-        var http = _httpFactory.CreateClient("gtfs");
-        using var message = new HttpRequestMessage(new HttpMethod(request.HttpMethod), request.Url);
-        ApplyAuth(message, authConfig);
+        using var response = await SendFollowingRedirectsAsync(
+            http, request.HttpMethod, request.Url, authConfig, discovery, "discover", ct);
 
-        using var response = await http.SendAsync(message, ct);
+        if (response is null)
+            throw new Exceptions.AppException(discovery.Warnings[^1], 502, "REDIRECTED_OFF_HOST");
+
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync(ct);
+        return await ReadCappedAsync(response, ct);
     }
+
+    /// <summary>
+    /// Reads a response body, aborting past <see cref="MaxResponseBytes"/> so a lying or absent
+    /// Content-Length cannot exhaust memory.
+    /// </summary>
+    private static async Task<string> ReadCappedAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.Content.Headers.ContentLength > MaxResponseBytes)
+            throw new Exceptions.AppException(
+                $"Response exceeds the {MaxResponseBytes / (1024 * 1024)} MB limit.", 413, "RESPONSE_TOO_LARGE");
+
+        await using var source = await response.Content.ReadAsStreamAsync(ct);
+        using var buffer = new MemoryStream();
+
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await source.ReadAsync(chunk, ct)) > 0)
+        {
+            if (buffer.Length + read > MaxResponseBytes)
+                throw new Exceptions.AppException(
+                    $"Response exceeds the {MaxResponseBytes / (1024 * 1024)} MB limit.", 413, "RESPONSE_TOO_LARGE");
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        // The charset the server declared, falling back to UTF-8. Reading bytes rather than letting
+        // HttpContent decode is what makes the cap enforceable, so the decode happens here instead.
+        var encoding = Encoding.UTF8;
+        var charset = response.Content.Headers.ContentType?.CharSet;
+        if (!string.IsNullOrWhiteSpace(charset))
+        {
+            try { encoding = Encoding.GetEncoding(charset.Trim('"')); }
+            catch (ArgumentException) { /* unknown charset — UTF-8 is the better guess than failing */ }
+        }
+
+        return encoding.GetString(buffer.ToArray());
+    }
+
+    /// <summary>How many redirect hops one request may take before it is abandoned.</summary>
+    /// <remarks>
+    /// <c>SocketsHttpHandler</c>'s own default is 50. Five is plenty for the "moved to /v2" and
+    /// "http to https" cases that actually occur, and every extra hop is another chance for a chain
+    /// to wander somewhere the operator never configured.
+    /// </remarks>
+    private const int MaxRedirects = 5;
+
+    /// <summary>
+    /// Sends a request and follows redirects by hand, deciding at each hop whether the credential
+    /// travels with it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This exists because the check it replaced ran too late to do anything. That version let
+    /// <c>SendAsync</c> follow redirects itself and then compared the requested host with
+    /// <c>response.RequestMessage.RequestUri.Host</c>, refusing the response if they differed. The
+    /// comparison was right and the conclusion was wrong: by the time it ran, the handler had
+    /// already performed the redirected request. <c>HttpClient</c> strips <c>Authorization</c> when
+    /// a redirect crosses origins, but it strips nothing else, and <see cref="ApplyAuth"/>'s
+    /// <c>header</c> mode sets an arbitrary header name — an API key, in practice. Refusing the body
+    /// prevented ingesting the wrong data; it did not stop the key being handed over. The credential
+    /// was already gone.
+    /// </para>
+    /// <para>
+    /// The "customsource" client therefore sets <c>AllowAutoRedirect = false</c>, and each hop is
+    /// issued here, where the decision can be made <em>before</em> the request goes out:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>Every hop is re-checked against the SSRF guard, so a redirect cannot walk into the
+    /// server's own network. (The handler's <c>ConnectCallback</c> also covers this; the explicit
+    /// check gives the operator a comprehensible message instead of a connect failure.)</item>
+    /// <item>A credentialed request is <b>refused</b> the moment a hop would leave the origin the
+    /// operator configured — a different host, an https source dropping to plain http, or a
+    /// different port on the same machine — and the credential is never sent. The one exception is
+    /// the plain http→https upgrade, which only improves matters.</item>
+    /// <item>An unauthenticated source may redirect wherever it likes — there is nothing to leak,
+    /// and public feed URLs move around.</item>
+    /// </list>
+    /// <para>
+    /// Returns <c>null</c> when the chain was refused or ran past <see cref="MaxRedirects"/>, having
+    /// already recorded why in <paramref name="result"/>'s warnings. Otherwise the caller owns the
+    /// returned response and must dispose it.
+    /// </para>
+    /// </remarks>
+    private async Task<HttpResponseMessage?> SendFollowingRedirectsAsync(
+        HttpClient http, string httpMethod, string url, string? authConfig,
+        ExtractionResult result, string section, CancellationToken ct)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
+            throw new Exceptions.AppException("Source URL must be an absolute HTTP(S) URL.", 400, "INVALID_FEED_URL");
+
+        var credentialed = !string.IsNullOrWhiteSpace(authConfig);
+        Uri origin = parsed;
+        Uri current = origin;
+        var method = new HttpMethod(httpMethod);
+
+        for (var hop = 0; ; hop++)
+        {
+            if (!_allowPrivateNetworkUrls)
+                ExternalFeedSource.EnsurePublicDestination(current.AbsoluteUri);
+
+            using var message = new HttpRequestMessage(method, current);
+            ApplyAuth(message, authConfig);
+
+            // ResponseHeadersRead so ReadCappedAsync's ceiling is enforced while the body streams in.
+            // Under the default (ResponseContentRead) HttpClient buffers the whole body first, which
+            // is the same mistake this method is here to fix: a guard that runs after the fact.
+            var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            var location = response.Headers.Location;
+            if (!IsRedirect(response.StatusCode) || location is null)
+                return response;
+
+            var status = response.StatusCode;
+            response.Dispose();
+
+            if (hop >= MaxRedirects)
+            {
+                result.Warnings.Add(
+                    $"{section}: gave up after {MaxRedirects} redirects starting at {origin.Host}.");
+                return null;
+            }
+
+            if (!Uri.TryCreate(current, location, out var candidate)
+                || candidate.Scheme is not ("http" or "https"))
+            {
+                result.Warnings.Add(
+                    $"{section}: {(int)status} from {current.Host} pointed at something that is not an "
+                    + "HTTP(S) URL — stopping.");
+                return null;
+            }
+
+            Uri next = candidate;
+
+            if (credentialed && !string.Equals(next.Host, origin.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                result.Warnings.Add(
+                    $"{section}: {current.Host} redirected to {next.Host} and this source carries a credential — "
+                    + "refusing to send it off-host. Point the source at its final address instead.");
+                return null;
+            }
+
+            if (credentialed && origin.Scheme == "https" && next.Scheme == "http")
+            {
+                result.Warnings.Add(
+                    $"{section}: {current.Host} redirected from https to http and this source carries a "
+                    + "credential — refusing to send it in clear.");
+                return null;
+            }
+
+            // Same host, same-or-better scheme, different port is still a different origin: ports on
+            // one machine are different services, and the operator configured one of them. The single
+            // exception is the plain http→https upgrade, where 80 becomes 443 precisely because the
+            // scheme improved.
+            var schemeUpgrade = origin.Scheme == "http" && next.Scheme == "https"
+                && origin.IsDefaultPort && next.IsDefaultPort;
+
+            if (credentialed && next.Port != origin.Port && !schemeUpgrade)
+            {
+                result.Warnings.Add(
+                    $"{section}: {current.Host} redirected to port {next.Port} and this source carries a "
+                    + $"credential — refusing to send it to a port other than {origin.Port}.");
+                return null;
+            }
+
+            // 303 always becomes a GET; 301 and 302 do too for anything that was not GET or HEAD,
+            // which is what every agent does in practice and what SocketsHttpHandler did before this
+            // method took the redirect over. 307 and 308 preserve the method by definition.
+            var bodylessMethod = method == HttpMethod.Get || method == HttpMethod.Head;
+            if (status == HttpStatusCode.SeeOther
+                || ((status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found) && !bodylessMethod))
+            {
+                method = HttpMethod.Get;
+            }
+
+            current = next;
+        }
+    }
+
+    private static bool IsRedirect(HttpStatusCode status) => status is
+        HttpStatusCode.MovedPermanently
+        or HttpStatusCode.Found
+        or HttpStatusCode.SeeOther
+        or HttpStatusCode.TemporaryRedirect
+        or HttpStatusCode.PermanentRedirect;
 
     /// <summary>
     /// Drops rows repeating a value in <paramref name="distinctBy"/>.
@@ -522,18 +743,52 @@ public partial class CustomSourceEngine
                     current.SelectMany(e => e.Elements().Where(c =>
                         string.Equals(c.Name.LocalName, segment, StringComparison.OrdinalIgnoreCase))));
 
+        var truncated = false;
         foreach (var element in elements)
         {
             var row = new ExtractedRow();
-            FlattenXml(element, row, string.Empty);
+            truncated |= FlattenXml(element, row, string.Empty, depth: 0);
             if (row.Count > 0) rows.Add(row);
+        }
+
+        if (truncated)
+        {
+            result.Warnings.Add(
+                $"XML nested deeper than {MaxXmlDepth} levels; the levels below that were not flattened into keys");
         }
 
         return rows;
     }
 
-    private static void FlattenXml(XElement element, ExtractedRow row, string prefix)
+    /// <summary>
+    /// How far <see cref="FlattenXml"/> follows nesting before it stops.
+    /// <para>
+    /// <see cref="FlattenXml"/> recurses once per level, and nothing upstream bounds how deep an
+    /// operator's XML goes: <c>XmlReaderSettings</c> has no depth limit to set, and
+    /// <c>XDocument.Parse</c> builds its tree iteratively, so it happily returns a document nested
+    /// tens of thousands deep. Recursing that far overflows the stack, and a
+    /// <c>StackOverflowException</c> cannot be caught — it takes the process down, which on a polled
+    /// source means one broken operator endpoint stops every feed.
+    /// </para>
+    /// <para>
+    /// A document that reaches the ceiling costs about 40 KB, far under
+    /// <see cref="MaxResponseBytes"/>, so the size cap is no defence here.
+    /// </para>
+    /// <para>
+    /// 64 to match <c>JsonDocument</c>'s own default maximum depth, which is what has been quietly
+    /// protecting <see cref="Flatten"/> on the JSON path all along. Real operator XML is nowhere
+    /// near it — even NeTEx, the deepest schema in this domain, is well under 32.
+    /// </para>
+    /// </summary>
+    private const int MaxXmlDepth = 64;
+
+    /// <returns><c>true</c> if nesting below <see cref="MaxXmlDepth"/> was left unread.</returns>
+    private static bool FlattenXml(XElement element, ExtractedRow row, string prefix, int depth)
     {
+        if (depth >= MaxXmlDepth) return true;
+
+        var truncated = false;
+
         foreach (var attr in element.Attributes())
             row[prefix + attr.Name.LocalName] = attr.Value;
 
@@ -541,11 +796,13 @@ public partial class CustomSourceEngine
         {
             var key = prefix + child.Name.LocalName;
             if (child.HasElements || child.HasAttributes)
-                FlattenXml(child, row, key + ".");
+                truncated |= FlattenXml(child, row, key + ".", depth + 1);
 
             if (!child.HasElements)
                 row[key] = child.Value.Trim();
         }
+
+        return truncated;
     }
 
     /// <summary>

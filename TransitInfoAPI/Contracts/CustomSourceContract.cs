@@ -11,7 +11,18 @@ public class CustomSourceResponse
     public string Name { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
     public string? ExtractorKey { get; set; }
-    public string? AuthConfig { get; set; }
+
+    /// <summary>
+    /// Whether a credential is configured — deliberately <b>not</b> the credential itself.
+    /// <para>
+    /// This was <c>AuthConfig</c>, the raw JSON holding an operator's bearer token or basic-auth
+    /// password, returned verbatim by <c>GET /custom-sources</c> to anyone holding
+    /// <c>customsources.view</c>. The editor only ever needed to know whether one was set; sending
+    /// the secret to render a form field made every viewer a credential holder.
+    /// </para>
+    /// </summary>
+    public bool HasAuth { get; set; }
+
     public int RefreshIntervalSeconds { get; set; }
     public bool IsActive { get; set; }
     public DateOnly? ServiceWindowStart { get; set; }
@@ -76,7 +87,13 @@ public record UpdateCustomSourceRequest
     [StringLength(200)] public string? Name { get; set; }
     public string? Kind { get; set; }
     [StringLength(100)] public string? ExtractorKey { get; set; }
+
+    /// <summary>
+    /// Null leaves the stored credential untouched; an empty string clears it. The editor never
+    /// receives the current value, so it can only send one the admin has just typed.
+    /// </summary>
     public string? AuthConfig { get; set; }
+
     [Range(60, int.MaxValue)] public int? RefreshIntervalSeconds { get; set; }
     public bool? IsActive { get; set; }
     public DateOnly? ServiceWindowStart { get; set; }

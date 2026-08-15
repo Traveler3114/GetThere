@@ -170,6 +170,35 @@ public class PlaceMatchingManager
         return minDist < _maxDistanceMeters ? nearest : null;
     }
 
+    /// <summary>
+    /// Attaches every unmatched station, and every station whose place has drifted, to its nearest
+    /// place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This one relies on its caller to have loaded the place cache; the other two entry points
+    /// do not.</b> <see cref="RematchStationAsync"/> and <see cref="DeriveCountryIdAsync"/> both call
+    /// <see cref="LoadPlacesAsync"/> defensively when <c>_placeCache</c> is null. This does not — and
+    /// <see cref="FindNearestPlace"/> returns null rather than throwing when the cache is empty, so
+    /// calling this without loading first matches nothing at all and logs "Matched 0 stations to
+    /// places", which reads as "nothing needed doing" rather than "I was never initialised".
+    /// <c>FeedManager</c> does call <c>LoadPlacesAsync</c> immediately before this, so the live path
+    /// is correct; it is the next caller that the asymmetry catches.
+    /// </para>
+    /// <para>
+    /// <b><see cref="FindNearestPlace"/> runs twice per matched station.</b> Once in the loop below,
+    /// then again inside <see cref="DeriveCountryIdAsync"/> with the same coordinates — which
+    /// re-scans the grid neighbourhood and re-computes the great-circle distance to every place in
+    /// it, to reach a place the caller is already holding. Passing the resolved place in would halve
+    /// the work; it needs <c>DeriveCountryIdAsync</c>'s signature changed, and that method is public
+    /// and also called from <see cref="RematchStationAsync"/>.
+    /// </para>
+    /// <para>
+    /// The cooldown is also consumed before the work runs, not after: if this throws partway, the
+    /// stamp has already moved and the next attempt is skipped for the full window despite nothing
+    /// having been matched.
+    /// </para>
+    /// </remarks>
     public async Task MatchStationsToPlacesAsync(CancellationToken ct)
     {
         if (_cooldownHours > 0)

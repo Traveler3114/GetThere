@@ -22,43 +22,37 @@ public class MobilityManager
 
     public MobilityManager(TransitDbContext db, ILogger<MobilityManager> logger, PlaceMatchingManager placeMatching) { _db = db; _logger = logger; _placeMatching = placeMatching; }
 
-    public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
+    /// <summary>
+    /// The one definition of what filters a mobility-station list, composed by the list, the count
+    /// and the GeoJSON read below.
+    /// <para>
+    /// Same reasoning as <see cref="StationManager"/>'s: these were three copies of the same
+    /// bounding-box arithmetic, and <c>countryName</c> was accepted by the controller and passed to
+    /// none of them — the admin console's country filter on the mobility page built the query string
+    /// and the server ignored it.
+    /// </para>
+    /// </summary>
+    private IQueryable<MobilityStation> BuildQuery(
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName)
     {
-        var query = _db.MobilityStations
-            .Include(ms => ms.Operator)
-            .Include(ms => ms.Country)
-            .AsQueryable();
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(ms =>
-                ms.Latitude >= lat.Value - latRange &&
-                ms.Latitude <= lat.Value + latRange &&
-                ms.Longitude >= lon.Value - lonRange &&
-                ms.Longitude <= lon.Value + lonRange);
-        }
-
-        return await query.ToListAsync(ct);
-    }
-
-    public async Task<List<MobilityStationResponse>> GetAllAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId,
-        int page, int perPage, CancellationToken ct)
-    {
-        var query = _db.MobilityStations
-            .Include(ms => ms.Operator)
-            .Include(ms => ms.Country)
-            .AsQueryable();
+        var query = _db.MobilityStations.AsQueryable();
 
         if (countryId.HasValue)
             query = query.Where(ms => ms.CountryId == countryId.Value);
 
+        if (!string.IsNullOrWhiteSpace(countryName))
+            query = query.Where(ms =>
+                _db.Countries.Any(c => c.Name == countryName && c.Id == ms.CountryId));
+
         if (lat is not null && lon is not null && radiusKm is not null)
         {
             var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
+
+            // Clamped before the cosine: at the poles it reaches zero and the division yields
+            // Infinity, which makes the longitude bounds meaningless.
+            var clampedLat = Math.Clamp(lat.Value, -89.9, 89.9);
+            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(clampedLat * Math.PI / 180));
+
             query = query.Where(ms =>
                 ms.Latitude >= lat.Value - latRange &&
                 ms.Latitude <= lat.Value + latRange &&
@@ -66,7 +60,47 @@ public class MobilityManager
                 ms.Longitude <= lon.Value + lonRange);
         }
 
-        return await query
+        return query;
+    }
+
+    /// <summary>
+    /// Every mobility station in a radius, entities rather than responses.
+    /// <para>
+    /// <b>Nothing calls this.</b> <c>MobilityController</c> goes through
+    /// <see cref="GetAllAsync"/>, <see cref="GetTotalCountAsync"/> and
+    /// <see cref="GetAllGeoJsonAsync"/>; the polling worker goes through
+    /// <see cref="UpsertStationsFromGbfsBytesAsync"/>. It is left in place rather than deleted
+    /// because that is a call for whoever owns the roadmap, but it is worth knowing that it is
+    /// unreferenced before trusting anything it does.
+    /// </para>
+    /// <para>
+    /// It was also the fourth copy of the bounding-box arithmetic — <see cref="BuildQuery"/>'s note
+    /// says three, which was the count among the <em>reachable</em> paths — and the one copy that
+    /// never got the latitude clamp, so it still divided by <c>Math.Cos</c> at the pole and built
+    /// longitude bounds out of Infinity. Routing it through <see cref="BuildQuery"/> fixes that and
+    /// stops the next change to the filter having to remember a call site nothing exercises.
+    /// </para>
+    /// <para>
+    /// Still uncapped: with no coordinates it returns every mobility station there is. The three
+    /// reachable reads all bound their result (a page, or the GeoJSON ceiling of 5,000); this one
+    /// has no caller to say what its bound should be.
+    /// </para>
+    /// </summary>
+    public async Task<List<MobilityStation>> GetStationsAsync(double? lat, double? lon, double? radiusKm, CancellationToken ct = default)
+    {
+        return await BuildQuery(lat, lon, radiusKm, countryId: null, countryName: null)
+            .Include(ms => ms.Operator)
+            .Include(ms => ms.Country)
+            .ToListAsync(ct);
+    }
+
+    public async Task<List<MobilityStationResponse>> GetAllAsync(
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName,
+        int page, int perPage, CancellationToken ct)
+    {
+        // No Include: the query projects through MobilityStationMapper.ToResponseExpression, which
+        // pulls the operator and country columns it needs itself.
+        return await BuildQuery(lat, lon, radiusKm, countryId, countryName)
             .OrderBy(ms => ms.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
@@ -75,49 +109,16 @@ public class MobilityManager
     }
 
     public async Task<int> GetTotalCountAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId, CancellationToken ct)
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, CancellationToken ct)
     {
-        var query = _db.MobilityStations.AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(ms => ms.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(ms =>
-                ms.Latitude >= lat.Value - latRange &&
-                ms.Latitude <= lat.Value + latRange &&
-                ms.Longitude >= lon.Value - lonRange &&
-                ms.Longitude <= lon.Value + lonRange);
-        }
-
-        return await query.CountAsync(ct);
+        return await BuildQuery(lat, lon, radiusKm, countryId, countryName).CountAsync(ct);
     }
 
     public async Task<object> GetAllGeoJsonAsync(
-        double? lat, double? lon, double? radiusKm, int? countryId, int limit, CancellationToken ct)
+        double? lat, double? lon, double? radiusKm, int? countryId, string? countryName, int limit, CancellationToken ct)
     {
-        var query = _db.MobilityStations
-            .Include(ms => ms.Country)
-            .AsQueryable();
-
-        if (countryId.HasValue)
-            query = query.Where(ms => ms.CountryId == countryId.Value);
-
-        if (lat is not null && lon is not null && radiusKm is not null)
-        {
-            var latRange = radiusKm.Value / GeoConstants.KmPerDegree;
-            var lonRange = radiusKm.Value / (GeoConstants.KmPerDegree * Math.Cos(lat.Value * Math.PI / 180));
-            query = query.Where(ms =>
-                ms.Latitude >= lat.Value - latRange &&
-                ms.Latitude <= lat.Value + latRange &&
-                ms.Longitude >= lon.Value - lonRange &&
-                ms.Longitude <= lon.Value + lonRange);
-        }
-
-        var stations = await query.OrderBy(ms => ms.Id).Take(limit)
+        var stations = await BuildQuery(lat, lon, radiusKm, countryId, countryName)
+            .OrderBy(ms => ms.Id).Take(limit)
             .Select(MobilityStationMapper.ToResponseExpression)
             .ToListAsync(ct);
 
@@ -148,7 +149,9 @@ public class MobilityManager
 
     public async Task<int> UpsertStationsFromGbfsBytesAsync(int operatorId, byte[] gbfsData, CancellationToken ct = default)
     {
-        var doc = JsonDocument.Parse(gbfsData);
+        // Disposed: JsonDocument rents its backing buffer from the array pool, and this runs on
+        // every poll of every GBFS operator. Leaking it leaks pooled memory on a schedule.
+        using var doc = JsonDocument.Parse(gbfsData);
         var root = doc.RootElement;
 
         if (!root.TryGetProperty("stations", out var stationsElement))
@@ -182,9 +185,9 @@ public class MobilityManager
                 continue;
             }
 
-            // Same range check ParseStops applies to GTFS stops. A (0,0) dock is a missing coordinate,
-            // not a dock in the Gulf of Guinea.
-            if (lat is < -90 or > 90 || lon is < -180 or > 180 || (lat == 0.0 && lon == 0.0))
+            // The shared predicate, which is also what ParseStops applies to GTFS stops. A (0,0)
+            // dock is a missing coordinate, not a dock in the Gulf of Guinea.
+            if (!GeoBounds.IsUsable(lat.Value, lon.Value))
             {
                 _logger.LogWarning("Skipping mobility station {StationId} with invalid coordinates ({Lat}, {Lon})", stationId, lat, lon);
                 skipped++;
@@ -259,6 +262,17 @@ public class MobilityManager
         };
     }
 
+    /// <summary>
+    /// Upserts docks from extracted rows rather than from a GBFS document — the shape a custom
+    /// source produces.
+    /// <para>
+    /// <b>Nothing calls this either.</b> The custom-source path it was evidently written for stops
+    /// at <c>TransitSection</c>, which has no mobility section, so extracted rows never reach it.
+    /// That is why its two divergences from the GBFS path above went unnoticed: it parsed
+    /// coordinates under the server's culture, and it applied no range check at all before writing
+    /// them. Both are fixed here so that wiring it up later does not import the bugs with it.
+    /// </para>
+    /// </summary>
     public async Task<int> UpsertStationsFromRecordsAsync(int operatorId, List<Dictionary<string, object?>> records, CancellationToken ct = default)
     {
         if (records.Count == 0) return 0;
@@ -280,6 +294,15 @@ public class MobilityManager
 
             if (stationId is null || name is null || lat is null || lon is null)
                 continue;
+
+            // The same range check the GBFS path applies. This path had none at all, so a record
+            // whose coordinate had been misread — see GetDouble, which parsed under the server's
+            // culture until this commit — was written to the database unchallenged.
+            if (!GeoBounds.IsUsable(lat.Value, lon.Value))
+            {
+                _logger.LogWarning("Skipping mobility station {StationId} with invalid coordinates ({Lat}, {Lon})", stationId, lat, lon);
+                continue;
+            }
 
             var capacity = GetInt(record, "capacity");
             var numBikes = GetInt(record, "num_bikes_available") ?? 0;
@@ -322,6 +345,20 @@ public class MobilityManager
         return dict.TryGetValue(key, out var v) ? v?.ToString() : null;
     }
 
+    /// <summary>
+    /// Reads a coordinate out of an extracted row.
+    /// <para>
+    /// Invariant culture, like <see cref="ReadDouble"/> on the GBFS path. The bare
+    /// <c>double.TryParse(s, out _)</c> this used parses under the <em>server's</em> culture, whose
+    /// default styles include <c>AllowThousands</c> — so in any culture that groups with a dot,
+    /// <c>"45.81"</c> reads as <c>4581</c>. Not a parse failure that shows up in a log: a silently
+    /// wrong number, from a value that came out of an operator's file rather than out of code.
+    /// </para>
+    /// <para>
+    /// <c>CA1305</c>, the analyzer for exactly this, is turned off in <c>.editorconfig</c>, which is
+    /// why nothing flagged it.
+    /// </para>
+    /// </summary>
     private static double? GetDouble(Dictionary<string, object?> dict, string key)
     {
         if (!dict.TryGetValue(key, out var v) || v is null) return null;
@@ -329,16 +366,19 @@ public class MobilityManager
         if (v is int i) return i;
         if (v is long l) return l;
         if (v is decimal m) return (double)m;
-        if (double.TryParse(v.ToString(), out var parsed)) return parsed;
-        return null;
+        return double.TryParse(v.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
     }
 
+    /// <summary>As <see cref="GetDouble"/>, and invariant for the same reason.</summary>
     private static int? GetInt(Dictionary<string, object?> dict, string key)
     {
         if (!dict.TryGetValue(key, out var v) || v is null) return null;
         if (v is int i) return i;
         if (v is long l) return (int)l;
-        if (int.TryParse(v.ToString(), out var parsed)) return parsed;
-        return null;
+        return int.TryParse(v.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
     }
 }

@@ -134,6 +134,14 @@ public class TicketUploadManager
     }
 
     /// <summary>
+    /// How many abandoned uploads one pass deletes. Each costs a file delete, and a backlog only
+    /// builds when something is already wrong — which is when this runs. The remainder is picked up
+    /// by the next sweep rather than held in memory now. Same reasoning as
+    /// <c>TicketingManager.ReconcileBatchSize</c>.
+    /// </summary>
+    private const int PurgeBatchSize = 500;
+
+    /// <summary>
     /// Deletes uploads the user never turned into a ticket. Called by the expiry worker; abandoned
     /// files would otherwise accumulate on disk forever, since nothing else references them.
     /// </summary>
@@ -142,6 +150,8 @@ public class TicketUploadManager
         var cutoff = DateTime.UtcNow - UnconsumedRetention;
         var abandoned = await _db.TicketUploads
             .Where(u => u.ConsumedAt == null && u.CreatedAt < cutoff)
+            .OrderBy(u => u.CreatedAt)
+            .Take(PurgeBatchSize)
             .ToListAsync(ct);
 
         // Only rows whose blob actually went away are removed. Dropping the row regardless — which

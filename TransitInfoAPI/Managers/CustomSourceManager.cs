@@ -21,6 +21,7 @@ public class CustomSourceManager
 
     private readonly IWebHostEnvironment _env;
     private readonly CustomExtractorRegistry _extractors;
+    private readonly SecretProtector _secrets;
 
     public CustomSourceManager(
         TransitDbContext db,
@@ -29,6 +30,7 @@ public class CustomSourceManager
         FeedManager feeds,
         IWebHostEnvironment env,
         CustomExtractorRegistry extractors,
+        SecretProtector secrets,
         ILogger<CustomSourceManager> logger)
     {
         _db = db;
@@ -37,6 +39,7 @@ public class CustomSourceManager
         _feeds = feeds;
         _env = env;
         _extractors = extractors;
+        _secrets = secrets;
         _logger = logger;
     }
 
@@ -146,7 +149,8 @@ public class CustomSourceManager
             Name = request.Name,
             Kind = ParseEnum<CustomSourceKind>(request.Kind, nameof(request.Kind)),
             ExtractorKey = request.ExtractorKey,
-            AuthConfig = request.AuthConfig,
+            // Encrypted before it reaches the column. See SecretProtector.
+            AuthConfig = _secrets.Protect(request.AuthConfig),
             RefreshIntervalSeconds = request.RefreshIntervalSeconds,
             ServiceWindowStart = request.ServiceWindowStart,
             ServiceWindowEnd = request.ServiceWindowEnd,
@@ -178,7 +182,9 @@ public class CustomSourceManager
         if (request.Name is not null) source.Name = request.Name;
         if (request.Kind is not null) source.Kind = ParseEnum<CustomSourceKind>(request.Kind, nameof(request.Kind));
         if (request.ExtractorKey is not null) source.ExtractorKey = request.ExtractorKey;
-        if (request.AuthConfig is not null) source.AuthConfig = request.AuthConfig;
+        // Null means "leave the stored credential alone", which is what lets the editor render a
+        // source without ever being sent the secret it holds. An empty string clears it.
+        if (request.AuthConfig is not null) source.AuthConfig = _secrets.Protect(request.AuthConfig);
         if (request.RefreshIntervalSeconds is { } interval) source.RefreshIntervalSeconds = interval;
         if (request.IsActive is { } active) source.IsActive = active;
         if (request.ServiceWindowStart is { } start) source.ServiceWindowStart = start;
@@ -217,7 +223,35 @@ public class CustomSourceManager
         _db.CustomSources.Remove(source);
 
         await _db.SaveChangesAsync(ct);
+
+        DeleteUploads(source.Id);
         return true;
+    }
+
+    /// <summary>
+    /// Removes the source's uploaded files once its rows are gone.
+    /// <para>
+    /// Deleting the source used to leave its directory behind, so every spreadsheet and PDF an admin
+    /// had ever uploaded for it stayed on disk indefinitely, unreferenced and unreachable through
+    /// the API — a store of operator-supplied documents that nothing would ever clean up.
+    /// </para>
+    /// <para>
+    /// Best-effort and after the commit, in that order deliberately: the database is the record of
+    /// what exists, and a failed unlink should not roll back a delete that already succeeded. A left
+    /// directory is the same harmless orphan it was before.
+    /// </para>
+    /// </summary>
+    private void DeleteUploads(int sourceId)
+    {
+        try
+        {
+            var dir = new CustomSourceStorage(_env.ContentRootPath).DirectoryFor(sourceId);
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or AppException)
+        {
+            _logger.LogWarning(ex, "Could not remove the upload directory for deleted custom source {SourceId}", sourceId);
+        }
     }
 
     public async Task<List<CustomSourceRunResponse>> GetRunsAsync(int id, int limit, CancellationToken ct)
@@ -250,7 +284,7 @@ public class CustomSourceManager
         string body;
         try
         {
-            body = await _engine.FetchRawAsync(request, source.AuthConfig, ct);
+            body = await _engine.FetchRawAsync(request, _secrets.Unprotect(source.AuthConfig), ct);
         }
         catch (HttpRequestException ex)
         {
@@ -319,14 +353,18 @@ public class CustomSourceManager
                 break;
 
             case System.Text.Json.JsonValueKind.Array:
-                var items = element.EnumerateArray().ToList();
-                node.ArrayItemCount = items.Count;
+                // Length and indexer rather than EnumerateArray().ToList(): only the count and the
+                // first element are used, and the list copied every element of every array at every
+                // depth — on the stops response this is meant to describe, that is one JsonElement
+                // copy per stop for an answer that needs one.
+                var count = element.GetArrayLength();
+                node.ArrayItemCount = count;
                 if (path.Length > 0) arrayPaths.Add(path);
 
                 // One representative element is enough — every row in an array of records has the
                 // same shape, and describing all of them buries the answer.
-                if (items.Count > 0 && depth < maxDepth)
-                    node.Children.Add(Describe("[0]", path, items[0], depth + 1, arrayPaths));
+                if (count > 0 && depth < maxDepth)
+                    node.Children.Add(Describe("[0]", path, element[0], depth + 1, arrayPaths));
                 break;
 
             default:
@@ -404,7 +442,18 @@ public class CustomSourceManager
                 + (imported.SynthesizedSections is { } s ? $" (synthesized: {s})" : string.Empty)
                 + (imported.ImportError is { } e ? $" — {e}" : string.Empty);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            // Recorded before rethrowing. The run row was persisted as Running before the import
+            // started, and letting a cancellation escape without touching it left that row Running
+            // for good — GetAllAsync reports the latest run's status, so one abandoned request made
+            // the console show an import permanently in flight.
+            run.Status = CustomSourceRunStatus.Failed;
+            run.LogText = "Run was cancelled before it finished. The import may have written a partial "
+                + "feed version — check this feed's versions before running again.";
+            throw;
+        }
+        catch (Exception ex)
         {
             _logger.LogError(ex, "Custom source {SourceId} run failed", id);
             run.Status = CustomSourceRunStatus.Failed;

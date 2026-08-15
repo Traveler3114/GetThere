@@ -170,7 +170,17 @@
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
+                    <!--
+                        x:DataType is what makes the compiler check the bindings below against
+                        WalletTicket. Without it they are resolved reflectively at runtime, so a
+                        renamed or removed property fails silently — a blank label on a ticket card
+                        rather than a build error — and CI compiles this XAML exactly once, at the
+                        end of the Android build. VERIFY.md flagged this template by name for that
+                        reason.
+                        Every binding here was checked against WalletTicket by hand and they all
+                        resolve; this is so the next change does not have to be.
+                    -->
+                    <DataTemplate x:DataType="vm:WalletTicket">
                         <Border
                             Margin="0,6"
                             Padding="16"

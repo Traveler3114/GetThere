@@ -20,10 +20,35 @@ public class FeedUrlSsrfTests
     [InlineData("http://169.254.169.254/latest/meta-data/")]
     [InlineData("http://0.0.0.0/gtfs.zip")]
     [InlineData("http://[::1]/gtfs.zip")]
+    // Ranges the original check missed. 100.64/10 is carrier-grade NAT, which is where several
+    // cloud providers put their internal service endpoints; 192.0.0.0/24 is IETF protocol
+    // assignments; 198.18/15 is the benchmarking range. None of them are routable on the internet,
+    // so a feed URL naming one is either a mistake or an attempt to reach something local.
+    [InlineData("http://100.64.0.1/gtfs.zip")]
+    [InlineData("http://100.127.255.254/gtfs.zip")]
+    [InlineData("http://192.0.0.1/gtfs.zip")]
+    [InlineData("http://198.18.0.1/gtfs.zip")]
+    [InlineData("http://198.19.255.255/gtfs.zip")]
     public void Rejects_internal_destinations(string url)
     {
         var ex = Assert.Throws<AppException>(() => ExternalFeedSource.EnsurePublicDestination(url));
         Assert.Equal(400, ex.StatusCode);
+    }
+
+    /// <summary>
+    /// Guards the edges of the ranges added above, so a future tightening cannot quietly swallow
+    /// neighbouring public space. 100.63.x and 100.128.x sit either side of carrier-grade NAT, and
+    /// 198.17/198.20 either side of the benchmarking range.
+    /// </summary>
+    [Theory]
+    [InlineData("http://100.63.255.255/gtfs.zip")]
+    [InlineData("http://100.128.0.1/gtfs.zip")]
+    [InlineData("http://198.17.255.255/gtfs.zip")]
+    [InlineData("http://198.20.0.1/gtfs.zip")]
+    [InlineData("http://192.0.1.1/gtfs.zip")]
+    public void Allows_addresses_just_outside_the_reserved_ranges(string url)
+    {
+        ExternalFeedSource.EnsurePublicDestination(url);
     }
 
     [Theory]

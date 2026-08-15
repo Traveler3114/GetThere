@@ -33,6 +33,24 @@ public partial class ShopOperator : ObservableObject
     /// <summary>
     /// False when the operator has no sellable options — the design still lists them, dimmed,
     /// as "Timetable only — no ticketing yet".
+    /// <para>
+    /// <b>It is never false.</b> <see cref="ShopViewModel.BuildDirectory"/> builds the directory by
+    /// grouping the option list itself, and a LINQ group always has at least one element — so
+    /// <c>items.Count > 0</c> holds for every row that can exist. An operator with nothing to sell
+    /// produces no group and is simply absent from the screen, which is the opposite of the design
+    /// this property describes.
+    /// </para>
+    /// <para>
+    /// Everything downstream of it is therefore unreachable: <see cref="RowOpacity"/> is always
+    /// <c>1.0</c>, the muted monogram palette never applies, <c>Shop_NoOperators</c> can never be
+    /// rendered, and <c>OpenOperator</c>'s <c>!IsBuyable</c> guard never fires.
+    /// </para>
+    /// <para>
+    /// Not fixed here because the fix is not in this class: listing a ticketless operator needs the
+    /// directory built from an operator list rather than from a fare list, and
+    /// <c>GET /tickets/options</c> returns only fares. Whether the Shop should show operators it
+    /// cannot sell for is a product decision with an API change behind it.
+    /// </para>
     /// </summary>
     public bool IsBuyable { get; init; }
 

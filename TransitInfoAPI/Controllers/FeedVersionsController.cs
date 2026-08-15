@@ -23,7 +23,7 @@ public class FeedVersionsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<Paginated<FeedVersionResponse>>> GetAll(
         [FromQuery] int? feedId = null,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {
@@ -61,7 +61,7 @@ public class FeedVersionsController : ControllerBase
     [HttpGet("{sha1}/stops")]
     public async Task<ActionResult<Paginated<RawStopResponse>>> GetStops(
         string sha1,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         CancellationToken ct = default)
     {

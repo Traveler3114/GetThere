@@ -59,6 +59,29 @@ public class BarcodeDecoder
     /// 40 megapixels is far above any ticket photograph — a 108 MP phone camera at full resolution
     /// is 12000x9000 — and far below a size that threatens the process.
     /// </para>
+    /// <para>
+    /// <b>This bounds memory, not time, and time is the larger exposure server-side.</b> At the
+    /// ceiling a decode allocates ~160 MB (40 MP × RGBA), or ~320 MB transiently when
+    /// <see cref="Decode(SKBitmap)"/> has to copy to RGBA8888 — survivable. The cost that is not
+    /// bounded is CPU: the reader below runs with <c>TryHarder</c>, <c>TryInverted</c> and
+    /// <c>AutoRotate</c> across eight formats, so a single 40 MP image is scanned many times over,
+    /// synchronously, on the request thread. <c>ImageTicketExtractor.ExtractAsync</c> is async in
+    /// name only — <see cref="Decode(byte[])"/> is entirely synchronous — so that thread is held for
+    /// the duration.
+    /// </para>
+    /// <para>
+    /// The upload endpoint is rate-limited (<c>RateLimits:UploadPerMinute</c>, default 10) and
+    /// partitioned per caller, which bounds how fast one account can do this but not how many
+    /// accounts can. A handful of large images is enough to occupy several thread-pool threads for
+    /// seconds each.
+    /// </para>
+    /// <para>
+    /// The usual mitigation is to downscale before decoding — barcodes read fine at a few megapixels
+    /// — but that is not a free change: dense PDF417, which is exactly what UIC 918-3 rail tickets
+    /// use, is the first thing to stop decoding when resolution drops. Doing it safely means finding
+    /// the floor against real ticket images, which is why it is written down here rather than
+    /// applied.
+    /// </para>
     /// </summary>
     private const long MaxDecodedPixels = 40_000_000;
 

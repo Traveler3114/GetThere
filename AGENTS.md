@@ -38,6 +38,11 @@ separate databases with no cross-system user references.
 an admin status dot. Treat any reappearance as a regression — and note that GetThereAPI referencing
 an operator by `TransitInfoGlobalId` is **not** that: it is a string soft reference, not a call.
 
+The *seeding* of that account outlived the removal by eight days and was deleted on 2026-08-10:
+TransitInfoAPI was still creating `getthere-api` on every boot, in the `Client` role, with no caller.
+`Seed:ServiceAccountPassword` is no longer read by anything. **Existing databases still have the
+row** — delete it, and check `AspNetUserRoles` for the stale grant.
+
 ## Running
 
 **Order matters — API must be running before MAUI starts.**
@@ -109,11 +114,18 @@ Business logic in `GetThereAPI/Managers/` and `TransitInfoAPI/Managers/`. Contro
 
 ## Off-limits (need human instruction)
 
-- JWT auth pipeline (token creation/validation). One deliberate change was authorised on 2026-07-31:
-  refresh tokens are no longer rejected when presented from a different IP address. Rotation and reuse
-  detection remain the theft response; the address is audited as `RefreshAddressChanged`. The rest of
-  the pipeline is still off-limits — see
-  [`docs/reference/getthere-api/architecture.md`](docs/reference/getthere-api/architecture.md#the-address-is-recorded-not-enforced)
+- JWT auth pipeline (token creation/validation). Two deliberate changes have been authorised:
+  - **2026-07-31** — refresh tokens are no longer rejected when presented from a different IP
+    address. Rotation and reuse detection remain the theft response; the address is audited as
+    `RefreshAddressChanged`. See
+    [`docs/reference/getthere-api/architecture.md`](docs/reference/getthere-api/architecture.md#the-address-is-recorded-not-enforced)
+  - **2026-08-10** — rotation is atomic. `RefreshAsync` claims the token with a single conditional
+    `ExecuteUpdate` (`WHERE Id = … AND RevokedAt IS NULL AND ReplacedByToken IS NULL`) and treats a
+    zero row count as reuse. It was a read-modify-write, so two concurrent presentations of one token
+    both passed `Evaluate` as `Rotate` and both minted a valid successor — rotation only detects
+    reuse if rotating is atomic. Applied identically in both APIs.
+
+  The rest of the pipeline is still off-limits.
 - Wallet balance deduction logic
 - Ticket status transitions
 - ImportedTicket status transitions

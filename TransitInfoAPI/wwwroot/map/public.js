@@ -26,7 +26,20 @@ const routesSource = 'routes';
 const vehiclesSource = 'vehicles';
 const mobilitySource = 'mobility-stations';
 
+// Abort controller for the three bounding-box fetches below.
+//
+// The 500 ms debounce on `moveend` stops a burst during one drag, but it does not order anything:
+// two drags 600 ms apart put two sets of requests in flight, and the map shows whichever *responds*
+// last. Panning from a dense city to an empty region reliably paints the city's stations over the
+// empty view, because the dense response is the slow one. Aborting the previous set makes the
+// newest view win, which is the same thing `runSearch` already does further down this file.
+let mapDataAbort = null;
+
 function loadMapData() {
+  if (mapDataAbort) mapDataAbort.abort();
+  mapDataAbort = new AbortController();
+  const signal = mapDataAbort.signal;
+
   const bounds = map.getBounds();
   const center = map.getCenter();
   const sw = bounds.getSouthWest();
@@ -41,26 +54,38 @@ function loadMapData() {
   const routeUrl = `/routes?format=geojson&minLat=${sw.lat}&minLon=${sw.lng}&maxLat=${ne.lat}&maxLon=${ne.lng}`;
   const mobilityUrl = `/mobility/stations?format=geojson&lat=${center.lat}&lon=${center.lng}&radiusKm=${radiusKm}`;
 
-  fetch(stationUrl).then(r => r.json()).then(data => {
+  fetch(stationUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(stationsSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load stations'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load stations');
+  });
 
-  fetch(routeUrl).then(r => r.json()).then(data => {
+  fetch(routeUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(routesSource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load routes'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load routes');
+  });
 
-  fetch(mobilityUrl).then(r => r.json()).then(data => {
+  fetch(mobilityUrl, { signal }).then(r => r.json()).then(data => {
     const src = map.getSource(mobilitySource);
     if (src && data?.type === 'FeatureCollection') {
       src.setData(data);
     }
-  }).catch(() => showMapError('Failed to load mobility stations'));
+  }).catch(err => {
+    // Superseded by a newer view, not a failure worth reporting.
+    if (err && err.name === 'AbortError') return;
+    showMapError('Failed to load mobility stations');
+  });
 }
 
 function loadVehicles() {
@@ -423,10 +448,19 @@ function closeSidebar() {
 }
 
 function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+  // Escapes quotes as well as angle brackets, unlike the textContent/innerHTML round-trip this
+  // replaces. That trick escapes < > and &, but leaves " and ' untouched — which is safe only for
+  // as long as every caller interpolates into text. The moment one puts esc() output inside a
+  // quoted HTML attribute, an operator-supplied name containing a quote breaks out of it.
+  //
+  // Every current use here is a text context, so this fixes no live bug. It removes a trap: the
+  // admin console's Shell.esc does escape quotes, and anyone reasonably assuming these two match
+  // would introduce an injection. The /map CSP has no 'unsafe-inline' in script-src, which is the
+  // backstop rather than the control.
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(vehiclesInterval); });

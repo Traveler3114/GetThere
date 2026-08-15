@@ -206,13 +206,55 @@ public class AuthManager
                 oldValues: existingRefreshToken.IpAddress, newValues: ipAddress);
         }
 
-        existingRefreshToken.RevokedAt = DateTime.UtcNow;
-
         var newRawRefreshToken = _tokenManager.GenerateRefreshToken();
         var newHashedRefreshToken = _tokenManager.HashToken(newRawRefreshToken);
         var wasRememberMeToken = _tokenManager.IsRememberMeRefreshToken(
             existingRefreshToken.CreatedAt,
             existingRefreshToken.ExpiresAt);
+
+        // Claim the token before issuing a successor, in one conditional statement.
+        //
+        // Everything above is a read: find the row, evaluate the verdict, check the account. The
+        // write used to be a plain assignment on the tracked entity, which made the whole method a
+        // read-modify-write with nothing serialising it. Two requests presenting the same token
+        // concurrently both read it before either wrote, both saw ReplacedByToken as null, both
+        // passed Evaluate as Rotate, and both minted a valid successor — the unique index is on
+        // Token and the two hashes differ, so nothing collided. One refresh token quietly became
+        // two.
+        //
+        // That is the hole in what RefreshTokenEvaluator calls "the whole of the theft response":
+        // rotation only detects reuse if rotating is atomic. The MAUI client serialises refresh
+        // behind a lock, but that covers one app instance and does nothing about an attacker racing
+        // the legitimate client — which is the case the detection exists for.
+        //
+        // The WHERE clause is the lock: whichever request updates the row first is the only one that
+        // sees a non-zero row count.
+        var rotatedAt = DateTime.UtcNow;
+        var claimed = await _db.RefreshTokens
+            .Where(rt => rt.Id == existingRefreshToken.Id
+                && rt.RevokedAt == null
+                && rt.ReplacedByToken == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(rt => rt.RevokedAt, rotatedAt)
+                .SetProperty(rt => rt.ReplacedByToken, newHashedRefreshToken), ct);
+
+        if (claimed == 0)
+        {
+            // Someone else rotated this exact token between our read and our write. That is the same
+            // event as presenting an already-rotated token, so it gets the same answer: assume theft
+            // and revoke the family. Treating it as benign would mean a stolen token racing the real
+            // client is rewarded with a working session.
+            var racedRevokedAt = DateTime.UtcNow;
+            var raced = await _db.RefreshTokens
+                .Where(rt => rt.UserId == existingRefreshToken.UserId && rt.RevokedAt == null && rt.ExpiresAt > racedRevokedAt)
+                .ToListAsync(ct);
+            foreach (var t in raced)
+                t.RevokedAt = racedRevokedAt;
+
+            LogAudit(existingRefreshToken.UserId, "RefreshTokenReuseDetected", "RefreshToken", existingRefreshToken.Id.ToString(CultureInfo.InvariantCulture));
+            await _db.SaveChangesAsync(ct);
+            throw new AppException("Refresh token is invalid or expired.", 401, "REFRESH_TOKEN_EXPIRED");
+        }
 
         var newRefreshTokenEntity = new RefreshToken
         {
@@ -222,8 +264,6 @@ public class AuthManager
             DeviceInfo = deviceInfo,
             IpAddress = ipAddress
         };
-
-        existingRefreshToken.ReplacedByToken = newHashedRefreshToken;
 
         _db.RefreshTokens.Add(newRefreshTokenEntity);
 

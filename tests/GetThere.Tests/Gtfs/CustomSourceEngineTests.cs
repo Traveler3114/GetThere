@@ -1,3 +1,5 @@
+using System.Text;
+
 using TransitInfoAPI.Entities;
 using TransitInfoAPI.Enums;
 using TransitInfoAPI.Services;
@@ -84,6 +86,71 @@ public class CustomSourceEngineTests
 
         Assert.Equal(2, rows.Count);
         Assert.Equal("Second", rows[1]["stop_name"]);
+    }
+
+    [Fact]
+    public void ParseXmlRows_stops_flattening_past_the_depth_ceiling()
+    {
+        // Regression: FlattenXml recursed once per level with nothing bounding how deep an
+        // operator's XML went. XmlReaderSettings has no depth limit and XDocument.Parse builds its
+        // tree iteratively, so ~40 KB of nested elements produced a StackOverflowException — which
+        // cannot be caught and takes the whole process down, stopping every other feed with it.
+        //
+        // 300 levels is well past the 64-level ceiling but nowhere near deep enough to actually
+        // overflow: a regression has to fail this assertion, not crash the test host.
+        const int depth = 300;
+
+        var xml = new StringBuilder("<rows><row id=\"A\"><deep>");
+        xml.Insert(xml.Length, "<a>", depth);
+        xml.Append("leaf");
+        xml.Insert(xml.Length, "</a>", depth);
+        xml.Append("</deep></row></rows>");
+
+        var result = new ExtractionResult();
+        var rows = CustomSourceEngine.ParseXmlRows(xml.ToString(), string.Empty, result);
+
+        Assert.Single(rows);
+        Assert.Equal("A", rows[0]["id"]);
+        Assert.Contains(result.Warnings, w => w.Contains("nested deeper", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ParseXmlRows_flattens_ordinary_nesting_to_dotted_keys()
+    {
+        // The companion to the ceiling test: the depth guard must not change what normal XML does.
+        var result = new ExtractionResult();
+        var rows = CustomSourceEngine.ParseXmlRows(
+            "<rows><row><id>A</id><position><lat>45.8</lat></position></row></rows>", string.Empty, result);
+
+        Assert.Single(rows);
+        Assert.Equal("A", rows[0]["id"]);
+        Assert.Equal("45.8", rows[0]["position.lat"]);
+        Assert.Empty(result.Warnings);
+    }
+
+    // ── Row → record ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void BuildDocument_drops_a_stop_whose_coordinates_are_not_finite()
+    {
+        // Regression: JSON cannot carry NaN, but a source can send the string "NaN", and
+        // double.TryParse accepts it against InvariantCulture's symbols. Every comparison with NaN
+        // is false, so neither the -90..90 range check nor the (0,0) check rejected it, and the
+        // coordinate reached a SQL Server float column that cannot represent it — the import failed
+        // on a bulk-copy error naming neither the stop nor the reason.
+        var snapshot = new CustomHttpSource.Snapshot();
+        snapshot.Sections[nameof(TransitSection.Stops)] =
+        [
+            new() { ["StopId"] = "A", ["StopName"] = "Real", ["StopLat"] = "45.81", ["StopLon"] = "15.98" },
+            new() { ["StopId"] = "B", ["StopName"] = "Not a number", ["StopLat"] = "NaN", ["StopLon"] = "15.98" },
+            new() { ["StopId"] = "C", ["StopName"] = "Unbounded", ["StopLat"] = "45.81", ["StopLon"] = "Infinity" }
+        ];
+
+        var document = CustomHttpSource.BuildDocument(snapshot, operatorId: 1, out var warnings);
+
+        Assert.Single(document.Stops!);
+        Assert.Equal("A", document.Stops![0].StopId);
+        Assert.Contains(warnings, w => w.Contains("invalid coordinates", StringComparison.Ordinal));
     }
 
     // ── Pagination ────────────────────────────────────────────────────────────────────────────

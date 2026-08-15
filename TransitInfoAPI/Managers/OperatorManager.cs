@@ -70,34 +70,43 @@ public class OperatorManager
 
     public async Task<object> GetAllGeoJsonAsync(int page, int perPage, CancellationToken ct)
     {
+        // One ordered subquery for the whole coordinate, not one per axis.
+        //
+        // The latitude and the longitude used to be two independent FirstOrDefault subqueries over
+        // an unordered set, so nothing tied them to the same station: for an operator serving more
+        // than one station, SQL Server is free to answer the two subqueries from different rows and
+        // the pin lands at a coordinate that is neither of them. Ordering also makes the choice
+        // stable — without it the pin could move between two identical requests.
         var operators = await _db.Operators.OrderBy(o => o.Id).Skip((page - 1) * perPage).Take(perPage)
             .Select(o => new
             {
                 Operator = o,
-                StationLat = o.StationOperators
-                    .Select(cso => (double?)cso.CanonicalStation.Latitude)
-                    .FirstOrDefault(),
-                StationLon = o.StationOperators
-                    .Select(cso => (double?)cso.CanonicalStation.Longitude)
+                Station = o.StationOperators
+                    .OrderBy(cso => cso.CanonicalStationId)
+                    .Select(cso => new { cso.CanonicalStation.Latitude, cso.CanonicalStation.Longitude })
                     .FirstOrDefault()
             })
             .ToListAsync(ct);
 
         var fc = new GeoJsonFeatureCollection
         {
-            Features = operators.Select(item => new GeoJsonFeature
+            Features = operators.Select(item =>
             {
-                Geometry = item.StationLat.HasValue && item.StationLon.HasValue
-                    ? new { type = "Point", coordinates = new[] { item.StationLon.Value, item.StationLat.Value } }
-                    : null,
-                Properties = new Dictionary<string, object?>
+                var station = item.Station;
+                return new GeoJsonFeature
                 {
-                    ["id"] = item.Operator.Id,
-                    ["globalId"] = item.Operator.GlobalId,
-                    ["onestopId"] = item.Operator.OnestopId,
-                    ["name"] = item.Operator.Name,
-                    ["shortName"] = item.Operator.ShortName
-                }
+                    Geometry = station is not null
+                        ? new { type = "Point", coordinates = new[] { station.Longitude, station.Latitude } }
+                        : null,
+                    Properties = new Dictionary<string, object?>
+                    {
+                        ["id"] = item.Operator.Id,
+                        ["globalId"] = item.Operator.GlobalId,
+                        ["onestopId"] = item.Operator.OnestopId,
+                        ["name"] = item.Operator.Name,
+                        ["shortName"] = item.Operator.ShortName
+                    }
+                };
             }).ToList()
         };
         return fc;
@@ -148,25 +157,35 @@ public class OperatorManager
         };
     }
 
+    /// <summary>
+    /// Icon and legend colour per GTFS route type, for the map's legend and its markers.
+    /// <para>
+    /// Static because it never varies and <c>GetTypesAsync</c> is called on every map load; it was
+    /// being rebuilt, thirteen entries at a time, per request.
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<int, (string Icon, string Color)> RouteTypeIcons = new()
+    {
+        { 0, ("tram.png", "#126400") },
+        { 1, ("subway.png", "#e31a1c") },
+        { 2, ("train.png", "#b15928") },
+        { 3, ("bus.png", "#1f78b4") },
+        { 4, ("ferry.png", "#6a3d9a") },
+        { 5, ("cabletram.png", "#fb9a99") },
+        { 6, ("cablecar.png", "#fb9a99") },
+        { 7, ("funicular.png", "#fdbf6f") },
+        { 11, ("trolleybus.png", "#33a02c") },
+        { 12, ("monorail.png", "#cab2d6") },
+        { 100, ("bicycle.png", "#a6cee3") },
+        { 101, ("scooter.png", "#ff7f00") },
+        { 200, ("airplane.png", "#b2df8a") }
+    };
+
+    /// <summary>Fallback marker colour for a route type with no entry in <see cref="RouteTypeIcons"/>.</summary>
+    private const string DefaultRouteTypeColor = "#808080";
+
     public async Task<List<object>> GetTypesAsync()
     {
-        var icons = new Dictionary<int, (string Icon, string Color)>
-        {
-            { 0, ("tram.png", "#126400") },
-            { 1, ("subway.png", "#e31a1c") },
-            { 2, ("train.png", "#b15928") },
-            { 3, ("bus.png", "#1f78b4") },
-            { 4, ("ferry.png", "#6a3d9a") },
-            { 5, ("cabletram.png", "#fb9a99") },
-            { 6, ("cablecar.png", "#fb9a99") },
-            { 7, ("funicular.png", "#fdbf6f") },
-            { 11, ("trolleybus.png", "#33a02c") },
-            { 12, ("monorail.png", "#cab2d6") },
-            { 100, ("bicycle.png", "#a6cee3") },
-            { 101, ("scooter.png", "#ff7f00") },
-            { 200, ("airplane.png", "#b2df8a") }
-        };
-
         return Enum.GetValues<RouteType>()
             .Select(rt =>
             {
@@ -188,8 +207,8 @@ public class OperatorManager
                     RouteType.Airplane => "Airplane",
                     _ => rt.ToString()
                 };
-                icons.TryGetValue(id, out var meta);
-                return new { Id = id, Name = name, IconFile = meta.Icon ?? $"{rt.ToString().ToLowerInvariant()}.png", Color = meta.Color ?? "#808080" };
+                RouteTypeIcons.TryGetValue(id, out var meta);
+                return new { Id = id, Name = name, IconFile = meta.Icon ?? $"{rt.ToString().ToLowerInvariant()}.png", Color = meta.Color ?? DefaultRouteTypeColor };
             })
             .ToList<object>();
     }
@@ -270,17 +289,20 @@ public class OperatorManager
 
     public async Task<bool> DeleteAsync(string globalId, CancellationToken ct)
     {
-        var op = await _db.Operators
-            .Include(o => o.Agencies)
-            .Include(o => o.Feeds)
-            .Include(o => o.Routes)
-            .Include(o => o.StationOperators)
-            .AsSplitQuery()
-            .FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
+        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == globalId, ct);
 
         if (op is null) return false;
 
-        var totalAssociations = op.Agencies.Count + op.Feeds.Count + op.Routes.Count + op.StationOperators.Count;
+        // Counted in the database rather than loaded. This used to Include all four collections and
+        // count them in memory, so refusing to delete a busy operator first pulled every route and
+        // every station association it has into the change tracker — thousands of entities
+        // materialised to produce a number on the path that then throws them away.
+        var totalAssociations =
+            await _db.Agencies.CountAsync(a => a.OperatorId == op.Id, ct)
+            + await _db.Feeds.CountAsync(f => f.OperatorId == op.Id, ct)
+            + await _db.CanonicalRoutes.CountAsync(r => r.OperatorId == op.Id, ct)
+            + await _db.CanonicalStationOperators.CountAsync(cso => cso.OperatorId == op.Id, ct);
+
         if (totalAssociations > 0)
             throw new AppException($"Cannot delete operator: has {totalAssociations} associated record(s). Remove associations first.", 409);
 
@@ -297,8 +319,13 @@ public class OperatorManager
 
         // Capped like the sibling GetRoutesAsync. A large operator returned every station it serves
         // in one unbounded response.
+        //
+        // Ordered because the cap makes ordering load-bearing: TOP without ORDER BY lets SQL Server
+        // return any 500 rows it likes, so an operator with more stations than the ceiling showed a
+        // different arbitrary subset on each request, with no way to reach the rest.
         return await _db.CanonicalStationOperators
             .Where(cso => cso.OperatorId == op.Id)
+            .OrderBy(cso => cso.CanonicalStationId)
             .Select(cso => cso.CanonicalStation)
             .Take(MaxAssociatedRecords)
             .Select(StationMapper.ToResponseExpression)
@@ -312,6 +339,7 @@ public class OperatorManager
 
         return await _db.CanonicalRoutes
             .Where(r => r.OperatorId == op.Id && r.IsActive)
+            .OrderBy(r => r.Id)
             .Take(MaxAssociatedRecords)
             .Select(RouteMapper.ToResponseExpression)
             .ToListAsync(ct);

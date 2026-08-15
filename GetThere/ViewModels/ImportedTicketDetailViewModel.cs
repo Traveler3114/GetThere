@@ -160,6 +160,36 @@ public partial class ImportedTicketDetailViewModel : BaseViewModel
         HasPayloadImage = PayloadImage is not null;
         HasPayloadText = !HasNoPayload && !HasPayloadImage;
 
+        // ── Known defect: an imported ticket's validity is a calendar date, not an instant, and
+        //    ToLocalTime shifts it. Recorded rather than changed, because the same two lines are
+        //    correct on the purchased screen and the split needs a device to check.
+        //
+        // The write side is deliberate and documented in ImportTicketViewModel.Save: the picked days
+        // are sent unconverted (ValidFrom.Date, ValidTo.Date.AddDays(1).AddTicks(-1)), and
+        // ImportedTicketManager.ToUtc stamps Unspecified as UTC "at face value". Nothing converts on
+        // the way back either — GetThereAPI's DbContext has no DateTime value converter, so SQL
+        // Server returns Unspecified and it serialises without a Z.
+        //
+        // So ToLocalTime here re-introduces exactly the shift the write side was fixed to avoid.
+        // A ticket the user marked valid on 29 July renders as:
+        //
+        //     UTC+2 (Zagreb)     29 Jul · 02:00  →  30 Jul · 01:59     end date wrong
+        //     UTC-5 (New York)   28 Jul · 19:00  →  29 Jul · 18:59     start date wrong
+        //     UTC                29 Jul · 00:00  →  29 Jul · 23:59     correct
+        //
+        // Only exactly UTC displays it right. East of UTC the 23:59:59.9999999 end-of-day crosses
+        // midnight; west of UTC the midnight start falls back a day.
+        //
+        // The list disagrees with this screen about the same field: WalletTicket keeps ValidFrom and
+        // ValidTo raw and TicketValidity.IsPastValidity compares them against DateTime.UtcNow. So
+        // the wallet list and this detail view can show different dates for one ticket.
+        //
+        // Why not simply drop the two ToLocalTime calls: TicketDetailViewModel has the identical
+        // pair for *purchased* tickets, whose validity comes from an operator SDK
+        // (TicketingManager: ValidFrom = result.Ticket.ValidFrom) and is a genuine instant, where
+        // converting is right. JourneyDetailViewModel mixes both kinds in one list and already
+        // carries Leg.IsImported for exactly this sort of distinction. Getting that split right is a
+        // change to make with the app in front of you in a non-UTC timezone.
         DepartsText = ticket.ValidFrom?.ToLocalTime().ToString("dd MMM · HH:mm") ?? dash;
         ArrivesText = ticket.ValidTo?.ToLocalTime().ToString("dd MMM · HH:mm") ?? dash;
 

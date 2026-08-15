@@ -44,6 +44,14 @@ public class ImportSyncService
     /// being gone, and hammering the rest of the queue against a dead connection only burns battery;
     /// the next call picks up where this one stopped.
     /// </para>
+    /// <para>
+    /// <b>The gate below is "someone is signed in", not "this is whose tickets these are."</b> It
+    /// cannot be the latter: <see cref="PendingImportQueue"/> records no owner, so on a device that
+    /// two people have used, this pushes the first person's queued tickets into the second person's
+    /// account. See the note on that class — the fix belongs there, and it is a product decision
+    /// rather than a one-line change, because a guest's entries are meant to follow the next
+    /// sign-in.
+    /// </para>
     /// </remarks>
     public async Task<int> FlushAsync()
     {

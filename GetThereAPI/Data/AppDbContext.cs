@@ -78,6 +78,21 @@ public class AppDbContext : IdentityDbContext<AppUser>
             entity.Property(wt => wt.Amount).HasPrecision(18, 2);
             entity.Property(wt => wt.BalanceBefore).HasPrecision(18, 2);
             entity.Property(wt => wt.BalanceAfter).HasPrecision(18, 2);
+
+            // NOTE: Type and ReferenceId still have no length, so both are nvarchar(max) and neither
+            // can be indexed — which is why TicketingManager.RefundAsync's duplicate-refund guard
+            // takes its UPDLOCK/HOLDLOCK range lock over a full table scan and serialises every
+            // refund in the system against every other.
+            //
+            // The fix is HasMaxLength(32)/HasMaxLength(64) plus a filtered unique index on
+            // (Type, ReferenceId). It was written here and then reverted, deliberately: a model
+            // change without its migration is not inert. EF Core turns PendingModelChangesWarning
+            // into an error inside Database.Migrate(), so all three database-backed fixtures threw
+            // on construction and 54 tests failed — the model change has to land in the same commit
+            // as `dotnet ef migrations add AddWalletTransactionRefundIndex`, which needs an SDK.
+            //
+            // docs/database-drift.md carries the full statement of the problem and what to check
+            // when generating it.
             entity.HasOne(wt => wt.Wallet)
                   .WithMany(w => w.Transactions)
                   .HasForeignKey(wt => wt.WalletId);

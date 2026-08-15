@@ -33,7 +33,7 @@ breaks compilation on both sides at once instead of failing silently over the wi
 | [Ticket import / extraction](#ticket-import--extraction) | `TicketExtractionResult`, `ExtractTicketTextRequest`, `TicketUploadResponse` |
 | [Journeys](#journeys) | `CreateJourneyRequest`, `UpdateJourneyRequest`, `JourneyMembershipRequest`, `JourneyLegResponse`, `JourneyResponse`, `JourneySuggestionResponse` |
 | [Wallet](#wallet) | `WalletResponse`, `WalletTransactionResponse`, `TopUpRequest` |
-| [Map](#map) | `MapStationResponse`, `MapRouteResponse`, `MapMobilityStationResponse`, `MapVehicleResponse`, `MapDepartureResponse`, `MapOperatorResponse` |
+| [Map](#map) — **superseded, deleted 2026-08-02** | ~~`MapStationResponse`, `MapRouteResponse`, `MapMobilityStationResponse`, `MapVehicleResponse`, `MapDepartureResponse`, `MapOperatorResponse`~~ |
 | [Admin](#admin) | `UserListItem`, `AdminStats`, `PurchaseListItem`, `AdapterHealthItem`, `AuditLogEntry` |
 | [Roles](#roles) | `RoleDto`, `UserDto` |
 | [Settings & countries](#settings--countries) | `UserSettingsResponse`, `UpdateSettingsRequest`, `CountryResponse` |
@@ -394,10 +394,23 @@ would silently reshuffle someone's wallet.
 
 ## Map
 
-`Contracts/MapContract.cs`
+> **SUPERSEDED, 2026-08-02. None of the six types below exist, and neither does
+> `Contracts/MapContract.cs`.** They were the client-facing shapes GetThereAPI re-mapped map data
+> into while it proxied TransitInfoAPI. That proxy is gone: the map page moved to TransitInfoAPI and
+> the client loads it from there, same-origin with the data it reads, so the passthrough, the
+> allow-list, the service-account hop and these DTOs were deleted rather than maintained. See
+> [../getthere-api/transit-integration.md](../getthere-api/transit-integration.md) and
+> [../../map-proxy-migration.md](../../map-proxy-migration.md), both of which carry the full account.
+>
+> Kept as a record of the shapes, because the tables below are the only written description of what
+> the map consumed — and anything that re-proxies upstream in future will need roughly them again.
+> **Read it as history, not as a description of running code.** The map's live contracts are
+> TransitInfoAPI's own, in `TransitInfoAPI.Contracts`.
 
-Client-facing shapes for map data. `GetThereAPI` proxies TransitInfoAPI and re-maps into these, so
-the client never holds a TransitInfoAPI type or credential.
+`Contracts/MapContract.cs` *(deleted)*
+
+Client-facing shapes for map data, from when `GetThereAPI` proxied TransitInfoAPI and re-mapped into
+these so the client never held a TransitInfoAPI type or credential.
 
 ### `MapStationResponse`
 

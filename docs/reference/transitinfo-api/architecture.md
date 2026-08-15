@@ -53,6 +53,8 @@ and maps the responses into its own types. Nothing here knows GetThereAPI exists
 Controllers/   HTTP shape only
 Managers/      Business logic and database access
 Services/      GtfsParser, GtfsZipSource, ExternalFeedSource, ImportLogStore, DynamicClaimsTransformation
+               CustomHttpSource, CustomSourceEngine, DocumentTableReader, SecretProtector
+               CustomSourceStorage, FeedStorage
 Workers/       Three BackgroundServices that keep data fresh
 Core/          ITransitSource + TransitDocument, TransitSourceResolver, GBFS models
 Entities/      EF Core model
@@ -67,8 +69,13 @@ because their lifetimes genuinely differ:
 
 | Lifetime | Services | Why |
 |---|---|---|
-| **Scoped** | `FeedManager`, `ReconciliationManager`, `StationManager`, `RouteManager`, `OperatorManager`, `ScheduleManager`, `PlaceMatchingManager`, `MobilityManager`, `CountryManager`, `GtfsParser`, auth managers | Hold a `DbContext` |
-| **Singleton** | `RealtimeManager`, `OnestopIdManager`, `ImportLogStore`, `ExternalFeedSource` | Hold process-wide state or are pure |
+| **Scoped** | `FeedManager`, `ReconciliationManager`, `StationManager`, `RouteManager`, `OperatorManager`, `ScheduleManager`, `PlaceMatchingManager`, `MobilityManager`, `CountryManager`, `PlaceManager`, `CustomSourceManager`, `GtfsParser`, `CustomSourceEngine`, `CustomHttpSource`, `GtfsZipSource`, `CustomExtractorRegistry`, `TransitDocumentCompleter`, `TransitSourceResolver`, auth managers (`TokenManager`, `AuthManager`, `RolePermissionManager`) | Hold a `DbContext`, or depend on something that does |
+| **Singleton** | `RealtimeManager`, `OnestopIdManager`, `ImportLogStore`, `ExternalFeedSource`, `SecretProtector` | Hold process-wide state, or are pure |
+| **Transient** | `DynamicClaimsTransformation` (as `IClaimsTransformation`) | ASP.NET Core resolves it per request |
+
+`SecretProtector` is a singleton because it wraps `IDataProtectionProvider`, which is itself a
+singleton and keeps the key ring. It is what encrypts a custom source's `AuthConfig` before it
+reaches the column — see [endpoints.md](endpoints.md#custom-sources--customsourcescontroller).
 
 `RealtimeManager` being a **singleton is load-bearing** — it holds the in-memory vehicle and trip-update
 caches, which are the live data. It takes an `IServiceScopeFactory` rather than a `DbContext`, because
@@ -211,8 +218,11 @@ getthere-api             Client  ← GetThereAPI's service account
 
 > **The `getthere-api` account is dormant as of 2026-08-02.** GetThereAPI no longer calls this
 > service — `TransitInfoApiClient` and the whole map proxy were removed — so nothing authenticates
-> with it. It is still seeded, because seeding it is harmless and removing it is a decision about
-> this service's own user store, not about the integration. Delete it if you want the surface gone.
+> with it. It was still *seeded* for another eight days — the audit of 2026-08-10 removed that, along
+> with `Seed:ServiceAccountPassword`, which nothing reads now. Seeding it was not in fact harmless:
+> it recreated a `Client`-role account with read access to the whole dataset on every boot, with no
+> caller, and in Development wrote its password to `.service-account-credentials` on disk. Databases
+> stamped before that still hold the row and should have it deleted.
 >
 > This also retires what was **the single most common integration failure between the two services**:
 > `Seed:ServiceAccountPassword` here had to equal GetThereAPI's `TransitInfoApi:ClientSecret`, two
@@ -255,7 +265,6 @@ garbage. It is the recovery half of the "no single transaction" trade-off explai
 | `Jwt:Key` | — | **Required**, ≥32 bytes, not `CHANGE-ME` |
 | `Jwt:Issuer` / `Audience` | — | Validated on every token |
 | `Seed:AdminPassword` | — | Required outside Development |
-| `Seed:ServiceAccountPassword` | — | **Must match GetThereAPI's `ClientSecret`** |
 | `FeedPolling:IntervalMinutes` | 60 | Static feed check interval |
 | `FeedPolling:MaxConsecutiveFailuresBeforeDeactivate` | 10 | Auto-disable a broken feed |
 | `FeedImport:BulkCommandTimeoutSeconds` | 600 | Bulk statements far exceed the 30 s default |

@@ -108,9 +108,31 @@ function fitMapToShape(geometry) {
   map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
 }
 
+// Reverts the drawing to the last shape the server confirmed — the one fetched on load, or the one
+// written back after the most recent successful save.
+//
+// It used to say "Reset to auto-generated shape" and call location.reload(), which promised
+// something it could not do. The reload re-fetches GET /routes/{id}/shape — the *saved* shape — so
+// after a save it reloaded the very manual shape it claimed to be replacing. The auto-generated
+// geometry is not recoverable at that point: PUT overwrote it, and AutoGenerateShapesIfMissing lives
+// inside FeedManager's import path with no endpoint in front of it, since RoutesController exposes
+// only GET and PUT for a shape. A true "reset to auto" still needs a regenerate endpoint.
+//
+// Reverting in place also keeps the route name, badge and stop markers already on the map instead of
+// re-fetching all three, and `originalGeometry` is deep-copied on the way out so MapboxDraw editing
+// the restored line cannot mutate the copy this reads next time.
 function resetShape() {
-  if (!confirm('Reset to auto-generated shape? This will discard your manual edits.')) return;
-  location.reload();
+  if (!originalGeometry) {
+    showToast('Nothing to revert to — no shape was loaded for this route.', 'error');
+    return;
+  }
+
+  if (!confirm('Revert to the last saved shape? Your unsaved edits will be discarded.')) return;
+
+  const geometry = JSON.parse(JSON.stringify(originalGeometry));
+  initDraw(geometry);
+  fitMapToShape(geometry);
+  showToast('Reverted to the last saved shape', 'success');
 }
 
 function initDraw(geometry) {

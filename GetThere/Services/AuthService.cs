@@ -190,7 +190,15 @@ public class AuthService : IDisposable
             var handler = new JwtPayloadReader(token);
             return handler.GetGivenName();
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            // Logged for the same reason GetOwnerKeyAsync logs its claim read: returning null here
+            // is not inert. ProfileViewModel treats a null name *and* a null email as "this is a
+            // guest" and renders the signed-out profile — so an unreadable token quietly demotes a
+            // signed-in user, and without this line there is nothing anywhere to say why.
+            Trace.WriteLine($"[AuthService] Could not read the name claim: {ex.Message}");
+            return null;
+        }
     }
 
     public async Task<string?> GetEmailAsync()
@@ -203,7 +211,11 @@ public class AuthService : IDisposable
             var handler = new JwtPayloadReader(token);
             return handler.GetEmail();
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"[AuthService] Could not read the email claim: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>Preference holding the id used to file a signed-out user's own data.</summary>

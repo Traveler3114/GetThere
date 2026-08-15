@@ -98,8 +98,19 @@ public static class MauiProgram
         // As a transient, every consumer got its own cache (so the cache never hit) and its own
         // refresh lock (so concurrent requests each rotated the refresh token, and the loser was
         // logged out). It also allocates its own HttpClient, which must not be per-instance.
+        //
+        // The timeout is set here for the same reason the named client below sets one: without it
+        // this client uses HttpClient's default of 100 seconds, so login, registration and token
+        // refresh were the only calls in the app that waited more than three times as long as
+        // everything else before admitting the network was gone. A refresh is the worse of the two
+        // — AuthenticatedHttpHandler awaits it mid-request after a 401, so the delay lands on top
+        // of a request the user is already waiting on.
         builder.Services.AddSingleton<AuthService>(_ =>
-            new AuthService(new HttpClient { BaseAddress = new Uri(apiBase) }));
+            new AuthService(new HttpClient
+            {
+                BaseAddress = new Uri(apiBase),
+                Timeout = TimeSpan.FromSeconds(30)
+            }));
 
         builder.Services.AddTransient<AuthenticatedHttpHandler>();
 

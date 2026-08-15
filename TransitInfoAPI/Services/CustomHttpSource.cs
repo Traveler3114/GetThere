@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -29,6 +30,7 @@ public class CustomHttpSource : ITransitSource
     private readonly IWebHostEnvironment _env;
     private readonly CustomExtractorRegistry _extractors;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly SecretProtector _secrets;
     private readonly ILogger<CustomHttpSource> _logger;
 
     public CustomHttpSource(
@@ -39,6 +41,7 @@ public class CustomHttpSource : ITransitSource
         IWebHostEnvironment env,
         CustomExtractorRegistry extractors,
         IHttpClientFactory httpFactory,
+        SecretProtector secrets,
         ILogger<CustomHttpSource> logger)
     {
         _db = db;
@@ -48,6 +51,7 @@ public class CustomHttpSource : ITransitSource
         _env = env;
         _extractors = extractors;
         _httpFactory = httpFactory;
+        _secrets = secrets;
         _logger = logger;
     }
 
@@ -248,7 +252,7 @@ public class CustomHttpSource : ITransitSource
 
         foreach (var request in source.Requests.OrderBy(r => r.SortOrder))
         {
-            var extraction = await _engine.ExecuteAsync(request, source.AuthConfig, maxRowsPerRequest, ct);
+            var extraction = await _engine.ExecuteAsync(request, _secrets.Unprotect(source.AuthConfig), maxRowsPerRequest, ct);
             snapshot.Log.AddRange(extraction.Log);
             snapshot.Warnings.AddRange(extraction.Warnings);
 
@@ -323,9 +327,9 @@ public class CustomHttpSource : ITransitSource
             var lat = Num(row, "StopLat");
             var lon = Num(row, "StopLon");
 
-            // Same range check the GTFS parser applies: a (0,0) stop puts a pin in the Atlantic and
-            // drags the feed's convex hull with it.
-            if (lat is null || lon is null || lat is < -90 or > 90 || lon is < -180 or > 180 || (lat == 0 && lon == 0))
+            // The shared predicate the GTFS parser also applies: a (0,0) stop puts a pin in the
+            // Atlantic and drags the feed's convex hull with it.
+            if (lat is null || lon is null || !GeoBounds.IsUsable(lat.Value, lon.Value))
             {
                 dropped++;
                 continue;
@@ -505,29 +509,46 @@ public class CustomHttpSource : ITransitSource
         return string.IsNullOrWhiteSpace(s) ? null : s;
     }
 
+    /// <summary>
+    /// Reads a numeric field, treating anything that is not a finite number as absent.
+    /// <para>
+    /// The finiteness check is not decoration. JSON cannot express NaN, but a source is free to send
+    /// the <em>string</em> <c>"NaN"</c> — or <c>"Infinity"</c> — and <c>double.TryParse</c> accepts
+    /// both against <c>InvariantCulture</c>'s symbols, so the value reached <c>ToStops</c> as a real
+    /// NaN. Every comparison against NaN is false, so <c>lat is &lt; -90 or &gt; 90</c> did not
+    /// reject it and <c>lat == 0 &amp;&amp; lon == 0</c> did not either: the coordinate guard, which
+    /// exists precisely to keep junk out of the feed's geometry, passed it straight through to a
+    /// SQL Server <c>float</c> column that has no NaN to store it in. The import then failed on a
+    /// bulk-copy error naming neither the stop nor the reason, instead of dropping one row with a
+    /// warning.
+    /// </para>
+    /// <para>
+    /// Returning null here fixes it for every caller rather than only for coordinates —
+    /// <c>(int?)double.NaN</c> is 0 under .NET's saturating conversions, so a NaN
+    /// <c>LocationType</c> or <c>StopSequence</c> silently became a meaningful 0.
+    /// </para>
+    /// </summary>
     private static double? Num(Dictionary<string, object?> row, string key)
     {
         if (!row.TryGetValue(key, out var value) || value is null) return null;
 
         // Snapshot round-tripping turns every scalar into a JsonElement, so this has to handle both
         // the freshly-extracted and the deserialized shape.
-        if (value is JsonElement je)
+        double? parsed = value switch
         {
-            return je.ValueKind switch
-            {
-                JsonValueKind.Number => je.GetDouble(),
-                JsonValueKind.String => double.TryParse(je.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var p) ? p : null,
-                _ => null
-            };
-        }
-
-        return value switch
-        {
+            JsonElement { ValueKind: JsonValueKind.Number } number => number.GetDouble(),
+            JsonElement { ValueKind: JsonValueKind.String } text => Parse(text.GetString()),
+            JsonElement => null,
             double d => d,
             long l => l,
             int i => i,
-            _ => double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : null
+            _ => Parse(value.ToString())
         };
+
+        return parsed is { } result && double.IsFinite(result) ? result : null;
+
+        static double? Parse(string? raw) =>
+            double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var fromText) ? fromText : null;
     }
 
     private async Task<CustomSource?> LoadSourceAsync(Feed feed, CancellationToken ct) =>

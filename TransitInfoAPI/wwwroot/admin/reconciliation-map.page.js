@@ -445,7 +445,12 @@ function reFetchCandidate(id) {
   fetch('/reconciliation/' + id)
     .then(r => { if (!r.ok) throw new Error('Failed to re-fetch'); return r.json(); })
     .then(data => renderSidebar(data))
-    .catch(() => {});
+    // Surfaced rather than swallowed. This runs straight after an approve or reject has already
+    // succeeded, so a silent failure leaves the sidebar showing the pre-action state — and the
+    // obvious response to that is to click the action a second time. Saying which half failed is
+    // the difference between "try again" and "reload the page".
+    .catch(err => alert('The action succeeded, but the panel could not be refreshed: ' + err.message
+      + '\nReload the page to see the current state.'));
 }
 
 function reFetchStationTimeline(id) {
@@ -480,7 +485,11 @@ function reFetchStationTimeline(id) {
       });
       map.fitBounds(bounds, { padding: 80, maxZoom: 17 });
     })
-    .catch(() => {});
+    // Same reasoning as reFetchCandidate: this is the post-action refresh, and the two fetches above
+    // already build distinct messages ('Station not found' vs 'Failed to load candidates') that were
+    // being thrown only to be discarded.
+    .catch(err => alert('The action succeeded, but the timeline could not be refreshed: ' + err.message
+      + '\nReload the page to see the current state.'));
 }
 
 map.on('load', () => {

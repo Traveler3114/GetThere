@@ -24,7 +24,7 @@ public class MobilityController : ControllerBase
         [FromQuery] double? lat,
         [FromQuery] double? lon,
         [FromQuery] double? radiusKm,
-        [FromQuery] int page = 1,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         [FromQuery] string? format = null,
         [FromQuery] string? countryName = null,
@@ -32,12 +32,14 @@ public class MobilityController : ControllerBase
     {
         if (string.Equals(format, "geojson", StringComparison.OrdinalIgnoreCase))
         {
-            var fc = await _mobility.GetAllGeoJsonAsync(lat, lon, radiusKm, null, 5000, ct);
+            var fc = await _mobility.GetAllGeoJsonAsync(lat, lon, radiusKm, null, countryName, 5000, ct);
             return Ok(fc);
         }
 
-        var result = await _mobility.GetAllAsync(lat, lon, radiusKm, null, page, perPage, ct);
-        var total = await _mobility.GetTotalCountAsync(lat, lon, radiusKm, null, ct);
+        // countryName is now passed through. It was accepted here and handed to nothing, so the
+        // admin console's country filter built the query string and the server silently ignored it.
+        var result = await _mobility.GetAllAsync(lat, lon, radiusKm, null, countryName, page, perPage, ct);
+        var total = await _mobility.GetTotalCountAsync(lat, lon, radiusKm, null, countryName, ct);
         return Ok(new Paginated<MobilityStationResponse>(result, total, page, perPage));
     }
 

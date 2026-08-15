@@ -17,6 +17,34 @@ public sealed class LocalizationService
 
     public CultureInfo CurrentCulture { get; private set; } = CultureInfo.CurrentUICulture;
 
+    /// <summary>
+    /// Raised after <see cref="SetCulture"/>. <b>Nothing subscribes to it.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It exists because the problem it solves is real, and it is worth stating that the problem is
+    /// therefore still there. Every string in the app resolves <em>once</em>:
+    /// <see cref="TranslateExtension"/> is a markup extension whose <c>ProvideValue</c> returns a
+    /// plain <c>string</c> at XAML parse time rather than a binding, so a page keeps whatever
+    /// language it was constructed in; and <c>AppShell</c> reads its tab titles once in
+    /// <c>BuildNavigation</c>, from a constructor that runs once because the shell is registered
+    /// <c>AddSingleton</c>.
+    /// </para>
+    /// <para>
+    /// So switching language in Profile → Language does not change the app's language. The switch
+    /// calls <c>App.GoToApp()</c> straight after this, evidently meaning to rebuild the UI — but
+    /// that resolves the same singleton <c>AppShell</c> instance it is already showing, so the tab
+    /// bar and the visible page stay as they were. Pages are transient, so navigating somewhere new
+    /// afterwards does pick the new culture up, which is what makes this look intermittent rather
+    /// than broken.
+    /// </para>
+    /// <para>
+    /// Fixing it is a design choice rather than a line: subscribe here and rebuild the shell,
+    /// register <c>AppShell</c> as transient so <c>GoToApp</c> constructs a fresh one, or make
+    /// <see cref="TranslateExtension"/> return a binding that tracks this event. The last is the
+    /// only one that also updates a page already on screen.
+    /// </para>
+    /// </remarks>
     public event EventHandler? CultureChanged;
 
     private LocalizationService() { }

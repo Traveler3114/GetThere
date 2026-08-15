@@ -17,6 +17,13 @@ using TransitInfoAPI.Enums;
 using TransitInfoAPI.Mapping;
 using TransitInfoAPI.Services;
 
+// Aliased rather than `using System.Globalization;`, which does not compile here: this file writes
+// GTFS Calendar entities, and System.Globalization has a Calendar of its own, so importing the whole
+// namespace makes every `new Calendar { ... }` below an ambiguous reference (CS0104). Only the two
+// types the date parsing needs are pulled in.
+using CultureInfo = System.Globalization.CultureInfo;
+using DateTimeStyles = System.Globalization.DateTimeStyles;
+
 namespace TransitInfoAPI.Managers;
 
 /// <summary>Tunables for the GTFS import path.</summary>
@@ -977,8 +984,8 @@ public class FeedManager
                 Friday = c.Friday == 1,
                 Saturday = c.Saturday == 1,
                 Sunday = c.Sunday == 1,
-                StartDate = DateOnly.ParseExact(c.StartDate, "yyyyMMdd"),
-                EndDate = DateOnly.ParseExact(c.EndDate, "yyyyMMdd")
+                StartDate = DateOnly.ParseExact(c.StartDate, "yyyyMMdd", CultureInfo.InvariantCulture),
+                EndDate = DateOnly.ParseExact(c.EndDate, "yyyyMMdd", CultureInfo.InvariantCulture)
             });
 
         foreach (var cd in calendarDates)
@@ -988,11 +995,23 @@ public class FeedManager
                 _logger.LogWarning("Skipping calendar_date with invalid exception_type {Type} for service {ServiceId}", cd.ExceptionType, cd.ServiceId);
                 continue;
             }
+            // NOTE: ParseExact throws, unlike everything around it. The guard directly above skips a
+            // bad exception_type with a warning, ParseStops drops stops with impossible coordinates
+            // and counts them, and ParseGtfsTimeToSeconds returns null so the stop_time is skipped —
+            // the pipeline's whole convention for malformed operator data is skip-and-log. One
+            // unparseable date in calendar_dates.txt instead throws, which HandleImportErrorAsync
+            // turns into a failed import: the entire feed is rejected over one row.
+            //
+            // Left as-is because the alternative is not obviously better. Dropping a calendar_date
+            // silently loses a service *exception*, and the ones that matter most say "this service
+            // does NOT run today" — so a skipped row shows departures for a service that is not
+            // running, which is worse than showing none. Changing it means deciding that explicitly,
+            // and probably surfacing the count the way droppedStops already is.
             _db.CalendarDates.Add(new CalendarDate
             {
                 FeedVersionId = feedVersionId,
                 ServiceId = cd.ServiceId,
-                Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd"),
+                Date = DateOnly.ParseExact(cd.Date, "yyyyMMdd", CultureInfo.InvariantCulture),
                 ExceptionType = cd.ExceptionType
             });
         }
@@ -1056,7 +1075,14 @@ public class FeedManager
         {
             DestinationTableName = "StopTimes",
             BatchSize = 50000,
-            BulkCopyTimeout = 180
+
+            // The configured timeout, not a hardcoded 180. FeedImport:BulkCommandTimeoutSeconds
+            // exists because "bulk statements far exceed the 30 s default", and every other
+            // long-running step of the import honours it — but this one, the longest of them and the
+            // one that streams millions of stop_times rows, quietly used its own smaller number. So
+            // raising the setting to get a big feed through had no effect on the operation most
+            // likely to need it.
+            BulkCopyTimeout = _bulkCommandTimeoutSeconds
         };
 
         // Mapped by source *ordinal*, not by source name. ObjectArrayReader below is positional —
@@ -1331,16 +1357,16 @@ public class FeedManager
 
         if (calendar.Count > 0)
         {
-            if (DateOnly.TryParseExact(calendar.Min(c => c.StartDate), "yyyyMMdd", out var start))
+            if (DateOnly.TryParseExact(calendar.Min(c => c.StartDate), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
                 version.ServiceLevelStart = start;
-            if (DateOnly.TryParseExact(calendar.Max(c => c.EndDate), "yyyyMMdd", out var end))
+            if (DateOnly.TryParseExact(calendar.Max(c => c.EndDate), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
                 version.ServiceLevelEnd = end;
         }
         else if (calendarDates.Count > 0)
         {
-            if (DateOnly.TryParseExact(calendarDates.Min(cd => cd.Date), "yyyyMMdd", out var start))
+            if (DateOnly.TryParseExact(calendarDates.Min(cd => cd.Date), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
                 version.ServiceLevelStart = start;
-            if (DateOnly.TryParseExact(calendarDates.Max(cd => cd.Date), "yyyyMMdd", out var end))
+            if (DateOnly.TryParseExact(calendarDates.Max(cd => cd.Date), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
                 version.ServiceLevelEnd = end;
         }
 
@@ -1400,7 +1426,16 @@ public class FeedManager
             await errConn.OpenAsync(ct);
             await using var cmd = errConn.CreateCommand();
             cmd.CommandText = "UPDATE FeedVersions SET ImportStatus = @status, ImportError = @error WHERE Id = @id";
-            cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@status", (int)FeedImportStatus.Failed));
+
+            // The enum NAME, not its ordinal. TransitDbContext applies EnumToStringConverter to every
+            // enum property in the model, so ImportStatus is an nvarchar holding "Failed" — and this
+            // raw command bypasses EF entirely, so nothing was applying that conversion. Passing
+            // (int)FeedImportStatus.Failed made SQL Server implicitly convert it and store the string
+            // "3", which no EF query could find: every `Where(fv => fv.ImportStatus ==
+            // FeedImportStatus.Failed)` compiles to `WHERE ImportStatus = N'Failed'` and matched
+            // none of the rows this method had written. Failed imports were invisible to the admin
+            // console's status filter for exactly that reason.
+            cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@status", nameof(FeedImportStatus.Failed)));
             cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@error", ex.InnerException?.Message ?? ex.Message));
             cmd.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@id", feedVersionId));
             await cmd.ExecuteNonQueryAsync(ct);
