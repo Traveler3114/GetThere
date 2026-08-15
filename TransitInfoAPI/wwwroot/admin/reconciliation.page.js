@@ -230,7 +230,7 @@ function renderMatchExplanation(item) {
   if (item.rawStopDetail && item.rawStopDetail.routes && item.rawStopDetail.routes.length > 0) {
     html += '<div class="mt-2"><span class="text-danger small fw-bold">Raw stop routes: </span>';
     html += item.rawStopDetail.routes.map(r =>
-      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+      `<span class="rt-badge me-1" style="background:${getRouteColor(r.routeType)}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
     ).join(' ');
     html += '</div>';
   }
@@ -244,7 +244,7 @@ function renderMatchExplanation(item) {
   if (item.suggestedStationDetail && item.suggestedStationDetail.routes && item.suggestedStationDetail.routes.length > 0) {
     html += '<div class="mt-2"><span class="text-success small fw-bold">Matched station routes: </span>';
     html += item.suggestedStationDetail.routes.map(r =>
-      `<span class="rt-badge me-1" style="background:${ROUTE_COLORS[r.routeType]||'#888'}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
+      `<span class="rt-badge me-1" style="background:${getRouteColor(r.routeType)}" title="${esc(r.name||'')} — ${esc(r.operatorName||'')}">${esc(r.shortName || r.name) || '?'}</span>`
     ).join(' ');
     html += '</div>';
   }

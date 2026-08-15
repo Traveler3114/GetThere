@@ -57,9 +57,8 @@ async function load() {
   // Deliberately not populated from the model: the server no longer returns the credential, only
   // whether one exists. Blank means "keep what is stored" on save.
   document.getElementById('fAuth').value = '';
-  document.getElementById('fAuthState').textContent = model.hasAuth
-    ? 'A credential is stored. Leave blank to keep it, or type a new one to replace it.'
-    : 'No credential stored.';
+  document.getElementById('fAuthClear').checked = false;
+  renderAuthState();
   document.getElementById('fActive').checked = !!model.isActive;
 
   renderRequests();
@@ -68,6 +67,40 @@ async function load() {
 
   document.getElementById('loading').classList.add('d-none');
   document.getElementById('editor').classList.remove('d-none');
+}
+
+// The auth field has three states and the server distinguishes all three, so the UI has to as well:
+// keep (blank box, box unticked), replace (a value typed in), clear (box ticked). A write-only field
+// cannot express "clear" on its own, because blank is already what "keep" looks like — which is why
+// this takes a checkbox rather than sending "" for an empty input.
+//
+// The two inputs are made mutually exclusive here rather than reconciled at save time: ticking the
+// box disables and empties the text input, so there is no state where the page shows a typed value
+// and a ticked box and the admin has to guess which one save will honour.
+function renderAuthState() {
+  const box = document.getElementById('fAuth');
+  const clearing = document.getElementById('fAuthClear').checked;
+
+  document.getElementById('fAuthClearWrap').classList.toggle('d-none', !model.hasAuth);
+  box.disabled = clearing;
+  if (clearing) box.value = '';
+
+  let state;
+  if (!model.hasAuth) state = 'No credential stored.';
+  else if (clearing) state = 'Saving will remove the stored credential. Untick to keep it.';
+  else state = 'A credential is stored. Leave blank to keep it, or type a new one to replace it.';
+
+  document.getElementById('fAuthState').textContent = state;
+}
+
+// `|| null` alone used to collapse clear into keep, so the editor could rotate a credential in but
+// never rotate one out — which is exactly what walking away from an integration needs. The server
+// has always distinguished the two: CustomSourceManager writes only `if (request.AuthConfig is not
+// null)`, SecretProtector.Protect passes blank through unchanged, and HasAuth is
+// `!IsNullOrWhiteSpace`, so an empty string genuinely removes the credential.
+function authConfigForSave() {
+  if (document.getElementById('fAuthClear').checked) return '';
+  return document.getElementById('fAuth').value.trim() || null;
 }
 
 function renderRequests() {
@@ -250,14 +283,7 @@ function collect() {
     serviceWindowStart: document.getElementById('fWindowStart').value || null,
     serviceWindowEnd: document.getElementById('fWindowEnd').value || null,
     extractorKey: document.getElementById('fExtractor').value.trim() || null,
-    // `|| null` collapses the two states the API distinguishes into one. The server treats null as
-    // "keep the stored credential" and an empty string as "clear it" — Protect passes blank through
-    // unchanged and HasAuth is `!IsNullOrWhiteSpace`, so "" genuinely removes it. Because a blank
-    // box becomes null here, the editor can replace a credential but has no way to remove one,
-    // which is exactly what rotating away from an integration needs. Adding it means a deliberate
-    // control ("Clear stored credential") rather than overloading the blank box, since blank
-    // already means keep and the field's own help text says so.
-    authConfig: document.getElementById('fAuth').value.trim() || null,
+    authConfig: authConfigForSave(),
     isActive: document.getElementById('fActive').checked,
     requests: model.requests.map(function (r) {
       return {
@@ -286,6 +312,15 @@ async function saveSource() {
   const j = await r.json().catch(function () { return null; });
   if (!r.ok) { status('Save failed: ' + esc((j && (j.detail || j.title)) || r.statusText), 'danger'); return; }
   model = j;
+
+  // Reset the write-only field against the response, not the request: the checkbox has done its
+  // job, and leaving it ticked against a source whose credential is now gone would arm a second
+  // clear that the state text no longer explains. `hasAuth` on the response is what actually
+  // happened, so renderAuthState reads the right thing after either a replace or a clear.
+  document.getElementById('fAuth').value = '';
+  document.getElementById('fAuthClear').checked = false;
+  renderAuthState();
+
   renderRequests();
   renderDiscoverTargets();
   status('Saved.', 'success');

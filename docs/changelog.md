@@ -2106,3 +2106,37 @@ reload would have re-fetched. A true "reset to auto" still needs a regenerate en
 
 Documenting a defect and leaving the misleading label in place was the wrong call. The write-up
 identified the fix and then stopped short of it; a reviewer had to point at the note to get it done.
+
+### Review round, second pass — two more, both right
+
+**`Object.hasOwn` is ES2022 and I put it on the public map.** The guard in `getRouteColor` was mine,
+added in `c998c65`. `route-colors.js` is loaded by nine pages including `map/public.html`, which
+anonymous visitors reach on whatever browser they have. `Object.hasOwn` landed in Safari 15.4
+(March 2022) — newer than the vendored MapLibre needs — so there is a window where the map renders
+and every route badge throws.
+
+The fix is not the compatible spelling of the same guard, because the guard was in the wrong place.
+`ROUTE_COLORS` is now `Object.assign(Object.create(null), {…})`, so nothing is inherited and a bare
+index is safe at every call site. That matters more than the compatibility point: **two call sites
+in `reconciliation.page.js` index the table directly** and never went through `getRouteColor`, so the
+original fix never reached them. Executed rather than reasoned about — on the old path
+`ROUTE_COLORS['constructor'] || '#888'` returns `function Object() { [native code] }` and
+`ROUTE_COLORS['__proto__']` returns `[object Object]`, both of which go straight into a `style`
+attribute; on the new one all of them return `#888`. Both sites now call `getRouteColor` as well, so
+the default lives in one place.
+
+**The credential-clearing control exists now.** The write-up at the site was right about the
+mechanism — `CustomSourceManager` writes only `if (request.AuthConfig is not null)`,
+`SecretProtector.Protect` passes blank through, and `HasAuth` is `!IsNullOrWhiteSpace`, so `""`
+genuinely removes a credential — and then left `|| null` in place, collapsing *clear* into *keep*.
+An admin could rotate a credential in and never out.
+
+A write-only field cannot express three states with one input, since blank already means keep. So:
+a "Clear stored credential on save" checkbox, shown only when one is stored, which disables and
+empties the text box while ticked so the page can never show a typed value and a ticked box at once.
+`authConfigForSave` returns `''` when ticked, the trimmed value when typed, `null` otherwise. The
+save handler resets both against the *response's* `hasAuth`, so a clear does not leave the box armed
+for a second one.
+
+That is twice in this review round that a finding was documented accurately and then not acted on.
+The write-up is the deliverable only when the fix cannot be verified here; neither of these was that.
