@@ -387,11 +387,19 @@ public class TicketingManager
         // first commits, and then sees the row it wrote. That is the part an EF `AnyAsync` cannot
         // express, which is why it is raw SQL.
         //
-        // The filtered unique index on (Type, ReferenceId) that this wanted now exists in the model
-        // — see AppDbContext — which is what makes the lock cheap. Without it neither column could
-        // be indexed at all (both were nvarchar(max)), so this range lock was taken over a full
-        // table scan and serialised every refund in the system against every other. The index is
-        // also the backstop: a writer that somehow passed this check still collides on insert.
+        // The filtered unique index on (Type, ReferenceId) that would make this lock cheap does NOT
+        // exist yet. AppDbContext carries the intended shape as a comment rather than as
+        // configuration, because a model change without its migration is not inert — EF Core raises
+        // PendingModelChangesWarning as an error inside Database.Migrate(), which every
+        // database-backed fixture calls — so it has to land in the same commit as
+        // `dotnet ef migrations add AddWalletTransactionRefundIndex`.
+        //
+        // So today neither column is indexable at all (both nvarchar(max)) and this range lock is
+        // taken over a full table scan, serialising every refund in the system against every other.
+        // Correct, and slower the larger WalletTransactions gets.
+        //
+        // When the index does land it is also the backstop: a writer that somehow passed this check
+        // still collides on insert. docs/database-drift.md has the migration and its pre-checks.
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         var refundMarker = WalletTransactionType.Refund.ToString();
         var existingRefunds = await _db.Database
