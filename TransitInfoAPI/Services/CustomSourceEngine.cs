@@ -295,11 +295,12 @@ public partial class CustomSourceEngine
         HttpClient http, string httpMethod, string url, string? authConfig,
         ExtractionResult result, string section, CancellationToken ct)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var origin))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
             throw new Exceptions.AppException("Source URL must be an absolute HTTP(S) URL.", 400, "INVALID_FEED_URL");
 
         var credentialed = !string.IsNullOrWhiteSpace(authConfig);
-        var current = origin;
+        Uri origin = parsed;
+        Uri current = origin;
         var method = new HttpMethod(httpMethod);
 
         for (var hop = 0; ; hop++)
@@ -329,14 +330,16 @@ public partial class CustomSourceEngine
                 return null;
             }
 
-            if (!Uri.TryCreate(current, location, out var next)
-                || next.Scheme is not ("http" or "https"))
+            if (!Uri.TryCreate(current, location, out var candidate)
+                || candidate.Scheme is not ("http" or "https"))
             {
                 result.Warnings.Add(
                     $"{section}: {(int)status} from {current.Host} pointed at something that is not an "
                     + "HTTP(S) URL — stopping.");
                 return null;
             }
+
+            Uri next = candidate;
 
             if (credentialed && !string.Equals(next.Host, origin.Host, StringComparison.OrdinalIgnoreCase))
             {
