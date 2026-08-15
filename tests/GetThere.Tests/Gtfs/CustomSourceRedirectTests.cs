@@ -95,6 +95,34 @@ public class CustomSourceRedirectTests
     }
 
     [Fact]
+    public async Task A_credentialed_source_redirected_to_another_port_on_the_same_host_is_refused()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.Port == 443
+            ? Redirect(HttpStatusCode.Found, "https://operator.test:8443/feed")
+            : Json("""[{"id":"A"}]"""));
+
+        var result = await ExecuteAsync(handler, "https://operator.test/feed", HeaderAuth);
+
+        Assert.Equal(443, Assert.Single(handler.Sent).Port);
+        Assert.Contains(result.Warnings, w => w.Contains("other than 443", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_plain_http_to_https_upgrade_is_the_one_origin_change_a_credential_survives()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.Scheme == "http"
+            ? Redirect(HttpStatusCode.MovedPermanently, "https://operator.test/feed")
+            : Json("""[{"id":"A"}]"""));
+
+        var result = await ExecuteAsync(handler, "http://operator.test/feed", HeaderAuth);
+
+        Assert.Equal(2, handler.Sent.Count);
+        Assert.Equal("http", handler.Sent[0].Scheme);
+        Assert.Equal("https", handler.Sent[1].Scheme);
+        Assert.Single(result.Rows);
+    }
+
+    [Fact]
     public async Task A_redirect_loop_stops_rather_than_running_forever()
     {
         var handler = new RecordingHandler(_ => Redirect(HttpStatusCode.Found, "https://operator.test/feed"));
@@ -158,7 +186,7 @@ public class CustomSourceRedirectTests
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
 
-    private sealed record SentRequest(string Host, string Scheme, string AbsolutePath, string? KeyHeader);
+    private sealed record SentRequest(string Host, string Scheme, int Port, string AbsolutePath, string? KeyHeader);
 
     /// <summary>
     /// Stands in for the primary handler, so it sees exactly what went on the wire. It follows no
@@ -176,7 +204,8 @@ public class CustomSourceRedirectTests
                 : null;
 
             Sent.Add(new SentRequest(
-                request.RequestUri!.Host, request.RequestUri.Scheme, request.RequestUri.AbsolutePath, key));
+                request.RequestUri!.Host, request.RequestUri.Scheme, request.RequestUri.Port,
+                request.RequestUri.AbsolutePath, key));
 
             return Task.FromResult(respond(request));
         }

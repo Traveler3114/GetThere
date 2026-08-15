@@ -278,9 +278,10 @@ public partial class CustomSourceEngine
     /// <item>Every hop is re-checked against the SSRF guard, so a redirect cannot walk into the
     /// server's own network. (The handler's <c>ConnectCallback</c> also covers this; the explicit
     /// check gives the operator a comprehensible message instead of a connect failure.)</item>
-    /// <item>A credentialed request that is redirected to a different host is <b>refused</b>, and
-    /// the credential is never sent to that host. Same rule for an https source redirected to plain
-    /// http on the same host, which would put the credential on the wire in clear.</item>
+    /// <item>A credentialed request is <b>refused</b> the moment a hop would leave the origin the
+    /// operator configured — a different host, an https source dropping to plain http, or a
+    /// different port on the same machine — and the credential is never sent. The one exception is
+    /// the plain http→https upgrade, which only improves matters.</item>
     /// <item>An unauthenticated source may redirect wherever it likes — there is nothing to leak,
     /// and public feed URLs move around.</item>
     /// </list>
@@ -350,6 +351,21 @@ public partial class CustomSourceEngine
                 result.Warnings.Add(
                     $"{section}: {current.Host} redirected from https to http and this source carries a "
                     + "credential — refusing to send it in clear.");
+                return null;
+            }
+
+            // Same host, same-or-better scheme, different port is still a different origin: ports on
+            // one machine are different services, and the operator configured one of them. The single
+            // exception is the plain http→https upgrade, where 80 becomes 443 precisely because the
+            // scheme improved.
+            var schemeUpgrade = origin.Scheme == "http" && next.Scheme == "https"
+                && origin.IsDefaultPort && next.IsDefaultPort;
+
+            if (credentialed && next.Port != origin.Port && !schemeUpgrade)
+            {
+                result.Warnings.Add(
+                    $"{section}: {current.Host} redirected to port {next.Port} and this source carries a "
+                    + $"credential — refusing to send it to a port other than {origin.Port}.");
                 return null;
             }
 

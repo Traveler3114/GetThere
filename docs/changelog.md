@@ -2065,15 +2065,17 @@ The fix takes the redirect away from the handler:
 
 - A new `"customsource"` named client with `AllowAutoRedirect = false`, separate from `"gtfs"`
   because GTFS archive URLs legitimately redirect and have no credential to lose.
-- `SendFollowingRedirectsAsync` issues each hop itself and decides *before* sending: an off-host
-  redirect on a credentialed source is refused and the credential never goes out; so is an
-  https → http downgrade on the same host. An unauthenticated source may redirect anywhere.
+- `SendFollowingRedirectsAsync` issues each hop itself and decides *before* sending. A credentialed
+  source is refused the moment a hop would leave the origin the operator configured — a different
+  host, an https → http downgrade, or a different port on the same machine — and the credential
+  never goes out. The one exception is the plain http → https upgrade, which only improves matters.
+  An unauthenticated source may redirect anywhere; there is nothing to leak.
 - Every hop re-runs the SSRF check, and the chain stops at five hops.
 - The send switched to `HttpCompletionOption.ResponseHeadersRead`, so `ReadCappedAsync`'s 32 MB
   ceiling is enforced while the body streams rather than after `HttpClient` has already buffered it
   — the same mistake in miniature.
 
-Six tests in `CustomSourceRedirectTests` assert on **what was sent**, not on what came back. That
+Eight tests in `CustomSourceRedirectTests` assert on **what was sent**, not on what came back. That
 distinction is the whole point: a test that only inspects the response passes against both the old
 code and the new one. One of them pins the client name, because reverting to `"gtfs"` would compile,
 pass everything else, and silently restore the defect.
