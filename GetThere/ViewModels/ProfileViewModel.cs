@@ -8,6 +8,7 @@ using GetThere.Helpers;
 using GetThere.Localization;
 using GetThere.Services;
 using GetThere.State;
+
 using GetThereShared.Contracts;
 
 namespace GetThere.ViewModels;

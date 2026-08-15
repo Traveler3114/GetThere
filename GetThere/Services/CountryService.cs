@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 
 using GetThereShared.Common;
 using GetThereShared.Contracts;
+
 using static GetThereShared.Common.HttpHelper;
 
 namespace GetThere.Services;

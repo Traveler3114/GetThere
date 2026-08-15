@@ -8,7 +8,7 @@ namespace GetThere.State;
 /// </summary>
 public class CountryPreferenceService
 {
-    private const string Key     = "selectedCountryId";
+    private const string Key = "selectedCountryId";
     private const string NameKey = "selectedCountryName";
 
     /// <summary>

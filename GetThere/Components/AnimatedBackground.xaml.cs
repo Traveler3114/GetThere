@@ -47,7 +47,7 @@ public partial class AnimatedBackground : ContentView
     public AnimatedBackground()
     {
         InitializeComponent();
-        
+
         // Unconditional: _initialized was never set true here, so this ran on every construction
         // anyway — and with the fields static that reset the velocities of every other instance.
         _blueVx = DriftSpeed;
@@ -85,7 +85,7 @@ public partial class AnimatedBackground : ContentView
     private void UpdatePositions()
     {
         const float dt = 1f / TargetFps; // fixed step; the loop paces itself with Task.Delay
-        
+
         var width = (float)CanvasView.Width;
         var height = (float)CanvasView.Height;
 
@@ -114,7 +114,7 @@ public partial class AnimatedBackground : ContentView
 
         if (_purpleX < 0 || _purpleX > width) _purpleVx *= -1;
         if (_purpleY < 0 || _purpleY > height) _purpleVy *= -1;
-        
+
         // Keep within bounds
         _blueX = Math.Clamp(_blueX, 0, width);
         _blueY = Math.Clamp(_blueY, 0, height);
@@ -150,7 +150,7 @@ public partial class AnimatedBackground : ContentView
         // We use XOffset/10 to make the pan subtler
         float finalBlueX = _blueX + (XOffset * 0.15f);
         float finalBlueY = _blueY + (YOffset * 0.15f);
-        
+
         float finalPurpleX = _purpleX - (XOffset * 0.15f);
         float finalPurpleY = _purpleY - (YOffset * 0.15f);
 
@@ -160,7 +160,7 @@ public partial class AnimatedBackground : ContentView
             paint.Shader = SKShader.CreateRadialGradient(
                 new SKPoint(finalBlueX, finalBlueY),
                 blueRadius,
-                new SKColor[] 
+                new SKColor[]
                 {
                     new SKColor(74, 132, 255, (byte)(255 * blueAlpha)),
                     isDarkTheme ? new SKColor(74, 132, 255, (byte)(255 * (blueAlpha * 0.22f))) : SKColors.Transparent,
@@ -174,7 +174,7 @@ public partial class AnimatedBackground : ContentView
             paint.Shader = SKShader.CreateRadialGradient(
                 new SKPoint(finalPurpleX, finalPurpleY),
                 purpleRadius,
-                new SKColor[] 
+                new SKColor[]
                 {
                     new SKColor(123, 63, 255, (byte)(255 * purpleAlpha)),
                     isDarkTheme ? new SKColor(123, 63, 255, (byte)(255 * (purpleAlpha * 0.22f))) : SKColors.Transparent,

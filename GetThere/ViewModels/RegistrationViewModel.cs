@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using GetThere.Helpers;
 using GetThere.Localization;
 using GetThere.Services;
+
 using GetThereShared.Contracts;
 
 namespace GetThere.ViewModels;
