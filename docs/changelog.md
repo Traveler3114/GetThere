@@ -1133,10 +1133,13 @@ operator's service area.
 
 ### Verified clean
 
-`CustomSourceEngine`'s SSRF handling, which is thorough: the connect-time guard covers redirects,
+~~`CustomSourceEngine`'s SSRF handling, which is thorough: the connect-time guard covers redirects,
 and `EnsureCredentialStayedHome` separately refuses a response that arrived on a different host than
 the one a credential was attached to — the case `HttpClient` does not cover, because it strips
-`Authorization` across origins but not the arbitrary header name the `header` auth mode sets.
+`Authorization` across origins but not the arbitrary header name the `header` auth mode sets.~~
+**Wrong, and wrong in this audit's characteristic way** — see *Correction: a guard that ran after
+the thing it guarded against* below. The connect-time guard and `DtdProcessing.Prohibit` stand.
+
 `CustomSourceStorage` resolves and containment-checks every path. `ParseXmlRows` parses with
 `DtdProcessing.Prohibit`, so the XXE vector is closed.
 
@@ -2036,3 +2039,68 @@ the kind of thing that is usually wrong:
   exception message.
 - Package versions are centralised in `Directory.Packages.props`, so the two services and the test
   project cannot drift onto different versions of the same dependency.
+
+---
+
+## Review round — three comments on PR #73
+
+All three were right. Two of them are defects this audit introduced, and one is a correction of a
+claim made in this changelog.
+
+### Correction: a guard that ran after the thing it guarded against
+
+`CustomSourceEngine.EnsureCredentialStayedHome` compared the host it requested with
+`response.RequestMessage.RequestUri.Host` and refused the response if they differed. The **Verified
+clean** section above described that as closing "the case `HttpClient` does not cover". The
+comparison was right; the conclusion was not.
+
+`AllowAutoRedirect` was never set anywhere in either service — `ConfigureFeedHandler` sets only
+`ConnectCallback` — so it defaulted to `true`. The redirect therefore happened *inside* `SendAsync`,
+before any code here saw a response. `HttpClient` strips `Authorization` across origins, but it
+strips nothing else, and `ApplyAuth`'s `header` mode sets an arbitrary header name — an API key, in
+practice. By the time the check ran, the key was already at the redirect target. Refusing the body
+stopped bad data being ingested. It could not un-send the credential.
+
+The fix takes the redirect away from the handler:
+
+- A new `"customsource"` named client with `AllowAutoRedirect = false`, separate from `"gtfs"`
+  because GTFS archive URLs legitimately redirect and have no credential to lose.
+- `SendFollowingRedirectsAsync` issues each hop itself and decides *before* sending: an off-host
+  redirect on a credentialed source is refused and the credential never goes out; so is an
+  https → http downgrade on the same host. An unauthenticated source may redirect anywhere.
+- Every hop re-runs the SSRF check, and the chain stops at five hops.
+- The send switched to `HttpCompletionOption.ResponseHeadersRead`, so `ReadCappedAsync`'s 32 MB
+  ceiling is enforced while the body streams rather than after `HttpClient` has already buffered it
+  — the same mistake in miniature.
+
+Six tests in `CustomSourceRedirectTests` assert on **what was sent**, not on what came back. That
+distinction is the whole point: a test that only inspects the response passes against both the old
+code and the new one. One of them pins the client name, because reverting to `"gtfs"` would compile,
+pass everything else, and silently restore the defect.
+
+How this got into the changelog as "verified clean" is worth stating plainly, because it is the same
+failure mode recorded twice already in this document: I read the method, found its stated reasoning
+sound, and wrote that down — without asking when it runs relative to the leak it describes. Accepting
+a piece of code's own account of itself is not verification.
+
+### A doc comment split across the wrong member
+
+`TicketUploadManager`'s "Deletes uploads the user never turned into a ticket…" summary was left
+orphaned by `655e04e`, which inserted `PurgeBatchSize` and its own `<summary>` between that comment
+and `PurgeAbandonedAsync`. Two `<summary>` blocks in a row meant the method's description documented
+the constant. Introduced by this audit; split back apart.
+
+### The shape editor's reset button now does what it says
+
+`resetShape` called `location.reload()` under the label "Reset to auto". Documented during the sweep
+as not implementable — there is no regenerate endpoint, `RoutesController` exposes only GET and PUT —
+with the note that the honest version was "revert to the shape as loaded", which the file already
+tracked in `originalGeometry` and read nowhere.
+
+Implemented: the button reads `Revert edits`, the confirmation says "Revert to the last saved shape?",
+and it restores `originalGeometry` in place, deep-copied so MapboxDraw editing the restored line
+cannot mutate the copy. Reverting in place also keeps the route name, badge and stop markers that a
+reload would have re-fetched. A true "reset to auto" still needs a regenerate endpoint.
+
+Documenting a defect and leaving the misleading label in place was the wrong call. The write-up
+identified the fix and then stopped short of it; a reviewer had to point at the note to get it done.

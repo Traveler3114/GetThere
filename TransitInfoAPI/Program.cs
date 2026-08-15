@@ -63,9 +63,10 @@ builder.Services.AddSharedTelemetry(builder.Configuration, "TransitInfoAPI");
 // well as in the callers, or a locally hosted GTFS zip becomes unreachable.
 var allowPrivateFeedNetworks = builder.Configuration.GetValue("Feeds:AllowPrivateNetworkUrls", false);
 
-static void ConfigureFeedHandler(IHttpClientBuilder http, bool allowPrivateNetworks) =>
+static void ConfigureFeedHandler(IHttpClientBuilder http, bool allowPrivateNetworks, bool followRedirects = true) =>
     http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
     {
+        AllowAutoRedirect = followRedirects,
         ConnectCallback = allowPrivateNetworks
             ? null
             : TransitInfoAPI.Services.ExternalFeedSource.ConnectToPublicOnlyAsync
@@ -80,6 +81,26 @@ ConfigureFeedHandler(builder.Services.AddHttpClient("gtfsrt", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
 }), allowPrivateFeedNetworks);
+
+// Custom sources are the one feed path that carries an operator's own credential, and this client is
+// separate from "gtfs" for exactly that reason: AllowAutoRedirect is off.
+//
+// It has to be off. SocketsHttpHandler follows redirects itself, inside SendAsync, before any code
+// here sees a response — and while HttpClient does strip Authorization when a redirect crosses
+// origins, it strips nothing else. CustomSourceEngine.ApplyAuth's `header` mode sets an arbitrary
+// header name, typically an API key, so an auto-followed redirect handed that key to wherever it
+// pointed. Checking the final URI afterwards, which is what this used to do, refuses the data but
+// cannot un-send the credential.
+//
+// With redirects off, CustomSourceEngine follows them itself and decides per hop whether the
+// credential goes along. See SendFollowingRedirectsAsync.
+//
+// Two minutes rather than the "gtfs" client's ten: these are pages of rows, not GTFS archives, and
+// the timeout is per request across up to MaxPages of them.
+ConfigureFeedHandler(builder.Services.AddHttpClient("customsource", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+}), allowPrivateFeedNetworks, followRedirects: false);
 
 builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection("FeedPolling"));
 builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("FeedImport"));

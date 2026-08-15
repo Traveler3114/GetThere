@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -115,24 +116,21 @@ public partial class CustomSourceEngine
         {
             var url = ApplyPagination(request.Url, pagination, page, totalSoFar, cursor);
 
-            // Same SSRF rule as GTFS feeds: these URLs are operator-supplied and would otherwise
-            // make the importer a proxy into the server's own network.
-            if (!_allowPrivateNetworkUrls)
-                ExternalFeedSource.EnsurePublicDestination(url);
+            // The SSRF check now lives inside SendFollowingRedirectsAsync, which applies it to this
+            // URL and to every redirect hop after it — the hops being the part a pre-flight check
+            // here could never cover.
+            var http = _httpFactory.CreateClient("customsource");
+            using var response = await SendFollowingRedirectsAsync(
+                http, request.HttpMethod, url, authConfig, result, request.TargetSection.ToString(), ct);
 
-            var http = _httpFactory.CreateClient("gtfs");
-            using var message = new HttpRequestMessage(new HttpMethod(request.HttpMethod), url);
-            ApplyAuth(message, authConfig);
+            // Null means the hop chain was refused and the reason is already in Warnings.
+            if (response is null) break;
 
-            using var response = await http.SendAsync(message, ct);
             if (!response.IsSuccessStatusCode)
             {
                 result.Warnings.Add($"{request.TargetSection}: {(int)response.StatusCode} from {url}");
                 break;
             }
-
-            if (!EnsureCredentialStayedHome(message, response, authConfig, result, request.TargetSection.ToString()))
-                break;
 
             string body;
             try
@@ -198,20 +196,16 @@ public partial class CustomSourceEngine
     /// </summary>
     public async Task<string> FetchRawAsync(CustomSourceRequest request, string? authConfig, CancellationToken ct)
     {
-        if (!_allowPrivateNetworkUrls)
-            ExternalFeedSource.EnsurePublicDestination(request.Url);
-
-        var http = _httpFactory.CreateClient("gtfs");
-        using var message = new HttpRequestMessage(new HttpMethod(request.HttpMethod), request.Url);
-        ApplyAuth(message, authConfig);
-
-        using var response = await http.SendAsync(message, ct);
-        response.EnsureSuccessStatusCode();
-
+        var http = _httpFactory.CreateClient("customsource");
         var discovery = new ExtractionResult();
-        if (!EnsureCredentialStayedHome(message, response, authConfig, discovery, "discover"))
+
+        using var response = await SendFollowingRedirectsAsync(
+            http, request.HttpMethod, request.Url, authConfig, discovery, "discover", ct);
+
+        if (response is null)
             throw new Exceptions.AppException(discovery.Warnings[^1], 502, "REDIRECTED_OFF_HOST");
 
+        response.EnsureSuccessStatusCode();
         return await ReadCappedAsync(response, ct);
     }
 
@@ -252,38 +246,133 @@ public partial class CustomSourceEngine
         return encoding.GetString(buffer.ToArray());
     }
 
+    /// <summary>How many redirect hops one request may take before it is abandoned.</summary>
+    /// <remarks>
+    /// <c>SocketsHttpHandler</c>'s own default is 50. Five is plenty for the "moved to /v2" and
+    /// "http to https" cases that actually occur, and every extra hop is another chance for a chain
+    /// to wander somewhere the operator never configured.
+    /// </remarks>
+    private const int MaxRedirects = 5;
+
     /// <summary>
-    /// Refuses a response that arrived on a different host than the one the credential was attached
-    /// to.
-    /// <para>
-    /// <c>HttpClient</c> strips <c>Authorization</c> when a redirect crosses origins, but it does not
-    /// strip anything else — and <see cref="ApplyAuth"/>'s <c>header</c> mode sets an arbitrary
-    /// header name, typically an API key. A source that redirects off-host therefore handed the
-    /// operator's key to wherever it pointed. The connect-time SSRF guard stops that being an
-    /// internal address; it cannot stop it being someone else's public server.
-    /// </para>
-    /// <para>
-    /// Only checked when a credential was actually applied: an unauthenticated source is free to
-    /// redirect wherever it likes.
-    /// </para>
+    /// Sends a request and follows redirects by hand, deciding at each hop whether the credential
+    /// travels with it.
     /// </summary>
-    private static bool EnsureCredentialStayedHome(
-        HttpRequestMessage message, HttpResponseMessage response, string? authConfig,
-        ExtractionResult result, string section)
+    /// <remarks>
+    /// <para>
+    /// This exists because the check it replaced ran too late to do anything. That version let
+    /// <c>SendAsync</c> follow redirects itself and then compared the requested host with
+    /// <c>response.RequestMessage.RequestUri.Host</c>, refusing the response if they differed. The
+    /// comparison was right and the conclusion was wrong: by the time it ran, the handler had
+    /// already performed the redirected request. <c>HttpClient</c> strips <c>Authorization</c> when
+    /// a redirect crosses origins, but it strips nothing else, and <see cref="ApplyAuth"/>'s
+    /// <c>header</c> mode sets an arbitrary header name — an API key, in practice. Refusing the body
+    /// prevented ingesting the wrong data; it did not stop the key being handed over. The credential
+    /// was already gone.
+    /// </para>
+    /// <para>
+    /// The "customsource" client therefore sets <c>AllowAutoRedirect = false</c>, and each hop is
+    /// issued here, where the decision can be made <em>before</em> the request goes out:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>Every hop is re-checked against the SSRF guard, so a redirect cannot walk into the
+    /// server's own network. (The handler's <c>ConnectCallback</c> also covers this; the explicit
+    /// check gives the operator a comprehensible message instead of a connect failure.)</item>
+    /// <item>A credentialed request that is redirected to a different host is <b>refused</b>, and
+    /// the credential is never sent to that host. Same rule for an https source redirected to plain
+    /// http on the same host, which would put the credential on the wire in clear.</item>
+    /// <item>An unauthenticated source may redirect wherever it likes — there is nothing to leak,
+    /// and public feed URLs move around.</item>
+    /// </list>
+    /// <para>
+    /// Returns <c>null</c> when the chain was refused or ran past <see cref="MaxRedirects"/>, having
+    /// already recorded why in <paramref name="result"/>'s warnings. Otherwise the caller owns the
+    /// returned response and must dispose it.
+    /// </para>
+    /// </remarks>
+    private async Task<HttpResponseMessage?> SendFollowingRedirectsAsync(
+        HttpClient http, string httpMethod, string url, string? authConfig,
+        ExtractionResult result, string section, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(authConfig)) return true;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var origin))
+            throw new Exceptions.AppException("Source URL must be an absolute HTTP(S) URL.", 400, "INVALID_FEED_URL");
 
-        var requested = message.RequestUri;
-        var final = response.RequestMessage?.RequestUri;
-        if (requested is null || final is null) return true;
+        var credentialed = !string.IsNullOrWhiteSpace(authConfig);
+        var current = origin;
+        var method = new HttpMethod(httpMethod);
 
-        if (string.Equals(requested.Host, final.Host, StringComparison.OrdinalIgnoreCase)) return true;
+        for (var hop = 0; ; hop++)
+        {
+            if (!_allowPrivateNetworkUrls)
+                ExternalFeedSource.EnsurePublicDestination(current.AbsoluteUri);
 
-        result.Warnings.Add(
-            $"{section}: request to {requested.Host} was redirected to {final.Host} while carrying a credential — "
-            + "refusing the response. Point the source at its final address instead.");
-        return false;
+            using var message = new HttpRequestMessage(method, current);
+            ApplyAuth(message, authConfig);
+
+            // ResponseHeadersRead so ReadCappedAsync's ceiling is enforced while the body streams in.
+            // Under the default (ResponseContentRead) HttpClient buffers the whole body first, which
+            // is the same mistake this method is here to fix: a guard that runs after the fact.
+            var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            var location = response.Headers.Location;
+            if (!IsRedirect(response.StatusCode) || location is null)
+                return response;
+
+            var status = response.StatusCode;
+            response.Dispose();
+
+            if (hop >= MaxRedirects)
+            {
+                result.Warnings.Add(
+                    $"{section}: gave up after {MaxRedirects} redirects starting at {origin.Host}.");
+                return null;
+            }
+
+            if (!Uri.TryCreate(current, location, out var next)
+                || next.Scheme is not ("http" or "https"))
+            {
+                result.Warnings.Add(
+                    $"{section}: {(int)status} from {current.Host} pointed at something that is not an "
+                    + "HTTP(S) URL — stopping.");
+                return null;
+            }
+
+            if (credentialed && !string.Equals(next.Host, origin.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                result.Warnings.Add(
+                    $"{section}: {current.Host} redirected to {next.Host} and this source carries a credential — "
+                    + "refusing to send it off-host. Point the source at its final address instead.");
+                return null;
+            }
+
+            if (credentialed && origin.Scheme == "https" && next.Scheme == "http")
+            {
+                result.Warnings.Add(
+                    $"{section}: {current.Host} redirected from https to http and this source carries a "
+                    + "credential — refusing to send it in clear.");
+                return null;
+            }
+
+            // 303 always becomes a GET; 301 and 302 do too for anything that was not GET or HEAD,
+            // which is what every agent does in practice and what SocketsHttpHandler did before this
+            // method took the redirect over. 307 and 308 preserve the method by definition.
+            var bodylessMethod = method == HttpMethod.Get || method == HttpMethod.Head;
+            if (status == HttpStatusCode.SeeOther
+                || ((status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found) && !bodylessMethod))
+            {
+                method = HttpMethod.Get;
+            }
+
+            current = next;
+        }
     }
+
+    private static bool IsRedirect(HttpStatusCode status) => status is
+        HttpStatusCode.MovedPermanently
+        or HttpStatusCode.Found
+        or HttpStatusCode.SeeOther
+        or HttpStatusCode.TemporaryRedirect
+        or HttpStatusCode.PermanentRedirect;
 
     /// <summary>
     /// Drops rows repeating a value in <paramref name="distinctBy"/>.

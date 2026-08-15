@@ -134,10 +134,6 @@ public class TicketUploadManager
     }
 
     /// <summary>
-    /// Deletes uploads the user never turned into a ticket. Called by the expiry worker; abandoned
-    /// files would otherwise accumulate on disk forever, since nothing else references them.
-    /// </summary>
-    /// <summary>
     /// How many abandoned uploads one pass deletes. Each costs a file delete, and a backlog only
     /// builds when something is already wrong — which is when this runs. The remainder is picked up
     /// by the next sweep rather than held in memory now. Same reasoning as
@@ -145,6 +141,10 @@ public class TicketUploadManager
     /// </summary>
     private const int PurgeBatchSize = 500;
 
+    /// <summary>
+    /// Deletes uploads the user never turned into a ticket. Called by the expiry worker; abandoned
+    /// files would otherwise accumulate on disk forever, since nothing else references them.
+    /// </summary>
     public async Task<int> PurgeAbandonedAsync(CancellationToken ct = default)
     {
         var cutoff = DateTime.UtcNow - UnconsumedRetention;
