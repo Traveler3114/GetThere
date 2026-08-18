@@ -27,6 +27,7 @@ public sealed class OtpGraphQlClient(
               duration startTime endTime walkDistance
               legs {
                 mode transitLeg realTime distance startTime endTime
+                legGeometry { points length }
                 from { name lat lon }
                 to { name lat lon }
                 route { shortName longName agency { gtfsId name } }

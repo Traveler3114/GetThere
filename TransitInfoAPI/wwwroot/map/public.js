@@ -18,6 +18,10 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl());
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
 
+// Shared with planner.js (loaded after this file). A classic script's top-level `const map` is a
+// global-lexical binding the sibling script could read, but exposing it explicitly is the contract.
+window.gtMap = map;
+
 let debounceTimer = null;
 let vehiclesInterval = null;
 let sidebarOpen = false;

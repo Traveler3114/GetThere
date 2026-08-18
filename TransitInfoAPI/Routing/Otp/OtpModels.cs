@@ -41,7 +41,8 @@ public sealed record PlanLegDto(
     string? RouteLongName,
     string? OperatorGlobalId,
     string? TripGtfsId,
-    bool RealtimeState);
+    bool RealtimeState,
+    string? Geometry);
 
 public sealed record PlanPlaceDto(string? Name, double Lat, double Lon);
 

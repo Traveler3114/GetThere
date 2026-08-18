@@ -131,6 +131,68 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 #btnLayers .bars i { display: block; width: 16px; height: 2px; border-radius: 1px; background: #334155; }
 #btnLayers.off .bars i { opacity: 0.4; }
 
+/* ── Trip planner ─────────────────────────────────────────────────────────── */
+#btnDirections {
+  height: 40px; border: none; border-radius: 12px; cursor: pointer;
+  background: #134E4A; color: #5EEAD4; font: inherit; font-size: 13.5px; font-weight: 600;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
+#planner {
+  position: fixed; z-index: 1100;
+  top: calc(14px + env(safe-area-inset-top));
+  left: calc(16px + env(safe-area-inset-left));
+  right: calc(16px + env(safe-area-inset-right));
+  max-width: 420px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  display: flex; flex-direction: column; max-height: calc(100% - 40px); overflow: hidden;
+}
+#planner[hidden] { display: none; }
+.planner-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 6px; }
+.planner-head strong { font-size: 14px; color: #0F172A; }
+.planner-x { border: none; background: none; font-size: 20px; line-height: 1; color: #94A3B8; cursor: pointer; }
+.planner-x:hover { color: #0F172A; }
+.planner-fields { padding: 4px 14px 10px; }
+.pf-row { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; margin-top: 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; }
+.pf-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; }
+.pf-dot.from { background: #10B981; }
+.pf-dot.to { background: #EF4444; }
+.pf-input { flex: 1; min-width: 0; border: none; outline: none; background: none; font: inherit; font-size: 14px; color: #0F172A; }
+.pf-input::placeholder { color: #94A3B8; }
+.pf-input::-webkit-search-cancel-button { display: none; }
+.pf-pin, .pf-loc { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 1px solid #E2E8F0;
+  background: #fff; color: #475569; cursor: pointer; font-size: 14px; line-height: 1; }
+.pf-pin.active { background: #134E4A; color: #5EEAD4; border-color: #10B981; }
+.pf-results { list-style: none; margin: 6px 0 0; padding: 4px; background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 10px; max-height: 200px; overflow-y: auto; }
+.pf-results[hidden] { display: none; }
+.pf-results li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13.5px; color: #0F172A; }
+.pf-results li:hover, .pf-results li.active { background: #F1F5F9; }
+.pf-results li .sub { display: block; font-size: 11.5px; color: #94A3B8; margin-top: 2px; }
+.pf-results li .tag { float: right; font-size: 10.5px; color: #94A3B8; }
+.pf-results li.empty { cursor: default; color: #94A3B8; font-style: italic; }
+.pf-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.pf-time { flex: 1; min-width: 0; height: 36px; border: 1px solid #E2E8F0; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; color: #0F172A; background: #fff; }
+.pf-swap { flex: none; width: 36px; height: 36px; border: 1px solid #E2E8F0; border-radius: 8px; background: #fff; color: #475569; cursor: pointer; font-size: 15px; }
+.pf-go { flex: none; height: 36px; padding: 0 18px; border: none; border-radius: 8px; background: #134E4A; color: #5EEAD4; font: inherit; font-weight: 600; font-size: 13.5px; cursor: pointer; }
+.pf-go:disabled { opacity: 0.5; cursor: default; }
+.plan-results { overflow-y: auto; padding: 0 14px 12px; }
+.plan-msg { padding: 10px 2px; font-size: 13px; color: #64748b; }
+.itin { border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px; margin-top: 8px; cursor: pointer; }
+.itin.selected { border-color: #10B981; box-shadow: 0 0 0 1px #10B981 inset; }
+.itin-head { display: flex; align-items: baseline; justify-content: space-between; }
+.itin-dur { font-size: 15px; font-weight: 700; color: #0F172A; }
+.itin-time { font-size: 12px; color: #64748b; }
+.itin-modes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.leg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #fff; }
+.leg-badge.walk { background: #64748b; }
+.itin-legs { margin-top: 8px; border-top: 1px solid #EEF2F6; padding-top: 6px; }
+.itin-legs[hidden] { display: none; }
+.leg-line { font-size: 12.5px; color: #334155; padding: 3px 0; }
+.leg-line .lt { color: #64748b; }
+.rt-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: #DCFCE7; color: #166534; font-size: 10.5px; font-weight: 600; }
+
 @media (prefers-color-scheme: dark) {
   body { background: #0F172A; }
   #sidebar { background: #111827; color: #e2e8f0; }
@@ -146,6 +208,20 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   #searchResults li:hover, #searchResults li.active { background: #374151; }
   #mapControls button { background: #111827; border-color: #1F2937; }
   #btnLayers .bars i { background: #CBD5E1; }
+
+  #planner { background: #1F2937; border-color: #374151; }
+  .planner-head strong { color: #F3F4F6; }
+  .pf-row { background: #111827; border-color: #374151; }
+  .pf-input { color: #F3F4F6; }
+  .pf-pin, .pf-loc, .pf-swap, .pf-time { background: #1F2937; border-color: #374151; color: #CBD5E1; }
+  .pf-results { background: #1F2937; border-color: #374151; }
+  .pf-results li { color: #F3F4F6; }
+  .pf-results li:hover, .pf-results li.active { background: #374151; }
+  .itin { border-color: #374151; }
+  .itin-dur { color: #F3F4F6; }
+  .leg-line { color: #CBD5E1; }
+  .itin-legs { border-top-color: #374151; }
+  .rt-badge { background: #14532D; color: #BBF7D0; }
 }
 </style>
 </head>
@@ -165,6 +241,37 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   </div>
   <ul id="searchResults" role="listbox" hidden></ul>
   <div id="modeChips" role="group"></div>
+  <button id="btnDirections" type="button"></button>
+</div>
+
+<div id="planner" hidden>
+  <div class="planner-head">
+    <strong id="plannerTitle"></strong>
+    <button id="plannerClose" class="planner-x" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="planner-fields">
+    <div class="pf-row">
+      <span class="pf-dot from"></span>
+      <input id="fromInput" class="pf-input" type="search" autocomplete="off" autocorrect="off" spellcheck="false"
+             role="combobox" aria-controls="fromResults" aria-expanded="false">
+      <button id="pickFrom" class="pf-pin" type="button" aria-label="Set start on map">◎</button>
+      <button id="useLocation" class="pf-loc" type="button" aria-label="Use my location">⦿</button>
+    </div>
+    <ul id="fromResults" class="pf-results" role="listbox" hidden></ul>
+    <div class="pf-row">
+      <span class="pf-dot to"></span>
+      <input id="toInput" class="pf-input" type="search" autocomplete="off" autocorrect="off" spellcheck="false"
+             role="combobox" aria-controls="toResults" aria-expanded="false">
+      <button id="pickTo" class="pf-pin" type="button" aria-label="Set destination on map">◎</button>
+    </div>
+    <ul id="toResults" class="pf-results" role="listbox" hidden></ul>
+    <div class="pf-actions">
+      <input id="departAt" class="pf-time" type="datetime-local" aria-label="Depart at">
+      <button id="swapEnds" class="pf-swap" type="button" aria-label="Swap start and destination">⇅</button>
+      <button id="planBtn" class="pf-go" type="button"></button>
+    </div>
+  </div>
+  <div id="planResults" class="plan-results"></div>
 </div>
 
 <div id="mapControls">
@@ -178,5 +285,6 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 </div>
 
 <script src="public.js"></script>
+<script src="planner.js"></script>
 </body>
 </html>

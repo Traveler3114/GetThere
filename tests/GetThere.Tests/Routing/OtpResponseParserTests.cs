@@ -30,6 +30,7 @@ public class OtpResponseParserTests
                 {
                   "mode": "TRAM", "transitLeg": true, "realTime": true, "distance": 3100.0,
                   "startTime": 1755417900000, "endTime": 1755418920000,
+                  "legGeometry": { "points": "_p~iF~ps|U_ulLnnqC", "length": 3 },
                   "from": { "name": "Trg", "lat": 45.812, "lon": 15.979 },
                   "to": { "name": "Airport", "lat": 45.74, "lon": 16.07 },
                   "route": { "shortName": "1", "longName": "Line 1", "agency": { "gtfsId": "1:o-ZET", "name": "ZET" } },
@@ -65,6 +66,8 @@ public class OtpResponseParserTests
         Assert.Equal("o-ZET", tram.OperatorGlobalId); // the leg carries the operator GlobalId
         Assert.Equal("Airport", tram.To.Name);
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1755417900000), tram.StartTime);
+        Assert.Equal("_p~iF~ps|U_ulLnnqC", tram.Geometry); // encoded polyline surfaced for map drawing
+        Assert.Null(walk.Geometry); // absent when OTP omits it
     }
 
     [Fact]

@@ -69,6 +69,10 @@ public static class OtpResponseParser
         var isTransit = leg.TryGetProperty("transitLeg", out var tl) && tl.ValueKind == JsonValueKind.True
             || !string.IsNullOrEmpty(operatorGlobalId);
 
+        string? geometry = null;
+        if (leg.TryGetProperty("legGeometry", out var legGeometry) && legGeometry.ValueKind == JsonValueKind.Object)
+            geometry = GetString(legGeometry, "points");
+
         return new PlanLegDto(
             Mode: mode,
             StartTime: GetTime(leg, "startTime"),
@@ -81,7 +85,8 @@ public static class OtpResponseParser
             RouteLongName: routeLong,
             OperatorGlobalId: operatorGlobalId,
             TripGtfsId: tripGtfsId,
-            RealtimeState: leg.TryGetProperty("realTime", out var rt) && rt.ValueKind == JsonValueKind.True);
+            RealtimeState: leg.TryGetProperty("realTime", out var rt) && rt.ValueKind == JsonValueKind.True,
+            Geometry: geometry);
     }
 
     private static PlanPlaceDto ParsePlace(JsonElement parent, string name)
