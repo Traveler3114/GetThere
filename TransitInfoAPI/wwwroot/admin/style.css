@@ -492,6 +492,19 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .badge.is-accent { background: var(--accent-surface); color: var(--accent-text); }
 .badge.is-neutral { background: var(--border); color: var(--text-2); }
 
+/* Route-type chip rendered by rtBadge() in route-colors.js. no other rule styles it, so a bare
+   inline background used to sit flush against the letters. Matches .route-type-badge on the map. */
+.rt-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 .dot {
   width: 7px;
   height: 7px;
@@ -900,6 +913,10 @@ body.bs .list-group-item {
 }
 
 body.bs .table {
+  /* The design-system `.table` rule above turns tables into flex columns; these are real
+     `<table class="table">` elements, so put the table display back or the header never lines
+     up with the rows. */
+  display: table;
   --bs-table-bg: transparent;
   --bs-table-color: var(--text);
   --bs-table-border-color: var(--border-soft);
@@ -962,14 +979,18 @@ body.bs .btn-outline-info:hover { background: var(--info-surface); color: var(--
 body.bs .btn:disabled, body.bs .btn.disabled { opacity: .45; }
 
 body.bs .badge { font-weight: 600; border-radius: var(--r-badge); }
-body.bs .badge.bg-primary { background: var(--accent-surface) !important; color: var(--accent-text); }
-body.bs .badge.bg-secondary { background: var(--border) !important; color: var(--text-2); }
-body.bs .badge.bg-success { background: var(--ok-surface) !important; color: var(--ok-text); }
-body.bs .badge.bg-danger { background: var(--danger-surface) !important; color: var(--danger-text); }
-body.bs .badge.bg-warning { background: var(--warn-surface) !important; color: var(--warn-text); }
-body.bs .badge.bg-info { background: var(--info-surface) !important; color: var(--info-text); }
-body.bs .badge.bg-dark { background: var(--surface) !important; color: var(--text-2); }
-body.bs .badge.bg-light { background: var(--border) !important; color: var(--text-2); }
+/* Colors are !important too: several pages pair these badges with Bootstrap's .text-dark/.text-light
+   utilities (which are themselves !important), e.g. 'bg-warning text-dark'. On the dark skin the
+   background is remapped to a dark surface and the utility's near-black wins, so the label vanishes.
+   The skin must own the text colour of its own badges. */
+body.bs .badge.bg-primary { background: var(--accent-surface) !important; color: var(--accent-text) !important; }
+body.bs .badge.bg-secondary { background: var(--border) !important; color: var(--text-2) !important; }
+body.bs .badge.bg-success { background: var(--ok-surface) !important; color: var(--ok-text) !important; }
+body.bs .badge.bg-danger { background: var(--danger-surface) !important; color: var(--danger-text) !important; }
+body.bs .badge.bg-warning { background: var(--warn-surface) !important; color: var(--warn-text) !important; }
+body.bs .badge.bg-info { background: var(--info-surface) !important; color: var(--info-text) !important; }
+body.bs .badge.bg-dark { background: var(--surface) !important; color: var(--text-2) !important; }
+body.bs .badge.bg-light { background: var(--border) !important; color: var(--text-2) !important; }
 
 body.bs .alert { border-radius: var(--r-sm); border-width: 1px; }
 body.bs .alert-info { background: var(--info-surface); border-color: var(--info-surface); color: var(--info-text); }
