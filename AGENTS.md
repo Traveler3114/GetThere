@@ -16,13 +16,22 @@
 
 One-way rule: TransitInfoAPI knows nothing about GetThereAPI. GetThereAPI references operators by TransitInfoAPI GlobalId.
 
-**The map is the one client-side exception.** `MapPage` is a WebView pointed at
+**The map and journey planning are the client-side exception.** `MapPage` is a WebView pointed at
 `map/public.html` on TransitInfoAPI, so the page is same-origin with the data it reads and needs no
 proxy, no bearer token and no CORS. The endpoints it uses (`stations`, `routes`,
-`mobility/stations`, `stations/{id}/departures`, `realtime/vehicles`, `stations/search`) are
-`[AllowAnonymous]` for that reason — treat them as a public surface when changing them. Everything
-else the client does still goes exclusively through GetThereAPI. This replaced a proxy in
-GetThereAPI; `docs/map-proxy-migration.md` records the arrangement and why it was undone.
+`mobility/stations`, `stations/{id}/departures`, `realtime/vehicles`, `stations/search`, `plan`) are
+`[AllowAnonymous]` for that reason — treat them as a public surface when changing them. `plan`
+(door-to-door routing via OTP) joined this set with the routing engine: the client reads it directly
+from TransitInfoAPI, same-origin, exactly like the map endpoints, and reads each transit leg's
+operator GlobalId to join GetThereAPI ticketing itself — neither server calls the other, so the
+one-way rule holds. Everything else the client does still goes exclusively through GetThereAPI. The
+map arrangement replaced a proxy in GetThereAPI; `docs/map-proxy-migration.md` records why it was
+undone.
+
+The OTP graph is built only from TransitInfoAPI's own export (`Routing/Export/` → the merged GTFS
+bundle + GBFS), never from raw operator feeds, so reconciliation reaches routing. The export-serving
+and GBFS endpoints under `routing/` are consumed by OTP (server-side, `[Authorize]`), not the
+client, and so are not part of the exception above.
 
 The client's map address is `Map:BaseUrl` (see `ApiEndpoints`), and it must be **https** — the
 Android manifest sets `usesCleartextTraffic="false"`, so TransitInfoAPI's `http` profile fails

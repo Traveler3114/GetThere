@@ -473,28 +473,51 @@ public class RealtimeManager
         foreach (var (tripId, bundle) in _tripUpdateCache)
         {
             if (routeId is not null && bundle.RouteId != routeId) continue;
-
-            var stopTimeUpdates = new List<StopTimeUpdateResponse>();
-            foreach (var (seq, data) in bundle.BySequence)
-                stopTimeUpdates.Add(new StopTimeUpdateResponse { StopSequence = seq, DelaySeconds = data.DelaySeconds, EstimatedTime = data.EstimatedTimeUnix });
-            foreach (var (stopId, data) in bundle.ByStopId)
-            {
-                var existing = stopTimeUpdates.FirstOrDefault(s => s.StopId == stopId);
-                if (existing is not null)
-                    existing.DelaySeconds = data.DelaySeconds;
-                else
-                    stopTimeUpdates.Add(new StopTimeUpdateResponse { StopId = stopId, DelaySeconds = data.DelaySeconds, EstimatedTime = data.EstimatedTimeUnix });
-            }
-
-            results.Add(new TripUpdateResponse
-            {
-                TripId = tripId,
-                RouteId = bundle.RouteId,
-                DirectionId = bundle.DirectionId,
-                StartTime = bundle.StartTime,
-                StopTimeUpdates = stopTimeUpdates
-            });
+            results.Add(BuildTripUpdateResponse(tripId, bundle));
         }
         return results;
+    }
+
+    /// <summary>
+    /// The current trip updates grouped by the feed that produced them, so a consumer that must know
+    /// which feed (and therefore which operator, and which active static version) an update belongs to
+    /// can — the flattened <see cref="GetTripUpdates"/> cache has lost that. Used by the GTFS-RT
+    /// re-serve exporter to namespace ids to the export bundle.
+    /// </summary>
+    public IReadOnlyDictionary<int, List<TripUpdateResponse>> GetTripUpdatesByFeed()
+    {
+        var result = new Dictionary<int, List<TripUpdateResponse>>();
+        foreach (var (feedId, updates) in _tripUpdatesByFeed)
+        {
+            var list = new List<TripUpdateResponse>(updates.Count);
+            foreach (var (tripId, bundle) in updates)
+                list.Add(BuildTripUpdateResponse(tripId, bundle));
+            result[feedId] = list;
+        }
+        return result;
+    }
+
+    private static TripUpdateResponse BuildTripUpdateResponse(string tripId, TripUpdateBundle bundle)
+    {
+        var stopTimeUpdates = new List<StopTimeUpdateResponse>();
+        foreach (var (seq, data) in bundle.BySequence)
+            stopTimeUpdates.Add(new StopTimeUpdateResponse { StopSequence = seq, DelaySeconds = data.DelaySeconds, EstimatedTime = data.EstimatedTimeUnix });
+        foreach (var (stopId, data) in bundle.ByStopId)
+        {
+            var existing = stopTimeUpdates.FirstOrDefault(s => s.StopId == stopId);
+            if (existing is not null)
+                existing.DelaySeconds = data.DelaySeconds;
+            else
+                stopTimeUpdates.Add(new StopTimeUpdateResponse { StopId = stopId, DelaySeconds = data.DelaySeconds, EstimatedTime = data.EstimatedTimeUnix });
+        }
+
+        return new TripUpdateResponse
+        {
+            TripId = tripId,
+            RouteId = bundle.RouteId,
+            DirectionId = bundle.DirectionId,
+            StartTime = bundle.StartTime,
+            StopTimeUpdates = stopTimeUpdates
+        };
     }
 }

@@ -106,8 +106,21 @@ builder.Services.Configure<FeedPollingOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("FeedImport"));
 builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
 builder.Services.Configure<PlaceMatchingOptions>(builder.Configuration.GetSection("PlaceMatching"));
+builder.Services.Configure<TransitInfoAPI.Routing.RoutingOptions>(builder.Configuration.GetSection(TransitInfoAPI.Routing.RoutingOptions.SectionName));
 
 builder.Services.AddScoped<TransitInfoAPI.Services.GtfsParser>();
+builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsBundleExporter>();
+builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GbfsExporter>();
+builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsRealtimeExporter>();
+builder.Services.AddSingleton<TransitInfoAPI.Routing.RoutingExportCache>();
+builder.Services.AddSingleton<TransitInfoAPI.Routing.GraphRebuildSignal>();
+builder.Services.AddSingleton<TransitInfoAPI.Routing.IGraphRebuildSignal>(sp => sp.GetRequiredService<TransitInfoAPI.Routing.GraphRebuildSignal>());
+builder.Services.AddHostedService<TransitInfoAPI.Routing.RoutingRebuildWorker>();
+builder.Services.AddHttpClient("otp", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<TransitInfoAPI.Routing.Otp.OtpGraphQlClient>();
+builder.Services.Configure<GeocodingOptions>(builder.Configuration.GetSection("Geocoding"));
+builder.Services.AddHttpClient("azuremaps", client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<GeocodingManager>();
 builder.Services.AddSingleton<OnestopIdManager>();
 builder.Services.AddScoped<ReconciliationManager>();
 builder.Services.AddScoped<ScheduleManager>();
@@ -199,6 +212,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 // Authorization Policies
+var allowAnonymousExport = builder.Configuration.GetValue("Routing:AllowAnonymousExport", false);
 builder.Services.AddAuthorization(options =>
 {
     foreach (var perm in PermissionKeys.All)
@@ -207,6 +221,13 @@ builder.Services.AddAuthorization(options =>
             ctx.User.IsInRole(RoleNames.Admin) ||
             ctx.User.HasClaim("permission", perm)));
     }
+
+    // The routing export endpoints are polled by OTP, which is not internet-exposed. They are
+    // authenticated by default, but Routing:AllowAnonymousExport opens them for a local/isolated OTP
+    // that cannot present a token. Never enable it on a public deployment — the bundle aggregates
+    // feeds whose licences may forbid redistribution (ROADMAP Phase 7).
+    options.AddPolicy("RoutingExport", p => p.RequireAssertion(ctx =>
+        allowAnonymousExport || ctx.User.Identity?.IsAuthenticated == true));
 });
 
 builder.Services.AddTransient<IClaimsTransformation, TransitInfoAPI.Services.DynamicClaimsTransformation>();
@@ -261,6 +282,24 @@ builder.Services.AddRateLimiter(limiter =>
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueLimit = 0;
     });
+
+    // Geocoding hits a paid Azure Maps quota per call, so it gets its own tighter per-caller window
+    // on top of the global limiter.
+    var geocodePermitLimit = builder.Configuration.GetValue("RateLimits:GeocodePerMinute", 20);
+    limiter.AddPolicy("Geocode", context =>
+    {
+        var userId = context.User.FindFirst("sub")?.Value;
+        var partitionKey = userId is not null
+            ? $"user:{userId}"
+            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = geocodePermitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        });
+    });
+
     limiter.RejectionStatusCode = 429;
 });
 
@@ -321,7 +360,11 @@ app.UseExceptionHandler(errorApp =>
 if (!app.Environment.IsDevelopment())
     app.UseHsts();
 
-app.UseHttpsRedirection();
+// Also guarded by environment: a Development run serves over plain HTTP so local server-to-server
+// callers (the OTP updaters polling routing/*) reach the endpoints without a 307 to a self-signed
+// HTTPS cert they cannot verify. Production still redirects to HTTPS.
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 app.UseResponseCompression();
 
 // The /admin console is served as plain static files. It deliberately carries no authorization

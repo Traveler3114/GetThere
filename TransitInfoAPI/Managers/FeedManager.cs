@@ -47,6 +47,7 @@ public class FeedManager
     private readonly PlaceMatchingManager _placeMatching;
     private readonly Services.ImportLogStore _logStore;
     private readonly TransitSourceResolver _sources;
+    private readonly Routing.IGraphRebuildSignal _graphRebuild;
     private readonly int _bulkCommandTimeoutSeconds;
     private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
@@ -67,7 +68,8 @@ public class FeedManager
         PlaceMatchingManager placeMatching,
         Services.ImportLogStore logStore,
         TransitSourceResolver sources,
-        Microsoft.Extensions.Options.IOptions<FeedImportOptions> importOptions)
+        Microsoft.Extensions.Options.IOptions<FeedImportOptions> importOptions,
+        Routing.IGraphRebuildSignal graphRebuild)
     {
         _db = db;
         _logger = logger;
@@ -79,6 +81,7 @@ public class FeedManager
         _logStore = logStore;
         _sources = sources;
         _bulkCommandTimeoutSeconds = importOptions.Value.BulkCommandTimeoutSeconds;
+        _graphRebuild = graphRebuild;
     }
 
     public async Task<(List<FeedResponse> Feeds, int Total)> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
@@ -1414,6 +1417,10 @@ public class FeedManager
             new object[] { operatorId }, ct);
         if (reactivatedRoutes > 0)
             _logger.LogInformation("Reactivated {Count} CanonicalRoutes for FeedVersion {VersionId}", reactivatedRoutes, feedVersionId);
+
+        // The network the routing graph is built from just changed. Signal a rebuild of the export
+        // artifacts (and, in deployment, the OTP graph) rather than letting routing serve a stale map.
+        _graphRebuild.Request($"FeedVersion {feedVersionId} activated");
     }
 
     private async Task HandleImportErrorAsync(int feedVersionId, Microsoft.Data.SqlClient.SqlConnection sqlConn, Microsoft.Data.SqlClient.SqlTransaction sqlTx, Exception ex, CancellationToken ct)
