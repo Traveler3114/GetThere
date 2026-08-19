@@ -64,6 +64,7 @@ they are, not just what each type does.
 - [database-drift.md](database-drift.md) — schema drift
 - [transitinfodb-rebaseline.md](transitinfodb-rebaseline.md) — why TransitInfoDb has one migration
 - [map-proxy-migration.md](map-proxy-migration.md) — how the map moved behind the proxy
+- [guides/running-locally.md](guides/running-locally.md) — every command to build, run (OTP, both APIs, the MAUI app) and test the stack
 - [guides/ef-database-commands.md](guides/ef-database-commands.md) — EF Core commands
 
 ## Architecture notes

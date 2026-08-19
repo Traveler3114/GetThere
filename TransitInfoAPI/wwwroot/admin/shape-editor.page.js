@@ -38,7 +38,7 @@ function esc(s) {
 }
 
 function cancelEdit() {
-  window.location.href = '/map/index.html';
+  window.location.href = '/map/';
 }
 
 function addStopMarkers(stops) {

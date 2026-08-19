@@ -2250,3 +2250,39 @@ freshly generated password to `.admin-credentials`.
 This also clears the stale service account `AGENTS.md` flags: `getthere-api@transit.local` was still
 present in the `Client` role, eight days after its seeding was deleted. Any *other* environment
 stamped the same way still has both problems.
+
+---
+
+## Session — August 19, 2026
+
+### Removed the legacy map (TransitInfoAPI)
+`wwwroot/map/` had two pages: `index.html`/`index.js` (the original click-a-stop map, no i18n, no
+planner) and `public.html`/`public.js`+`planner.js` (search, mode chips, layers, the door-to-door
+trip planner, and the `gtapp://journey` handoff the MAUI app uses). The MAUI WebView always loaded
+`public.html`, so the trip planner only ever appeared in the app — a browser hitting `/map/` got the
+default document, `index.html`, i.e. the legacy map with no planner.
+
+- Deleted `wwwroot/map/index.html` and `wwwroot/map/index.js`.
+- `Program.cs` — added `public.html` to `DefaultFilesOptions.DefaultFileNames` so `/map/` now serves
+  the real map. `index.html` still wins as the default document for `/admin` and the site root, which
+  have their own.
+- `wwwroot/admin/shape-editor.page.js` — `cancelEdit()` navigated to `/map/index.html`; repointed to
+  `/map/`. The `/map/` links in `admin/stations.page.js` and the site-root `index.html` now resolve
+  to `public.html` automatically.
+
+Requires a TransitInfoAPI restart: deleting `index.html` while the old build is running leaves `/map/`
+404ing until the process is restarted with the new default-files config.
+
+### Client-aborted requests no longer log as 500s (TransitInfoAPI)
+The map cancels in-flight `/routes` GeoJSON fetches whenever it reloads or pans. That cancels the
+request's `RequestAborted` token, which EF passes to SQL Server, which surfaces it as
+`SqlException: "A severe error occurred… Operation cancelled by user."` The global exception handler
+didn't recognise it as a client disconnect, so every cancelled map query produced a fail-level 500
+stack trace for a caller that was already gone.
+
+- `Program.cs` `UseExceptionHandler` — when `context.RequestAborted.IsCancellationRequested`, log at
+  debug and return 499 ("client closed request") with no body, instead of a 500 + stack dump. Keyed on
+  the abort token rather than the exception type, so it catches both the `OperationCanceledException`
+  and the wrapped `SqlException` forms.
+
+Both this and the legacy-map removal ship in the same TransitInfoAPI restart.

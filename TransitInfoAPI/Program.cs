@@ -326,6 +326,21 @@ app.UseExceptionHandler(errorApp =>
     errorApp.Run(async context =>
     {
         var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+
+        // A client that disconnects mid-request (the map cancelling an in-flight /routes fetch when it
+        // reloads or pans) cancels RequestAborted; EF/SqlClient surface that as an
+        // OperationCanceledException, or from SQL Server as a SqlException "Operation cancelled by
+        // user". The caller is already gone, so this is not a server fault — log it at debug and
+        // return 499 ("client closed request") without a body, rather than dumping a 500 stack trace.
+        // Writing to an aborted connection would just throw again, so skip the response body.
+        if (context.RequestAborted.IsCancellationRequested)
+        {
+            app.Logger.LogDebug(ex, "Request aborted by client");
+            if (!context.Response.HasStarted)
+                context.Response.StatusCode = 499;
+            return;
+        }
+
         app.Logger.LogError(ex, "Unhandled exception");
         var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails();
         if (ex is TransitInfoAPI.Exceptions.AppException appEx)
@@ -372,7 +387,12 @@ app.UseResponseCompression();
 // cannot send an Authorization header — a gate on these paths 401s the login page itself and
 // makes the console unreachable. The console holds no secrets; every byte of data it renders
 // comes from API endpoints that are authorized per-endpoint.
-app.UseDefaultFiles();
+// The map has a single page, public.html — the legacy index.html/index.js map was removed. Add it
+// as a default document so /map/ serves it; index.html still wins for /admin and the site root, which
+// have their own.
+var defaultFiles = new DefaultFilesOptions();
+defaultFiles.DefaultFileNames.Add("public.html");
+app.UseDefaultFiles(defaultFiles);
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
