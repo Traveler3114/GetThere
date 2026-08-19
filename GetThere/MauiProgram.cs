@@ -94,6 +94,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAnalyticsService, AnalyticsService>();
         builder.Services.AddSingleton<CountryPreferenceService>();
 
+        // Singleton because it is a hand-off point: MapPage writes the itinerary legs the WebView
+        // handed over, and the buy screen reads them. A transient would give each one its own copy.
+        builder.Services.AddSingleton<JourneyHandoff>();
+
         // Singleton: AuthService holds the in-memory token cache and serializes token refresh.
         // As a transient, every consumer got its own cache (so the cache never hit) and its own
         // refresh lock (so concurrent requests each rotated the refresh token, and the loser was

@@ -9,11 +9,27 @@ namespace GetThereShared.Contracts;
 public class WalletResponse
 {
     public decimal Balance { get; set; }
+
+    /// <summary>
+    /// Funds held for booked buy-on-board journey legs — inside <see cref="Balance"/> but not
+    /// spendable. Debits and "buy all" checks live off <c>Available = Balance − Reserved</c>.
+    /// </summary>
+    public decimal Reserved { get; set; }
+
+    /// <summary>Spendable balance: <see cref="Balance"/> minus <see cref="Reserved"/>.</summary>
+    public decimal Available { get; set; }
+
     public string Currency { get; set; } = SupportedCurrencies.Default;
     public List<WalletTransactionResponse> RecentTransactions { get; set; } = [];
 
     [JsonIgnore]
     public string FormattedBalance => MoneyFormatter.Format(Balance, Currency);
+
+    [JsonIgnore]
+    public string FormattedAvailable => MoneyFormatter.Format(Available, Currency);
+
+    [JsonIgnore]
+    public string FormattedReserved => MoneyFormatter.Format(Reserved, Currency);
 }
 
 public class WalletTransactionResponse

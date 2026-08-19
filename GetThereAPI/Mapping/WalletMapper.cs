@@ -9,6 +9,8 @@ public static class WalletMapper
     public static WalletResponse ToResponse(Wallet wallet) => new()
     {
         Balance = wallet.Balance,
+        Reserved = wallet.Reserved,
+        Available = wallet.Balance - wallet.Reserved,
         Currency = wallet.Currency,
         RecentTransactions = wallet.Transactions
             .OrderByDescending(t => t.CreatedAt)

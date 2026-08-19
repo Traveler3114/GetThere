@@ -37,6 +37,16 @@ The client's map address is `Map:BaseUrl` (see `ApiEndpoints`), and it must be *
 Android manifest sets `usesCleartextTraffic="false"`, so TransitInfoAPI's `http` profile fails
 silently on device.
 
+**One-way JavaScript→native handoff — the only bridge left.** The map WebView emits the selected
+routed itinerary to the app: `planner.js`'s "Get tickets" button navigates to the
+`gtapp://journey?legs=…` custom scheme, `MapPage`'s `Navigating` handler cancels that navigation,
+deserializes the compact legs, stores them on the `JourneyHandoff` singleton, and the native
+`BuyJourneyPage` prices and buys them through GetThereAPI (quote → breakdown + total, book →
+purchases + wallet holds). This is distinct from — and deliberately does **not** revive — the
+removed native→JavaScript chrome/token bridge (the `EvaluateJavaScriptAsync` calls and bearer-token
+injection the same-origin page made unnecessary): nothing is ever injected into the page, and the
+WebView itself still never calls GetThereAPI.
+
 **Separate auth domains, same key type.** Both APIs use `IdentityUser` with a string GUID key —
 TransitInfoAPI was moved off `IdentityUser<int>` in Phase 0. They remain separate user stores in
 separate databases with no cross-system user references.

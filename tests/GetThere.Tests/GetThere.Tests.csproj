@@ -31,6 +31,16 @@
     <ProjectReference Include="..\..\TransitInfoAPI\TransitInfoAPI.csproj" />
   </ItemGroup>
 
+  <!--
+    JourneyService lives in the MAUI app (net10.0-android/windows/…), which a plain net10.0 xUnit
+    project cannot reference — the platform TFMs do not match. The class has no MAUI dependency
+    (HttpClient + GetThereShared contracts), so it is compiled in here and tested through a stub
+    HttpMessageHandler rather than through the app's platform targets.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\GetThere\Services\JourneyService.cs" Link="ClientServices\JourneyService.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

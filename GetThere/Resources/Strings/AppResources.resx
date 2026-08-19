@@ -370,4 +370,25 @@
   <data name="JourneyStatus_Active" xml:space="preserve"><value>ACTIVE</value></data>
   <data name="JourneyStatus_Completed" xml:space="preserve"><value>COMPLETED</value></data>
   <data name="JourneyStatus_Cancelled" xml:space="preserve"><value>CANCELLED</value></data>
+  <data name="BuyJourney_Title" xml:space="preserve"><value>Buy journey</value></data>
+  <data name="BuyJourney_Empty" xml:space="preserve"><value>No itinerary to buy.</value></data>
+  <data name="BuyJourney_EmptySubtitle" xml:space="preserve"><value>Plan a route on the map and tap Get tickets to buy it here.</value></data>
+  <data name="BuyJourney_NameLabel" xml:space="preserve"><value>TRIP NAME</value></data>
+  <data name="BuyJourney_NamePlaceholder" xml:space="preserve"><value>What should this trip be called?</value></data>
+  <data name="BuyJourney_Offers" xml:space="preserve"><value>OPERATOR OFFERS</value></data>
+  <data name="BuyJourney_Total" xml:space="preserve"><value>TOTAL</value></data>
+  <data name="BuyJourney_Wallet" xml:space="preserve"><value>WALLET</value></data>
+  <data name="BuyJourney_Available" xml:space="preserve"><value>Available</value></data>
+  <data name="BuyJourney_Reserved" xml:space="preserve"><value>Reserved</value></data>
+  <data name="BuyJourney_BuyAll" xml:space="preserve"><value>Buy all</value></data>
+  <data name="BuyJourney_CancelBooking" xml:space="preserve"><value>Cancel booking</value></data>
+  <data name="BuyJourney_FulfillmentNow" xml:space="preserve"><value>Buy now</value></data>
+  <data name="BuyJourney_FulfillmentBoard" xml:space="preserve"><value>On board</value></data>
+  <data name="BuyJourney_OutcomePurchased" xml:space="preserve"><value>Purchased</value></data>
+  <data name="BuyJourney_OutcomeReserved" xml:space="preserve"><value>Reserved</value></data>
+  <data name="BuyJourney_OutcomeOnBoard" xml:space="preserve"><value>Buy on board</value></data>
+  <data name="BuyJourney_DefaultName" xml:space="preserve"><value>Trip {0}</value></data>
+  <data name="BuyJourney_CouldNotQuote" xml:space="preserve"><value>We could not price this itinerary.</value></data>
+  <data name="BuyJourney_BookingFailed" xml:space="preserve"><value>We could not book this journey.</value></data>
+  <data name="BuyJourney_CouldNotCancel" xml:space="preserve"><value>We could not cancel the booking.</value></data>
 </root>

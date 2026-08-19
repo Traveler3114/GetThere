@@ -15,10 +15,12 @@
   const S = {
     en: { open: 'Plan a route', title: 'Plan a route', start: 'Start', dest: 'Destination', go: 'Go',
           planning: 'Planning…', unavailable: 'Planner unavailable — is the routing engine running?',
-          noRoute: 'No route found.', pickHint: 'Tap the map to set the point.', myLoc: 'My location', walk: 'Walk', live: 'live' },
+          noRoute: 'No route found.', pickHint: 'Tap the map to set the point.', myLoc: 'My location', walk: 'Walk', live: 'live',
+          getTickets: 'Get tickets' },
     hr: { open: 'Planiraj put', title: 'Planiraj put', start: 'Polazište', dest: 'Odredište', go: 'Kreni',
           planning: 'Planiranje…', unavailable: 'Planer nedostupan — radi li usmjeravanje?',
-          noRoute: 'Ruta nije pronađena.', pickHint: 'Dodirni kartu za odabir točke.', myLoc: 'Moja lokacija', walk: 'Pješice', live: 'uživo' }
+          noRoute: 'Ruta nije pronađena.', pickHint: 'Dodirni kartu za odabir točke.', myLoc: 'Moja lokacija', walk: 'Pješice', live: 'uživo',
+          getTickets: 'Kupi karte' }
   };
   const t = (k) => (S[lang] && S[lang][k]) || S.en[k] || k;
 
@@ -44,7 +46,9 @@
 
   // Presets that work in this anonymous, fare-blind planner (routing-only). "cheapest" is omitted
   // here on purpose — it ranks by the GetThereAPI journey total, which only the authenticated app can
-  // fetch; the map WebView never talks to GetThereAPI.
+  // fetch; the map WebView never talks to GetThereAPI. What the page *does* offer instead is a
+  // "Get tickets" button that hands the selected itinerary to the app through the gtapp://journey
+  // scheme, and the app prices it natively — routing stays fare-blind here, pricing stays in the app.
   const PRESETS = [
     { key: 'fastest', en: 'Fastest', hr: 'Najbrže' },
     { key: 'balanced', en: 'Balanced', hr: 'Uravnoteženo' },
@@ -380,7 +384,38 @@
       return card;
     }));
 
+    // One-way handoff to the app: the button below the list acts on the selected itinerary and
+    // carries it out through a custom scheme — the page itself never calls GetThereAPI.
+    const getTickets = document.createElement('button');
+    getTickets.type = 'button';
+    getTickets.className = 'get-tickets';
+    getTickets.textContent = t('getTickets');
+    getTickets.addEventListener('click', handOffToNative);
+    planResults.appendChild(getTickets);
+
     drawItinerary(itins[0]);
+  }
+
+  // Transfers the selected itinerary to the MAUI app through the gtapp://journey scheme. Only the
+  // fields the quote API needs survive the trip — coordinates and times, no geometry, no names —
+  // which also keeps the URL short.
+  function handOffToNative() {
+    const itin = state.itineraries[state.selected];
+    if (!itin || !itin.legs || itin.legs.length === 0) return;
+
+    const compactLegs = itin.legs.map(leg => ({
+      operatorGlobalId: leg.operatorGlobalId || null,
+      mode: leg.mode || '',
+      isTransit: !!leg.isTransit,
+      startTime: leg.startTime,
+      endTime: leg.endTime,
+      fromLat: leg.from ? leg.from.lat : null,
+      fromLon: leg.from ? leg.from.lon : null,
+      toLat: leg.to ? leg.to.lat : null,
+      toLon: leg.to ? leg.to.lon : null
+    }));
+
+    window.location.href = 'gtapp://journey?legs=' + encodeURIComponent(JSON.stringify(compactLegs));
   }
 
   function legLine(leg) {

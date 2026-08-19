@@ -7,6 +7,10 @@
     through EvaluateJavaScriptAsync; they now live in the page itself, so every control has one
     implementation instead of a XAML half and a JavaScript half that had to be kept in step by hand.
     Station details were already the page's own.
+
+    The one remaining bridge is one-way, WebView→native: the page's "Get tickets" button navigates
+    to the gtapp://journey scheme, which the code-behind cancels and reads into JourneyHandoff so the
+    app can buy the itinerary through GetThereAPI. Nothing is ever injected into the page.
 -->
 <ContentPage
     x:Class="GetThere.Pages.MapPage"

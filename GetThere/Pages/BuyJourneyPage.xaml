@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    "Buy a journey": the per-operator price breakdown for the itinerary the map WebView handed over
+    (see JourneyHandoff), the wallet line (Available vs Reserved), and the "Buy all" commit that
+    charges the purchasable-now legs and holds funds for the buy-on-board ones. Reached as
+    "buyjourney" from the map's gtapp://journey handoff.
+-->
+<ContentPage
+    x:Class="GetThere.Pages.BuyJourneyPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:GetThere.ViewModels"
+    xmlns:helpers="clr-namespace:GetThere.Helpers"
+    xmlns:components="clr-namespace:GetThere.Components"
+    xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+    xmlns:localization="clr-namespace:GetThere.Localization"
+    x:DataType="vm:BuyJourneyViewModel"
+    BackgroundColor="{AppThemeBinding Light={StaticResource SurfacePageLight}, Dark={StaticResource DarkBackground}}"
+    Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <components:AnimatedBackground Grid.RowSpan="3" />
+
+        <!--  ── HEADER ──  -->
+        <Grid
+            Grid.Row="0"
+            Padding="20,44,20,12"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="14">
+            <Grid
+                HeightRequest="44"
+                VerticalOptions="Center"
+                WidthRequest="32">
+                <shapes:Path
+                    Data="M19,5L9,12l10,7 M9,12h14"
+                    HeightRequest="24"
+                    HorizontalOptions="Center"
+                    Stroke="{AppThemeBinding Light={StaticResource TextSecondaryLight}, Dark={StaticResource TextSecondary}}"
+                    StrokeLineCap="Round"
+                    StrokeLineJoin="Round"
+                    StrokeThickness="2.5"
+                    VerticalOptions="Center"
+                    WidthRequest="24" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding BackCommand}" />
+                </Grid.GestureRecognizers>
+            </Grid>
+            <Label
+                Grid.Column="1"
+                Style="{StaticResource DsScreenTitle}"
+                Text="{localization:Translate BuyJourney_Title}" />
+        </Grid>
+
+        <!--  ── BODY ──  -->
+        <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">
+            <VerticalStackLayout
+                Padding="20,0,20,20"
+                HorizontalOptions="Center"
+                MaximumWidthRequest="720"
+                Spacing="16">
+
+                <!--  ── EMPTY (opened with nothing handed over)  ── -->
+                <VerticalStackLayout
+                    IsVisible="{Binding IsEmpty}"
+                    Spacing="8">
+                    <Label
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Style="{StaticResource DsCardTitle}"
+                        Text="{localization:Translate BuyJourney_Empty}" />
+                    <Label
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Style="{StaticResource DsCardSubtitle}"
+                        Text="{localization:Translate BuyJourney_EmptySubtitle}" />
+                </VerticalStackLayout>
+
+                <ActivityIndicator
+                    HeightRequest="32"
+                    IsRunning="{Binding IsBusy}"
+                    IsVisible="{Binding IsBusy}" />
+
+                <Label
+                    IsVisible="{Binding HasError}"
+                    Style="{StaticResource DsErrorLabel}"
+                    Text="{Binding ErrorText}" />
+
+                <!--  ── TRIP NAME  ── -->
+                <VerticalStackLayout IsVisible="{Binding HasOffers}" Spacing="8">
+                    <Label Style="{StaticResource DsFieldLabel}" Text="{localization:Translate BuyJourney_NameLabel}" />
+                    <Border Style="{StaticResource DsField}">
+                        <Entry
+                            Style="{StaticResource DsEntry}"
+                            Text="{Binding Name}"
+                            Placeholder="{localization:Translate BuyJourney_NamePlaceholder}" />
+                    </Border>
+                </VerticalStackLayout>
+
+                <!--  ── OPERATOR OFFERS  ── -->
+                <VerticalStackLayout IsVisible="{Binding HasOffers}" Spacing="10">
+                    <Label Style="{StaticResource DsSectionCaption}" Text="{localization:Translate BuyJourney_Offers}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Offers}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BuyOfferItem">
+                                <Border
+                                    Margin="0,0,0,10"
+                                    Padding="14"
+                                    Style="{StaticResource DsCard}">
+                                    <Grid
+                                        ColumnDefinitions="*,Auto"
+                                        ColumnSpacing="12"
+                                        RowDefinitions="Auto,Auto,Auto"
+                                        RowSpacing="6">
+                                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="3">
+                                            <Label
+                                                FontSize="14.5"
+                                                Style="{StaticResource DsCardTitle}"
+                                                Text="{Binding OperatorName}" />
+                                            <Label
+                                                FontSize="12"
+                                                IsVisible="{Binding HasProduct}"
+                                                Style="{StaticResource DsCardSubtitle}"
+                                                Text="{Binding ProductName}" />
+                                            <Label
+                                                FontSize="12"
+                                                IsVisible="{Binding HasNote}"
+                                                Style="{StaticResource DsCardSubtitle}"
+                                                Text="{Binding Note}" />
+                                        </VerticalStackLayout>
+                                        <Label
+                                            Grid.Row="0"
+                                            Grid.Column="1"
+                                            FontSize="16"
+                                            HorizontalTextAlignment="End"
+                                            IsVisible="{Binding HasPrice}"
+                                            Style="{StaticResource DsCardTitle}"
+                                            Text="{Binding PriceText}" />
+
+                                        <!--  fulfillment badge, until booking reports an outcome  -->
+                                        <Border
+                                            Grid.Row="1"
+                                            Grid.Column="0"
+                                            IsVisible="{Binding HasOutcome, Converter={StaticResource InverseBoolConverter}}"
+                                            Style="{StaticResource DsBadge}">
+                                            <Border.BackgroundColor>
+                                                <AppThemeBinding Light="{StaticResource StatusOkSurfaceLight}" Dark="{StaticResource StatusOkSurface}" />
+                                            </Border.BackgroundColor>
+                                            <Label
+                                                Style="{StaticResource DsBadgeLabel}"
+                                                Text="{Binding FulfillmentBadgeText}">
+                                                <Label.TextColor>
+                                                    <AppThemeBinding Light="{StaticResource StatusOkStrong}" Dark="{StaticResource StatusOkSoft}" />
+                                                </Label.TextColor>
+                                            </Label>
+                                        </Border>
+
+                                        <!--  outcome badge, once "Buy all" has run  -->
+                                        <Border
+                                            Grid.Row="1"
+                                            Grid.Column="0"
+                                            IsVisible="{Binding HasOutcome}"
+                                            Style="{StaticResource DsBadge}">
+                                            <Border.BackgroundColor>
+                                                <AppThemeBinding Light="{StaticResource Gray200}" Dark="{StaticResource DarkMuted}" />
+                                            </Border.BackgroundColor>
+                                            <Label
+                                                Style="{StaticResource DsBadgeLabel}"
+                                                Text="{Binding OutcomeText}">
+                                                <Label.TextColor>
+                                                    <AppThemeBinding Light="{StaticResource TextSecondaryLight}" Dark="{StaticResource TextSecondary}" />
+                                                </Label.TextColor>
+                                            </Label>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+
+                <!--  ── TOTAL  ── -->
+                <Border
+                    Margin="0,6,0,0"
+                    IsVisible="{Binding HasOffers}"
+                    Padding="16"
+                    Style="{StaticResource DsCard}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label
+                            Style="{StaticResource DsSectionCaption}"
+                            Text="{localization:Translate BuyJourney_Total}"
+                            VerticalOptions="Center" />
+                        <Label
+                            Grid.Column="1"
+                            FontSize="18"
+                            Style="{StaticResource DsCardTitle}"
+                            Text="{Binding TotalText}" />
+                    </Grid>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!--  ── WALLET FOOTER  ── -->
+        <Border
+            Grid.Row="2"
+            Padding="20,16"
+            BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+            Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkSurfaceAlt}}"
+            StrokeThickness="1"
+            IsVisible="{Binding HasOffers}">
+            <Border.StrokeShape>
+                <shapes:RoundRectangle CornerRadius="0" />
+            </Border.StrokeShape>
+            <VerticalStackLayout
+                HorizontalOptions="Center"
+                MaximumWidthRequest="680"
+                Spacing="12">
+
+                <Label Style="{StaticResource DsSectionCaption}" Text="{localization:Translate BuyJourney_Wallet}" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <VerticalStackLayout Spacing="2">
+                        <Label
+                            FontSize="11"
+                            Style="{StaticResource DsMetaCaption}"
+                            Text="{localization:Translate BuyJourney_Available}" />
+                        <Label
+                            FontSize="13"
+                            Style="{StaticResource DsMetaValue}"
+                            Text="{Binding WalletAvailableText}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1" Spacing="2">
+                        <Label
+                            FontSize="11"
+                            Style="{StaticResource DsMetaCaption}"
+                            Text="{localization:Translate BuyJourney_Reserved}" />
+                        <Label
+                            FontSize="13"
+                            Style="{StaticResource DsMetaValue}"
+                            Text="{Binding WalletReservedText}" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <Button
+                    Command="{Binding BuyAllCommand}"
+                    IsEnabled="{Binding CanBuyAll}"
+                    Style="{StaticResource DsPrimaryButton}"
+                    Text="{localization:Translate BuyJourney_BuyAll}" />
+
+                <Button
+                    Command="{Binding CancelBookingCommand}"
+                    IsVisible="{Binding HasBooked}"
+                    Style="{StaticResource DsGhostButton}"
+                    Text="{localization:Translate BuyJourney_CancelBooking}" />
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>

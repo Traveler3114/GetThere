@@ -366,8 +366,29 @@
   <data name="Journey_RemoveLegTitle" xml:space="preserve"><value>Ukloniti ovu kartu?</value></data>
   <data name="Journey_RemoveLegPrompt" xml:space="preserve"><value>Napušta ovo putovanje i vraća se u novčanik negrupirana.</value></data>
   <data name="Journey_RemoveLegConfirm" xml:space="preserve"><value>Ukloni</value></data>
-  <data name="JourneyStatus_Planned" xml:space="preserve"><value>PLANIRANO</value></data>
-  <data name="JourneyStatus_Active" xml:space="preserve"><value>U TIJEKU</value></data>
+<data name="JourneyStatus_Planned" xml:space="preserve"><value>PLANIRANO</value></data>
+  <data name="JourneyStatus_Active" xml:space="preserve"><value>AKTIVNO</value></data>
   <data name="JourneyStatus_Completed" xml:space="preserve"><value>ZAVRŠENO</value></data>
   <data name="JourneyStatus_Cancelled" xml:space="preserve"><value>OTKAZANO</value></data>
+  <data name="BuyJourney_Title" xml:space="preserve"><value>Kupi putovanje</value></data>
+  <data name="BuyJourney_Empty" xml:space="preserve"><value>Nema putovanja za kupnju.</value></data>
+  <data name="BuyJourney_EmptySubtitle" xml:space="preserve"><value>Najprije planirajte rutu na karti, a zatim dodirnite Get tickets da je kupite.</value></data>
+  <data name="BuyJourney_NameLabel" xml:space="preserve"><value>NAZIV PUTOVANJA</value></data>
+  <data name="BuyJourney_NamePlaceholder" xml:space="preserve"><value>Kako želite nazvati ovo putovanje?</value></data>
+  <data name="BuyJourney_Offers" xml:space="preserve"><value>PONUDA OPERATERA</value></data>
+  <data name="BuyJourney_Total" xml:space="preserve"><value>UKUPNO</value></data>
+  <data name="BuyJourney_Wallet" xml:space="preserve"><value>NOVČANIK</value></data>
+  <data name="BuyJourney_Available" xml:space="preserve"><value>Dostupno</value></data>
+  <data name="BuyJourney_Reserved" xml:space="preserve"><value>Rezervirano</value></data>
+  <data name="BuyJourney_BuyAll" xml:space="preserve"><value>Kupi sve</value></data>
+  <data name="BuyJourney_CancelBooking" xml:space="preserve"><value>Otkaži rezervaciju</value></data>
+  <data name="BuyJourney_FulfillmentNow" xml:space="preserve"><value>Kupi sada</value></data>
+  <data name="BuyJourney_FulfillmentBoard" xml:space="preserve"><value>U vozilu</value></data>
+  <data name="BuyJourney_OutcomePurchased" xml:space="preserve"><value>Kupljeno</value></data>
+  <data name="BuyJourney_OutcomeReserved" xml:space="preserve"><value>Rezervirano</value></data>
+  <data name="BuyJourney_OutcomeOnBoard" xml:space="preserve"><value>Kupnja u vozilu</value></data>
+  <data name="BuyJourney_DefaultName" xml:space="preserve"><value>Put {0}</value></data>
+  <data name="BuyJourney_CouldNotQuote" xml:space="preserve"><value>Nismo mogli iskazati cijenu ovog putovanja.</value></data>
+  <data name="BuyJourney_BookingFailed" xml:space="preserve"><value>Nismo mogli kupiti ovo putovanje.</value></data>
+  <data name="BuyJourney_CouldNotCancel" xml:space="preserve"><value>Nismo mogli otkazati rezervaciju.</value></data>
 </root>

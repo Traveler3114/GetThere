@@ -199,4 +199,74 @@ public class JourneyService
         }
         catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult.Fail("Something went wrong. Check your connection and try again."); }
     }
+
+    /// <summary>
+    /// Prices a routed itinerary handed over by the map: one offer per operator segment plus a total.
+    /// Read-only — nothing is bought or reserved here, so no idempotency key is needed either.
+    /// </summary>
+    public async Task<OperationResult<JourneyQuoteResponse>> QuoteAsync(JourneyQuoteRequest request, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync("journeys/quote", request, JsonOptions, ct);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<JourneyQuoteResponse>(JsonOptions, ct);
+                return OperationResult<JourneyQuoteResponse>.Ok(data!);
+            }
+
+            var problem = await TryReadProblemAsync(response, ct);
+            return OperationResult<JourneyQuoteResponse>.Fail(problem ?? "Could not price the journey");
+        }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyQuoteResponse>.Fail("Something went wrong. Check your connection and try again."); }
+    }
+
+    /// <summary>
+    /// "Buy all" for a routed itinerary: purchases the operators it can and reserves wallet funds for
+    /// the buy-on-board ones.
+    /// <para>
+    /// Sends an <c>Idempotency-Key</c> for the same reason <see cref="TicketService.PurchaseTicketAsync"/>
+    /// does: the request charges and reserves the wallet, and <see cref="Helpers.AuthenticatedHttpHandler"/>
+    /// replays the request after a 401 token refresh — without a key that replay is a second charge.
+    /// </para>
+    /// </summary>
+    public async Task<OperationResult<JourneyBookingResponse>> BookAsync(BookJourneyRequest request, CancellationToken ct = default)
+    {
+        try
+        {
+            using var message = new HttpRequestMessage(HttpMethod.Post, "journeys/book")
+            {
+                Content = JsonContent.Create(request, options: JsonOptions)
+            };
+            message.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("N"));
+
+            var response = await _http.SendAsync(message, ct);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<JourneyBookingResponse>(JsonOptions, ct);
+                return OperationResult<JourneyBookingResponse>.Ok(data!);
+            }
+
+            var problem = await TryReadProblemAsync(response, ct);
+            return OperationResult<JourneyBookingResponse>.Fail(problem ?? "Could not book the journey");
+        }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult<JourneyBookingResponse>.Fail("Something went wrong. Check your connection and try again."); }
+    }
+
+    /// <summary>
+    /// Cancels a booked journey and releases its reserved funds back to spendable. Success is 204.
+    /// </summary>
+    public async Task<OperationResult> CancelBookingAsync(int journeyId, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await _http.PostAsync($"journeys/{journeyId}/cancel", null, ct);
+            if (response.IsSuccessStatusCode)
+                return OperationResult.Ok();
+
+            var problem = await TryReadProblemAsync(response, ct);
+            return OperationResult.Fail(problem ?? "Could not cancel the booking");
+        }
+        catch (Exception ex) { Trace.WriteLine($"[JourneyService] {ex}"); return OperationResult.Fail("Something went wrong. Check your connection and try again."); }
+    }
 }
