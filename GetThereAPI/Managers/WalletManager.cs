@@ -127,4 +127,58 @@ public class WalletManager
 
         return wallet;
     }
+
+    /// <summary>
+    /// Holds funds for a booked buy-on-board leg: moves <paramref name="amount"/> from spendable into
+    /// <c>Reserved</c> (total <c>Balance</c> unchanged). Fails if available balance
+    /// (<c>Balance − Reserved</c>) cannot cover it. Records a <see cref="WalletTransactionType.Hold"/>.
+    /// The app never pays the operator — this is a budget guarantee, released on cancel or on obtaining
+    /// the ticket on board.
+    /// </summary>
+    public async Task ReserveAsync(int walletId, decimal amount, string description, string? reference, CancellationToken ct = default)
+    {
+        if (amount <= 0) return;
+        var at = DateTime.UtcNow;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        var rows = await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Wallets SET Reserved = Reserved + {amount}, UpdatedAt = {at} WHERE Id = {walletId} AND Balance - Reserved >= {amount}", ct);
+        if (rows == 0)
+            throw new AppException("Insufficient balance to reserve.", 400, "INSUFFICIENT_BALANCE");
+
+        var balance = await ReadBalanceAsync(walletId, ct);
+        _db.WalletTransactions.Add(new WalletTransaction
+        {
+            WalletId = walletId, Amount = amount, BalanceBefore = balance, BalanceAfter = balance,
+            Type = WalletTransactionType.Hold, Description = description, ReferenceId = reference, CreatedAt = at,
+        });
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+    }
+
+    /// <summary>Releases a hold: returns <paramref name="amount"/> from <c>Reserved</c> to spendable,
+    /// clamped so a double release can't drive it negative. Records a <see cref="WalletTransactionType.Release"/>.</summary>
+    public async Task ReleaseAsync(int walletId, decimal amount, string description, string? reference, CancellationToken ct = default)
+    {
+        if (amount <= 0) return;
+        var at = DateTime.UtcNow;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Wallets SET Reserved = CASE WHEN Reserved >= {amount} THEN Reserved - {amount} ELSE 0 END, UpdatedAt = {at} WHERE Id = {walletId}", ct);
+
+        var balance = await ReadBalanceAsync(walletId, ct);
+        _db.WalletTransactions.Add(new WalletTransaction
+        {
+            WalletId = walletId, Amount = amount, BalanceBefore = balance, BalanceAfter = balance,
+            Type = WalletTransactionType.Release, Description = description, ReferenceId = reference, CreatedAt = at,
+        });
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+    }
+
+    private async Task<decimal> ReadBalanceAsync(int walletId, CancellationToken ct) =>
+        await _db.Wallets.AsNoTracking().Where(w => w.Id == walletId).Select(w => w.Balance).FirstAsync(ct);
 }

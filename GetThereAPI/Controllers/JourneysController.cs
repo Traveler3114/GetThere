@@ -22,8 +22,53 @@ namespace GetThereAPI.Controllers;
 public class JourneysController : ControllerBase
 {
     private readonly JourneyManager _manager;
+    private readonly JourneyQuoteManager _quote;
+    private readonly JourneyBookingManager _booking;
 
-    public JourneysController(JourneyManager manager) { _manager = manager; }
+    public JourneysController(JourneyManager manager, JourneyQuoteManager quote, JourneyBookingManager booking)
+    {
+        _manager = manager;
+        _quote = quote;
+        _booking = booking;
+    }
+
+    /// <summary>
+    /// Prices a routed itinerary: one offer per operator segment plus a combined total, each offer
+    /// marked purchasable-now or buy-on-board. Read-only — nothing is bought or reserved here.
+    /// </summary>
+    [HttpPost("quote")]
+    [Authorize(Policy = PermissionKeys.JourneysView)]
+    public async Task<ActionResult<JourneyQuoteResponse>> Quote(JourneyQuoteRequest request, CancellationToken ct = default)
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+        return Ok(await _quote.QuoteAsync(request, ct));
+    }
+
+    /// <summary>
+    /// "Buy all" for a routed itinerary: creates a journey, purchases the operators it can, and
+    /// reserves wallet funds for the buy-on-board ones.
+    /// </summary>
+    [HttpPost("book")]
+    [Authorize(Policy = PermissionKeys.JourneysCreate)]
+    public async Task<ActionResult<JourneyBookingResponse>> Book(BookJourneyRequest request, CancellationToken ct = default)
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+        var result = await _booking.BookAsync(userId, request, ct);
+        return CreatedAtAction(nameof(GetById), new { id = result.JourneyId }, result);
+    }
+
+    /// <summary>Cancels a booked journey and releases its reserved funds back to spendable.</summary>
+    [HttpPost("{id}/cancel")]
+    [Authorize(Policy = PermissionKeys.JourneysManage)]
+    public async Task<ActionResult> CancelBooking(int id, CancellationToken ct = default)
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+        await _booking.CancelAsync(id, userId, ct);
+        return NoContent();
+    }
 
     [HttpGet]
     [Authorize(Policy = PermissionKeys.JourneysView)]

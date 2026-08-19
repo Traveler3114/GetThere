@@ -26,10 +26,20 @@ public class PlanController(OtpGraphQlClient otp, ILogger<PlanController> logger
         if (!GeoBounds.IsUsable(request.FromLat, request.FromLon) || !GeoBounds.IsUsable(request.ToLat, request.ToLon))
             return BadRequest("Origin and destination must be valid coordinates.");
 
+        // Resolve the filter: an explicit structured preference wins, else the named preset, else the
+        // default (fastest). Apply its request-shaping to OTP, then rank the returned set by it.
+        var preference = request.Preference ?? RoutingPresets.Resolve(request.Preset) ?? new RoutingPreference();
+        var shaped = request with
+        {
+            TransitModes = request.TransitModes ?? RoutingPresets.AllowedTransitModes(preference),
+            TransferPenalty = request.TransferPenalty ?? preference.TransferPenalty,
+            WalkReluctance = request.WalkReluctance ?? preference.WalkReluctance,
+        };
+
         try
         {
-            var itineraries = await otp.PlanAsync(request, ct);
-            return Ok(itineraries);
+            var itineraries = await otp.PlanAsync(shaped, ct);
+            return Ok(ItineraryRanker.Rank(itineraries, preference.RankBy));
         }
         catch (OtpPlanException ex)
         {

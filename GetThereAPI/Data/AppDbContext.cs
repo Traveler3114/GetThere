@@ -22,6 +22,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<ImportedTicket> ImportedTickets { get; set; } = null!;
     public DbSet<TicketUpload> TicketUploads { get; set; } = null!;
     public DbSet<Journey> Journeys { get; set; } = null!;
+    public DbSet<JourneyReservation> JourneyReservations { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +69,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
         {
             entity.HasIndex(w => w.UserId).IsUnique();
             entity.Property(w => w.Balance).HasPrecision(18, 2);
+            entity.Property(w => w.Reserved).HasPrecision(18, 2);
             entity.HasOne(w => w.User)
                   .WithMany()
                   .HasForeignKey(w => w.UserId);
@@ -260,6 +262,23 @@ public class AppDbContext : IdentityDbContext<AppUser>
                   .WithOne(t => t.Journey)
                   .HasForeignKey(t => t.JourneyId)
                   .OnDelete(DeleteBehavior.SetNull);
+
+            // Reservations are booking artefacts, not independent valuables — they cascade with the
+            // journey. Their wallet holds are released in code before delete/cancel.
+            entity.HasMany(j => j.Reservations)
+                  .WithOne(r => r.Journey)
+                  .HasForeignKey(r => r.JourneyId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<JourneyReservation>(entity =>
+        {
+            entity.Property(r => r.Amount).HasPrecision(18, 2);
+            entity.Property(r => r.Status).HasMaxLength(32);
+            entity.Property(r => r.OperatorGlobalId).HasMaxLength(128);
+            entity.Property(r => r.OperatorName).HasMaxLength(200);
+            entity.Property(r => r.ProductName).HasMaxLength(200);
+            entity.Property(r => r.WalletHoldReference).HasMaxLength(64);
         });
         modelBuilder.Entity<TicketUpload>(entity =>
         {

@@ -125,8 +125,9 @@ public class TicketingManager
             var debitedAt = DateTime.UtcNow;
 
             // Atomic and conditional: two concurrent purchases cannot both pass the balance check.
+            // Guarded against Reserved so funds held for booked buy-on-board legs are not spendable.
             var rowsAffected = await _db.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE Wallets SET Balance = Balance - {option.Price}, UpdatedAt = {debitedAt} WHERE Id = {wallet.Id} AND Balance >= {option.Price}", ct);
+                $"UPDATE Wallets SET Balance = Balance - {option.Price}, UpdatedAt = {debitedAt} WHERE Id = {wallet.Id} AND Balance - Reserved >= {option.Price}", ct);
             if (rowsAffected == 0)
                 throw new AppException("Insufficient balance.", 400, "INSUFFICIENT_BALANCE");
 

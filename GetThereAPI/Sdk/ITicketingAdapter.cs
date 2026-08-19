@@ -8,6 +8,21 @@ public interface ITicketingAdapter
     string AdapterType { get; }
     List<RequiredInput> RequiredInputs { get; }
 
+    /// <summary>
+    /// Whether this operator's ticket can be bought through the API here and now. Buy-on-board
+    /// operators (board and scan a QR, unlock at a dock) return false: they can be priced and reserved
+    /// but not purchased remotely. Default true.
+    /// </summary>
+    bool CanPurchase => true;
+
+    /// <summary>
+    /// Prices one segment of a journey for this operator, applying the operator's own fare rules.
+    /// The default returns null, meaning "no custom logic — let the caller quote from the catalogue"
+    /// (cheapest option that covers the segment). An operator with a real tariff overrides this.
+    /// </summary>
+    Task<QuoteOffer?> QuoteAsync(QuoteContext context, CancellationToken ct = default)
+        => Task.FromResult<QuoteOffer?>(null);
+
     Task<PurchaseResult> PurchaseAsync(PurchaseRequest request, CancellationToken ct = default);
     Task<TicketPayload?> ValidateAsync(string externalTicketId, CancellationToken ct = default);
 

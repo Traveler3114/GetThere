@@ -40,7 +40,18 @@
   const planResults = document.getElementById('planResults');
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const state = { from: null, to: null, pickTarget: null, itineraries: [], selected: 0 };
+  const state = { from: null, to: null, pickTarget: null, itineraries: [], selected: 0, preset: 'fastest' };
+
+  // Presets that work in this anonymous, fare-blind planner (routing-only). "cheapest" is omitted
+  // here on purpose — it ranks by the GetThereAPI journey total, which only the authenticated app can
+  // fetch; the map WebView never talks to GetThereAPI.
+  const PRESETS = [
+    { key: 'fastest', en: 'Fastest', hr: 'Najbrže' },
+    { key: 'balanced', en: 'Balanced', hr: 'Uravnoteženo' },
+    { key: 'greener', en: 'Greener', hr: 'Zelenije' },
+    { key: 'fewest-transfers', en: 'Fewest transfers', hr: 'Manje presjedanja' },
+    { key: 'no-trains', en: 'No trains', hr: 'Bez vlakova' },
+  ];
 
   // Static labels (kept out of the HTML so there is one place to add a language, as public.js does).
   btnOpen.textContent = t('open');
@@ -305,7 +316,8 @@
     const body = {
       fromLat: state.from.lat, fromLon: state.from.lon,
       toLat: state.to.lat, toLon: state.to.lon,
-      numItineraries: 3
+      numItineraries: 3,
+      preset: state.preset
     };
     const iso = departIso();
     if (iso) body.departAt = iso;
@@ -424,5 +436,28 @@
 
   wireField(fromInput, fromResults, 'from');
   wireField(toInput, toResults, 'to');
+
+  // ── Preset filter chips ───────────────────────────────────────────────────
+  const presetHost = document.getElementById('planPresets');
+  function renderPresets() {
+    presetHost.replaceChildren(...PRESETS.map(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'preset' + (state.preset === p.key ? ' selected' : '');
+      btn.dataset.preset = p.key;
+      btn.textContent = p[lang] || p.en;
+      btn.setAttribute('aria-pressed', state.preset === p.key ? 'true' : 'false');
+      return btn;
+    }));
+  }
+  presetHost.addEventListener('click', e => {
+    const chip = e.target.closest('.preset');
+    if (!chip) return;
+    state.preset = chip.dataset.preset;
+    renderPresets();
+    if (state.from && state.to) submitPlan(); // re-plan with the new filter
+  });
+  renderPresets();
+
   planBtn.disabled = true;
 })();

@@ -177,6 +177,10 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
 .pf-swap { flex: none; width: 36px; height: 36px; border: 1px solid #E2E8F0; border-radius: 8px; background: #fff; color: #475569; cursor: pointer; font-size: 15px; }
 .pf-go { flex: none; height: 36px; padding: 0 18px; border: none; border-radius: 8px; background: #134E4A; color: #5EEAD4; font: inherit; font-weight: 600; font-size: 13.5px; cursor: pointer; }
 .pf-go:disabled { opacity: 0.5; cursor: default; }
+.pf-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pf-presets .preset { height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #E2E8F0;
+  background: #fff; color: #475569; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.pf-presets .preset.selected { background: #134E4A; border-color: #10B981; color: #5EEAD4; }
 .plan-results { overflow-y: auto; padding: 0 14px 12px; }
 .plan-msg { padding: 10px 2px; font-size: 13px; color: #64748b; }
 .itin { border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px; margin-top: 8px; cursor: pointer; }
@@ -217,6 +221,7 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
   .pf-results { background: #1F2937; border-color: #374151; }
   .pf-results li { color: #F3F4F6; }
   .pf-results li:hover, .pf-results li.active { background: #374151; }
+  .pf-presets .preset { background: #1F2937; border-color: #374151; color: #CBD5E1; }
   .itin { border-color: #374151; }
   .itin-dur { color: #F3F4F6; }
   .leg-line { color: #CBD5E1; }
@@ -270,6 +275,7 @@ html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
       <button id="swapEnds" class="pf-swap" type="button" aria-label="Swap start and destination">⇅</button>
       <button id="planBtn" class="pf-go" type="button"></button>
     </div>
+    <div id="planPresets" class="pf-presets" role="group"></div>
   </div>
   <div id="planResults" class="plan-results"></div>
 </div>

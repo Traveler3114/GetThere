@@ -235,6 +235,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    // Register a mock ticketing adapter so the purchasable-now path works end-to-end without a real
+    // operator integration or payment provider. Development only — production purchases require a real
+    // registered adapter (an unregistered one returns 503 by design).
+    app.Services.GetRequiredService<GetThereAPI.Sdk.AdapterRegistry>()
+        .Register(GetThereAPI.Sdk.MockTicketingAdapter.Type, new GetThereAPI.Sdk.MockTicketingAdapter());
 }
 
 app.UseExceptionHandler(errorApp =>

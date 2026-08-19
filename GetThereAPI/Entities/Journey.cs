@@ -35,4 +35,7 @@ public class Journey
 
     public ICollection<ImportedTicket> ImportedTickets { get; set; } = [];
     public ICollection<Ticket> Tickets { get; set; } = [];
+
+    /// <summary>Buy-on-board legs held for this journey (funds reserved, ticket bought on board).</summary>
+    public ICollection<JourneyReservation> Reservations { get; set; } = [];
 }

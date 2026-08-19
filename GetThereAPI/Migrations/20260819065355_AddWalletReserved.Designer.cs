@@ -4,6 +4,7 @@ using GetThereAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GetThereAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260819065355_AddWalletReserved")]
+    partial class AddWalletReserved
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -297,58 +300,6 @@ namespace GetThereAPI.Migrations
                     b.HasIndex("UserId", "Status");
 
                     b.ToTable("Journeys");
-                });
-
-            modelBuilder.Entity("GetThereAPI.Entities.JourneyReservation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("JourneyId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("OperatorGlobalId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("OperatorName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ProductName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<string>("WalletHoldReference")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("JourneyId");
-
-                    b.ToTable("JourneyReservations");
                 });
 
             modelBuilder.Entity("GetThereAPI.Entities.Purchase", b =>
@@ -959,17 +910,6 @@ namespace GetThereAPI.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("GetThereAPI.Entities.JourneyReservation", b =>
-                {
-                    b.HasOne("GetThereAPI.Entities.Journey", "Journey")
-                        .WithMany("Reservations")
-                        .HasForeignKey("JourneyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Journey");
-                });
-
             modelBuilder.Entity("GetThereAPI.Entities.Purchase", b =>
                 {
                     b.HasOne("GetThereAPI.Entities.TicketOption", "TicketOption")
@@ -1142,8 +1082,6 @@ namespace GetThereAPI.Migrations
             modelBuilder.Entity("GetThereAPI.Entities.Journey", b =>
                 {
                     b.Navigation("ImportedTickets");
-
-                    b.Navigation("Reservations");
 
                     b.Navigation("Tickets");
                 });

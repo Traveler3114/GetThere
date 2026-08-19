@@ -15,13 +15,25 @@ public sealed class OtpGraphQlClient(
     IHttpClientFactory httpClientFactory,
     IOptions<RoutingOptions> options)
 {
+    // OTP Mode names we let a caller allow-list for transit. Guarded so a bad value can't be injected
+    // into the GraphQL enum (which would fail the whole query); anything unknown is simply dropped.
+    private static readonly HashSet<string> AllowedTransitModes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY", "CABLE_CAR", "GONDOLA", "FUNICULAR", "TROLLEYBUS",
+        "MONORAIL", "AIRPLANE", "COACH",
+    };
+
     private const string PlanQuery = """
-        query Plan($fromLat: Float!, $fromLon: Float!, $toLat: Float!, $toLon: Float!, $date: String, $time: String, $num: Int) {
+        query Plan($fromLat: Float!, $fromLon: Float!, $toLat: Float!, $toLon: Float!, $date: String, $time: String, $num: Int, $modes: [TransportMode!], $arriveBy: Boolean, $walkReluctance: Float, $transferPenalty: Int, $wheelchair: Boolean) {
           plan(
             from: { lat: $fromLat, lon: $fromLon },
             to: { lat: $toLat, lon: $toLon },
             date: $date, time: $time, numItineraries: $num,
-            transportModes: [{ mode: WALK }, { mode: TRANSIT }, { mode: BICYCLE, qualifier: RENT }]
+            transportModes: $modes,
+            arriveBy: $arriveBy,
+            walkReluctance: $walkReluctance,
+            transferPenalty: $transferPenalty,
+            wheelchair: $wheelchair
           ) {
             itineraries {
               duration startTime endTime walkDistance
@@ -54,6 +66,12 @@ public sealed class OtpGraphQlClient(
             ["date"] = departAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["time"] = departAt.ToString("HH:mm", CultureInfo.InvariantCulture),
             ["num"] = Math.Clamp(request.NumItineraries, 1, 10),
+            ["modes"] = BuildTransportModes(request),
+            ["arriveBy"] = request.ArriveBy,
+            // Null variables are treated as "unset" by OTP, which then applies its own defaults.
+            ["walkReluctance"] = request.WalkReluctance,
+            ["transferPenalty"] = request.TransferPenalty,
+            ["wheelchair"] = request.Wheelchair,
         };
 
         var body = new JsonObject { ["query"] = PlanQuery, ["variables"] = variables };
@@ -66,6 +84,34 @@ public sealed class OtpGraphQlClient(
             throw new OtpPlanException($"OTP responded {(int)response.StatusCode}: {Truncate(json)}");
 
         return OtpResponseParser.Parse(json);
+    }
+
+    /// <summary>
+    /// Builds OTP's <c>transportModes</c> list. Always includes WALK; expands the caller's transit
+    /// allow-list (or all TRANSIT when none is given); appends bike rental unless turned off. Passing
+    /// an explicit subset is how a filter excludes a mode — OTP only considers the modes listed here.
+    /// </summary>
+    private static JsonArray BuildTransportModes(PlanRequest request)
+    {
+        var modes = new JsonArray { new JsonObject { ["mode"] = "WALK" } };
+
+        if (request.TransitModes is { Count: > 0 })
+        {
+            foreach (var mode in request.TransitModes)
+            {
+                if (AllowedTransitModes.Contains(mode))
+                    modes.Add(new JsonObject { ["mode"] = mode.ToUpperInvariant() });
+            }
+        }
+        else
+        {
+            modes.Add(new JsonObject { ["mode"] = "TRANSIT" });
+        }
+
+        if (request.IncludeBikeRental)
+            modes.Add(new JsonObject { ["mode"] = "BICYCLE", ["qualifier"] = "RENT" });
+
+        return modes;
     }
 
     private static string Truncate(string value) => value.Length <= 500 ? value : value[..500];
