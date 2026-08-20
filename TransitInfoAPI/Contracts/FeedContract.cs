@@ -23,6 +23,9 @@ public class FeedResponse
     public bool? LicenseCommercialUseAllowed { get; set; }
     public bool? LicenseShareAlikeOptional { get; set; }
     public bool? LicenseRedistributionAllowed { get; set; }
+
+    /// <summary>Official, UnofficialMirror or ReverseEngineered — how this feed relates to its publisher.</summary>
+    public string Provenance { get; set; } = "Official";
 }
 
 /// <summary>A specific import version of a feed snapshot, including service-level metadata and import status.</summary>

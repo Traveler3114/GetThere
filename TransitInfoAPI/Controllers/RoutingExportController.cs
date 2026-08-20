@@ -79,6 +79,14 @@ public class RoutingExportController(RoutingExportCache cache) : ControllerBase
         return File(bytes, "application/x-protobuf");
     }
 
+    /// <summary>Immediate OSM extract refresh — the escape hatch that makes the daily worker skippable.</summary>
+    [HttpPost("osm-refresh")]
+    public async Task<IActionResult> OsmRefresh([FromServices] OsmExtractDownloader downloader, CancellationToken ct)
+    {
+        var results = await downloader.RefreshAllAsync(ct);
+        return Ok(results);
+    }
+
     private IActionResult Payload(string? json) =>
         json is null ? NotFound() : Content(json, "application/json");
 }

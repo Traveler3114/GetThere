@@ -113,6 +113,7 @@ public class CustomSourceManager
             .Take(perPage)
             .Include(cs => cs.Operator)
             .Include(cs => cs.Requests).ThenInclude(r => r.Mappings)
+            .AsSplitQuery()
             .ToListAsync(ct);
 
         var ids = sources.ConvertAll(s => s.Id);
@@ -476,6 +477,7 @@ public class CustomSourceManager
         var query = _db.CustomSources
             .Include(cs => cs.Operator)
             .Include(cs => cs.Requests).ThenInclude(r => r.Mappings)
+            .AsSplitQuery()
             .AsQueryable();
 
         if (!tracking) query = query.AsNoTracking();

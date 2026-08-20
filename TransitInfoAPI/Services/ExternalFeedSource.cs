@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Text;
 
 using TransitInfoAPI.Core;
 using TransitInfoAPI.Entities;
@@ -26,17 +28,32 @@ public class ExternalFeedSource
     private readonly ILogger<ExternalFeedSource> _logger;
     private readonly bool _allowPrivateNetworkUrls;
 
+    /// <summary>
+    /// Host → <c>username:password</c>, from <c>Feeds:BasicAuth</c> (user-secrets, never the DB or
+    /// git). The Croatian NAP (<c>b2b.promet-info.hr</c>) answers <c>401 WWW-Authenticate: Basic</c>,
+    /// and <c>HttpClient</c> will not send credentials embedded in a URL, so the header is added
+    /// here, keyed by the feed URL's host.
+    /// </summary>
+    private readonly IReadOnlyDictionary<string, string> _basicAuth;
+
     public ExternalFeedSource(IHttpClientFactory httpFactory, IConfiguration configuration, ILogger<ExternalFeedSource> logger)
     {
         _httpFactory = httpFactory;
         _logger = logger;
 
-        // Escape hatch for developing against a locally hosted GTFS zip. Never enable in production:
-        // it turns the feed importer back into an SSRF proxy for the server's own network.
+        // AllowPrivateNetworkUrls is the development escape hatch: a locally hosted GTFS zip is not
+        // a public address, and without the flag the SSRF guard refuses it.
         _allowPrivateNetworkUrls = configuration.GetValue("Feeds:AllowPrivateNetworkUrls", false);
+
+        _basicAuth = configuration.GetSection("Feeds:BasicAuth")
+            .GetChildren()
+            .ToDictionary(c => c.Key, c => c.Value ?? string.Empty, StringComparer.OrdinalIgnoreCase);
 
         if (_allowPrivateNetworkUrls)
             _logger.LogWarning("Feeds:AllowPrivateNetworkUrls is enabled — feed URLs may target private addresses.");
+        if (_basicAuth.Count > 0)
+            _logger.LogInformation("Basic auth configured for {Count} feed host(s): {Hosts}",
+                _basicAuth.Count, string.Join(", ", _basicAuth.Keys));
     }
 
     public async Task<FeedFetchResult> FetchDataAsync(Feed feed, CancellationToken ct)
@@ -48,8 +65,13 @@ public class ExternalFeedSource
         if (!_allowPrivateNetworkUrls)
             EnsurePublicDestination(url);
 
-        var http = _httpFactory.CreateClient("gtfs");
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        // A host with a configured credential is fetched with redirects followed by hand, so the
+        // credential is never sent off the host it belongs to. Everything else stays on the plain
+        // path below, whose auto-redirect never carries an Authorization header in the first place.
+        using var response = BasicCredentialFor(url, out var credential)
+            ? await FetchWithBasicAuthAsync(url, credential, ct)
+            : await _httpFactory.CreateClient("gtfs").GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+
         response.EnsureSuccessStatusCode();
 
         // A redirect can land somewhere the original URL check never saw.
@@ -73,6 +95,101 @@ public class ExternalFeedSource
         _logger.LogDebug("ExternalFeedSource: fetched {Length} bytes from {Url}", bytes.Length, url);
         return new FeedFetchResult(bytes, contentType, etag, lastModified);
     }
+
+    private bool BasicCredentialFor(string url, out string credential)
+    {
+        credential = string.Empty;
+        if (_basicAuth.Count == 0) return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
+        if (!_basicAuth.TryGetValue(uri.Host, out var found)) return false;
+        credential = found;
+        return credential.Length > 0;
+    }
+
+    /// <summary>
+    /// Fetches a feed whose host has a <c>Feeds:BasicAuth</c> credential, following redirects by
+    /// hand so the credential stays on the host it belongs to.
+    /// <para>
+    /// This mirrors <c>CustomSourceEngine</c>'s off-host rule: the "gtfs-basic" client has
+    /// <c>AllowAutoRedirect = false</c>, so every hop is decided here <em>before</em> the request
+    /// goes out, and a redirect that would leave the configured host — or drop https to http, or
+    /// move to a different port — refuses the whole fetch rather than sending the credential
+    /// anywhere it was not meant for.
+    /// </para>
+    /// </summary>
+    private async Task<HttpResponseMessage> FetchWithBasicAuthAsync(string url, string credential, CancellationToken ct)
+    {
+        var http = _httpFactory.CreateClient("gtfs-basic");
+        var origin = new Uri(url);
+        var current = origin;
+
+        for (var hop = 0; ; hop++)
+        {
+            if (!_allowPrivateNetworkUrls)
+                EnsurePublicDestination(current.AbsoluteUri);
+
+            using var message = new HttpRequestMessage(HttpMethod.Get, current);
+            message.Headers.Authorization = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(credential)));
+
+            var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            var location = response.Headers.Location;
+            if (!IsRedirect(response.StatusCode) || location is null)
+                return response;
+
+            var status = response.StatusCode;
+            response.Dispose();
+
+            if (hop >= MaxRedirects)
+                throw new Exceptions.AppException(
+                    $"Feed redirected more than {MaxRedirects} times starting at {origin.Host}.",
+                    502, "TOO_MANY_REDIRECTS");
+
+            if (!Uri.TryCreate(current, location, out var candidate)
+                || candidate.Scheme is not ("http" or "https"))
+            {
+                throw new Exceptions.AppException(
+                    $"{(int)status} from {current.Host} pointed at something that is not an HTTP(S) URL.",
+                    502, "REDIRECT_INVALID");
+            }
+
+            if (!string.Equals(candidate.Host, origin.Host, StringComparison.OrdinalIgnoreCase))
+                throw new Exceptions.AppException(
+                    $"{current.Host} redirected to {candidate.Host} and this feed carries a Basic credential — "
+                    + "refusing to send it off-host. Point the feed at its final address instead.",
+                    502, "REDIRECTED_OFF_HOST");
+
+            if (origin.Scheme == "https" && candidate.Scheme == "http")
+                throw new Exceptions.AppException(
+                    $"{current.Host} redirected from https to http and this feed carries a Basic credential — "
+                    + "refusing to send it in clear.",
+                    502, "REDIRECT_DOWNGRADE");
+
+            // Same host, same-or-better scheme, different port is still a different origin: ports on
+            // one machine are different services. The single exception is the plain http→https
+            // upgrade, where 80 becomes 443 precisely because the scheme improved.
+            var schemeUpgrade = origin.Scheme == "http" && candidate.Scheme == "https"
+                && origin.IsDefaultPort && candidate.IsDefaultPort;
+
+            if (candidate.Port != origin.Port && !schemeUpgrade)
+                throw new Exceptions.AppException(
+                    $"{current.Host} redirected to port {candidate.Port} and this feed carries a Basic credential — "
+                    + $"refusing to send it to a port other than {origin.Port}.",
+                    502, "REDIRECTED_OFF_PORT");
+
+            current = candidate;
+        }
+    }
+
+    private static bool IsRedirect(HttpStatusCode status) => status is
+        HttpStatusCode.MovedPermanently
+        or HttpStatusCode.Found
+        or HttpStatusCode.SeeOther
+        or HttpStatusCode.TemporaryRedirect
+        or HttpStatusCode.PermanentRedirect;
+
+    private const int MaxRedirects = 5;
 
     /// <summary>Reads the body, aborting past <see cref="MaxFeedBytes"/> so a lying Content-Length cannot exhaust memory.</summary>
     private static async Task<byte[]> ReadCappedAsync(HttpResponseMessage response, CancellationToken ct)

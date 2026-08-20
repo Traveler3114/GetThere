@@ -555,5 +555,6 @@ public class CustomHttpSource : ITransitSource
         await _db.CustomSources
             .Include(cs => cs.Operator)
             .Include(cs => cs.Requests).ThenInclude(r => r.Mappings)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(cs => cs.Id == feed.CustomSourceId, ct);
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using TransitInfoAPI.Data;
@@ -12,9 +13,11 @@ using TransitInfoAPI.Data;
 namespace TransitInfoAPI.Migrations
 {
     [DbContext(typeof(TransitDbContext))]
-    partial class TransitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820121712_AddStopLocationResolution")]
+    partial class AddStopLocationResolution
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -995,14 +998,12 @@ namespace TransitInfoAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Sha1");
+                    b.HasIndex("Sha1")
+                        .IsUnique();
 
                     b.HasIndex("FeedId", "IsActive")
                         .IsUnique()
                         .HasFilter("[IsActive] = 1");
-
-                    b.HasIndex("FeedId", "Sha1")
-                        .IsUnique();
 
                     b.ToTable("FeedVersions");
                 });
@@ -1490,6 +1491,87 @@ namespace TransitInfoAPI.Migrations
                     b.HasIndex("CandidateStationId");
 
                     b.ToTable("StationSplitLogs");
+                });
+
+            modelBuilder.Entity("TransitInfoAPI.Entities.StopGazetteerEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<double>("Lat")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Lon")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Network")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Operator")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Region", "NormalizedName");
+
+                    b.ToTable("StopGazetteerEntries");
+                });
+
+            modelBuilder.Entity("TransitInfoAPI.Entities.StopLocationCacheEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("Lat")
+                        .HasColumnType("float");
+
+                    b.Property<double>("Lon")
+                        .HasColumnType("float");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("OperatorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName", "OperatorId")
+                        .IsUnique();
+
+                    b.ToTable("StopLocationCacheEntries");
                 });
 
             modelBuilder.Entity("TransitInfoAPI.Entities.StopTime", b =>

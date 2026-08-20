@@ -1292,10 +1292,16 @@ public class FeedManager
         {
             // This UPDATE joins StopTimes (potentially millions of rows) with RawStops
             // and may exceed the default 30s timeout. Raise it for this query only.
+            //
+            // Both sides are scoped to this version: the RawStops via the WHERE, the StopTimes via
+            // their Trips. Without the trip scoping, a later version's backfill rewrites earlier
+            // versions' stop times wherever a GTFS stop_id collides across operators (e.g. "RAB" in
+            // rapska-plovidba vs rapska-vozidba), stealing their departures. The Ferry stops of
+            // rapska-plovidba were relinked to rapska-vozidba's Rab station like that.
             var prevTimeout = _db.Database.GetCommandTimeout();
             _db.Database.SetCommandTimeout(_bulkCommandTimeoutSeconds);
             var rows = await _db.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId WHERE rs.FeedVersionId = {feedVersionId}", ct);
+                $"UPDATE st SET st.RawStopEntityId = rs.Id, st.CanonicalStationId = rs.CanonicalStationId FROM StopTimes st INNER JOIN Trips t ON t.Id = st.TripId AND t.FeedVersionId = {feedVersionId} INNER JOIN RawStops rs ON st.RawStopId = rs.RawStopId AND rs.FeedVersionId = {feedVersionId}", ct);
             _db.Database.SetCommandTimeout(prevTimeout);
             _logStore.AddEntry(feedVersionId, $"Backfill complete: {rows} rows updated");
         }

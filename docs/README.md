@@ -64,6 +64,8 @@ they are, not just what each type does.
 - [database-drift.md](database-drift.md) — schema drift
 - [transitinfodb-rebaseline.md](transitinfodb-rebaseline.md) — why TransitInfoDb has one migration
 - [map-proxy-migration.md](map-proxy-migration.md) — how the map moved behind the proxy
+- [operator-data-sources.md](operator-data-sources.md) — every Croatian operator + its best data source (GTFS/API/PDF), how to ingest each
+- [reference/transit-data-catalogs.md](reference/transit-data-catalogs.md) — bookmarked catalogs & source sites (transitous, Mobility Database, …) for finding transit data
 - [guides/running-locally.md](guides/running-locally.md) — every command to build, run (OTP, both APIs, the MAUI app) and test the stack
 - [guides/ef-database-commands.md](guides/ef-database-commands.md) — EF Core commands
 

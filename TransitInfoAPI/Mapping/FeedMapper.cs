@@ -24,7 +24,8 @@ public static class FeedMapper
             LicenseUrl = f.LicenseUrl,
             LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
             LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
-            LicenseRedistributionAllowed = f.LicenseRedistributionAllowed
+            LicenseRedistributionAllowed = f.LicenseRedistributionAllowed,
+            Provenance = f.Provenance.ToString()
         };
 
     public static FeedResponse ToResponse(Feed f) => new()
@@ -43,6 +44,7 @@ public static class FeedMapper
         LicenseUrl = f.LicenseUrl,
         LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
         LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
-        LicenseRedistributionAllowed = f.LicenseRedistributionAllowed
+        LicenseRedistributionAllowed = f.LicenseRedistributionAllowed,
+        Provenance = f.Provenance.ToString()
     };
 }

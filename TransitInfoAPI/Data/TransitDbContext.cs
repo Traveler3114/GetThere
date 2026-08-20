@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 using TransitInfoAPI.Entities;
+using TransitInfoAPI.Enums;
 
 namespace TransitInfoAPI.Data;
 
@@ -191,9 +192,17 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         modelBuilder.Entity<FeedVersion>()
             .Property(fv => fv.Sha1)
             .HasMaxLength(64);
+
+        // Content identity is per-feed: two feeds that publish identical bytes (a GTFS zip shared
+        // between a legacy and a seeded feed, or two name-only operators whose gazetteer snapshots
+        // coincide) each own their version. FeedManager already checks SHA-1 scoped by FeedId, so
+        // the unique index was stricter than the application contract — the schema is now exactly
+        // what the code assumes. The plain Sha1 index below keeps the by-hash console lookups fast.
         modelBuilder.Entity<FeedVersion>()
-            .HasIndex(fv => fv.Sha1)
+            .HasIndex(fv => new { fv.FeedId, fv.Sha1 })
             .IsUnique();
+        modelBuilder.Entity<FeedVersion>()
+            .HasIndex(fv => fv.Sha1);
         modelBuilder.Entity<FeedVersion>()
             .HasIndex(fv => new { fv.FeedId, fv.IsActive })
             .IsUnique()
@@ -288,6 +297,11 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         modelBuilder.Entity<Feed>()
             .HasIndex(f => f.FeedId)
             .IsUnique();
+        // Exists so a row written without the property (raw SQL, a DBA insert) lands on the honest
+        // label rather than an empty string the enum converter cannot read back.
+        modelBuilder.Entity<Feed>()
+            .Property(f => f.Provenance)
+            .HasDefaultValue(SourceProvenance.Official);
 
         // ── Custom sources ────────────────────────────────────────────────────────────────────
         // Deletes stay Restrict here as everywhere else, so removing a source with runs or requests

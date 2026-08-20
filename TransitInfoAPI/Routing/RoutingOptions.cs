@@ -60,6 +60,30 @@ public sealed class OsmExtractOptions
 
     /// <summary>Bounding box to crop the Geofabrik download to before the graph build.</summary>
     public BoundingBox BoundingBox { get; set; } = new();
+
+    /// <summary>
+    /// Directory the refresher downloads extracts into. Falls back to <c>Export.OutputDirectory</c>,
+    /// then to the system temp directory. Each region lands as <c>{name}-latest.osm.pbf</c>.
+    /// </summary>
+    public string? OutputDirectory { get; set; }
+
+    /// <summary>How often the refresher worker checks Geofabrik for updated extracts.</summary>
+    public double RefreshIntervalHours { get; set; } = 24;
+
+    /// <summary>
+    /// Geofabrik regions to keep fresh. Each entry is a path relative to download.geofabrik.de,
+    /// e.g. <c>europe/croatia</c> — the mini-spec's Croatia-only default. Empty disables the worker.
+    /// </summary>
+    public List<OsmRegionOptions> Regions { get; set; } = [];
+}
+
+public sealed class OsmRegionOptions
+{
+    /// <summary>Local name — also the file name (<c>{name}-latest.osm.pbf</c>) and the log key.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Geofabrik path, e.g. <c>europe/croatia</c>.</summary>
+    public string GeofabrikPath { get; set; } = string.Empty;
 }
 
 public sealed class OtpOptions

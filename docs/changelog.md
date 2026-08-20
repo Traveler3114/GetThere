@@ -2367,3 +2367,139 @@ behind "View on Map" links on the Reconciliation list page and absent from the n
 - No backend change; the public map (`/map/` → `public.html`) is untouched. The `/admin` CSP already
   covers the new page (self scripts, inline styles/handlers, https tiles, blob workers), and CI's
   `wwwroot/**/*.js` glob syntax-checks `map.page.js` automatically.
+
+---
+
+## Session — August 20, 2026 (TransitInfoAPI)
+
+### Coordinate-matcher / operator-seeder fixes + new resolver tests
+
+- **Fix #1 — StopLocationCacheEntry.Tier now int** (Entities/StopLocationCacheEntry.cs). The
+  column was int in the DB but string in the entity; resolution stored 1/2/3 (gazetteer /
+  canonical station / azure geocoder, see StopLocationResolver.cs:108-110) and the mismatch broke
+  deserialization on cache reads. No migration needed — DB already int.
+- **Fix #2 — GtfsParser dropped its unused StopLocationResolver field/ctor param**
+  (Services/GtfsParser.cs). Nothing resolved against it; the ctor param was removed, the logger-only
+  ctor remains for tests.
+- **Fix #3 — StopGazetteerImporter log template** (Services/StopGazetteerImporter.cs). The
+  non-2xx path logged the response *body* into the template's StatusCode slot. Now
+  "Overpass responded {StatusCode} for region '{Region}' — gazetteer region skipped" with
+  (int)response.StatusCode and egion.Name.
+- **Fix #4 — Overpass POST body** (same file). The request posted raw JSON, but Overpass expects a
+  data= form field; switched to FormUrlEncodedContent with data=. (Side note: the Overpass URL
+  still uses http — that's pre-existing and not part of this fix.)
+- **Fix #5 — no change.** Checked live ZET/HŽPP rows: o-zet/o-hzpp, gt-zet/gt-hzpp — the
+  seeder matches exactly on these keys. Nothing to fix.
+- **New StopLocationResolverTests** (	ests/GetThere.Tests/Resolution/StopLocationResolverTests.cs,
+  10 tests): gazetteer hit, diacritic-insensitive matching, region disambiguation, out-of-radius
+  rejection, canonical-station tier, cache reuse after gazetteer wipe, no-match returns null (both
+  ResolveAsync and ResolveLocationAsync), azure off by default, and the confidence threshold
+  split (above/below). In-memory TransitDbContext + stub HTTP factory, no network.
+- Full suite: 472 pass, build clean.
+
+### FeedVersion SHA uniqueness now per-feed
+
+IX_FeedVersions_Sha1 was globally unique, but the app contract dedups per feed
+(FeedManager.cs:292 — FeedId == && Sha1 ==). Two distinct feeds pointed at the same GTFS zip
+(sibenik and legacy gp) therefore collided on insert. Changed the index to composite unique
+(FeedId, Sha1) + a plain Sha1 index for the by-SHA lookup endpoints. Migration
+20260820162725_ScopeFeedVersionShaToFeed, applied to the dev DB.
+
+### Dev-DB remediation (approved)
+
+- Purged legacy Autotrolej rows blocking the seeder's canonical Autotrolej: operator 6
+  (gt-at) + 2 feeds + 11 FeedVersions + 161 CanonicalRoutes + station links; feed 15
+  utotrolej-api + FeedVersion 53; CustomSources 1-4 and their runs/requests/mappings
+  (C:\Users\matej\AppData\Local\Temp\opencode\purge-legacy-autotrolej.sql).
+- Purged legacy gp (operator 4's static feed 5, FeedVersion 24, 36 routes / 227 stops / 381 trips
+  + dependents) after the per-feed SHA fix surfaced the next collision: the canonical-route OnestopId
+  generator is globally unique by design, so two operators importing the same GTFS (legacy gp vs
+  seeder's canonical gt-sibenik) can never both own it (purge-legacy-gp.sql). Kept operator 4,
+  the gp-2/gp-3 realtime feeds, and the shared gt-gp identity; gt-sibenik now owns the Šibenik
+  static dataset.
+- Verified end-to-end on the dev DB: Autotrolej FeedVersion 1063 (1177 stops / 48 routes),
+  osm-brioni 1085 (130 stops), sibenik 1084 (227 stops / 36 routes / 381 trips) all Success;
+  ZET/HŽPP untouched and still polling; seeder idempotent on restart.
+## Session — August 20, 2026 (TransitInfoAPI, part 2)
+
+### Coordinate-matcher removed, full operator roster seeded
+
+- **Removed the OSM coordinate-matcher subsystem** (previous session's uncommitted work):
+  `Managers/StopLocationResolver.cs`, `Services/StopGazetteerImporter.cs`,
+  `Services/GazetteerStopExtractor.cs`, `Entities/StopGazetteerEntry.cs`,
+  `Entities/StopLocationCacheEntry.cs`, `tests/GetThere.Tests/Resolution/` (incl.
+  StopLocationResolverTests.cs). The three import files it touched
+  (`CustomHttpSource.cs`, `GtfsParser.cs`, `GtfsZipSource.cs`) were restored from HEAD —
+  the matcher had been added only to the working tree. DbSets + entity config removed from
+  `TransitDbContext.cs`; `Resolution` sections removed from both appsettings files;
+  resolution DI/extractor registration removed from `Program.cs`. Migration
+  `20260820182001_RemoveStopResolution` drops the two tables; on a fresh DB the earlier
+  Add*Resolution migrations replay and are immediately dropped, so the schema never has them.
+  Operator region fields (RegionCentroidLat/Lon, RegionRadiusKm, RegionName) were retained —
+  the migration spec only drops the two tables.
+- **Fresh-start verification** (PART 0): `dotnet ef database drop --force` +
+  `dotnet ef database update`, then the API started twice. 462 tests pass; no
+  gazetteer/osm rows anywhere.
+- **TransitDataSeeder rewritten** (`Data/TransitDataSeeder.cs`): full catalogue from
+  `docs/operator-data-sources.md` — 35 operators (20 with data, 15 operator-only), 28 feeds
+  (19 static, 8 GTFS-RT `{slug}-2`, 1 custom-source). Upserts on natural keys
+  (Operator.OnestopId, Feed.FeedId, CustomSource.Name); FeedId keeps the historical
+  `zet-2`/`gp-2` convention; `GlobalId = gt-<slug>`; static feed keeps the slug, RT takes
+  `{slug}-2`. Autotrolej is ingested from its JSON timetable API as a custom source
+  (stops `stanice` + routes `linije`, DataPath `res`, verified mappings) with no GTFS static
+  feed. NAP feeds (`b2b.promet-info.hr`) are activated up front and authenticate via
+  `Feeds:BasicAuth` user-secrets.
+- **Bug found while verifying**: `Roster` is a static field and C# initializes static fields
+  in declaration order — it referenced `AutotrolejRequests` before that field was initialized,
+  so the autotrolej entry silently captured `CustomSource = null` and no source was ever
+  created. Moved `AutotrolejRequests` above `Roster` (with a comment explaining why).
+- **Bug found while verifying**: vela-luka 404'd because the hoermalmeister rehost stores it
+  as `vela luka.zip` (with a space) — URL now `vela%20luka.zip`. `UpsertFeedAsync` also
+  repairs URL drift on existing feeds ("Repairing feed ...").
+- **Basic auth for NAP feeds** (`Services/ExternalFeedSource.cs`, `Program.cs`): a
+  `gtfs-basic` HttpClient (AllowAutoRedirect=false) with `FetchWithBasicAuthAsync` —
+  manual redirect following that refuses off-host/scheme-downgrade/port-change hops
+  (mirrors `CustomSourceEngine`), MaxRedirects=5. Credential comes from
+  `Feeds:BasicAuth:<host>` in user-secrets; without it the NAP feeds 401 cleanly.
+- **Verified end-to-end** on a fresh DB: all 16 static feeds import Success (ZET 3806 stops /
+  154 routes, promet-split 1438/66, liburnija-zadar 1099/418, autotrolej custom source
+  1177 stops / 48 routes, vela-luka 11/1, ...). NAP feeds (osijek, pulapromet, jadrolinija,
+  karlovac) 401 until `Feeds:BasicAuth:b2b.promet-info.hr` is set in user-secrets.
+  `promet-split-2` GTFS-RT polling gets 503 from the pirnet host — upstream, not ours.
+Seeder idempotent: repeated starts create nothing (35 operators / 28 feeds / 1 custom
+  source / 16 FeedVersions stable).
+
+### EF Core 20504 (MultipleCollectionIncludeWarning) silenced
+
+The custom-source queries load two collection navigations (`Include(Requests).ThenInclude(Mappings)`),
+which EF warns about under the default SingleQuery behavior. Added `AsSplitQuery()` at all four
+sites: `TransitDataSeeder.UpsertCustomSourceAsync`, `CustomHttpSource.LoadSourceAsync`
+(fires on every autotrolej poll), and `CustomSourceManager` (list + detail). Targeted — no global
+`UseQuerySplittingBehavior` change. NAP feeds left as-is (server rejects the supplied credential —
+401 is expected until a valid B2B account exists).
+
+### Map data fixes (stations, departures, ferry icons, vehicles)
+
+- **ZET departures were missing** ("no departures" for ~80% of stops): FeedVersion 4's
+  reconciliation was interrupted when the seeding run was killed (Finalize committed Success, then
+  the process died before the backfill; stuck-import recovery only discards *Importing* versions).
+  Re-ran the station-references backfill for version 4 — 1.78M stop times linked.
+- **Latent bug found while repairing** (`FeedManager.ReconcileAndBackfillAsync`): the backfill
+  UPDATE was not scoped to the importing version's trips — only `WHERE rs.FeedVersionId = …`. A
+  later version's import rewrote *earlier* versions' stop times wherever a GTFS stop_id collides
+  across operators (rapska-vozidba's `RAB` stole rapska-plovidba's ferry stop times; 59,550 rows
+  mismatched across 7 versions, incl. 49k in libertas-dubrovnik). Fixed by joining StopTimes
+  through their Trips (`t.FeedVersionId = {feedVersionId}`) and re-ran the backfill for every
+  version with the scoped form: 0 mismatches, 0 null links (2.6M rows).
+- **Ferry stops render the ferry icon**: `public.js` now maps `primaryRouteType: 'Ferry'` to
+  `stop-ferry` (`/images/ferry.png`), removed from the train-icon list. Data was already correct
+  (rapska-plovidba's Rab stop carries `Ferry`). Route-line colour already had a Ferry entry.
+- **Vehicle positions for non-ZET operators**: pirnet serves trip updates and vehicle positions as
+  separate endpoints, so the trip-update feeds alone produced vehicles only for ZET (whose single
+  URL carries both). Added `liburnija-zadar-3` and `ap-sisak-3` (GTFS-Realtime,
+  `…/vehicle_positions.pb`) to the seeder — 17 and 3 vehicles respectively. HZPP/prometSplit
+  vehicle endpoints 503 upstream; rt-misc hosts (autotrolej, sibenik, pulapromet) publish no
+  vehicle positions at all.
+- **Expired timetables (data reality, not bugs)**: HŽPP (calendar ends 2025-12-14), rapska-vozidba
+  and vela-luka (2026-06-12) have no service today — their own feeds are stale; re-import returns
+  the same SHA. The ferry stop's departures end at 17:00, so evenings show none.

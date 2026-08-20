@@ -20,6 +20,13 @@ public class Feed
     public bool? LicenseShareAlikeOptional { get; set; }
     public bool? LicenseRedistributionAllowed { get; set; }
 
+    /// <summary>
+    /// How trustworthy this feed's data is. Defaults to <see cref="SourceProvenance.Official"/> so
+    /// existing rows are not mislabelled; operators seeded from scraped timetables or mirrors are
+    /// marked explicitly.
+    /// </summary>
+    public SourceProvenance Provenance { get; set; } = SourceProvenance.Official;
+
     public string? SupersedesIds { get; set; }
 
     public int OperatorId { get; set; }

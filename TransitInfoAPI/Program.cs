@@ -82,6 +82,14 @@ ConfigureFeedHandler(builder.Services.AddHttpClient("gtfsrt", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 }), allowPrivateFeedNetworks);
 
+// Feeds whose host carries a Feeds:BasicAuth credential (the Croatian NAP). Redirects are followed
+// by hand in ExternalFeedSource.FetchWithBasicAuthAsync so the credential never leaves that host,
+// which requires the handler not to auto-follow — the same arrangement as "customsource".
+ConfigureFeedHandler(builder.Services.AddHttpClient("gtfs-basic", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(10);
+}), allowPrivateFeedNetworks, followRedirects: false);
+
 // Custom sources are the one feed path that carries an operator's own credential, and this client is
 // separate from "gtfs" for exactly that reason: AllowAutoRedirect is off.
 //
@@ -117,6 +125,13 @@ builder.Services.AddSingleton<TransitInfoAPI.Routing.GraphRebuildSignal>();
 builder.Services.AddSingleton<TransitInfoAPI.Routing.IGraphRebuildSignal>(sp => sp.GetRequiredService<TransitInfoAPI.Routing.GraphRebuildSignal>());
 builder.Services.AddHostedService<TransitInfoAPI.Routing.RoutingRebuildWorker>();
 builder.Services.AddHttpClient("otp", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<TransitInfoAPI.Routing.OsmExtractDownloader>();
+builder.Services.AddHostedService<TransitInfoAPI.Routing.OsmExtractRefreshWorker>();
+builder.Services.AddHttpClient("osm-extract", client =>
+{
+    // Extract downloads stream to disk; give the slowest Geofabrik night a generous ceiling.
+    client.Timeout = TimeSpan.FromHours(1);
+});
 builder.Services.AddScoped<TransitInfoAPI.Routing.Otp.OtpGraphQlClient>();
 builder.Services.Configure<GeocodingOptions>(builder.Configuration.GetSection("Geocoding"));
 builder.Services.AddHttpClient("azuremaps", client => client.Timeout = TimeSpan.FromSeconds(15));
@@ -153,6 +168,9 @@ builder.Services.AddScoped<TransitInfoAPI.Services.CustomSourceEngine>();
 builder.Services.AddScoped<TransitInfoAPI.Services.CustomHttpSource>();
 builder.Services.AddScoped<TransitDocumentCompleter>();
 builder.Services.AddScoped<CustomSourceManager>();
+
+// The operator catalog seeder — idempotent, gated by Seed:Operators (see the seed block below).
+builder.Services.AddScoped<TransitInfoAPI.Data.TransitDataSeeder>();
 
 // Encrypts the operator credentials on CustomSource.AuthConfig, which were previously written to
 // the column in plaintext and returned over the API. See TransitInfoAPI.Services.SecretProtector —
@@ -609,6 +627,16 @@ using (var scope = app.Services.CreateScope())
     // unconditional — it repairs this instance's own interrupted work and is safe to repeat.
     if (app.Configuration.GetValue("Seed:Enabled", true))
         await SeedIdentityAsync(app, scope);
+
+    // The Croatian operator catalog: real-data feeds (Autotrolej, Šibenik) and gazetteer-backed
+    // stops for the name-only operators. Idempotent by natural key, so a re-run repairs rather
+    // than duplicates. Defaults to Development for the same reason as Seed:Enabled above; set
+    // Seed:Operators=true on instances that should own the catalog.
+    if (app.Configuration.GetValue<bool>("Seed:Operators", app.Environment.IsDevelopment()))
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<TransitInfoAPI.Data.TransitDataSeeder>();
+        await seeder.SeedAsync(CancellationToken.None);
+    }
 }
 
 static async Task SeedIdentityAsync(WebApplication app, IServiceScope scope)
