@@ -51,6 +51,13 @@
       already resolve — transitive pinning is on, so a newer version here would bump the app too.
     -->
     <PackageVersion Include="PdfPig" Version="0.1.15" />
+    <!--
+      Docnet.Core (PDFium) rasterises a PDF page to a BGRA buffer so the barcode reader scans the
+      rendered page rather than trying to reconstruct an embedded image — which failed on FlateDecode
+      QR images PdfPig cannot turn back into a decodable image. It bundles its own native binaries
+      (win/linux/osx) and has no SkiaSharp dependency, so it does not disturb the pin above.
+    -->
+    <PackageVersion Include="Docnet.Core" Version="2.6.0" />
     <PackageVersion Include="ZXing.Net" Version="0.16.11" />
     <PackageVersion Include="Ical.Net" Version="5.2.3" />
     <PackageVersion Include="SkiaSharp" Version="4.148.0" />

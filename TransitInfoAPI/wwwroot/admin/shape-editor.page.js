@@ -38,7 +38,8 @@ function esc(s) {
 }
 
 function cancelEdit() {
-  window.location.href = '/map/';
+  // Return to the admin editing map the operator picked this route from, not the public planner.
+  window.location.href = '/admin/map.html';
 }
 
 function addStopMarkers(stops) {

@@ -203,15 +203,33 @@ proved it was an archive.
 A PDF e-ticket is read two ways:
 
 1. **The text layer**, scraped by `TicketTextScraper` for route, dates and price.
-2. **Embedded images**, scanned by `BarcodeDecoder` for the barcode operators print on the ticket.
+2. **A rendered image of the page**, scanned by `BarcodeDecoder` for the barcode operators print on
+   the ticket.
 
 The barcode is the more valuable of the two: it is the machine-readable ticket itself, and it survives
 the layout differences between operators that defeat text scraping.
 
-Bounds: `MaxPages = 20` (an e-ticket is a page or two; beyond that it is a document) and
-`MaxImagesScanned = 12` (scanning every image on every page is unbounded work an upload should not
-buy). A PDF that cannot be opened is a 400, not a 500 — an unreadable upload is the user's problem to
-correct, not a server fault.
+**Why the barcode pass renders the page instead of reading the embedded image.** It used to pull each
+image XObject out with PdfPig and hand its bytes to the decoder. That failed on the common case — a
+QR stored as a `FlateDecode` image, which PdfPig cannot turn back into a decodable image (its raw
+bytes are undecompressed samples with no image header) — so real boarding passes reported "no QR"
+despite carrying one. `ScanForBarcode` now rasterises the first pages with `Docnet.Core` (PDFium) to
+a BGRA buffer and calls `BarcodeDecoder.DecodeBgra`, which reads the code regardless of how the PDF
+stored it. `DocLib.Instance` is a process-wide singleton and PDFium is not thread-safe, so renders
+are serialised under a lock; uploads are rate-limited (10/min), so that costs nothing in practice.
+
+**Why the text pass reconstructs lines from word positions.** `page.Text` arrives as one
+run-together string with no line breaks and not even reliable double-spaces between columns, so
+line-oriented matching — and even token boundaries, like a date glued to the time after it — is lost.
+`ExtractLines` groups PdfPig words into visual rows by baseline height and orders each left-to-right,
+so the scraper sees real lines.
+
+Bounds: `MaxPages = 20` (an e-ticket is a page or two; beyond that it is a document) for the text pass;
+`MaxRasterPages = 5` at `RenderDpi = 200` for the barcode pass (rendering a whole document at scanning
+resolution is unbounded work an upload should not buy — the code is on the ticket, at the front). A
+PDF that cannot be opened is a 400, not a 500 — an unreadable upload is the user's problem to correct,
+not a server fault. A page that will not *render* (or the native library being unavailable) yields no
+barcode rather than failing the upload, since the text pass may still have found fields.
 
 ### `ImageTicketExtractor` — codes, not prose
 
@@ -254,6 +272,12 @@ SkiaSharp decodes the image into the pixel buffer ZXing needs. A `null` result m
 which callers treat as *nothing to prefill* rather than as a failure. That distinction is the whole
 contract of this class.
 
+There are two ways in: `Decode(byte[])` decodes an encoded image (JPEG/PNG/WebP — the photo and
+pkpass paths) via SkiaSharp, and `DecodeBgra(byte[], width, height)` reads a raw BGRA pixel buffer
+directly — the form a PDF page renderer produces, so `PdfTicketExtractor` needs no image codec. Both
+funnel into one `DecodeLuminance`, so the reader options (`TryHarder`, `TryInverted`, `AutoRotate`,
+the eight ticket formats) and the pixel ceiling apply identically.
+
 ---
 
 ## `TicketTextScraper` — deliberately conservative
@@ -268,10 +292,16 @@ It uses source-generated regexes (compile-time, no runtime regex construction):
 |---|---|
 | `DayFirstDate` | `31/12/2026`, `31.12.2026`, `31-12-2026` |
 | `IsoDate` | `2026-12-31` |
+| `DayMonthNameYear` / `MonthNameDayYear` | `15 Aug 2026`, `15 August 2026`, `Aug 15, 2026` |
 | `TimeOfDay` | `23:59` (hour bounded 0–23, minute 0–59) |
 | `Money` | `12,50 EUR` **or** `EUR 12.50` / `€12.50` |
 | `RouteLine` | `Zagreb → Rijeka`, `Zagreb - Rijeka`, `Zagreb to Rijeka` |
 | `BookingReference` | `booking`/`reservation`/`reference`/`ref`/`pnr`/`order` followed by 5–12 alphanumerics |
+
+`RouteLine`'s arrow separators may sit tight against the endpoints, but a plain hyphen or `to` must be
+space-padded, so `Zagreb-based` on a line is not read as a route. `BookingReference` allows internal
+spaces (`338 350 5281` → `3383505281`) and requires the captured reference to contain a digit, so the
+label word that follows the keyword (`BOOKING NUMBER`) is not itself taken as the reference.
 
 `Money` handles both orderings because both conventions appear in practice, and maps `€`/`$`/`£` to
 `EUR`/`USD`/`GBP`. `RouteLine` is anchored to a whole line — a mid-sentence "to" is not a route

@@ -24,6 +24,14 @@ public static partial class TicketTextScraper
     [GeneratedRegex(@"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")]
     private static partial Regex IsoDate { get; }
 
+    /// <summary>"15 Aug 2026", "15 August 2026" — the month is a name, not a number.</summary>
+    [GeneratedRegex(@"\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex DayMonthNameYear { get; }
+
+    /// <summary>"Aug 15, 2026", "August 15 2026" — month-name first.</summary>
+    [GeneratedRegex(@"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex MonthNameDayYear { get; }
+
     [GeneratedRegex(@"\b([01]?\d|2[0-3]):([0-5]\d)\b")]
     private static partial Regex TimeOfDay { get; }
 
@@ -31,11 +39,20 @@ public static partial class TicketTextScraper
     [GeneratedRegex(@"(?:(?<amount>\d+[.,]\d{2})\s*(?<code>EUR|USD|GBP|CHF)|(?<code2>EUR|USD|GBP|CHF|€|\$|£)\s*(?<amount2>\d+[.,]\d{2}))", RegexOptions.IgnoreCase)]
     private static partial Regex Money { get; }
 
-    /// <summary>"Zagreb → Rijeka", "Zagreb - Rijeka", "Zagreb to Rijeka".</summary>
-    [GeneratedRegex(@"^\s*(?<from>[\p{L}][\p{L}\s.'-]{1,48}?)\s*(?:→|->|–|—|\bto\b)\s*(?<to>[\p{L}][\p{L}\s.'-]{1,48}?)\s*$", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// "Zagreb → Rijeka", "Zagreb - Rijeka", "Zagreb to Rijeka". Arrows may be tight against the
+    /// endpoints, but a plain hyphen or "to" must be space-padded so a hyphenated word
+    /// ("Zagreb-based") is not read as a route.
+    /// </summary>
+    [GeneratedRegex(@"^\s*(?<from>[\p{L}][\p{L}\s.'-]{1,48}?)(?:\s*(?:→|->|–|—)\s*|\s+(?:-|to)\s+)(?<to>[\p{L}][\p{L}\s.'-]{1,48}?)\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex RouteLine { get; }
 
-    [GeneratedRegex(@"\b(?:booking|reservation|reference|ref|pnr|order)\b\D{0,12}?(?<ref>[A-Z0-9]{5,12})\b", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// A booking reference after a keyword. The reference may carry internal spaces
+    /// ("338 350 5281") and must contain at least one digit, so the label word that follows the
+    /// keyword ("BOOKING NUMBER") is not itself captured as the reference.
+    /// </summary>
+    [GeneratedRegex(@"\b(?:booking|reservation|reference|ref|pnr|order)\b\D{0,12}?(?<ref>(?=[A-Z0-9 ]*\d)[A-Z0-9][A-Z0-9 ]{3,14}[A-Z0-9])", RegexOptions.IgnoreCase)]
     private static partial Regex BookingReference { get; }
 
     private static readonly Dictionary<string, string> SymbolToCode = new()
@@ -43,6 +60,13 @@ public static partial class TicketTextScraper
         ["€"] = "EUR",
         ["$"] = "USD",
         ["£"] = "GBP"
+    };
+
+    /// <summary>Three-letter month name → month number, keyed on the group the month regexes capture.</summary>
+    private static readonly Dictionary<string, int> MonthAbbrevToNumber = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["jan"] = 1, ["feb"] = 2, ["mar"] = 3, ["apr"] = 4, ["may"] = 5, ["jun"] = 6,
+        ["jul"] = 7, ["aug"] = 8, ["sep"] = 9, ["oct"] = 10, ["nov"] = 11, ["dec"] = 12
     };
 
     /// <summary>Adds whatever can be read from <paramref name="text"/> to an existing result.</summary>
@@ -58,11 +82,16 @@ public static partial class TicketTextScraper
 
         if (result.TicketName is null)
         {
-            var reference = BookingReference.Match(text);
-            if (reference.Success)
+            foreach (Match reference in BookingReference.Matches(text))
             {
-                result.TicketName = $"Booking {reference.Groups["ref"].Value}";
+                // The reference is captured with any internal spaces ("338 350 5281"); collapse them
+                // and keep it only if what remains is a plausible reference length.
+                var cleaned = reference.Groups["ref"].Value.Replace(" ", "");
+                if (cleaned.Length is < 5 or > 12) continue;
+
+                result.TicketName = $"Booking {cleaned}";
                 result.DetectedFields.Add(nameof(result.TicketName));
+                break;
             }
         }
     }
@@ -155,6 +184,28 @@ public static partial class TicketTextScraper
                 int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture),
                 int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
                 int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), out var date))
+                yield return date;
+        }
+
+        // "15 Aug 2026" — day, month name, year.
+        foreach (Match match in DayMonthNameYear.Matches(text))
+        {
+            if (MonthAbbrevToNumber.TryGetValue(match.Groups[2].Value, out var month) &&
+                TryBuild(
+                    int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture),
+                    month,
+                    int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), out var date))
+                yield return date;
+        }
+
+        // "Aug 15, 2026" — month name first.
+        foreach (Match match in MonthNameDayYear.Matches(text))
+        {
+            if (MonthAbbrevToNumber.TryGetValue(match.Groups[1].Value, out var month) &&
+                TryBuild(
+                    int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture),
+                    month,
+                    int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture), out var date))
                 yield return date;
         }
     }

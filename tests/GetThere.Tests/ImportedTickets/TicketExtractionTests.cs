@@ -124,6 +124,41 @@ public class TicketExtractionTests
         Assert.Null(Decoder().Decode([1, 2, 3, 4, 5]));
     }
 
+    /// <summary>
+    /// The PDF path renders a page to a raw BGRA buffer and scans that, so the decoder must read a
+    /// barcode straight from BGRA pixels without going through an image codec first.
+    /// </summary>
+    [Fact]
+    public void DecodeBgra_reads_a_qr_from_a_raw_bgra_buffer()
+    {
+        var writer = new BarcodeWriterPixelData
+        {
+            Format = BarcodeFormat.QR_CODE,
+            Options = new ZXing.Common.EncodingOptions { Width = 320, Height = 320, Margin = 8 }
+        };
+        var pixelData = writer.Write("PDF-PAGE-RASTER-99");
+
+        var decoded = Decoder().DecodeBgra(pixelData.Pixels, pixelData.Width, pixelData.Height);
+
+        Assert.NotNull(decoded);
+        Assert.Equal("PDF-PAGE-RASTER-99", decoded!.Payload);
+        Assert.Equal(TicketFormat.QR, decoded.Format);
+    }
+
+    /// <summary>The pixel ceiling is checked from the dimensions before any buffer is touched.</summary>
+    [Fact]
+    public void DecodeBgra_refuses_an_oversized_raster()
+    {
+        // 8000 × 5126 = 41,008,000 px, over the 40 MP ceiling — rejected before the (short) buffer is read.
+        Assert.Null(Decoder().DecodeBgra([0, 0, 0, 0], 8000, 5126));
+    }
+
+    [Fact]
+    public void DecodeBgra_returns_null_when_there_is_no_code()
+    {
+        Assert.Null(Decoder().DecodeBgra(new byte[64 * 64 * 4], 64, 64));
+    }
+
     [Fact]
     public async Task Image_extractor_reports_photo_as_the_source()
     {

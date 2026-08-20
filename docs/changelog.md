@@ -2286,3 +2286,58 @@ stack trace for a caller that was already gone.
   and the wrapped `SqlException` forms.
 
 Both this and the legacy-map removal ship in the same TransitInfoAPI restart.
+
+---
+
+## Session — August 20, 2026
+
+### PDF ticket import — scan the QR, read more fields
+A real FlixBus boarding-pass PDF imported with only the price filled in and "no QR to scan" despite
+carrying one. Two root causes, both fixed:
+
+- **QR now scans.** The barcode pass pulled the embedded image out with PdfPig and handed its bytes to
+  the decoder; a `FlateDecode` QR (what this PDF and most boarding passes carry) has no decodable
+  image header there, so it always came back empty. `PdfTicketExtractor.ScanForBarcode` now rasterises
+  the first pages with `Docnet.Core` (PDFium, `runtimes/*/native/pdfium.*` for win/linux/osx) at
+  200 DPI and scans the rendered BGRA buffer via the new `BarcodeDecoder.DecodeBgra`. Renders are
+  serialised under a lock (PDFium/`DocLib.Instance` are not thread-safe); a render failure yields no
+  barcode rather than failing the upload.
+- **Route/date now read.** `page.Text` came back as one run-together line with no reliable spacing, so
+  line-oriented matching and even token boundaries (the date glued to the time after it) were lost.
+  `ExtractLines` reconstructs visual rows from PdfPig word baselines. `NormaliseLayout` (double-space
+  splitting) is gone.
+- **Scraper additions** (`GetThereShared/Extraction/TicketTextScraper.cs`): month-name dates
+  (`15 Aug 2026`), space-padded hyphen routes (`Sukošan - Zagreb`, but not `Zagreb-based`), and
+  space-separated booking numbers (`338 350 5281`, requiring a digit so the label word isn't captured).
+
+Files: `Directory.Packages.props`, `GetThereAPI/GetThereAPI.csproj`,
+`GetThereAPI/Services/Extraction/PdfTicketExtractor.cs`, `GetThereShared/Extraction/BarcodeDecoder.cs`,
+`GetThereShared/Extraction/TicketTextScraper.cs`, `docs/reference/getthere-api/ticket-import.md`, plus
+`TicketTextScraperTests` and `DecodeBgra` tests. Verified end-to-end against the real PDF: QR payload,
+origin Sukošan, destination Zagreb, 15 Aug 2026, EUR 28.87 all extracted. Full suite 462 pass.
+
+### Restored the admin editing map (TransitInfoAPI)
+Removing the legacy `/map/` map (`06678a2`) also removed the only way into the two map-based admin
+editors. The route-shape editor (`admin/shape-editor.html`) was reachable *only* through the "Edit
+Shape" button in that map's route pop-up, so it became orphaned — opened bare it just says "No route
+specified". The reconciliation map (`admin/reconciliation-map.html`) still worked but was buried
+behind "View on Map" links on the Reconciliation list page and absent from the nav rail. The public
+`/map/` is deliberately edit-free, so operators had no map to edit from.
+
+- **New `admin/map.html` + `admin/map.page.js`.** A separate, auth-gated (`admin-auth.js`) admin map,
+  ported from the interactive map that used to live at `/map/` (recovered from `06678a2^`). Same
+  layers (clustered stops, routes coloured by type with dashed = shape-edited, realtime vehicles,
+  mobility) and the same `AbortController` guard against superseded pan/zoom fetches. A route's
+  sidebar links to `/admin/shape-editor.html?routeId=…`; a station's sidebar now also links to
+  `/admin/reconciliation-map.html?stationId=…` (the reconciliation map already supports `stationId`
+  mode — station timeline with Approve / Reject / Reassign). `esc()` escapes quotes as well as angle
+  brackets since names are interpolated into `href`/`style` attributes. A `map.on('error')` handler
+  shows a persistent banner when the openfreemap basemap can't be reached, instead of a silent white
+  page.
+- `admin/admin-shell.js` — NETWORK nav group gains `{ key: 'admin-map', text: 'Admin map' }` → the new
+  page; the existing `/map/` entry is relabelled "Public map" to distinguish the two.
+- `admin/shape-editor.page.js` — `cancelEdit()` now returns to `/admin/map.html` (the editing map the
+  route was picked from) instead of the public `/map/` planner.
+- No backend change; the public map (`/map/` → `public.html`) is untouched. The `/admin` CSP already
+  covers the new page (self scripts, inline styles/handlers, https tiles, blob workers), and CI's
+  `wwwroot/**/*.js` glob syntax-checks `map.page.js` automatically.

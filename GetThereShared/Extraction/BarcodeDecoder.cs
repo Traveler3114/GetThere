@@ -128,6 +128,37 @@ public class BarcodeDecoder
         }
     }
 
+    /// <summary>
+    /// Decodes the first barcode in a raw BGRA pixel buffer — the form a PDF page renderer produces,
+    /// so the caller needs no image codec — or null if there is none. The dimensions are checked
+    /// against the pixel ceiling before any decode work, matching <see cref="Decode(byte[])"/>.
+    /// </summary>
+    public DecodedBarcode? DecodeBgra(byte[] bgra, int width, int height)
+    {
+        try
+        {
+            if (width <= 0 || height <= 0) return null;
+
+            var pixels = (long)width * height;
+            if (pixels > MaxDecodedPixels)
+            {
+                Log($"Refusing to decode a {width}x{height} raster ({pixels} px) for barcode scanning; the ceiling is {MaxDecodedPixels} px");
+                return null;
+            }
+
+            // A short buffer would read out of bounds inside ZXing; treat it as undecodable.
+            if (bgra.Length < pixels * 4) return null;
+
+            return DecodeLuminance(new RGBLuminanceSource(bgra, width, height,
+                RGBLuminanceSource.BitmapFormat.BGRA32));
+        }
+        catch (Exception ex) when (ex is not (OutOfMemoryException or StackOverflowException))
+        {
+            Log("Barcode decoding failed", ex);
+            return null;
+        }
+    }
+
     private static DecodedBarcode? Decode(SKBitmap bitmap)
     {
         using var rgba = bitmap.ColorType == SKColorType.Rgba8888
@@ -138,9 +169,12 @@ public class BarcodeDecoder
         var pixels = source.Bytes;
         if (pixels is null || pixels.Length == 0) return null;
 
-        var luminance = new RGBLuminanceSource(pixels, source.Width, source.Height,
-            RGBLuminanceSource.BitmapFormat.RGBA32);
+        return DecodeLuminance(new RGBLuminanceSource(pixels, source.Width, source.Height,
+            RGBLuminanceSource.BitmapFormat.RGBA32));
+    }
 
+    private static DecodedBarcode? DecodeLuminance(LuminanceSource luminance)
+    {
         var reader = new BarcodeReaderGeneric
         {
             AutoRotate = true,

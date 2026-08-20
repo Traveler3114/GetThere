@@ -32,7 +32,8 @@
         { key: 'places', text: 'Places', href: '/admin/places.html' },
         { key: 'mobility', text: 'Mobility', href: '/admin/mobility.html' },
         { key: 'reconciliation', text: 'Reconciliation', href: '/admin/reconciliation.html', pill: 'pending' },
-        { key: 'map', text: 'Transit map', href: '/map/' }
+        { key: 'admin-map', text: 'Admin map', href: '/admin/map.html' },
+        { key: 'map', text: 'Public map', href: '/map/' }
       ]
     }
   ];

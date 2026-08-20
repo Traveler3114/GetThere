@@ -25,8 +25,9 @@
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="Microsoft.OpenApi" />
 
-    <!-- Ticket file import: barcode decode, image decode, PDF text, calendar invites. -->
+    <!-- Ticket file import: barcode decode, image decode, PDF text, PDF page raster, calendar invites. -->
     <PackageReference Include="PdfPig" />
+    <PackageReference Include="Docnet.Core" />
     <PackageReference Include="ZXing.Net" />
     <PackageReference Include="Ical.Net" />
     <PackageReference Include="SkiaSharp" />
