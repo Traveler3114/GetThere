@@ -468,9 +468,9 @@ app.UseStaticFiles(new StaticFileOptions
         // unpkg is no longer listed: it served MapLibre to the two admin map pages, which now load it
         // from wwwroot/vendor like everything else. jsdelivr stays for Bootstrap.
         //
-        // Note that shape-editor.html also pulls mapbox-gl-draw from https://api.mapbox.com, an
-        // origin this policy has never allowed — so that plugin is already blocked and its drawing
-        // toolbar cannot be working. Vendoring it or allowing the origin is a separate decision.
+        // shape-editor.html used to pull mapbox-gl-draw from https://api.mapbox.com, an origin this
+        // policy has never allowed, so MapboxDraw was undefined and its drawing toolbar never worked.
+        // It is now vendored under /vendor/mapbox-gl-draw and loads from 'self' like MapLibre.
         // font-src is listed explicitly because omitting it does not mean "unrestricted" — it falls
         // back to default-src 'self', which blocked the Bootstrap Icons webfont on jsdelivr. The
         // stylesheet loaded fine (style-src allows the CDN) and every one of the 59 <i class="bi">

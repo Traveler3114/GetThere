@@ -59,7 +59,15 @@
   /** True for requests this console makes to its own API — the only ones the token belongs on. */
   function isSameOrigin(url) {
     try {
-      return new URL(url, window.location.origin).origin === window.location.origin;
+      // fetch() accepts a string, a URL, or a Request as its first argument. A Request has no
+      // toString of its own, so it stringifies to "[object Request]" — which new URL() happily
+      // resolves as a same-origin *relative path* (…/[object Request]), classifying every Request as
+      // same-origin. MapLibre fetches its tiles/glyphs/sprites as cross-origin Request objects
+      // (tiles.openfreemap.org); mislabelled same-origin, they got the admin bearer token attached,
+      // which both leaks the credential and forces a CORS preflight the tile host rejects — leaving
+      // the map blank. Read the real URL off a Request before resolving.
+      var href = (url && typeof url === 'object' && typeof url.url === 'string') ? url.url : url;
+      return new URL(href, window.location.origin).origin === window.location.origin;
     } catch (e) {
       return false;
     }

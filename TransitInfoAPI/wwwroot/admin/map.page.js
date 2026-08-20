@@ -3,10 +3,13 @@
 // admin-auth.js, and wires the two admin editors: a route's sidebar links to the shape editor, a
 // station's sidebar links to the reconciliation map. The public /map/ stays edit-free.
 let mapErrorTimer = null;
-function showMapError(msg) {
+function showMapError(msg) { showMapNotice(msg, false); }
+function showMapOk(msg) { showMapNotice(msg, true); }
+function showMapNotice(msg, ok) {
   const el = document.getElementById('mapError');
   if (!el) return;
   el.textContent = msg;
+  el.classList.toggle('ok', !!ok);
   el.classList.remove('d-none');
   if (mapErrorTimer) clearTimeout(mapErrorTimer);
   mapErrorTimer = setTimeout(() => el.classList.add('d-none'), 8000);
@@ -47,6 +50,14 @@ const stationsSource = 'gt-stops';
 const routesSource = 'routes';
 const vehiclesSource = 'vehicles';
 const mobilitySource = 'mobility-stations';
+const mergeHighlightSource = 'merge-highlight-src';
+
+// Merge mode: pick two stations on the map and merge one into the other via
+// POST /reconciliation/merge-stations. mergeSel holds the (max 2) chosen stations; targetIdx marks
+// which one is kept (the other is merged into it and removed).
+let mergeMode = false;
+let mergeSel = [];
+let targetIdx = 0;
 
 // Two drags 600 ms apart put two sets of requests in flight and the map shows whichever responds
 // last, so the slower dense-area response paints over the sparser view the operator has already
@@ -356,6 +367,21 @@ map.on('load', () => {
     }
   });
 
+  // Merge-mode selection highlight — a ring drawn over the stations picked for merging. Empty until
+  // the operator selects stations in merge mode.
+  map.addSource(mergeHighlightSource, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'merge-highlight',
+    type: 'circle',
+    source: mergeHighlightSource,
+    paint: {
+      'circle-radius': 16,
+      'circle-color': 'rgba(123,45,142,0.15)',
+      'circle-stroke-width': 3,
+      'circle-stroke-color': '#7b2d8e'
+    }
+  });
+
   loadMapData();
   loadVehicles();
   vehiclesInterval = setInterval(loadVehicles, 30000);
@@ -397,10 +423,14 @@ map.on('click', 'stations-cluster', (e) => {
   });
 });
 
-// Click individual stop -> show details
+// Click individual stop -> merge selection (in merge mode) or details
 map.on('click', 'stations-circle', (e) => {
   const props = e.features[0].properties;
-  showStationDetails(props.id, props);
+  if (mergeMode) {
+    toggleMergeSelect(props, e.features[0].geometry.coordinates);
+  } else {
+    showStationDetails(props.id, props);
+  }
 });
 
 // Cursor for clusters
@@ -530,6 +560,127 @@ function closeSidebar() {
   sidebarOpen = false;
 }
 
+// ---- Merge mode ----------------------------------------------------------------------------------
+
+function toggleMergeMode() {
+  mergeMode = !mergeMode;
+  const btn = document.getElementById('merge-toggle');
+  btn.classList.toggle('active', mergeMode);
+  btn.textContent = mergeMode ? 'Merge mode: ON' : 'Merge mode';
+  mergeSel = [];
+  targetIdx = 0;
+  updateMergeHighlight();
+  if (mergeMode) {
+    renderMergeSidebar();
+  } else {
+    closeSidebar();
+  }
+}
+
+function toggleMergeSelect(props, coords) {
+  const id = Number(props.id);
+  const existing = mergeSel.findIndex(s => s.id === id);
+  if (existing > -1) {
+    mergeSel.splice(existing, 1);
+    if (targetIdx >= mergeSel.length) targetIdx = 0;
+  } else if (mergeSel.length < 2) {
+    mergeSel.push({ id: id, name: props.name || ('#' + id), lng: coords[0], lat: coords[1] });
+  }
+  updateMergeHighlight();
+  renderMergeSidebar();
+}
+
+function updateMergeHighlight() {
+  const src = map.getSource(mergeHighlightSource);
+  if (!src) return;
+  src.setData({
+    type: 'FeatureCollection',
+    features: mergeSel.map(s => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: {} }))
+  });
+}
+
+function setMergeTarget(idx) { targetIdx = idx; renderMergeSidebar(); }
+
+function renderMergeSidebar() {
+  const content = document.getElementById('sidebar-content');
+  document.getElementById('sidebar').classList.add('open');
+  sidebarOpen = true;
+
+  let html = '<h2>Merge stations</h2>';
+  html += '<p style="font-size:0.85rem;color:#666;margin:8px 0 14px">Click two stations on the map. Choose which one to <strong>keep</strong>; the other is merged into it and its stops are moved over.</p>';
+
+  if (mergeSel.length === 0) {
+    html += '<p class="loading">No stations selected yet.</p>';
+    content.innerHTML = html;
+    return;
+  }
+
+  mergeSel.forEach((s, i) => {
+    const isTarget = i === targetIdx;
+    html += `<div style="border:1px solid ${isTarget ? '#27ae60' : '#e5e7eb'};border-radius:6px;padding:10px 12px;margin-bottom:8px">
+      <div style="font-weight:600">${esc(s.name)} <span style="color:#888;font-weight:400">#${s.id}</span></div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.85rem;cursor:pointer">
+        <input type="radio" name="merge-target" ${isTarget ? 'checked' : ''} onchange="setMergeTarget(${i})">
+        ${isTarget ? '<span style="color:#27ae60;font-weight:600">Keep this one</span>' : 'Keep this one'}
+      </label>
+    </div>`;
+  });
+
+  if (mergeSel.length === 2) {
+    html += '<div id="merge-warning" style="font-size:0.85rem;margin:8px 0;color:#92400e"></div>';
+    html += `<div style="display:flex;gap:8px;margin-top:12px">
+      <button class="admin-action reconcile" style="border:none;cursor:pointer" onclick="doMerge()">Merge</button>
+      <button style="padding:8px 16px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:0.85rem;font-weight:600" onclick="clearMergeSelection()">Clear</button>
+    </div>`;
+  } else {
+    html += '<p style="font-size:0.85rem;color:#888">Select one more station to merge.</p>';
+  }
+
+  content.innerHTML = html;
+  if (mergeSel.length === 2) loadMergePreview();
+}
+
+function clearMergeSelection() {
+  mergeSel = [];
+  targetIdx = 0;
+  updateMergeHighlight();
+  renderMergeSidebar();
+}
+
+function loadMergePreview() {
+  const target = mergeSel[targetIdx];
+  const source = mergeSel[targetIdx === 0 ? 1 : 0];
+  fetch(`/reconciliation/merge-preview?stationAId=${target.id}&stationBId=${source.id}`)
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      const el = document.getElementById('merge-warning');
+      if (!el) return;
+      if (data.warning) {
+        el.innerHTML = '⚠️ ' + esc(data.warning);
+      } else if (data.canMerge) {
+        el.innerHTML = '<span style="color:#065f46">Ready to merge.</span>';
+      }
+    })
+    .catch(() => { /* preview is advisory; the merge call itself still validates server-side */ });
+}
+
+function doMerge() {
+  if (mergeSel.length !== 2) return;
+  const target = mergeSel[targetIdx];
+  const source = mergeSel[targetIdx === 0 ? 1 : 0];
+  if (!confirm(`Merge "${source.name}" into "${target.name}"? This moves ${source.name}'s stops to ${target.name} and removes ${source.name}.`)) return;
+
+  fetch(`/reconciliation/merge-stations?sourceStationId=${source.id}&targetStationId=${target.id}`, { method: 'POST' })
+    .then(r => {
+      if (!r.ok) return r.text().then(t => Promise.reject(t || ('status ' + r.status)));
+      showMapOk('Merged "' + source.name + '" into "' + target.name + '".');
+      clearMergeSelection();
+      loadMapData();
+    })
+    .catch(err => showMapError('Merge failed: ' + (typeof err === 'string' ? err : 'server error')));
+}
+
 window.addEventListener('pagehide', () => { if (vehiclesInterval) clearInterval(vehiclesInterval); });
 
 document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
+document.getElementById('merge-toggle').addEventListener('click', toggleMergeMode);

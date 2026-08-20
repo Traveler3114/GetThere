@@ -2334,6 +2334,32 @@ behind "View on Map" links on the Reconciliation list page and absent from the n
   brackets since names are interpolated into `href`/`style` attributes. A `map.on('error')` handler
   shows a persistent banner when the openfreemap basemap can't be reached, instead of a silent white
   page.
+- **`admin/admin-auth.js` — the fetch wrapper leaked the admin token to cross-origin hosts and blanked
+  every admin map.** `isSameOrigin()` resolved its argument with `new URL(url, origin)`, but `fetch()`
+  is also called with a `Request` object (MapLibre fetches tiles/glyphs/sprites that way). A `Request`
+  stringifies to `"[object Request]"`, which `new URL()` resolves as a same-origin relative path — so
+  every `Request`, including cross-origin ones, was classified same-origin and had `Authorization:
+  Bearer <token>` attached. For `tiles.openfreemap.org` that both leaked the operator's token and
+  forced a CORS preflight the tile host rejects, so no tiles loaded and the map showed white. The
+  public `/map/` map has no auth wrapper, which is why only the admin map pages were affected. Fixed by
+  reading `url.url` off a `Request` before resolving; verified in-browser that cross-origin
+  string/URL/`Request` inputs now all classify as cross-origin (no token) while same-origin inputs
+  still get the token. This also un-blanks the existing `reconciliation-map.html` and
+  `shape-editor.html`, which load the same wrapper.
+- **Vendored mapbox-gl-draw so the shape editor works.** `shape-editor.html` loaded
+  `mapbox-gl-draw@1.4.3` from `https://api.mapbox.com`, which the `/admin` CSP never allowed, so
+  `MapboxDraw` was undefined and editing a shape threw "MapboxDraw is not defined". Downloaded the
+  plugin to `wwwroot/vendor/mapbox-gl-draw/` and pointed the page at `/vendor/mapbox-gl-draw/*` (loads
+  from `'self'`). Verified in-browser against MapLibre 4.7.1: `MapboxDraw` defines, instantiates, and
+  `map.addControl(draw)` succeeds. Updated the stale `Program.cs` CSP comment that described it as
+  unavoidably blocked.
+- **Merge mode on the admin map.** Merging stations no longer means opening the separate
+  reconciliation map — the admin map has a "Merge mode" toggle. With it on, clicking two stations
+  selects them (a purple ring marks the picks); the sidebar shows both, lets the operator choose which
+  one to keep, previews the merge (`GET /reconciliation/merge-preview`, showing any warning), and
+  merges the other into it (`POST /reconciliation/merge-stations?sourceStationId=&targetStationId=`),
+  then refreshes the map. These endpoints already existed; this restores the free-form merge UI that
+  was removed in `7e6a7a2`. `map.page.js`, `map.html`.
 - `admin/admin-shell.js` — NETWORK nav group gains `{ key: 'admin-map', text: 'Admin map' }` → the new
   page; the existing `/map/` entry is relabelled "Public map" to distinguish the two.
 - `admin/shape-editor.page.js` — `cancelEdit()` now returns to `/admin/map.html` (the editing map the
