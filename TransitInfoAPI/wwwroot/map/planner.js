@@ -15,14 +15,17 @@
   const S = {
     en: { open: 'Plan a route', title: 'Plan a route', start: 'Start', dest: 'Destination', go: 'Go',
           planning: 'Planning…', unavailable: 'Planner unavailable — is the routing engine running?',
-          noRoute: 'No route found.', pickHint: 'Tap the map to set the point.', myLoc: 'My location', walk: 'Walk', live: 'live',
+          noRoute: 'No route found.', pickHint: 'Tap the map to set the point.', myLoc: 'My location', walk: 'Walk', bike: 'Bike', live: 'live',
           getTickets: 'Get tickets' },
     hr: { open: 'Planiraj put', title: 'Planiraj put', start: 'Polazište', dest: 'Odredište', go: 'Kreni',
           planning: 'Planiranje…', unavailable: 'Planer nedostupan — radi li usmjeravanje?',
-          noRoute: 'Ruta nije pronađena.', pickHint: 'Dodirni kartu za odabir točke.', myLoc: 'Moja lokacija', walk: 'Pješice', live: 'uživo',
+          noRoute: 'Ruta nije pronađena.', pickHint: 'Dodirni kartu za odabir točke.', myLoc: 'Moja lokacija', walk: 'Pješice', bike: 'Bicikl', live: 'uživo',
           getTickets: 'Kupi karte' }
   };
   const t = (k) => (S[lang] && S[lang][k]) || S.en[k] || k;
+
+  // A rented-bike leg comes back as a non-transit leg with mode BICYCLE — distinguish it from walking.
+  const isBike = (leg) => !leg.isTransit && /BICYCLE|BIKE/i.test(leg.mode || '');
 
   // ── Elements ────────────────────────────────────────────────────────────────
   const chrome = document.getElementById('chrome');
@@ -112,6 +115,7 @@
   if (map.isStyleLoaded()) ensureLayers(); else map.once('idle', ensureLayers);
 
   function legColor(leg) {
+    if (isBike(leg)) return '#0EA5E9';
     if (!leg.isTransit) return '#64748b';
     const modeToType = {
       TRAM: 'Tram', SUBWAY: 'Subway', METRO: 'Subway', RAIL: 'Train', TRAIN: 'Train', BUS: 'Bus',
@@ -140,7 +144,7 @@
       legFeatures.push({
         type: 'Feature',
         geometry: { type: 'LineString', coordinates: coords },
-        properties: { walk: !leg.isTransit, color: legColor(leg) }
+        properties: { walk: !leg.isTransit && !isBike(leg), color: legColor(leg) }
       });
       // Board/alight dots for transit legs.
       if (leg.isTransit) {
@@ -364,7 +368,8 @@
       modes.className = 'itin-modes';
       itin.legs.forEach(leg => {
         const b = document.createElement('span');
-        if (!leg.isTransit) { b.className = 'leg-badge walk'; b.textContent = '🚶'; }
+        if (isBike(leg)) { b.className = 'leg-badge'; b.style.background = legColor(leg); b.textContent = '🚲'; }
+        else if (!leg.isTransit) { b.className = 'leg-badge walk'; b.textContent = '🚶'; }
         else {
           b.className = 'leg-badge';
           b.style.background = legColor(leg);
@@ -422,7 +427,9 @@
     const row = document.createElement('div');
     row.className = 'leg-line';
     if (!leg.isTransit) {
-      row.innerHTML = `🚶 ${esc(t('walk'))} <span class="lt">${fmtDur((new Date(leg.endTime) - new Date(leg.startTime)) / 1000)}</span>`;
+      const icon = isBike(leg) ? '🚲' : '🚶';
+      const label = isBike(leg) ? t('bike') : t('walk');
+      row.innerHTML = `${icon} ${esc(label)} <span class="lt">${fmtDur((new Date(leg.endTime) - new Date(leg.startTime)) / 1000)}</span>`;
       return row;
     }
     const name = leg.routeShortName || leg.mode || '';

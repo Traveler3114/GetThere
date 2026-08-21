@@ -66,12 +66,13 @@ public sealed class RoutingRebuildWorker(
         var gtfs = await gtfsExporter.ExportAsync(ct);
         var gbfs = await gbfsExporter.ExportAsync(ct);
 
+        var builtAt = DateTime.UtcNow;
         cache.Set(new RoutingExportCache.Artifacts(
             GtfsZip: gtfs.GtfsZip,
             GbfsSystemInformation: gbfs.SystemInformation,
             GbfsStationInformation: gbfs.StationInformation,
             GbfsStationStatus: gbfs.StationStatus,
-            BuiltAtUtc: DateTime.UtcNow,
+            BuiltAtUtc: builtAt,
             DroppedStopTimes: gtfs.Resolution.TotalDropped));
 
         logger.LogInformation(
@@ -83,9 +84,9 @@ public sealed class RoutingRebuildWorker(
         {
             Directory.CreateDirectory(outputDir);
             await File.WriteAllBytesAsync(Path.Combine(outputDir, "gtfs.zip"), gtfs.GtfsZip, ct);
-            await File.WriteAllTextAsync(Path.Combine(outputDir, "system_information.json"), gbfs.SystemInformation, ct);
-            await File.WriteAllTextAsync(Path.Combine(outputDir, "station_information.json"), gbfs.StationInformation, ct);
-            await File.WriteAllTextAsync(Path.Combine(outputDir, "station_status.json"), gbfs.StationStatus, ct);
+            // Reuse the GBFS file-write path so there is one atomic implementation.
+            var gbfsRefresh = scope.ServiceProvider.GetRequiredService<GbfsRefreshService>();
+            await gbfsRefresh.WriteFilesAsync(gbfs.SystemInformation, gbfs.StationInformation, gbfs.StationStatus, ct);
             logger.LogInformation("Wrote routing artifacts to {OutputDir}", outputDir);
         }
 

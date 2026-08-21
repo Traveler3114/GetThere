@@ -17,6 +17,8 @@ public class CustomSourceManager
     private readonly CustomSourceEngine _engine;
     private readonly CustomHttpSource _httpSource;
     private readonly FeedManager _feeds;
+    private readonly MobilityManager _mobility;
+    private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<CustomSourceManager> _logger;
 
     private readonly IWebHostEnvironment _env;
@@ -28,6 +30,8 @@ public class CustomSourceManager
         CustomSourceEngine engine,
         CustomHttpSource httpSource,
         FeedManager feeds,
+        MobilityManager mobility,
+        IHttpClientFactory httpFactory,
         IWebHostEnvironment env,
         CustomExtractorRegistry extractors,
         SecretProtector secrets,
@@ -37,6 +41,8 @@ public class CustomSourceManager
         _engine = engine;
         _httpSource = httpSource;
         _feeds = feeds;
+        _mobility = mobility;
+        _httpFactory = httpFactory;
         _env = env;
         _extractors = extractors;
         _secrets = secrets;
@@ -155,6 +161,7 @@ public class CustomSourceManager
             RefreshIntervalSeconds = request.RefreshIntervalSeconds,
             ServiceWindowStart = request.ServiceWindowStart,
             ServiceWindowEnd = request.ServiceWindowEnd,
+            ProducesMobility = request.ProducesMobility,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -190,6 +197,7 @@ public class CustomSourceManager
         if (request.IsActive is { } active) source.IsActive = active;
         if (request.ServiceWindowStart is { } start) source.ServiceWindowStart = start;
         if (request.ServiceWindowEnd is { } end) source.ServiceWindowEnd = end;
+        if (request.ProducesMobility is bool mob) source.ProducesMobility = mob;
 
         ValidateWindow(source);
 
@@ -382,6 +390,23 @@ public class CustomSourceManager
         var source = await LoadAsync(id, tracking: false, ct)
             ?? throw new AppException("Custom source not found.", 404, "CUSTOM_SOURCE_NOT_FOUND");
 
+        // Mobility sources preview their flat mobility records, not a transit document.
+        if (source.ProducesMobility)
+        {
+            var mobilityRecords = await ExtractMobilityRecordsAsync(source, maxRows: 200, ct);
+            var responseMob = new CustomSourcePreviewResponse
+            {
+                Completeness = "Mobility",
+                LogLines = [$"Mobility preview: {mobilityRecords.Count} record(s)"],
+                Warnings = []
+            };
+            const string section = "MobilityStations";
+            responseMob.SectionsPresent.Add(section);
+            responseMob.RowCounts[section] = mobilityRecords.Count;
+            responseMob.Samples[section] = [.. mobilityRecords.Take(5)];
+            return responseMob;
+        }
+
         var snapshot = await _httpSource.ExtractSnapshotAsync(source, maxRowsPerRequest: 200, ct);
         var document = CustomHttpSource.BuildDocument(snapshot, source.OperatorId, out var warnings);
 
@@ -402,14 +427,76 @@ public class CustomSourceManager
         return response;
     }
 
+    private async Task<List<Dictionary<string, object?>>> ExtractMobilityRecordsAsync(CustomSource source, int? maxRows, CancellationToken ct)
+    {
+        // Generic declarative path — no per-source C# code. Any mobility provider is
+        // described by DataPath + mappings; nested arrays are flattened by ParseJsonRows.
+        var all = new List<Dictionary<string, object?>>();
+        var auth = _secrets.Unprotect(source.AuthConfig);
+        foreach (var req in source.Requests.OrderBy(r => r.SortOrder))
+        {
+            var extraction = await _engine.ExecuteAsync(req, auth, maxRows: maxRows, ct: ct);
+            var mapped = CustomSourceEngine.ApplyMappings(extraction.Rows, [.. req.Mappings]);
+            mapped = CustomSourceEngine.Deduplicate(mapped, req.DistinctBy, out _);
+            all.AddRange(mapped.Select(r => new Dictionary<string, object?>(r, StringComparer.OrdinalIgnoreCase)));
+            if (maxRows is not null && all.Count >= maxRows) break;
+        }
+        if (maxRows is not null && all.Count > maxRows) all = all.GetRange(0, maxRows.Value);
+        return all;
+    }
+
     /// <summary>
     /// Fetches, versions and imports — the same path the poller takes, so "run now" in the admin
     /// console exercises exactly what a scheduled run will do rather than a parallel implementation.
+    /// Mobility sources bypass the transit graph and upsert directly via <see cref="MobilityManager"/>.
     /// </summary>
     public async Task<CustomSourceRunResponse> RunAsync(int id, CancellationToken ct)
     {
         var source = await LoadAsync(id, tracking: true, ct)
             ?? throw new AppException("Custom source not found.", 404, "CUSTOM_SOURCE_NOT_FOUND");
+
+        // Mobility: no FeedVersion, directly upsert stations.
+        if (source.ProducesMobility)
+        {
+            var runMob = new CustomSourceRun
+            {
+                CustomSourceId = id,
+                StartedAt = DateTime.UtcNow,
+                Status = CustomSourceRunStatus.Running
+            };
+            _db.CustomSourceRuns.Add(runMob);
+            await _db.SaveChangesAsync(ct);
+
+            try
+            {
+                var records = await ExtractMobilityRecordsAsync(source, maxRows: null, ct);
+                var upserted = await _mobility.UpsertStationsFromRecordsAsync(source.OperatorId, records, ct);
+                runMob.Status = CustomSourceRunStatus.Success;
+                runMob.RecordsProduced = upserted;
+                runMob.LogText = $"Mobility upsert: {upserted} station(s) from {records.Count} record(s)";
+                // FeedVersionId stays null — mobility never creates a transit version.
+            }
+            catch (OperationCanceledException)
+            {
+                runMob.Status = CustomSourceRunStatus.Failed;
+                runMob.LogText = "Mobility run was cancelled before it finished.";
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Custom mobility source {SourceId} run failed", id);
+                runMob.Status = CustomSourceRunStatus.Failed;
+                runMob.LogText = ex.Message;
+            }
+            finally
+            {
+                runMob.CompletedAt = DateTime.UtcNow;
+                source.LastRunAt = runMob.CompletedAt;
+                await _db.SaveChangesAsync(CancellationToken.None);
+            }
+
+            return CustomSourceMapper.ToResponse(runMob);
+        }
 
         var feed = await _db.Feeds.FirstOrDefaultAsync(f => f.CustomSourceId == id, ct)
             ?? throw new AppException(

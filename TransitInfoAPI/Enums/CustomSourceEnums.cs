@@ -43,7 +43,8 @@ public enum TransitSection
     Trips,
     StopTimes,
     Calendar,
-    CalendarDates
+    CalendarDates,
+    MobilityStations
 }
 
 /// <summary>How a single source value becomes a target field.</summary>

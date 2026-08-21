@@ -120,6 +120,7 @@ builder.Services.AddScoped<TransitInfoAPI.Services.GtfsParser>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsBundleExporter>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GbfsExporter>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsRealtimeExporter>();
+builder.Services.AddScoped<TransitInfoAPI.Routing.GbfsRefreshService>();
 builder.Services.AddSingleton<TransitInfoAPI.Routing.RoutingExportCache>();
 builder.Services.AddSingleton<TransitInfoAPI.Routing.GraphRebuildSignal>();
 builder.Services.AddSingleton<TransitInfoAPI.Routing.IGraphRebuildSignal>(sp => sp.GetRequiredService<TransitInfoAPI.Routing.GraphRebuildSignal>());

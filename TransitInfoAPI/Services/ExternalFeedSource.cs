@@ -56,6 +56,35 @@ public class ExternalFeedSource
                 _basicAuth.Count, string.Join(", ", _basicAuth.Keys));
     }
 
+    /// <summary>
+    /// SSRF-guarded, size-capped fetch for arbitrary URLs (e.g. Nextbike live API).
+    /// Follows redirects via the handler's auto-redirect, re-checked after the final hop.
+    /// </summary>
+    public async Task<byte[]> FetchBytesAsync(string url, CancellationToken ct)
+    {
+        if (!_allowPrivateNetworkUrls)
+            EnsurePublicDestination(url);
+
+        var http = _httpFactory.CreateClient("gtfs");
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        if (!_allowPrivateNetworkUrls
+            && response.RequestMessage?.RequestUri is { } finalUri
+            && finalUri.AbsoluteUri != url)
+        {
+            EnsurePublicDestination(finalUri.AbsoluteUri);
+        }
+
+        if (response.Content.Headers.ContentLength > MaxFeedBytes)
+            throw new Exceptions.AppException(
+                $"Feed exceeds the {MaxFeedBytes / (1024 * 1024)} MB download limit.", 413, "FEED_TOO_LARGE");
+
+        var bytes = await ReadCappedAsync(response, ct);
+        _logger.LogDebug("ExternalFeedSource: fetched {Length} bytes from {Url}", bytes.Length, url);
+        return bytes;
+    }
+
     public async Task<FeedFetchResult> FetchDataAsync(Feed feed, CancellationToken ct)
     {
         var url = feed.Url;

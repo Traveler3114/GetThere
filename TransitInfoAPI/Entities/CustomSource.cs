@@ -34,6 +34,13 @@ public class CustomSource
     public bool IsActive { get; set; } = true;
 
     /// <summary>
+    /// When true, this source produces mobility stations rather than transit.
+    /// Its mapped records are routed to <c>MobilityManager.UpsertStationsFromRecordsAsync</c>
+    /// instead of building a transit <c>FeedVersion</c>. A mobility source never enters the transit graph.
+    /// </summary>
+    public bool ProducesMobility { get; set; } = false;
+
+    /// <summary>
     /// The window a synthesized calendar covers, for sources that publish departures with no service
     /// calendar of their own. Null means the completer will not invent one.
     /// </summary>

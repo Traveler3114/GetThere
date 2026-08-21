@@ -586,10 +586,11 @@ public class FeedManager
     /// </summary>
     public async Task<List<Feed>> GetActiveImportableFeedsAsync(CancellationToken ct)
     {
+        // Mobility custom sources never enter the transit graph — they are polled by MobilityPollingWorker.
         return await _db.Feeds
             .Where(f => f.IsActive
                 && ((f.FeedType == FeedType.GTFSStatic && f.Url != null)
-                    || f.CustomSourceId != null))
+                    || (f.CustomSourceId != null && !_db.CustomSources.Any(cs => cs.Id == f.CustomSourceId && cs.ProducesMobility))))
             .ToListAsync(ct);
     }
 

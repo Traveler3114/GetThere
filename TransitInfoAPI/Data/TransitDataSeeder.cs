@@ -52,6 +52,8 @@ public sealed class TransitDataSeeder
             if (roster.CustomSource is not null)
                 await UpsertAutotrolejSourceAsync(op, ct);
         }
+
+        await UpsertNextbikeAsync(ct);
     }
 
     // ── Roster ────────────────────────────────────────────────────────────────────────────────
@@ -396,5 +398,96 @@ public sealed class TransitDataSeeder
             }
         }
         return true;
+    }
+
+    // ── Nextbike — declarative mobility via nested DataPath ───────────────────────────
+    // No C# extractor: URL + DataPath "countries.cities.places" + direct mappings.
+    // The generic nested-array flattening in CustomSourceEngine.ParseJsonRows makes
+    // this declareable; previously it required a named ICustomExtractor.
+    private static readonly IReadOnlyList<CustomSourceRequest> NextbikeRequests =
+    [
+        new()
+        {
+            SortOrder = 1,
+            TargetSection = TransitSection.MobilityStations,
+            Url = "https://api.nextbike.net/maps/nextbike-live.json",
+            HttpMethod = "GET",
+            Format = CustomSourceFormat.Json,
+            DataPath = "countries.cities.places",
+            DistinctBy = "station_id",
+            Mappings =
+            [
+                new CustomSourceMapping { SortOrder = 1, SourceExpression = "uid", TargetField = "station_id", Kind = MappingKind.Direct },
+                new CustomSourceMapping { SortOrder = 2, SourceExpression = "name", TargetField = "name", Kind = MappingKind.Direct },
+                new CustomSourceMapping { SortOrder = 3, SourceExpression = "lat", TargetField = "lat", Kind = MappingKind.Direct },
+                new CustomSourceMapping { SortOrder = 4, SourceExpression = "lng", TargetField = "lon", Kind = MappingKind.Direct },
+                new CustomSourceMapping { SortOrder = 5, SourceExpression = "bikes", TargetField = "num_bikes_available", Kind = MappingKind.Direct },
+                new CustomSourceMapping { SortOrder = 6, SourceExpression = "bike_racks", TargetField = "capacity", Kind = MappingKind.Direct }
+            ]
+        }
+    ];
+
+    private async Task UpsertNextbikeAsync(CancellationToken ct)
+    {
+        var slug = "nextbike";
+        var onestopId = _onestopId.GenerateOperatorOnestopId(slug);
+        var op = await _db.Operators.FirstOrDefaultAsync(o => o.OnestopId == onestopId, ct);
+        if (op is null)
+        {
+            op = new Operator
+            {
+                GlobalId = "gt-" + slug,
+                OnestopId = onestopId,
+                Name = "Nextbike",
+                ShortName = slug,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Operators.Add(op);
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Created operator '{OnestopId}' ({Name})", onestopId, "Nextbike");
+        }
+
+        var source = await UpsertCustomSourceAsync(op.Id, "nextbike", NextbikeRequests, ct);
+        // Enforce mobility flag (UpsertCustomSourceAsync does not set it).
+        if (!source.ProducesMobility || source.ExtractorKey is not null || source.RefreshIntervalSeconds != 120)
+        {
+            _logger.LogInformation("Repairing custom source 'nextbike' mobility flag/extractor");
+            source.ProducesMobility = true;
+            source.ExtractorKey = null;
+            source.RefreshIntervalSeconds = 120;
+            source.Kind = CustomSourceKind.Http;
+            await _db.SaveChangesAsync(ct);
+        }
+
+        // Mobility custom source is polled directly via MobilityPollingWorker scanning CustomSources.
+        // A feed row is still created for visibility and to keep the “custom source → feed” invariant
+        // the admin console expects, but it is inert: FeedManager excludes mobility sources.
+        var feedExists = await _db.Feeds.AnyAsync(f => f.FeedId == "nextbike", ct);
+        if (!feedExists)
+        {
+            _db.Feeds.Add(new Feed
+            {
+                OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, "nextbike"),
+                FeedId = "nextbike",
+                FeedType = FeedType.GBFS,
+                Url = null,
+                IsActive = true,
+                RefreshIntervalSeconds = 120,
+                OperatorId = op.Id,
+                CustomSourceId = source.Id,
+                Provenance = SourceProvenance.Official
+            });
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Created feed 'nextbike' backed by custom source {SourceId}", source.Id);
+        }
+        else
+        {
+            var feed = await _db.Feeds.FirstOrDefaultAsync(f => f.FeedId == "nextbike", ct);
+            if (feed is not null && feed.CustomSourceId != source.Id)
+            {
+                feed.CustomSourceId = source.Id;
+                await _db.SaveChangesAsync(ct);
+            }
+        }
     }
 }

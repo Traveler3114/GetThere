@@ -516,6 +516,12 @@ public partial class CustomSourceEngine
     /// <summary>
     /// Walks <paramref name="dataPath"/> to the array of rows, then flattens each element to dotted
     /// keys so a mapping can name a nested field without any traversal syntax of its own.
+    /// <para>
+    /// Generic nested-array flattening: when a segment is applied to an array, it is mapped over
+    /// every element. So <c>countries.cities.places</c> over <c>{countries:[{cities:[{places:[…]}]}]}</c>
+    /// yields every <c>places</c> leaf, with no per-source code. Single-array and object-keyed cases
+    /// are preserved.
+    /// </para>
     /// </summary>
     internal static List<ExtractedRow> ParseJsonRows(string body, string dataPath, ExtractionResult result)
     {
@@ -534,43 +540,129 @@ public partial class CustomSourceEngine
 
         using (doc)
         {
-            var node = doc.RootElement;
+            var segments = (dataPath ?? string.Empty).Split('.', StringSplitOptions.RemoveEmptyEntries);
+            List<JsonElement> current = [doc.RootElement];
 
-            foreach (var segment in (dataPath ?? string.Empty).Split('.', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var segment in segments)
             {
-                if (node.ValueKind == JsonValueKind.Object && node.TryGetProperty(segment, out var child))
+                var next = new List<JsonElement>();
+                foreach (var node in current)
                 {
-                    node = child;
+                    if (node.ValueKind == JsonValueKind.Object)
+                    {
+                        if (node.TryGetProperty(segment, out var child))
+                        {
+                            if (child.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var el in child.EnumerateArray())
+                                    next.Add(el);
+                            }
+                            else
+                            {
+                                next.Add(child);
+                            }
+                        }
+                    }
+                    else if (node.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in node.EnumerateArray())
+                        {
+                            if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty(segment, out var child))
+                            {
+                                if (child.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var sub in child.EnumerateArray())
+                                        next.Add(sub);
+                                }
+                                else
+                                {
+                                    next.Add(child);
+                                }
+                            }
+                        }
+                    }
                 }
-                else
+
+                if (next.Count == 0)
                 {
                     result.Warnings.Add($"Data path segment '{segment}' not found in response");
                     return rows;
                 }
+
+                current = next;
             }
 
-            if (node.ValueKind == JsonValueKind.Array)
+            // Current holds the leaf nodes after flattening all segments.
+            // Each leaf that is an array contributes its elements; each object is treated as either
+            // a row (if array-final) or a keyed map (if object-final).
+            // Handle empty path (no segments): current = [root] preserves original behaviour.
+            foreach (var node in current)
             {
-                foreach (var element in node.EnumerateArray())
+                if (node.ValueKind == JsonValueKind.Array)
                 {
-                    var row = new ExtractedRow();
-                    Flatten(element, string.Empty, row);
-                    rows.Add(row);
+                    foreach (var element in node.EnumerateArray())
+                    {
+                        var row = new ExtractedRow();
+                        Flatten(element, string.Empty, row);
+                        rows.Add(row);
+                    }
                 }
-            }
-            else if (node.ValueKind == JsonValueKind.Object)
-            {
-                // Some endpoints key rows by id instead of listing them.
-                foreach (var property in node.EnumerateObject())
+                else if (node.ValueKind == JsonValueKind.Object)
                 {
-                    var row = new ExtractedRow { ["_key"] = property.Name };
-                    Flatten(property.Value, string.Empty, row);
-                    rows.Add(row);
+                    // Heuristic: if this object looks like a map of rows (no leaf-scalar children and
+                    // every property value is an object), we keep original keyed behaviour. But when
+                    // DataPath already flattened to leaf objects, each object is itself a row.
+                    // Distinguish by whether the object would flatten to a single row with scalar fields
+                    // vs being a container. The original code treated a terminal object as keyed rows
+                    // when the path ended at an object. With flattening, a terminal leaf that is a
+                    // places station object will be an object with scalar fields, not a map of objects,
+                    // so we treat it as a single row.
+                    // To preserve both, check if enumerating properties yields only objects:
+                    var isKeyedMap = false;
+                    foreach (var prop in node.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind != JsonValueKind.Object)
+                        {
+                            isKeyedMap = false;
+                            break;
+                        }
+                        isKeyedMap = true;
+                    }
+
+                    // If we arrived here via DataPath flattening (segments non-empty) and the node
+                    // is a leaf station object (has scalar fields), treat as single row.
+                    if (segments.Length > 0 && !isKeyedMap)
+                    {
+                        var row = new ExtractedRow();
+                        Flatten(node, string.Empty, row);
+                        rows.Add(row);
+                    }
+                    else if (node.ValueKind == JsonValueKind.Object)
+                    {
+                        // Original keyed behaviour: each property is a row.
+                        // When segments empty, this also covers root object keyed case.
+                        // When isKeyedMap true, treat as keyed.
+                        if (isKeyedMap)
+                        {
+                            foreach (var property in node.EnumerateObject())
+                            {
+                                var row = new ExtractedRow { ["_key"] = property.Name };
+                                Flatten(property.Value, string.Empty, row);
+                                rows.Add(row);
+                            }
+                        }
+                        else
+                        {
+                            var row = new ExtractedRow();
+                            Flatten(node, string.Empty, row);
+                            rows.Add(row);
+                        }
+                    }
                 }
-            }
-            else
-            {
-                result.Warnings.Add($"Data path resolved to {node.ValueKind}, which holds no rows");
+                else
+                {
+                    result.Warnings.Add($"Data path resolved to {node.ValueKind}, which holds no rows");
+                }
             }
         }
 

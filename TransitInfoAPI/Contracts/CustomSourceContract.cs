@@ -11,6 +11,7 @@ public class CustomSourceResponse
     public string Name { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
     public string? ExtractorKey { get; set; }
+    public bool ProducesMobility { get; set; }
 
     /// <summary>
     /// Whether a credential is configured — deliberately <b>not</b> the credential itself.
@@ -78,6 +79,7 @@ public record CreateCustomSourceRequest
     [Range(60, int.MaxValue)] public int RefreshIntervalSeconds { get; set; } = 3600;
     public DateOnly? ServiceWindowStart { get; set; }
     public DateOnly? ServiceWindowEnd { get; set; }
+    public bool ProducesMobility { get; set; } = false;
     public List<CreateCustomSourceRequestItem> Requests { get; set; } = [];
 }
 
@@ -87,6 +89,7 @@ public record UpdateCustomSourceRequest
     [StringLength(200)] public string? Name { get; set; }
     public string? Kind { get; set; }
     [StringLength(100)] public string? ExtractorKey { get; set; }
+    public bool? ProducesMobility { get; set; }
 
     /// <summary>
     /// Null leaves the stored credential untouched; an empty string clears it. The editor never

@@ -14,6 +14,19 @@ public sealed class RoutingExportCache
 
     public void Set(Artifacts artifacts) => _current = artifacts;
 
+    public void SetGbfs(string systemInformation, string stationInformation, string stationStatus, DateTime builtAtUtc)
+    {
+        var cur = _current;
+        if (cur is null) return; // no bundle yet — the next full rebuild will include GBFS
+        _current = cur with
+        {
+            GbfsSystemInformation = systemInformation,
+            GbfsStationInformation = stationInformation,
+            GbfsStationStatus = stationStatus,
+            BuiltAtUtc = builtAtUtc,
+        };
+    }
+
     public sealed record Artifacts(
         byte[] GtfsZip,
         string GbfsSystemInformation,
