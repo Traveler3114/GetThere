@@ -26,7 +26,7 @@ public class ImportedTicketManager
         _logger = logger;
     }
 
-    public async Task<PagedResult<ImportedTicketResponse>> ListAsync(string userId, int page, int perPage, ImportedTicketStatus? status = null, ImportSource? source = null, string? operatorId = null, DateTime? validFrom = null, DateTime? validTo = null, string? sort = null, CancellationToken ct = default)
+    public async Task<PagedResult<ImportedTicketResponse>> ListAsync(string userId, int page, int perPage, ImportedTicketStatus? status = null, ImportSource? source = null, string? operatorId = null, DateTime? validFrom = null, DateTime? validTo = null, string? sort = null, string? search = null, bool? ungrouped = null, bool? hasJourney = null, CancellationToken ct = default)
     {
         var query = _db.ImportedTickets.Where(t => t.UserId == userId);
 
@@ -43,6 +43,20 @@ public class ImportedTicketManager
             query = query.Where(t => t.ValidTo == null || t.ValidTo >= validFrom.Value);
         if (validTo.HasValue)
             query = query.Where(t => t.ValidFrom == null || t.ValidFrom <= validTo.Value);
+        if (ungrouped == true)
+            query = query.Where(t => t.JourneyId == null);
+        if (hasJourney.HasValue)
+            query = hasJourney.Value ? query.Where(t => t.JourneyId != null) : query.Where(t => t.JourneyId == null);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(t =>
+                (t.TicketName != null && t.TicketName.ToLower().Contains(term)) ||
+                (t.RouteDescription != null && t.RouteDescription.ToLower().Contains(term)) ||
+                (t.OriginName != null && t.OriginName.ToLower().Contains(term)) ||
+                (t.DestinationName != null && t.DestinationName.ToLower().Contains(term)) ||
+                (t.OperatorNameSnapshot != null && t.OperatorNameSnapshot.ToLower().Contains(term)));
+        }
 
         query = sort?.ToLowerInvariant() switch
         {
@@ -54,6 +68,10 @@ public class ImportedTicketManager
             "-validto" => query.OrderByDescending(t => t.ValidTo),
             "ticketname" => query.OrderBy(t => t.TicketName),
             "-ticketname" => query.OrderByDescending(t => t.TicketName),
+            "price" => query.OrderBy(t => t.Price),
+            "-price" => query.OrderByDescending(t => t.Price),
+            "operator" => query.OrderBy(t => t.OperatorNameSnapshot),
+            "-operator" => query.OrderByDescending(t => t.OperatorNameSnapshot),
             _ => query.OrderByDescending(t => t.CreatedAt)
         };
 

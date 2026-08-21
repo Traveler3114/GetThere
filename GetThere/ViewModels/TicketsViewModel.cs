@@ -17,12 +17,14 @@ public partial class TicketsViewModel : BaseViewModel
     private readonly AuthService _authService;
     private readonly ImportedTicketService _importedService;
     private readonly TicketService _ticketService;
+    private readonly JourneyService _journeyService;
     private readonly TicketCaptureService _capture;
     private readonly TicketStore _store;
     private readonly PendingImportQueue _pendingImports;
     private readonly ImportSyncService _importSync;
     private readonly IAnalyticsService _analytics;
     private ImportedTicketStatus? _activeFilter;
+    private ImportSource? _sourceFilter;
 
     [ObservableProperty]
     private bool _hasImportedTickets;
@@ -30,6 +32,18 @@ public partial class TicketsViewModel : BaseViewModel
     /// <summary>Empty means "All"; otherwise an <see cref="ImportedTicketStatus"/> name. Drives chip selection.</summary>
     [ObservableProperty]
     private string _activeFilterKey = string.Empty;
+
+    [ObservableProperty]
+    private string _sourceFilterKey = string.Empty;
+
+    [ObservableProperty]
+    private string _groupedFilterKey = string.Empty;
+
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private TicketSortOption _selectedSort = TicketSortOption.ValidFromDesc;
 
     [ObservableProperty]
     private string _errorText = string.Empty;
@@ -51,6 +65,12 @@ public partial class TicketsViewModel : BaseViewModel
     [ObservableProperty]
     private string _cachedAtText = string.Empty;
 
+    [ObservableProperty]
+    private bool _isSelectionMode;
+
+    [ObservableProperty]
+    private int _selectedCount;
+
     private int _currentPage = 1;
     private const int PageSize = 50;
 
@@ -68,6 +88,31 @@ public partial class TicketsViewModel : BaseViewModel
     /// </para>
     /// </summary>
     public ObservableCollection<WalletTicket> WalletTickets { get; } = [];
+
+    /// <summary>Filtered view count for the summary bar — live after search/filters.</summary>
+    [ObservableProperty]
+    private int _filteredCount;
+
+    [ObservableProperty]
+    private int _activeCount;
+
+    public bool HasSelection => SelectedCount > 0;
+    public bool ShowSelectionBar => IsSelectionMode && HasSelection;
+    public string SelectionSummary => string.Format(LocalizationService.Instance["Tickets_SelectedCount"], SelectedCount);
+    public string SortLabel => SelectedSort switch
+    {
+        TicketSortOption.ValidFromDesc => LocalizationService.Instance["Tickets_SortValidFromDesc"],
+        TicketSortOption.ValidFromAsc => LocalizationService.Instance["Tickets_SortValidFromAsc"],
+        TicketSortOption.CreatedDesc => LocalizationService.Instance["Tickets_SortCreatedDesc"],
+        TicketSortOption.CreatedAsc => LocalizationService.Instance["Tickets_SortCreatedAsc"],
+        TicketSortOption.PriceDesc => LocalizationService.Instance["Tickets_SortPriceDesc"],
+        TicketSortOption.PriceAsc => LocalizationService.Instance["Tickets_SortPriceAsc"],
+        TicketSortOption.NameAsc => LocalizationService.Instance["Tickets_SortNameAsc"],
+        TicketSortOption.NameDesc => LocalizationService.Instance["Tickets_SortNameDesc"],
+        TicketSortOption.OperatorAsc => LocalizationService.Instance["Tickets_SortOperatorAsc"],
+        TicketSortOption.OperatorDesc => LocalizationService.Instance["Tickets_SortOperatorDesc"],
+        _ => LocalizationService.Instance["Tickets_SortValidFromDesc"]
+    };
 
     /// <summary>
     /// The Journeys half of this screen. Composed rather than merged: journeys and tickets are two
@@ -92,10 +137,36 @@ public partial class TicketsViewModel : BaseViewModel
         OnPropertyChanged(nameof(SegmentKey));
     }
 
+    partial void OnSearchTextChanged(string value) => RebuildWallet();
+
+    partial void OnGroupedFilterKeyChanged(string value) => RebuildWallet();
+    partial void OnSourceFilterKeyChanged(string value) => RebuildWallet();
+
+    partial void OnSelectedSortChanged(TicketSortOption value)
+    {
+        OnPropertyChanged(nameof(SortLabel));
+        RebuildWallet();
+    }
+
+    partial void OnIsSelectionModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowSelectionBar));
+        if (!value)
+            ClearSelectionInternal();
+    }
+
+    partial void OnSelectedCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(ShowSelectionBar));
+        OnPropertyChanged(nameof(SelectionSummary));
+    }
+
     public TicketsViewModel(
         AuthService authService,
         ImportedTicketService importedService,
         TicketService ticketService,
+        JourneyService journeyService,
         TicketCaptureService capture,
         TicketStore store,
         PendingImportQueue pendingImports,
@@ -106,6 +177,7 @@ public partial class TicketsViewModel : BaseViewModel
         _authService = authService;
         _importedService = importedService;
         _ticketService = ticketService;
+        _journeyService = journeyService;
         _capture = capture;
         _store = store;
         _pendingImports = pendingImports;
@@ -179,7 +251,14 @@ public partial class TicketsViewModel : BaseViewModel
             // already contains it rather than showing it twice from two sources.
             await _importSync.FlushAsync();
 
-            var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
+            var serverSort = ToServerSort(SelectedSort);
+            // Use search/source when user has typed/selected them — server does the heavy lifting for
+            // imported tickets, client filters the purchased half and refines the merged list.
+            var searchForServer = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim();
+            bool? ungrouped = GroupedFilterKey == "Ungrouped" ? true : null;
+            bool? hasJourney = GroupedFilterKey == "Grouped" ? true : null;
+
+            var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter, source: _sourceFilter, sort: serverSort, search: searchForServer, ungrouped: ungrouped, hasJourney: hasJourney);
             if (result.Success)
             {
                 var paged = result.Data!;
@@ -198,7 +277,7 @@ public partial class TicketsViewModel : BaseViewModel
                 // Caching is a by-product of a read that already succeeded, not a sync step of its
                 // own. Only the unfiltered first page is worth keeping — a cache of "the Used ones"
                 // would be a confusing thing to show someone offline.
-                if (_activeFilter is null && _currentPage == 1)
+                if (_activeFilter is null && _sourceFilter is null && string.IsNullOrWhiteSpace(SearchText) && string.IsNullOrWhiteSpace(GroupedFilterKey) && _currentPage == 1)
                     await CacheCurrentAsync();
 
                 _analytics.TrackEvent("tickets_loaded", new() { ["count"] = WalletTickets.Count.ToString() });
@@ -250,6 +329,8 @@ public partial class TicketsViewModel : BaseViewModel
 
         HasImportedTickets = WalletTickets.Count > 0;
         TotalTickets = WalletTickets.Count;
+        FilteredCount = WalletTickets.Count;
+        ActiveCount = WalletTickets.Count(t => t.DisplayStatus == nameof(ImportedTicketStatus.Active));
         HasMore = false;
 
         if (WalletTickets.Count > 0)
@@ -341,6 +422,21 @@ public partial class TicketsViewModel : BaseViewModel
         }
     }
 
+    private static string? ToServerSort(TicketSortOption option) => option switch
+    {
+        TicketSortOption.CreatedDesc => "-createdAt",
+        TicketSortOption.CreatedAsc => "createdAt",
+        TicketSortOption.ValidFromDesc => "-validFrom",
+        TicketSortOption.ValidFromAsc => "validFrom",
+        TicketSortOption.PriceDesc => "-price",
+        TicketSortOption.PriceAsc => "price",
+        TicketSortOption.NameAsc => "ticketName",
+        TicketSortOption.NameDesc => "-ticketName",
+        TicketSortOption.OperatorAsc => "operator",
+        TicketSortOption.OperatorDesc => "-operator",
+        _ => "-validFrom"
+    };
+
     /// <summary>
     /// Projects both sources into one list, newest first.
     /// <para>
@@ -361,16 +457,69 @@ public partial class TicketsViewModel : BaseViewModel
             purchased = purchased.Where(t => string.Equals(t.Status.ToString(), wanted, StringComparison.Ordinal));
         }
 
-        var merged = ImportedTickets.Select(WalletTicket.FromImported)
-            .Concat(purchased.Select(WalletTicket.FromPurchased))
-            .OrderByDescending(t => t.SortDate)
-            .ToList();
+        // Source filter: only imported tickets carry a source; purchased are hidden when a source is chosen.
+        var sourceFilteredImported = ImportedTickets.AsEnumerable();
+        if (_sourceFilter.HasValue)
+        {
+            sourceFilteredImported = sourceFilteredImported.Where(t => t.Source == _sourceFilter.Value);
+            purchased = []; // no source concept
+        }
 
+        var merged = sourceFilteredImported.Select(WalletTicket.FromImported)
+            .Concat(purchased.Select(WalletTicket.FromPurchased));
+
+        // Grouped filter
+        if (GroupedFilterKey == "Ungrouped")
+            merged = merged.Where(t => !t.IsGrouped);
+        else if (GroupedFilterKey == "Grouped")
+            merged = merged.Where(t => t.IsGrouped);
+
+        // Search (client-side refinement — server already filtered imported when search was passed)
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var term = SearchText.Trim().ToLowerInvariant();
+            merged = merged.Where(t =>
+                (t.TicketName?.ToLowerInvariant().Contains(term) ?? false) ||
+                (t.RouteDescription?.ToLowerInvariant().Contains(term) ?? false) ||
+                (t.OriginName?.ToLowerInvariant().Contains(term) ?? false) ||
+                (t.DestinationName?.ToLowerInvariant().Contains(term) ?? false) ||
+                (t.OperatorNameSnapshot?.ToLowerInvariant().Contains(term) ?? false));
+        }
+
+        // Sorting
+        merged = SelectedSort switch
+        {
+            TicketSortOption.ValidFromAsc => merged.OrderBy(t => t.ValidFrom ?? DateTime.MaxValue).ThenBy(t => t.SortDate),
+            TicketSortOption.ValidFromDesc => merged.OrderByDescending(t => t.ValidFrom ?? DateTime.MinValue).ThenByDescending(t => t.SortDate),
+            TicketSortOption.CreatedAsc => merged.OrderBy(t => t.SortDate),
+            TicketSortOption.CreatedDesc => merged.OrderByDescending(t => t.SortDate),
+            TicketSortOption.PriceAsc => merged.OrderBy(t => t.Price ?? decimal.MinValue),
+            TicketSortOption.PriceDesc => merged.OrderByDescending(t => t.Price ?? decimal.MinValue),
+            TicketSortOption.NameAsc => merged.OrderBy(t => t.TicketName ?? string.Empty),
+            TicketSortOption.NameDesc => merged.OrderByDescending(t => t.TicketName ?? string.Empty),
+            TicketSortOption.OperatorAsc => merged.OrderBy(t => t.OperatorNameSnapshot ?? string.Empty),
+            TicketSortOption.OperatorDesc => merged.OrderByDescending(t => t.OperatorNameSnapshot ?? string.Empty),
+            _ => merged.OrderByDescending(t => t.SortDate)
+        };
+
+        var list = merged.ToList();
+
+        // Preserve selection across rebuilds by id+kind
+        var prevSelected = WalletTickets.Where(t => t.IsSelected).Select(t => (t.Kind, t.Id)).ToHashSet();
         WalletTickets.Clear();
-        foreach (var t in merged)
+        foreach (var t in list)
+        {
+            if (prevSelected.Contains((t.Kind, t.Id)))
+                t.IsSelected = true;
             WalletTickets.Add(t);
+        }
 
         HasImportedTickets = WalletTickets.Count > 0;
+        FilteredCount = list.Count;
+        // Active count unfiltered for the summary badge
+        var activeWanted = nameof(ImportedTicketStatus.Active);
+        ActiveCount = ImportedTickets.Count(t => t.Status.ToString() == activeWanted) + _purchasedTickets.Count(t => t.Status.ToString() == activeWanted);
+        SelectedCount = WalletTickets.Count(t => t.IsSelected);
     }
 
     /// <summary>
@@ -381,6 +530,11 @@ public partial class TicketsViewModel : BaseViewModel
     private async Task OpenTicket(WalletTicket? ticket)
     {
         if (ticket is null) return;
+        if (IsSelectionMode)
+        {
+            ToggleSelectTicket(ticket);
+            return;
+        }
 
         // Not yet pushed, so it has no server id and both detail screens fetch by one. Say so rather
         // than opening a screen that would fail to load.
@@ -409,7 +563,11 @@ public partial class TicketsViewModel : BaseViewModel
         _currentPage++;
         try
         {
-            var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter);
+            var serverSort = ToServerSort(SelectedSort);
+            var searchForServer = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim();
+            bool? ungrouped = GroupedFilterKey == "Ungrouped" ? true : null;
+            bool? hasJourney = GroupedFilterKey == "Grouped" ? true : null;
+            var result = await _importedService.ListAsync(page: _currentPage, perPage: PageSize, status: _activeFilter, source: _sourceFilter, sort: serverSort, search: searchForServer, ungrouped: ungrouped, hasJourney: hasJourney);
             if (result.Success)
             {
                 var paged = result.Data!;
@@ -443,6 +601,228 @@ public partial class TicketsViewModel : BaseViewModel
         _activeFilter = status is not null && Enum.TryParse<ImportedTicketStatus>(status, out var parsed) ? parsed : null;
         ActiveFilterKey = _activeFilter?.ToString() ?? string.Empty;
         await LoadTickets();
+    }
+
+    [RelayCommand]
+    private async Task FilterSource(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            _sourceFilter = null;
+            SourceFilterKey = string.Empty;
+        }
+        else if (Enum.TryParse<ImportSource>(source, out var parsed))
+        {
+            _sourceFilter = parsed;
+            SourceFilterKey = parsed.ToString();
+        }
+        else
+        {
+            return;
+        }
+        await LoadTickets();
+    }
+
+    [RelayCommand]
+    private void FilterGrouped(string? key)
+    {
+        GroupedFilterKey = key ?? string.Empty;
+        // client-only, no reload needed beyond rebuild (but reload to respect server ungrouped)
+        if (!string.IsNullOrWhiteSpace(SearchText) || _sourceFilter is not null)
+            _ = LoadTickets();
+    }
+
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
+        _ = LoadTickets();
+    }
+
+    [RelayCommand]
+    private async Task PickSort()
+    {
+        if (Shell.Current is null) return;
+        var options = new[]
+        {
+            (LocalizationService.Instance["Tickets_SortValidFromDesc"], TicketSortOption.ValidFromDesc),
+            (LocalizationService.Instance["Tickets_SortValidFromAsc"], TicketSortOption.ValidFromAsc),
+            (LocalizationService.Instance["Tickets_SortCreatedDesc"], TicketSortOption.CreatedDesc),
+            (LocalizationService.Instance["Tickets_SortCreatedAsc"], TicketSortOption.CreatedAsc),
+            (LocalizationService.Instance["Tickets_SortPriceDesc"], TicketSortOption.PriceDesc),
+            (LocalizationService.Instance["Tickets_SortPriceAsc"], TicketSortOption.PriceAsc),
+            (LocalizationService.Instance["Tickets_SortNameAsc"], TicketSortOption.NameAsc),
+            (LocalizationService.Instance["Tickets_SortNameDesc"], TicketSortOption.NameDesc),
+            (LocalizationService.Instance["Tickets_SortOperatorAsc"], TicketSortOption.OperatorAsc),
+            (LocalizationService.Instance["Tickets_SortOperatorDesc"], TicketSortOption.OperatorDesc),
+        };
+        var labels = options.Select(o => o.Item1).ToArray();
+        var choice = await Shell.Current.DisplayActionSheetAsync(LocalizationService.Instance["Tickets_SortTitle"], LocalizationService.Instance["App_Cancel"], null, labels);
+        var matched = options.FirstOrDefault(o => o.Item1 == choice);
+        if (matched != default)
+            SelectedSort = matched.Item2;
+    }
+
+    // ── Selection / grouping ───────────────────────────────────────────────
+
+    [RelayCommand]
+    private void ToggleSelectionMode()
+    {
+        IsSelectionMode = !IsSelectionMode;
+        if (!IsSelectionMode)
+            ClearSelectionInternal();
+    }
+
+    [RelayCommand]
+    private void ToggleSelectTicket(WalletTicket? ticket)
+    {
+        if (ticket is null) return;
+        ticket.IsSelected = !ticket.IsSelected;
+        SelectedCount = WalletTickets.Count(t => t.IsSelected);
+    }
+
+    [RelayCommand]
+    private void SelectAll()
+    {
+        foreach (var t in WalletTickets) t.IsSelected = true;
+        SelectedCount = WalletTickets.Count;
+    }
+
+    [RelayCommand]
+    private void ClearSelection()
+    {
+        ClearSelectionInternal();
+    }
+
+    private void ClearSelectionInternal()
+    {
+        foreach (var t in WalletTickets) t.IsSelected = false;
+        SelectedCount = 0;
+    }
+
+    private (List<int> importedIds, List<int> ticketIds) CollectSelection()
+    {
+        var imported = WalletTickets.Where(t => t.IsSelected && t.Kind == WalletTicketKind.Imported).Select(t => t.Id).ToList();
+        var purchased = WalletTickets.Where(t => t.IsSelected && t.Kind == WalletTicketKind.Purchased).Select(t => t.Id).ToList();
+        return (imported, purchased);
+    }
+
+    [RelayCommand]
+    private async Task CreateJourneyFromSelection()
+    {
+        var (importedIds, ticketIds) = CollectSelection();
+        var total = importedIds.Count + ticketIds.Count;
+        if (total == 0)
+        {
+            ErrorText = LocalizationService.Instance["Tickets_SelectAtLeastOne"];
+            HasError = true;
+            return;
+        }
+        if (Shell.Current is null) return;
+        var name = await Shell.Current.DisplayPromptAsync(
+            LocalizationService.Instance["Journeys_NewTitle"],
+            LocalizationService.Instance["Tickets_NewJourneyPrompt"],
+            accept: LocalizationService.Instance["Common_Create"],
+            cancel: LocalizationService.Instance["App_Cancel"],
+            placeholder: LocalizationService.Instance["Journeys_NewPrompt"],
+            maxLength: 200);
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        IsBusy = true;
+        HasError = false;
+        try
+        {
+            var result = await _journeyService.CreateAsync(new CreateJourneyRequest
+            {
+                Name = name.Trim(),
+                ImportedTicketIds = importedIds,
+                TicketIds = ticketIds
+            });
+            if (!result.Success)
+            {
+                ErrorText = result.Message ?? LocalizationService.Instance["Journeys_CouldNotCreate"];
+                HasError = true;
+                return;
+            }
+            _analytics.TrackEvent("journey_created", new() { ["source"] = "wallet_selection", ["legs"] = total.ToString() });
+            ClearSelectionInternal();
+            IsSelectionMode = false;
+            await Journeys.LoadCommand.ExecuteAsync(null);
+            ShowJourneys = true;
+            await Shell.Current.GoToAsync($"journeydetail?journeyId={result.Data!.Id}");
+        }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+            HasError = true;
+        }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task AddSelectionToJourney()
+    {
+        var (importedIds, ticketIds) = CollectSelection();
+        var total = importedIds.Count + ticketIds.Count;
+        if (total == 0)
+        {
+            ErrorText = LocalizationService.Instance["Tickets_SelectAtLeastOne"];
+            HasError = true;
+            return;
+        }
+        if (Shell.Current is null) return;
+
+        // The Journeys segment lazy-loads, so it may still be empty here even when the user has
+        // journeys — load it before deciding there are none to add to.
+        if (!Journeys.HasLoadedOnce)
+            await Journeys.LoadCommand.ExecuteAsync(null);
+
+        if (Journeys.Journeys.Count == 0)
+        {
+            ErrorText = LocalizationService.Instance["Tickets_NoJourneysToAdd"];
+            HasError = true;
+            return;
+        }
+
+        // Pick the target journey. The action sheet scrolls, so it handles any number of journeys;
+        // the picker page is the other direction (tickets for a known journey) and can't choose one.
+        var labels = Journeys.Journeys.Select(j => j.Name).ToArray();
+        var pick = await Shell.Current.DisplayActionSheetAsync(LocalizationService.Instance["Tickets_AddToJourneyTitle"], LocalizationService.Instance["App_Cancel"], null, labels);
+        if (string.IsNullOrWhiteSpace(pick) || pick == LocalizationService.Instance["App_Cancel"]) return;
+        var chosen = Journeys.Journeys.FirstOrDefault(j => j.Name == pick);
+
+        if (chosen is null) return;
+        IsBusy = true;
+        HasError = false;
+        try
+        {
+            var result = await _journeyService.AddTicketsAsync(chosen.Id, new JourneyMembershipRequest { ImportedTicketIds = importedIds, TicketIds = ticketIds });
+            if (!result.Success)
+            {
+                ErrorText = result.Message ?? LocalizationService.Instance["Journeys_CouldNotCreate"];
+                HasError = true;
+                return;
+            }
+            _analytics.TrackEvent("journey_tickets_added", new() { ["count"] = total.ToString(), ["journeyId"] = chosen.Id.ToString() });
+            ClearSelectionInternal();
+            IsSelectionMode = false;
+            await Journeys.LoadCommand.ExecuteAsync(null);
+            await LoadTickets();
+            await Shell.Current.GoToAsync($"journeydetail?journeyId={chosen.Id}");
+        }
+        catch (Exception ex)
+        {
+            ErrorText = ex.Message;
+            HasError = true;
+        }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private void EnterGroupingFromJourneys()
+    {
+        ShowJourneys = false;
+        IsSelectionMode = true;
     }
 
     private const string TakePhoto = "Take a photo";
@@ -599,8 +979,9 @@ public partial class TicketsViewModel : BaseViewModel
             return;
         }
 
+        var options = new List<string> { "Mark as used", "Cancel ticket", "Select for journey" };
         var choice = await Shell.Current.DisplayActionSheetAsync(
-            ticket.TicketName ?? "Ticket", "Close", null, "Mark as used", "Cancel ticket");
+            ticket.TicketName ?? "Ticket", "Close", null, options.ToArray());
 
         switch (choice)
         {
@@ -609,6 +990,11 @@ public partial class TicketsViewModel : BaseViewModel
                 break;
             case "Cancel ticket":
                 await CancelTicket(ticket);
+                break;
+            case "Select for journey":
+                IsSelectionMode = true;
+                walletTicket.IsSelected = true;
+                SelectedCount = WalletTickets.Count(t => t.IsSelected);
                 break;
         }
     }

@@ -33,13 +33,17 @@ public class JourneyService
     public JourneyService(HttpClient http) { _http = http; }
 
     public async Task<OperationResult<PagedResult<JourneyResponse>>> ListAsync(
-        int page = 1, int perPage = 50, JourneyStatus? status = null, CancellationToken ct = default)
+        int page = 1, int perPage = 50, JourneyStatus? status = null, string? search = null, string? sort = null, CancellationToken ct = default)
     {
         try
         {
             var qs = new StringBuilder($"journeys?page={page}&perPage={perPage}");
             if (status.HasValue)
                 qs.Append($"&status={status.Value}");
+            if (!string.IsNullOrWhiteSpace(search))
+                qs.Append($"&search={Uri.EscapeDataString(search)}");
+            if (!string.IsNullOrWhiteSpace(sort))
+                qs.Append($"&sort={Uri.EscapeDataString(sort)}");
 
             var response = await _http.GetAsync(qs.ToString(), ct);
             if (response.IsSuccessStatusCode)

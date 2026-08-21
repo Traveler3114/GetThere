@@ -391,4 +391,54 @@
   <data name="BuyJourney_CouldNotQuote" xml:space="preserve"><value>Nismo mogli iskazati cijenu ovog putovanja.</value></data>
   <data name="BuyJourney_BookingFailed" xml:space="preserve"><value>Nismo mogli kupiti ovo putovanje.</value></data>
   <data name="BuyJourney_CouldNotCancel" xml:space="preserve"><value>Nismo mogli otkazati rezervaciju.</value></data>
+  <data name="Common_Clear" xml:space="preserve"><value>Očisti</value></data>
+  <data name="Common_Select" xml:space="preserve"><value>Odaberi</value></data>
+  <data name="Tickets_SearchPlaceholder" xml:space="preserve"><value>Pretraži karte, rute, operatere</value></data>
+  <data name="Tickets_SortTitle" xml:space="preserve"><value>Sortiraj karte</value></data>
+  <data name="Tickets_SortValidFromDesc" xml:space="preserve"><value>Datum ↓ (najbliže)</value></data>
+  <data name="Tickets_SortValidFromAsc" xml:space="preserve"><value>Datum ↑ (najstarije)</value></data>
+  <data name="Tickets_SortCreatedDesc" xml:space="preserve"><value>Dodano ↓ (najnovije)</value></data>
+  <data name="Tickets_SortCreatedAsc" xml:space="preserve"><value>Dodano ↑ (najstarije)</value></data>
+  <data name="Tickets_SortPriceDesc" xml:space="preserve"><value>Cijena ↓</value></data>
+  <data name="Tickets_SortPriceAsc" xml:space="preserve"><value>Cijena ↑</value></data>
+  <data name="Tickets_SortNameAsc" xml:space="preserve"><value>Naziv A–Ž</value></data>
+  <data name="Tickets_SortNameDesc" xml:space="preserve"><value>Naziv Ž–A</value></data>
+  <data name="Tickets_SortOperatorAsc" xml:space="preserve"><value>Operater A–Ž</value></data>
+  <data name="Tickets_SortOperatorDesc" xml:space="preserve"><value>Operater Ž–A</value></data>
+  <data name="Tickets_FilterAllTickets" xml:space="preserve"><value>Sve karte</value></data>
+  <data name="Tickets_FilterUngrouped" xml:space="preserve"><value>Negrupirane</value></data>
+  <data name="Tickets_FilterGrouped" xml:space="preserve"><value>U putovanju</value></data>
+  <data name="Tickets_SourceAll" xml:space="preserve"><value>Svi izvori</value></data>
+  <data name="Tickets_Select" xml:space="preserve"><value>Odaberi</value></data>
+  <data name="Tickets_Done" xml:space="preserve"><value>Gotovo</value></data>
+  <data name="Tickets_SelectAll" xml:space="preserve"><value>Odaberi sve</value></data>
+  <data name="Tickets_AddToJourney" xml:space="preserve"><value>Dodaj u putovanje</value></data>
+  <data name="Tickets_NewJourney" xml:space="preserve"><value>Novo putovanje</value></data>
+  <data name="Tickets_SelectedCount" xml:space="preserve"><value>{0} odabrano</value></data>
+  <data name="Tickets_NoResultsSubtitle" xml:space="preserve"><value>Nema karata koje odgovaraju tom filtru ili pretrazi.</value></data>
+  <data name="Tickets_NewJourneyPrompt" xml:space="preserve"><value>Naziv novog putovanja</value></data>
+  <data name="Tickets_SelectAtLeastOne" xml:space="preserve"><value>Prvo odaberite barem jednu kartu.</value></data>
+  <data name="Tickets_NoJourneysToAdd" xml:space="preserve"><value>Još nema putovanja — prvo ga stvorite.</value></data>
+  <data name="Tickets_AddToJourneyTitle" xml:space="preserve"><value>Dodaj u putovanje</value></data>
+  <data name="Tickets_GroupTickets" xml:space="preserve"><value>Grupiraj karte</value></data>
+  <data name="Journeys_SearchPlaceholder" xml:space="preserve"><value>Pretraži putovanja</value></data>
+  <data name="Journeys_SortTitle" xml:space="preserve"><value>Sortiraj putovanja</value></data>
+  <data name="Journeys_SortUpcoming" xml:space="preserve"><value>Najprije nadolazeća</value></data>
+  <data name="Journeys_SortDateAsc" xml:space="preserve"><value>Datum ↑</value></data>
+  <data name="Journeys_SortDateDesc" xml:space="preserve"><value>Datum ↓</value></data>
+  <data name="Journeys_SortNameAsc" xml:space="preserve"><value>Naziv A–Ž</value></data>
+  <data name="Journeys_SortNameDesc" xml:space="preserve"><value>Naziv Ž–A</value></data>
+  <data name="Journeys_SortCreatedAsc" xml:space="preserve"><value>Stvoreno ↑</value></data>
+  <data name="Journeys_SortCreatedDesc" xml:space="preserve"><value>Stvoreno ↓</value></data>
+  <data name="Journeys_SortLegsAsc" xml:space="preserve"><value>Dionice ↑</value></data>
+  <data name="Journeys_SortLegsDesc" xml:space="preserve"><value>Dionice ↓</value></data>
+  <data name="Journeys_CountSummary" xml:space="preserve"><value>{0} putovanja</value></data>
+  <data name="Journey_AddTickets" xml:space="preserve"><value>Dodaj karte</value></data>
+  <data name="JourneyPicker_Title" xml:space="preserve"><value>Dodaj karte u putovanje</value></data>
+  <data name="JourneyPicker_SelectAll" xml:space="preserve"><value>Odaberi sve</value></data>
+  <data name="JourneyPicker_SearchPlaceholder" xml:space="preserve"><value>Pretraži negrupirane karte</value></data>
+  <data name="JourneyPicker_NoTickets" xml:space="preserve"><value>Nema negrupiranih karata</value></data>
+  <data name="JourneyPicker_NoTicketsSubtitle" xml:space="preserve"><value>Sve karte su već u putovanju ili ih nemate.</value></data>
+  <data name="JourneyPicker_SelectHint" xml:space="preserve"><value>Odaberite karte za dodavanje</value></data>
+  <data name="JourneyPicker_Add" xml:space="preserve"><value>Dodaj</value></data>
 </root>

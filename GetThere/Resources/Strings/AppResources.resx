@@ -391,4 +391,54 @@
   <data name="BuyJourney_CouldNotQuote" xml:space="preserve"><value>We could not price this itinerary.</value></data>
   <data name="BuyJourney_BookingFailed" xml:space="preserve"><value>We could not book this journey.</value></data>
   <data name="BuyJourney_CouldNotCancel" xml:space="preserve"><value>We could not cancel the booking.</value></data>
+  <data name="Common_Clear" xml:space="preserve"><value>Clear</value></data>
+  <data name="Common_Select" xml:space="preserve"><value>Select</value></data>
+  <data name="Tickets_SearchPlaceholder" xml:space="preserve"><value>Search tickets, routes, operators</value></data>
+  <data name="Tickets_SortTitle" xml:space="preserve"><value>Sort tickets</value></data>
+  <data name="Tickets_SortValidFromDesc" xml:space="preserve"><value>Date ↓ (soonest)</value></data>
+  <data name="Tickets_SortValidFromAsc" xml:space="preserve"><value>Date ↑ (oldest)</value></data>
+  <data name="Tickets_SortCreatedDesc" xml:space="preserve"><value>Added ↓ (newest)</value></data>
+  <data name="Tickets_SortCreatedAsc" xml:space="preserve"><value>Added ↑ (oldest)</value></data>
+  <data name="Tickets_SortPriceDesc" xml:space="preserve"><value>Price ↓</value></data>
+  <data name="Tickets_SortPriceAsc" xml:space="preserve"><value>Price ↑</value></data>
+  <data name="Tickets_SortNameAsc" xml:space="preserve"><value>Name A–Z</value></data>
+  <data name="Tickets_SortNameDesc" xml:space="preserve"><value>Name Z–A</value></data>
+  <data name="Tickets_SortOperatorAsc" xml:space="preserve"><value>Operator A–Z</value></data>
+  <data name="Tickets_SortOperatorDesc" xml:space="preserve"><value>Operator Z–A</value></data>
+  <data name="Tickets_FilterAllTickets" xml:space="preserve"><value>All tickets</value></data>
+  <data name="Tickets_FilterUngrouped" xml:space="preserve"><value>Ungrouped</value></data>
+  <data name="Tickets_FilterGrouped" xml:space="preserve"><value>In journey</value></data>
+  <data name="Tickets_SourceAll" xml:space="preserve"><value>All sources</value></data>
+  <data name="Tickets_Select" xml:space="preserve"><value>Select</value></data>
+  <data name="Tickets_Done" xml:space="preserve"><value>Done</value></data>
+  <data name="Tickets_SelectAll" xml:space="preserve"><value>Select all</value></data>
+  <data name="Tickets_AddToJourney" xml:space="preserve"><value>Add to journey</value></data>
+  <data name="Tickets_NewJourney" xml:space="preserve"><value>New journey</value></data>
+  <data name="Tickets_SelectedCount" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="Tickets_NoResultsSubtitle" xml:space="preserve"><value>No tickets match that filter or search.</value></data>
+  <data name="Tickets_NewJourneyPrompt" xml:space="preserve"><value>Name for the new journey</value></data>
+  <data name="Tickets_SelectAtLeastOne" xml:space="preserve"><value>Select at least one ticket first.</value></data>
+  <data name="Tickets_NoJourneysToAdd" xml:space="preserve"><value>No journeys yet — create one first.</value></data>
+  <data name="Tickets_AddToJourneyTitle" xml:space="preserve"><value>Add to journey</value></data>
+  <data name="Tickets_GroupTickets" xml:space="preserve"><value>Group tickets</value></data>
+  <data name="Journeys_SearchPlaceholder" xml:space="preserve"><value>Search journeys</value></data>
+  <data name="Journeys_SortTitle" xml:space="preserve"><value>Sort journeys</value></data>
+  <data name="Journeys_SortUpcoming" xml:space="preserve"><value>Upcoming first</value></data>
+  <data name="Journeys_SortDateAsc" xml:space="preserve"><value>Date ↑</value></data>
+  <data name="Journeys_SortDateDesc" xml:space="preserve"><value>Date ↓</value></data>
+  <data name="Journeys_SortNameAsc" xml:space="preserve"><value>Name A–Z</value></data>
+  <data name="Journeys_SortNameDesc" xml:space="preserve"><value>Name Z–A</value></data>
+  <data name="Journeys_SortCreatedAsc" xml:space="preserve"><value>Created ↑</value></data>
+  <data name="Journeys_SortCreatedDesc" xml:space="preserve"><value>Created ↓</value></data>
+  <data name="Journeys_SortLegsAsc" xml:space="preserve"><value>Legs ↑</value></data>
+  <data name="Journeys_SortLegsDesc" xml:space="preserve"><value>Legs ↓</value></data>
+  <data name="Journeys_CountSummary" xml:space="preserve"><value>{0} journeys</value></data>
+  <data name="Journey_AddTickets" xml:space="preserve"><value>Add tickets</value></data>
+  <data name="JourneyPicker_Title" xml:space="preserve"><value>Add tickets to journey</value></data>
+  <data name="JourneyPicker_SelectAll" xml:space="preserve"><value>Select all</value></data>
+  <data name="JourneyPicker_SearchPlaceholder" xml:space="preserve"><value>Search ungrouped tickets</value></data>
+  <data name="JourneyPicker_NoTickets" xml:space="preserve"><value>No ungrouped tickets</value></data>
+  <data name="JourneyPicker_NoTicketsSubtitle" xml:space="preserve"><value>All tickets are already in a journey, or you have none.</value></data>
+  <data name="JourneyPicker_SelectHint" xml:space="preserve"><value>Select tickets to add</value></data>
+  <data name="JourneyPicker_Add" xml:space="preserve"><value>Add</value></data>
 </root>

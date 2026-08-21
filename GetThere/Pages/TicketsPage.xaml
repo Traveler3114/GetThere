@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<!--  Frame 3e (Android · My Tickets) of "GetThere App.dc.html".  -->
 <ContentPage
     x:Class="GetThere.Pages.TicketsPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -21,23 +20,43 @@
         <helpers:TicketStatusColorConverter x:Key="StatusColor" />
         <helpers:TicketStatusOpacityConverter x:Key="StatusOpacity" />
         <helpers:PriceCurrencyConverter x:Key="Price" />
+        <helpers:SelectedStrokeConverter x:Key="SelectedStroke" />
     </ContentPage.Resources>
 
     <Grid>
         <components:AnimatedBackground />
 
         <Grid
-            Padding="20,32,20,96"
+            Padding="20,32,20,0"
             HorizontalOptions="Center"
-            MaximumWidthRequest="720"
-            RowDefinitions="Auto,Auto,Auto,Auto,*">
+            MaximumWidthRequest="760"
+            RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
 
-            <VerticalStackLayout Grid.Row="0" Spacing="4">
-                <Label Style="{StaticResource DsPageTitle}" Text="{localization:Translate Tickets_Title}" />
-                <Label Style="{StaticResource DsPageSubtitle}" Text="{localization:Translate Tickets_Subtitle}" />
-            </VerticalStackLayout>
+            <!-- Header -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="4">
+                    <Label Style="{StaticResource DsPageTitle}" Text="{localization:Translate Tickets_Title}" />
+                    <Label Style="{StaticResource DsPageSubtitle}" Text="{localization:Translate Tickets_Subtitle}" />
+                </VerticalStackLayout>
+                <Button
+                    Grid.Column="1"
+                    Padding="12,6"
+                    Command="{Binding ToggleSelectionModeCommand}"
+                    IsVisible="{Binding ShowTickets}"
+                    Style="{StaticResource DsGhostButton}"
+                    VerticalOptions="Start">
+                    <Button.Triggers>
+                        <DataTrigger TargetType="Button" Binding="{Binding IsSelectionMode}" Value="True">
+                            <Setter Property="Text" Value="{localization:Translate Tickets_Done}" />
+                        </DataTrigger>
+                        <DataTrigger TargetType="Button" Binding="{Binding IsSelectionMode}" Value="False">
+                            <Setter Property="Text" Value="{localization:Translate Tickets_Select}" />
+                        </DataTrigger>
+                    </Button.Triggers>
+                </Button>
+            </Grid>
 
-            <!--  ── TICKETS / JOURNEYS SEGMENT ──  -->
+            <!-- Segment -->
             <HorizontalStackLayout
                 Grid.Row="1"
                 Margin="0,16,0,0"
@@ -61,17 +80,97 @@
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding ShowSegmentCommand}" CommandParameter="Journeys" />
                     </Border.GestureRecognizers>
-                    <Label
-                        Style="{StaticResource DsChipLabel}"
-                        Text="{localization:Translate Journeys_Title}"
-                        TextColor="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Journeys:text'}" />
+                    <HorizontalStackLayout Spacing="6">
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Journeys_Title}"
+                            TextColor="{Binding SegmentKey, Converter={StaticResource Chip}, ConverterParameter='Journeys:text'}" />
+                        <Border
+                            Padding="6,2"
+                            BackgroundColor="{StaticResource Primary}"
+                            IsVisible="{Binding Journeys.HasJourneys}"
+                            StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <shapes:RoundRectangle CornerRadius="8" />
+                            </Border.StrokeShape>
+                            <Label
+                                FontSize="11"
+                                Style="{StaticResource DsBadgeLabel}"
+                                Text="{Binding Journeys.TotalJourneys}"
+                                TextColor="White" />
+                        </Border>
+                    </HorizontalStackLayout>
                 </Border>
             </HorizontalStackLayout>
 
-            <!--  ── FILTER CHIPS (tickets only)  ──  -->
-            <ScrollView
+            <!-- Search + Sort (tickets) -->
+            <Grid
                 Grid.Row="2"
-                Margin="0,16,0,0"
+                Margin="0,14,0,0"
+                ColumnDefinitions="*,Auto"
+                ColumnSpacing="10"
+                IsVisible="{Binding ShowTickets}">
+                <Border Padding="10,0" BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}" Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkMuted}}" StrokeThickness="1">
+                    <Border.StrokeShape>
+                        <shapes:RoundRectangle CornerRadius="12" />
+                    </Border.StrokeShape>
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Label
+                            FontSize="14"
+                            Text="⌕"
+                            TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource TextMuted}}"
+                            VerticalOptions="Center" />
+                        <Entry
+                            Grid.Column="1"
+                            BackgroundColor="Transparent"
+                            Placeholder="{localization:Translate Tickets_SearchPlaceholder}"
+                            Style="{StaticResource DsEntry}"
+                            Text="{Binding SearchText}" />
+                        <Border
+                            Grid.Column="2"
+                            Padding="6,2"
+                            BackgroundColor="Transparent"
+                            IsVisible="{Binding SearchText, Converter={x:Static helpers:StringNotEmptyConverter.Instance}}"
+                            StrokeThickness="0">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ClearSearchCommand}" />
+                            </Border.GestureRecognizers>
+                            <Label
+                                FontSize="14"
+                                Text="✕"
+                                TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource TextMuted}}"
+                                VerticalOptions="Center" />
+                        </Border>
+                    </Grid>
+                </Border>
+                <Border
+                    Grid.Column="1"
+                    Padding="12,8"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                    Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkMuted}}"
+                    StrokeThickness="1"
+                    VerticalOptions="Center">
+                    <Border.StrokeShape>
+                        <shapes:RoundRectangle CornerRadius="12" />
+                    </Border.StrokeShape>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding PickSortCommand}" />
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6">
+                        <Label FontSize="12" Text="⇅" VerticalOptions="Center" />
+                        <Label
+                            FontSize="12"
+                            Style="{StaticResource DsMetaCaption}"
+                            Text="{Binding SortLabel}"
+                            VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+            </Grid>
+
+            <!-- Status chips -->
+            <ScrollView
+                Grid.Row="3"
+                Margin="0,10,0,0"
                 HorizontalScrollBarVisibility="Never"
                 IsVisible="{Binding ShowTickets}"
                 Orientation="Horizontal">
@@ -127,201 +226,455 @@
                 </HorizontalStackLayout>
             </ScrollView>
 
-            <VerticalStackLayout Grid.Row="3" Margin="0,8,0,0" Spacing="4">
+            <!-- Grouped / Source chips -->
+            <ScrollView
+                Grid.Row="4"
+                Margin="0,8,0,0"
+                HorizontalScrollBarVisibility="Never"
+                IsVisible="{Binding ShowTickets}"
+                Orientation="Horizontal">
+                <HorizontalStackLayout Spacing="8">
+                    <Border
+                        BackgroundColor="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter=':bg'}"
+                        Stroke="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter=':stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterGroupedCommand}" CommandParameter="" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_FilterAllTickets}"
+                            TextColor="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter=':text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter='Ungrouped:bg'}"
+                        Stroke="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter='Ungrouped:stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterGroupedCommand}" CommandParameter="Ungrouped" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_FilterUngrouped}"
+                            TextColor="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter='Ungrouped:text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter='Grouped:bg'}"
+                        Stroke="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter='Grouped:stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterGroupedCommand}" CommandParameter="Grouped" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_FilterGrouped}"
+                            TextColor="{Binding GroupedFilterKey, Converter={StaticResource Chip}, ConverterParameter='Grouped:text'}" />
+                    </Border>
+                    <BoxView
+                        BackgroundColor="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkMuted}}"
+                        HeightRequest="20"
+                        VerticalOptions="Center"
+                        WidthRequest="1" />
+                    <Border
+                        BackgroundColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter=':bg'}"
+                        Stroke="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter=':stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterSourceCommand}" CommandParameter="" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="{localization:Translate Tickets_SourceAll}"
+                            TextColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter=':text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Manual:bg'}"
+                        Stroke="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Manual:stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterSourceCommand}" CommandParameter="Manual" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="Manual"
+                            TextColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Manual:text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Photo:bg'}"
+                        Stroke="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Photo:stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterSourceCommand}" CommandParameter="Photo" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="Photo"
+                            TextColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Photo:text'}" />
+                    </Border>
+                    <Border
+                        BackgroundColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Pdf:bg'}"
+                        Stroke="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Pdf:stroke'}"
+                        Style="{StaticResource DsChip}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding FilterSourceCommand}" CommandParameter="Pdf" />
+                        </Border.GestureRecognizers>
+                        <Label
+                            Style="{StaticResource DsChipLabel}"
+                            Text="PDF"
+                            TextColor="{Binding SourceFilterKey, Converter={StaticResource Chip}, ConverterParameter='Pdf:text'}" />
+                    </Border>
+                </HorizontalStackLayout>
+            </ScrollView>
+
+            <!-- Meta / provenance -->
+            <VerticalStackLayout Grid.Row="5" Margin="0,8,0,0" Spacing="3">
+                <Label
+                    FontSize="12"
+                    IsVisible="{Binding ShowTickets}"
+                    Style="{StaticResource DsMetaCaption}"
+                    Text="{Binding FilteredCount, StringFormat='{0} tickets'}" />
                 <Label
                     IsVisible="{Binding HasError}"
                     Style="{StaticResource DsErrorLabel}"
                     Text="{Binding ErrorText}" />
-
-                <!--
-                    Provenance, shown only when the list below came off the device rather than the
-                    server. Someone holding a phone at a barrier needs to know how old the screen is
-                    — a ticket cancelled on another device would still look active here.
-                -->
                 <Label
-                    FontSize="12"
+                    FontSize="11"
                     IsVisible="{Binding IsShowingCached}"
                     Style="{StaticResource DsMetaCaption}"
                     Text="{Binding CachedAtText}" />
             </VerticalStackLayout>
 
-            <!--  ── TICKET LIST ──  -->
-            <CollectionView
-                x:Name="TicketList"
-                Grid.Row="4"
-                Margin="0,12,0,0"
-                IsVisible="{Binding ShowTickets}"
-                ItemsSource="{Binding WalletTickets}">
-                <CollectionView.EmptyView>
-                    <VerticalStackLayout
-                        HorizontalOptions="Center"
-                        Spacing="8"
-                        VerticalOptions="Center">
-                        <Label
-                            FontSize="20"
+            <!-- Ticket list -->
+            <RefreshView
+                Grid.Row="7"
+                Margin="0,8,0,0"
+                Command="{Binding LoadTicketsCommand}"
+                IsRefreshing="{Binding IsBusy}"
+                IsVisible="{Binding ShowTickets}">
+                <CollectionView
+                    x:Name="TicketList"
+                    ItemsSource="{Binding WalletTickets}"
+                    RemainingItemsThreshold="4"
+                    RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}"
+                    SelectionMode="None">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout
+                            Padding="0,40"
                             HorizontalOptions="Center"
-                            Style="{StaticResource DsCardTitle}"
-                            Text="{localization:Translate Tickets_NoItems}" />
-                        <Label
-                            HorizontalOptions="Center"
-                            HorizontalTextAlignment="Center"
-                            Style="{StaticResource DsCardSubtitle}"
-                            Text="{localization:Translate Tickets_Subtitle}" />
-                    </VerticalStackLayout>
-                </CollectionView.EmptyView>
-                <CollectionView.ItemTemplate>
-                    <!--
-                        x:DataType is what makes the compiler check the bindings below against
-                        WalletTicket. Without it they are resolved reflectively at runtime, so a
-                        renamed or removed property fails silently — a blank label on a ticket card
-                        rather than a build error — and CI compiles this XAML exactly once, at the
-                        end of the Android build. VERIFY.md flagged this template by name for that
-                        reason.
-                        Every binding here was checked against WalletTicket by hand and they all
-                        resolve; this is so the next change does not have to be.
-                    -->
-                    <DataTemplate x:DataType="vm:WalletTicket">
-                        <Border
-                            Margin="0,6"
-                            Padding="16"
-                            BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
-                            Opacity="{Binding DisplayStatus, Converter={StaticResource StatusOpacity}}"
-                            StrokeThickness="0">
-                            <Border.StrokeShape>
-                                <shapes:RoundRectangle CornerRadius="16" />
-                            </Border.StrokeShape>
-                            <Border.GestureRecognizers>
-                                <!--
-                                    Opens the ticket. A tap used to offer an action sheet, and
-                                    before that invoked Cancel outright — so the list's primary
-                                    gesture was a destructive one and the ticket itself could not be
-                                    opened at all. The actions moved to the control below.
-                                -->
-                                <TapGestureRecognizer
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=OpenTicketCommand}"
-                                    CommandParameter="{Binding .}" />
-                            </Border.GestureRecognizers>
-                            <Grid
-                                ColumnDefinitions="*,Auto"
-                                ColumnSpacing="12"
-                                RowDefinitions="Auto,Auto,Auto"
-                                RowSpacing="6">
-                                <Label
-                                    Grid.Row="0"
-                                    Grid.Column="0"
-                                    Style="{StaticResource DsCardTitle}"
-                                    Text="{Binding TicketName}" />
-                                <HorizontalStackLayout
-                                    Grid.Row="0"
-                                    Grid.Column="1"
-                                    Spacing="8">
-                                    <!--
-                                        DisplayStatus, not Status: the server's expiry sweep runs
-                                        hourly and a cached list can be staler still, so a ticket
-                                        whose window has closed would otherwise read Active.
-                                    -->
+                            Spacing="8"
+                            VerticalOptions="Center">
+                            <Label
+                                FontSize="20"
+                                HorizontalOptions="Center"
+                                Style="{StaticResource DsCardTitle}"
+                                Text="{localization:Translate Tickets_NoItems}" />
+                            <Label
+                                HorizontalOptions="Center"
+                                HorizontalTextAlignment="Center"
+                                Style="{StaticResource DsCardSubtitle}"
+                                Text="{localization:Translate Tickets_NoResultsSubtitle}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:WalletTicket">
+                            <Border
+                                Margin="0,6"
+                                Padding="14"
+                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                                Opacity="{Binding DisplayStatus, Converter={StaticResource StatusOpacity}}"
+                                Stroke="{Binding IsSelected, Converter={StaticResource SelectedStroke}, ConverterParameter='#1F2937'}"
+                                StrokeThickness="1">
+                                <Border.StrokeShape>
+                                    <shapes:RoundRectangle CornerRadius="16" />
+                                </Border.StrokeShape>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=OpenTicketCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="5">
+                                    <!-- Checkbox (selection mode) -->
                                     <Border
-                                        BackgroundColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
-                                        Style="{StaticResource DsBadge}">
+                                        Grid.RowSpan="4"
+                                        HeightRequest="22"
+                                        IsVisible="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=IsSelectionMode}"
+                                        Stroke="{Binding IsSelected, Converter={StaticResource SelectedStroke}, ConverterParameter='#4B5563'}"
+                                        StrokeThickness="1.5"
+                                        VerticalOptions="Center"
+                                        WidthRequest="22">
+                                        <Border.StrokeShape>
+                                            <shapes:RoundRectangle CornerRadius="6" />
+                                        </Border.StrokeShape>
                                         <Label
-                                            Style="{StaticResource DsBadgeLabel}"
-                                            Text="{Binding DisplayStatus}"
-                                            TextColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}}" />
+                                            FontSize="12"
+                                            HorizontalOptions="Center"
+                                            IsVisible="{Binding IsSelected}"
+                                            Text="✓"
+                                            TextColor="{StaticResource Primary}"
+                                            VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=ToggleSelectTicketCommand}" CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
                                     </Border>
-                                    <!--
-                                        Cancel / mark-used, now that a tap opens the ticket instead.
-                                        Only imported tickets have actions — nothing moves a
-                                        purchased ticket out of Active — so HasActions hides this
-                                        rather than offering a menu that cannot act.
-                                    -->
-                                    <Label
-                                        Padding="6,0"
-                                        FontSize="18"
-                                        IsVisible="{Binding HasActions}"
-                                        Style="{StaticResource DsMetaCaption}"
-                                        Text="⋯"
-                                        VerticalTextAlignment="Center">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=ShowTicketActionsCommand}"
-                                                CommandParameter="{Binding .}" />
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </HorizontalStackLayout>
-                                <Label
-                                    Grid.Row="1"
-                                    Grid.Column="0"
-                                    Grid.ColumnSpan="2"
-                                    LineBreakMode="TailTruncation"
-                                    Style="{StaticResource DsCardSubtitle}"
-                                    Text="{Binding RouteDescription}" />
-                                <HorizontalStackLayout
-                                    Grid.Row="2"
-                                    Grid.Column="0"
-                                    Grid.ColumnSpan="2"
-                                    Spacing="12">
-                                    <Label
-                                        FontSize="12"
-                                        Style="{StaticResource DsMetaCaption}"
-                                        Text="{Binding ValidFrom, StringFormat='{0:dd.MM.yyyy}'}" />
-                                    <Label
-                                        FontSize="12"
-                                        Style="{StaticResource DsMetaCaption}"
-                                        Text="→" />
-                                    <Label
-                                        FontSize="12"
-                                        Style="{StaticResource DsMetaCaption}"
-                                        Text="{Binding ValidTo, StringFormat='{0:dd.MM.yyyy}'}" />
-                                    <Label FontSize="13" Style="{StaticResource DsMetaValue}">
-                                        <Label.Text>
-                                            <!--  Price and currency together: each ticket carries its own currency.  -->
-                                            <MultiBinding Converter="{StaticResource Price}">
-                                                <Binding Path="Price" />
-                                                <Binding Path="Currency" />
-                                            </MultiBinding>
-                                        </Label.Text>
-                                    </Label>
-                                </HorizontalStackLayout>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
 
-            <!--  ── JOURNEYS ──  -->
+                                    <Label
+                                        Grid.Column="1"
+                                        FontSize="14"
+                                        LineBreakMode="TailTruncation"
+                                        Style="{StaticResource DsCardTitle}"
+                                        Text="{Binding TicketName}" />
+                                    <HorizontalStackLayout Grid.Column="2" Spacing="6">
+                                        <Border
+                                            BackgroundColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                            Style="{StaticResource DsBadge}">
+                                            <Label
+                                                Style="{StaticResource DsBadgeLabel}"
+                                                Text="{Binding DisplayStatus}"
+                                                TextColor="{Binding DisplayStatus, Converter={StaticResource StatusColor}}" />
+                                        </Border>
+                                        <Label
+                                            Padding="6,0"
+                                            FontSize="16"
+                                            IsVisible="{Binding HasActions}"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="⋯"
+                                            VerticalTextAlignment="Center">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=ShowTicketActionsCommand}" CommandParameter="{Binding .}" />
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                    </HorizontalStackLayout>
+
+                                    <Label
+                                        Grid.Row="1"
+                                        Grid.Column="1"
+                                        Grid.ColumnSpan="2"
+                                        LineBreakMode="TailTruncation"
+                                        Style="{StaticResource DsCardSubtitle}"
+                                        Text="{Binding RoutePreview}" />
+
+                                    <!-- Journey + operator pills -->
+                                    <HorizontalStackLayout
+                                        Grid.Row="2"
+                                        Grid.Column="1"
+                                        Grid.ColumnSpan="2"
+                                        Spacing="6">
+                                        <Border
+                                            Padding="6,3"
+                                            BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark=#1E293B}"
+                                            IsVisible="{Binding IsGrouped}"
+                                            StrokeThickness="0">
+                                            <Border.StrokeShape>
+                                                <shapes:RoundRectangle CornerRadius="8" />
+                                            </Border.StrokeShape>
+                                            <Label
+                                                FontSize="11"
+                                                Style="{StaticResource DsMetaCaption}"
+                                                Text="In journey" />
+                                        </Border>
+                                        <Label
+                                            FontSize="11"
+                                            IsVisible="{Binding HasOperator}"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding OperatorNameSnapshot}" />
+                                        <Label
+                                            FontSize="11"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding Source}" />
+                                    </HorizontalStackLayout>
+
+                                    <HorizontalStackLayout
+                                        Grid.Row="3"
+                                        Grid.Column="1"
+                                        Grid.ColumnSpan="2"
+                                        Spacing="10">
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding ValidFrom, StringFormat='{0:dd.MM.yyyy}'}" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="→" />
+                                        <Label
+                                            FontSize="12"
+                                            Style="{StaticResource DsMetaCaption}"
+                                            Text="{Binding ValidTo, StringFormat='{0:dd.MM.yyyy}'}" />
+                                        <Label FontSize="12" Style="{StaticResource DsMetaValue}">
+                                            <Label.Text>
+                                                <MultiBinding Converter="{StaticResource Price}">
+                                                    <Binding Path="Price" />
+                                                    <Binding Path="Currency" />
+                                                </MultiBinding>
+                                            </Label.Text>
+                                        </Label>
+                                    </HorizontalStackLayout>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </RefreshView>
+
+            <!-- Journeys -->
             <Grid
-                Grid.Row="4"
-                Margin="0,12,0,0"
+                Grid.Row="7"
+                Margin="0,8,0,0"
                 IsVisible="{Binding ShowJourneys}"
-                RowDefinitions="Auto,Auto,*"
-                RowSpacing="12">
+                RowDefinitions="Auto,Auto,Auto,Auto,*"
+                RowSpacing="10">
+                <!-- Journeys search+sort -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Border
+                        Padding="10,0"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                        Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkMuted}}"
+                        StrokeThickness="1">
+                        <Border.StrokeShape>
+                            <shapes:RoundRectangle CornerRadius="12" />
+                        </Border.StrokeShape>
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <Label
+                                FontSize="14"
+                                Text="⌕"
+                                TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource TextMuted}}"
+                                VerticalOptions="Center" />
+                            <Entry
+                                Grid.Column="1"
+                                Placeholder="{localization:Translate Journeys_SearchPlaceholder}"
+                                Style="{StaticResource DsEntry}"
+                                Text="{Binding Journeys.SearchText}" />
+                            <Label
+                                Grid.Column="2"
+                                Padding="6,0"
+                                FontSize="12"
+                                IsVisible="{Binding Journeys.SearchText, Converter={x:Static helpers:StringNotEmptyConverter.Instance}}"
+                                Text="✕"
+                                VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Journeys.ClearJourneySearchCommand}" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+                    </Border>
+                    <Border
+                        Grid.Column="1"
+                        Padding="12,8"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                        Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkMuted}}"
+                        StrokeThickness="1">
+                        <Border.StrokeShape>
+                            <shapes:RoundRectangle CornerRadius="12" />
+                        </Border.StrokeShape>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding Journeys.PickJourneySortCommand}" />
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="6">
+                            <Label FontSize="12" Text="⇅" VerticalOptions="Center" />
+                            <Label
+                                FontSize="11"
+                                Style="{StaticResource DsMetaCaption}"
+                                Text="{Binding Journeys.SortLabel}"
+                                VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
+
+                <!-- Journeys status chips -->
+                <ScrollView
+                    Grid.Row="1"
+                    HorizontalScrollBarVisibility="Never"
+                    Orientation="Horizontal">
+                    <HorizontalStackLayout Spacing="8">
+                        <Border
+                            BackgroundColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':bg'}"
+                            Stroke="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':stroke'}"
+                            Style="{StaticResource DsChip}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Journeys.FilterJourneyCommand}" CommandParameter="" />
+                            </Border.GestureRecognizers>
+                            <Label Style="{StaticResource DsChipLabel}" Text="{localization:Translate Tickets_All}" TextColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter=':text'}" />
+                        </Border>
+                        <Border
+                            BackgroundColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Planned:bg'}"
+                            Stroke="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Planned:stroke'}"
+                            Style="{StaticResource DsChip}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Journeys.FilterJourneyCommand}" CommandParameter="Planned" />
+                            </Border.GestureRecognizers>
+                            <Label Style="{StaticResource DsChipLabel}" Text="{localization:Translate JourneyStatus_Planned}" TextColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Planned:text'}" />
+                        </Border>
+                        <Border
+                            BackgroundColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:bg'}"
+                            Stroke="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:stroke'}"
+                            Style="{StaticResource DsChip}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Journeys.FilterJourneyCommand}" CommandParameter="Active" />
+                            </Border.GestureRecognizers>
+                            <Label Style="{StaticResource DsChipLabel}" Text="{localization:Translate JourneyStatus_Active}" TextColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Active:text'}" />
+                        </Border>
+                        <Border
+                            BackgroundColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Completed:bg'}"
+                            Stroke="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Completed:stroke'}"
+                            Style="{StaticResource DsChip}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Journeys.FilterJourneyCommand}" CommandParameter="Completed" />
+                            </Border.GestureRecognizers>
+                            <Label Style="{StaticResource DsChipLabel}" Text="{localization:Translate JourneyStatus_Completed}" TextColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Completed:text'}" />
+                        </Border>
+                        <Border
+                            BackgroundColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Cancelled:bg'}"
+                            Stroke="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Cancelled:stroke'}"
+                            Style="{StaticResource DsChip}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Journeys.FilterJourneyCommand}" CommandParameter="Cancelled" />
+                            </Border.GestureRecognizers>
+                            <Label Style="{StaticResource DsChipLabel}" Text="{localization:Translate JourneyStatus_Cancelled}" TextColor="{Binding Journeys.ActiveFilterKey, Converter={StaticResource Chip}, ConverterParameter='Cancelled:text'}" />
+                        </Border>
+                    </HorizontalStackLayout>
+                </ScrollView>
 
                 <Label
-                    Grid.Row="0"
+                    Grid.Row="2"
                     IsVisible="{Binding Journeys.HasError}"
                     Style="{StaticResource DsErrorLabel}"
                     Text="{Binding Journeys.ErrorText}" />
 
-                <!--
-                    Suggested groupings. Proposals only — the server never applies one, because a
-                    wrong guess would silently reshuffle the user's wallet.
-                -->
-                <VerticalStackLayout
-                    Grid.Row="1"
-                    IsVisible="{Binding Journeys.HasSuggestions}"
-                    Spacing="8">
-                    <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Journeys_Suggested}" />
-                    <CollectionView ItemsSource="{Binding Journeys.Suggestions}">
+                <!-- Suggestions collapsible -->
+                <Grid Grid.Row="3" IsVisible="{Binding Journeys.HasSuggestions}" RowDefinitions="Auto,*" RowSpacing="6">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Journeys_Suggested}" VerticalOptions="Center" />
+                        <Border
+                            Grid.Column="1"
+                            Padding="10,4"
+                            Stroke="{StaticResource Primary}"
+                            StrokeThickness="1">
+                            <Border.StrokeShape>
+                                <shapes:RoundRectangle CornerRadius="10" />
+                            </Border.StrokeShape>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Journeys.ToggleSuggestionsCommand}" />
+                            </Border.GestureRecognizers>
+                            <Label
+                                FontSize="11"
+                                Style="{StaticResource DsMetaCaption}"
+                                Text="{Binding Journeys.IsSuggestionsCollapsed, Converter={x:Static helpers:CollapseLabelConverter.Instance}}" />
+                        </Border>
+                    </Grid>
+                    <CollectionView
+                        Grid.Row="1"
+                        IsVisible="{Binding Journeys.IsSuggestionsCollapsed, Converter={StaticResource InverseBoolConverter}}"
+                        ItemsSource="{Binding Journeys.Suggestions}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="contracts:JourneySuggestionResponse">
                                 <Border
                                     Margin="0,4"
-                                    Padding="16"
+                                    Padding="14"
                                     BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
                                     Stroke="{StaticResource Primary}"
                                     StrokeThickness="1">
                                     <Border.StrokeShape>
-                                        <shapes:RoundRectangle CornerRadius="16" />
+                                        <shapes:RoundRectangle CornerRadius="14" />
                                     </Border.StrokeShape>
                                     <VerticalStackLayout Spacing="6">
                                         <Label Style="{StaticResource DsCardTitle}" Text="{Binding SuggestedName}" />
@@ -343,147 +696,169 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                     </CollectionView>
-                </VerticalStackLayout>
+                </Grid>
 
-                <CollectionView
-                    Grid.Row="2"
-                    ItemsSource="{Binding Journeys.Journeys}">
-                    <CollectionView.EmptyView>
-                        <VerticalStackLayout
-                            HorizontalOptions="Center"
-                            Spacing="8"
-                            VerticalOptions="Center">
-                            <Label
-                                FontSize="20"
+                <!-- Journeys list -->
+                <RefreshView Grid.Row="4" Command="{Binding Journeys.LoadCommand}" IsRefreshing="{Binding Journeys.IsBusy}">
+                    <CollectionView
+                        ItemsSource="{Binding Journeys.Journeys}"
+                        RemainingItemsThreshold="4"
+                        RemainingItemsThresholdReachedCommand="{Binding Journeys.LoadMoreCommand}"
+                        SelectionMode="None">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout
+                                Padding="0,30"
                                 HorizontalOptions="Center"
-                                Style="{StaticResource DsCardTitle}"
-                                Text="{localization:Translate Journeys_NoItems}" />
-                            <Label
-                                HorizontalOptions="Center"
-                                HorizontalTextAlignment="Center"
-                                Style="{StaticResource DsCardSubtitle}"
-                                Text="{localization:Translate Journeys_NoItemsSubtitle}" />
-                        </VerticalStackLayout>
-                    </CollectionView.EmptyView>
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate x:DataType="contracts:JourneyResponse">
-                            <Border
-                                Margin="0,6"
-                                Padding="16"
-                                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
-                                StrokeThickness="0">
-                                <Border.StrokeShape>
-                                    <shapes:RoundRectangle CornerRadius="16" />
-                                </Border.StrokeShape>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=Journeys.OpenCommand}"
-                                        CommandParameter="{Binding .}" />
-                                </Border.GestureRecognizers>
-                                <Grid
-                                    ColumnDefinitions="*,Auto"
-                                    ColumnSpacing="12"
-                                    RowDefinitions="Auto,Auto"
-                                    RowSpacing="6">
-                                    <Label
-                                        Grid.Row="0"
-                                        Grid.Column="0"
-                                        Style="{StaticResource DsCardTitle}"
-                                        Text="{Binding Name}" />
-                                    <Border
-                                        Grid.Row="0"
-                                        Grid.Column="1"
-                                        BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
-                                        Style="{StaticResource DsBadge}">
+                                Spacing="8"
+                                VerticalOptions="Center">
+                                <Label
+                                    FontSize="18"
+                                    HorizontalOptions="Center"
+                                    Style="{StaticResource DsCardTitle}"
+                                    Text="{localization:Translate Journeys_NoItems}" />
+                                <Label
+                                    HorizontalOptions="Center"
+                                    HorizontalTextAlignment="Center"
+                                    Style="{StaticResource DsCardSubtitle}"
+                                    Text="{localization:Translate Journeys_NoItemsSubtitle}" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="contracts:JourneyResponse">
+                                <Border
+                                    Margin="0,6"
+                                    Padding="16"
+                                    BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                                    StrokeThickness="0">
+                                    <Border.StrokeShape>
+                                        <shapes:RoundRectangle CornerRadius="16" />
+                                    </Border.StrokeShape>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:TicketsViewModel}}, Path=Journeys.OpenCommand}" CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                                         <Label
-                                            Style="{StaticResource DsBadgeLabel}"
-                                            Text="{Binding Status}"
-                                            TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
-                                    </Border>
-                                    <HorizontalStackLayout
-                                        Grid.Row="1"
-                                        Grid.Column="0"
-                                        Grid.ColumnSpan="2"
-                                        Spacing="12">
-                                        <!--  Number and noun split so the noun stays translatable.  -->
+                                            Grid.Column="0"
+                                            LineBreakMode="TailTruncation"
+                                            Style="{StaticResource DsCardTitle}"
+                                            Text="{Binding Name}" />
+                                        <Border
+                                            Grid.Column="1"
+                                            BackgroundColor="{Binding Status, Converter={StaticResource StatusColor}, ConverterParameter=surface}"
+                                            Style="{StaticResource DsBadge}"
+                                            VerticalOptions="Start">
+                                            <Label
+                                                Style="{StaticResource DsBadgeLabel}"
+                                                Text="{Binding Status}"
+                                                TextColor="{Binding Status, Converter={StaticResource StatusColor}}" />
+                                        </Border>
                                         <Label
+                                            Grid.Row="1"
+                                            Grid.Column="0"
+                                            Grid.ColumnSpan="2"
                                             FontSize="12"
-                                            Style="{StaticResource DsMetaCaption}"
-                                            Text="{Binding LegCount}" />
-                                        <Label
-                                            FontSize="12"
-                                            Style="{StaticResource DsMetaCaption}"
-                                            Text="{localization:Translate Journey_LegsShort}" />
-                                        <Label
-                                            FontSize="12"
-                                            Style="{StaticResource DsMetaCaption}"
-                                            Text="{Binding StartsAt, StringFormat='{0:dd.MM.yyyy}'}" />
-                                        <Label
-                                            FontSize="12"
-                                            Style="{StaticResource DsMetaCaption}"
-                                            Text="→" />
-                                        <Label
-                                            FontSize="12"
-                                            Style="{StaticResource DsMetaCaption}"
-                                            Text="{Binding EndsAt, StringFormat='{0:dd.MM.yyyy}'}" />
-                                    </HorizontalStackLayout>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+                                            IsVisible="{Binding FirstOrigin, Converter={x:Static helpers:StringNotEmptyConverter.Instance}}"
+                                            Style="{StaticResource DsCardSubtitle}"
+                                            Text="{Binding FirstOrigin, StringFormat='{0} → '}" />
+                                        <HorizontalStackLayout Grid.Row="2" Grid.ColumnSpan="2" Spacing="10">
+                                            <Label FontSize="12" Style="{StaticResource DsMetaCaption}" Text="{Binding LegCount}" />
+                                            <Label FontSize="12" Style="{StaticResource DsMetaCaption}" Text="{localization:Translate Journey_LegsShort}" />
+                                            <Label FontSize="12" Style="{StaticResource DsMetaCaption}" Text="{Binding StartsAt, StringFormat='{0:dd.MM.yyyy}'}" />
+                                            <Label FontSize="12" Style="{StaticResource DsMetaCaption}" Text="→" />
+                                            <Label FontSize="12" Style="{StaticResource DsMetaCaption}" Text="{Binding EndsAt, StringFormat='{0:dd.MM.yyyy}'}" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </RefreshView>
             </Grid>
+
+            <!-- Selection bar (tickets) -->
+            <Border
+                Grid.Row="8"
+                Margin="-20,0"
+                Padding="14,10"
+                BackgroundColor="{AppThemeBinding Light={StaticResource SurfaceCardLight}, Dark={StaticResource DarkSurface}}"
+                IsVisible="{Binding ShowSelectionBar}"
+                Stroke="{AppThemeBinding Light={StaticResource BorderSubtleLight}, Dark={StaticResource DarkSurfaceAlt}}"
+                StrokeThickness="1">
+                <Border.StrokeShape>
+                    <shapes:RoundRectangle CornerRadius="0" />
+                </Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Label Style="{StaticResource DsMetaCaption}" Text="{Binding SelectionSummary}" VerticalOptions="Center" />
+                    <HorizontalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="8">
+                        <Button
+                            Padding="12,6"
+                            Command="{Binding ClearSelectionCommand}"
+                            Style="{StaticResource DsGhostButton}"
+                            Text="{localization:Translate Common_Clear}" />
+                        <Button
+                            Padding="12,6"
+                            Command="{Binding SelectAllCommand}"
+                            Style="{StaticResource DsGhostButton}"
+                            Text="{localization:Translate Tickets_SelectAll}" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Grid.Column="2" Spacing="8">
+                        <Button Command="{Binding AddSelectionToJourneyCommand}" Style="{StaticResource DsGhostButton}" Text="{localization:Translate Tickets_AddToJourney}" />
+                        <Button Command="{Binding CreateJourneyFromSelectionCommand}" Style="{StaticResource DsPrimaryButton}" Text="{localization:Translate Tickets_NewJourney}" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Border>
         </Grid>
 
-        <!--  ── NEW JOURNEY FAB ──  -->
+        <!-- FABs -->
         <Button
-            Margin="0,0,24,120"
+            Margin="0,0,20,28"
             BackgroundColor="{StaticResource Primary}"
             Command="{Binding Journeys.CreateJourneyCommand}"
-            CornerRadius="32"
+            CornerRadius="28"
             FontAttributes="Bold"
-            FontSize="28"
-            HeightRequest="64"
+            FontSize="24"
+            HeightRequest="56"
             HorizontalOptions="End"
             IsVisible="{Binding ShowJourneys}"
             Text="+"
             TextColor="White"
             VerticalOptions="End"
-            WidthRequest="64">
+            WidthRequest="56">
             <Button.Shadow>
-                <Shadow
-                    Brush="{StaticResource PrimaryBrush}"
-                    Opacity="0.45"
-                    Radius="24"
-                    Offset="0,10" />
+                <Shadow Brush="{StaticResource PrimaryBrush}" Opacity="0.35" Radius="16" Offset="0,8" />
             </Button.Shadow>
         </Button>
 
-        <!--  ── IMPORT FAB ──  -->
         <Button
-            Margin="0,0,24,120"
+            Margin="0,0,20,28"
             BackgroundColor="{StaticResource Primary}"
             Command="{Binding ImportTicketCommand}"
-            IsVisible="{Binding ShowTickets}"
-            CornerRadius="32"
+            CornerRadius="28"
             FontAttributes="Bold"
-            FontSize="28"
-            HeightRequest="64"
+            FontSize="24"
+            HeightRequest="56"
             HorizontalOptions="End"
+            IsVisible="{Binding ShowTickets}"
             Text="+"
             TextColor="White"
             VerticalOptions="End"
-            WidthRequest="64">
+            WidthRequest="56">
             <Button.Shadow>
-                <Shadow
-                    Brush="{StaticResource PrimaryBrush}"
-                    Opacity="0.45"
-                    Radius="24"
-                    Offset="0,10" />
+                <Shadow Brush="{StaticResource PrimaryBrush}" Opacity="0.35" Radius="16" Offset="0,8" />
             </Button.Shadow>
         </Button>
 
-        <!--  ── SIGNED OUT ──  -->
+        <!-- Group-from-journeys shortcut -->
+        <Button
+            Margin="0,0,20,92"
+            Command="{Binding EnterGroupingFromJourneysCommand}"
+            IsVisible="{Binding ShowJourneys}"
+            Style="{StaticResource DsGhostButton}"
+            Text="{localization:Translate Tickets_GroupTickets}"
+            HorizontalOptions="End"
+            VerticalOptions="End" />
+
+        <!-- Signed out -->
         <Grid
             BackgroundColor="{AppThemeBinding Light=#E6FFFFFF, Dark=#E6000000}"
             IsVisible="{Binding IsAuthenticated, Converter={StaticResource InverseBoolConverter}}">

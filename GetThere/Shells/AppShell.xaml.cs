@@ -54,6 +54,7 @@ public partial class AppShell : Shell
         // Journeys have no destination of their own: the design puts them behind a segmented
         // control on Tickets rather than a fifth tab, which the phone frames have no room for.
         Routing.RegisterRoute("journeydetail", typeof(JourneyDetailPage));
+        Routing.RegisterRoute("journeypicker", typeof(JourneyTicketPickerPage));
 
         // "Buy a journey" — reached from the map's gtapp://journey WebView handoff, never from a tab.
         Routing.RegisterRoute("buyjourney", typeof(BuyJourneyPage));

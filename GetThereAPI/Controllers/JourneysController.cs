@@ -76,11 +76,13 @@ public class JourneysController : ControllerBase
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, 500)] int perPage = 50,
         [FromQuery] JourneyStatus? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
         CancellationToken ct = default)
     {
         var userId = User.GetUserId();
         if (userId is null) return Unauthorized();
-        return Ok(await _manager.ListAsync(userId, page, perPage, status, ct));
+        return Ok(await _manager.ListAsync(userId, page, perPage, status, search, sort, ct));
     }
 
     [HttpGet("{id}")]

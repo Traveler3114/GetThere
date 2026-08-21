@@ -5,7 +5,7 @@ SQL Server, EF Core 10, code-first. Context: `GetThereAPI.Data.AppDbContext`, de
 
 Migrations are **not** applied automatically at startup — unlike TransitInfoAPI. Deploying a schema
 change means running `dotnet ef database update` explicitly. See
-[../../guides/ef-database-commands.md](../../guides/ef-database-commands.md).
+[../../guides/running-locally.md](../../guides/running-locally.md).
 
 ---
 

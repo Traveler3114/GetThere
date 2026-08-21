@@ -75,6 +75,12 @@ public class JourneyResponse
     /// <summary>Populated on get-by-id, left empty on list responses so the list stays cheap.</summary>
     public List<JourneyLegResponse> Legs { get; set; } = [];
 
+    /// <summary>First origin among legs, for list preview without loading all legs.</summary>
+    public string? FirstOrigin { get; set; }
+
+    /// <summary>Last destination among legs, for list preview without loading all legs.</summary>
+    public string? LastDestination { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

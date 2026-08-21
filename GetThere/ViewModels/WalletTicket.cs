@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 using GetThereShared.Common;
 using GetThereShared.Contracts;
 using GetThereShared.Enums;
@@ -31,7 +33,21 @@ public enum WalletTicketKind
 /// around a new shape.
 /// </para>
 /// </summary>
-public sealed class WalletTicket
+public enum TicketSortOption
+{
+    ValidFromDesc,
+    ValidFromAsc,
+    CreatedDesc,
+    CreatedAsc,
+    PriceDesc,
+    PriceAsc,
+    NameAsc,
+    NameDesc,
+    OperatorAsc,
+    OperatorDesc
+}
+
+public sealed partial class WalletTicket : ObservableObject
 {
     public required WalletTicketKind Kind { get; init; }
 
@@ -40,6 +56,30 @@ public sealed class WalletTicket
 
     public string? TicketName { get; init; }
     public string? RouteDescription { get; init; }
+
+    /// <summary>Selected in multi-select grouping mode. Not persisted — reset on rebuild.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
+    /// <summary>Journey this ticket belongs to, for grouping chips.</summary>
+    public int? JourneyId { get; init; }
+
+    public string? OperatorNameSnapshot { get; init; }
+
+    public ImportSource? Source { get; init; }
+
+    public string? OriginName { get; init; }
+    public string? DestinationName { get; init; }
+
+    /// <summary>Whether this ticket is already grouped into a journey.</summary>
+    public bool IsGrouped => JourneyId.HasValue;
+
+    /// <summary>Route short text for preview.</summary>
+    public string RoutePreview => !string.IsNullOrWhiteSpace(OriginName) && !string.IsNullOrWhiteSpace(DestinationName)
+        ? $"{OriginName} → {DestinationName}"
+        : RouteDescription ?? string.Empty;
+
+    public bool HasOperator => !string.IsNullOrWhiteSpace(OperatorNameSnapshot);
 
     /// <summary>
     /// The status enum's name. Held as a string because the two kinds use different enums that
@@ -113,7 +153,11 @@ public sealed class WalletTicket
         Price = r.Price,
         Currency = r.Currency,
         SortDate = r.ValidFrom ?? DateTime.UtcNow,
-        IsPending = true
+        IsPending = true,
+        OperatorNameSnapshot = r.OperatorNameSnapshot,
+        Source = r.Source,
+        OriginName = r.OriginName,
+        DestinationName = r.DestinationName
     };
 
     /// <summary>True while this ticket is still only on the device.</summary>
@@ -131,7 +175,12 @@ public sealed class WalletTicket
         Price = t.Price,
         Currency = t.Currency,
         SortDate = t.CreatedAt,
-        Imported = t
+        Imported = t,
+        JourneyId = t.JourneyId,
+        OperatorNameSnapshot = t.OperatorNameSnapshot,
+        Source = t.Source,
+        OriginName = t.OriginName,
+        DestinationName = t.DestinationName
     };
 
     public static WalletTicket FromPurchased(TicketResponse t) => new()
@@ -152,6 +201,10 @@ public sealed class WalletTicket
         // TicketResponse carries no timestamp of its own — see TicketExpiryWorker, which changes
         // Status without touching one. ValidFrom is the closest thing to when it became relevant.
         SortDate = t.ValidFrom ?? DateTime.MinValue,
-        Purchased = t
+        Purchased = t,
+        JourneyId = t.JourneyId,
+        OperatorNameSnapshot = t.Option.AdapterName,
+        OriginName = null,
+        DestinationName = null
     };
 }

@@ -391,5 +391,12 @@ public partial class JourneyDetailViewModel : BaseViewModel
     }
 
     [RelayCommand]
+    private async Task AddTickets()
+    {
+        if (_loadedId == 0) return;
+        await Shell.Current.GoToAsync($"journeypicker?journeyId={_loadedId}");
+    }
+
+    [RelayCommand]
     private static async Task Back() => await Shell.Current.GoToAsync("..");
 }

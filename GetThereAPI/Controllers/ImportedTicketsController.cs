@@ -38,11 +38,14 @@ public class ImportedTicketsController : ControllerBase
         [FromQuery] DateTime? validFrom = null,
         [FromQuery] DateTime? validTo = null,
         [FromQuery] string? sort = null,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? ungrouped = null,
+        [FromQuery] bool? hasJourney = null,
         CancellationToken ct = default)
     {
         var userId = User.GetUserId();
         if (userId is null) return Unauthorized();
-        return Ok(await _manager.ListAsync(userId, page, perPage, status, source, operatorId, validFrom, validTo, sort, ct));
+        return Ok(await _manager.ListAsync(userId, page, perPage, status, source, operatorId, validFrom, validTo, sort, search, ungrouped, hasJourney, ct));
     }
 
     [HttpGet("{id}")]

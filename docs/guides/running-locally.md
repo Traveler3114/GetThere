@@ -1,8 +1,8 @@
-# Running GetThere Locally — Command Reference
+# GetThere — Command Reference (build, run, database, ops)
 
-Every command needed to build, run, and test the solution on a dev machine, in the order you
-normally need them. For EF migrations see [`ef-database-commands.md`](ef-database-commands.md); for
-the two-platform architecture see [`../../AGENTS.md`](../../AGENTS.md).
+Every command you need to build, run, migrate, and test the solution on a dev machine, in the order
+you normally reach for them — **the single place to look**. For the two-platform architecture see
+[`../../AGENTS.md`](../../AGENTS.md).
 
 ## The pieces and their ports
 
@@ -142,15 +142,62 @@ dotnet test tests/GetThere.Tests/GetThere.Tests.csproj --filter "FullyQualifiedN
 
 ---
 
-## 6. EF Core migrations
+## 6. Database & EF Core migrations
 
-Full guide: [`ef-database-commands.md`](ef-database-commands.md). Stop the API first, then:
+Two databases, each owned by its API:
+
+| Database | Owner | Connection string |
+|----------|-------|-------------------|
+| **GetThereDB** | GetThereAPI | `Server=localhost;Database=GetThereDB;Trusted_Connection=True;TrustServerCertificate=True` |
+| **TransitInfoDB** | TransitInfoAPI | `Server=localhost;Database=TransitInfoDB;Trusted_Connection=True;TrustServerCertificate=True` |
+
+Install the EF tool once:
+```bash
+dotnet tool install --global dotnet-ef
+```
+
+### Add & apply a migration
+**Stop the API first** (a running API holds the DB and the build lock). Then, from the API's project
+folder:
 ```bash
 cd GetThereAPI          # or TransitInfoAPI
-dotnet ef migrations add <Name>
+dotnet ef migrations add <DescriptiveName>
 dotnet ef database update
 ```
-Install the tool once with `dotnet tool install --global dotnet-ef`.
+Or without `cd`, using `--project`:
+```bash
+dotnet ef migrations add <DescriptiveName> --project GetThereAPI/GetThereAPI.csproj
+dotnet ef database update --project GetThereAPI/GetThereAPI.csproj
+```
+
+> **`database update` is optional for TransitInfoAPI** — it runs `MigrateAsync()` on startup, so
+> restarting it applies pending migrations. GetThereAPI does **not** auto-migrate; run
+> `database update` explicitly. Running it explicitly is fine (and recommended) either way.
+
+Rules: use a **unique, descriptive** name every time (`AddedWalletTable`, not `Update1`); always run
+**both** commands (`add` writes the file, `update` applies it); never hand-edit `*ModelSnapshot.cs`
+(EF regenerates it).
+
+### Database operations (occasional)
+
+Drop & recreate a dev database from scratch (destroys all data):
+```bash
+dotnet ef database drop --force --project GetThereAPI/GetThereAPI.csproj
+dotnet ef database update --project GetThereAPI/GetThereAPI.csproj
+```
+Why/when → [`../database-drift.md`](../database-drift.md).
+
+Regenerate the SQL baseline (e.g. after squashing migrations):
+```bash
+dotnet ef migrations script
+```
+Why/when → [`../transitinfodb-rebaseline.md`](../transitinfodb-rebaseline.md).
+
+Set the JWT signing key outside source (never in `appsettings.json`):
+```bash
+dotnet user-secrets set "Jwt:Key" "<key>"
+```
+Why/when → [`../secrets-rotation.md`](../secrets-rotation.md).
 
 ---
 

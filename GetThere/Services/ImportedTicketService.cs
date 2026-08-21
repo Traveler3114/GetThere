@@ -26,13 +26,25 @@ public class ImportedTicketService
 
     public ImportedTicketService(HttpClient http) { _http = http; }
 
-    public async Task<OperationResult<PagedResult<ImportedTicketResponse>>> ListAsync(int page = 1, int perPage = 50, ImportedTicketStatus? status = null, CancellationToken ct = default)
+    public async Task<OperationResult<PagedResult<ImportedTicketResponse>>> ListAsync(int page = 1, int perPage = 50, ImportedTicketStatus? status = null, ImportSource? source = null, string? operatorId = null, string? sort = null, string? search = null, bool? ungrouped = null, bool? hasJourney = null, CancellationToken ct = default)
     {
         try
         {
             var qs = new StringBuilder($"importedtickets?page={page}&perPage={perPage}");
             if (status.HasValue)
                 qs.Append($"&status={status.Value}");
+            if (source.HasValue)
+                qs.Append($"&source={source.Value}");
+            if (!string.IsNullOrWhiteSpace(operatorId))
+                qs.Append($"&operatorId={Uri.EscapeDataString(operatorId)}");
+            if (!string.IsNullOrWhiteSpace(sort))
+                qs.Append($"&sort={Uri.EscapeDataString(sort)}");
+            if (!string.IsNullOrWhiteSpace(search))
+                qs.Append($"&search={Uri.EscapeDataString(search)}");
+            if (ungrouped == true)
+                qs.Append("&ungrouped=true");
+            if (hasJourney.HasValue)
+                qs.Append($"&hasJourney={hasJourney.Value.ToString().ToLowerInvariant()}");
             var response = await _http.GetAsync(qs.ToString(), ct);
             if (response.IsSuccessStatusCode)
             {

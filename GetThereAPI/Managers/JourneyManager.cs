@@ -31,20 +31,38 @@ public class JourneyManager
     /// <summary>How many journeys one pass of the status sweep reads at a time.</summary>
     private const int RollUpBatchSize = 500;
 
-    public async Task<PagedResult<JourneyResponse>> ListAsync(string userId, int page, int perPage, JourneyStatus? status = null, CancellationToken ct = default)
+    public async Task<PagedResult<JourneyResponse>> ListAsync(string userId, int page, int perPage, JourneyStatus? status = null, string? search = null, string? sort = null, CancellationToken ct = default)
     {
         var query = _db.Journeys.Where(j => j.UserId == userId);
 
         if (status.HasValue)
             query = query.Where(j => j.Status == status.Value);
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(j => j.Name.ToLower().Contains(term) || (j.Notes != null && j.Notes.ToLower().Contains(term)));
+        }
+
+        // Sorting: default keeps upcoming-first semantics; explicit sort overrides it.
+        query = sort?.ToLowerInvariant() switch
+        {
+            "name" => query.OrderBy(j => j.Name),
+            "-name" => query.OrderByDescending(j => j.Name),
+            "startsat" => query.OrderBy(j => j.StartsAt),
+            "-startsat" => query.OrderByDescending(j => j.StartsAt),
+            "createdat" => query.OrderBy(j => j.CreatedAt),
+            "-createdat" => query.OrderByDescending(j => j.CreatedAt),
+            "legcount" => query.OrderBy(j => j.ImportedTickets.Count + j.Tickets.Count),
+            "-legcount" => query.OrderByDescending(j => j.ImportedTickets.Count + j.Tickets.Count),
+            _ => query.OrderByDescending(j => j.StartsAt == null).ThenBy(j => j.StartsAt)
+        };
+
         var total = await query.CountAsync(ct);
 
-        // Upcoming trips first, then undated ones. Legs are deliberately not loaded here — a list
-        // of twenty journeys would otherwise fan out into two joins per row.
+        // Legs are not loaded on list — one projection per journey. FirstOrigin/LastDestination
+        // are derived from the earliest/latest leg dates so the list can show a route preview.
         var items = await query
-            .OrderByDescending(j => j.StartsAt == null)
-            .ThenBy(j => j.StartsAt)
             .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(j => new JourneyResponse
@@ -56,6 +74,10 @@ public class JourneyManager
                 StartsAt = j.StartsAt,
                 EndsAt = j.EndsAt,
                 LegCount = j.ImportedTickets.Count + j.Tickets.Count,
+                FirstOrigin = j.ImportedTickets.OrderBy(t => t.ValidFrom).Select(t => t.OriginName).FirstOrDefault()
+                              ?? j.Tickets.OrderBy(t => t.ValidFrom).Select(t => t.ExternalTicketId).FirstOrDefault(),
+                LastDestination = j.ImportedTickets.OrderByDescending(t => t.ValidTo ?? t.ValidFrom).Select(t => t.DestinationName).FirstOrDefault()
+                                  ?? j.Tickets.OrderByDescending(t => t.ValidTo ?? t.ValidFrom).Select(t => t.ExternalTicketId).FirstOrDefault(),
                 CreatedAt = j.CreatedAt,
                 UpdatedAt = j.UpdatedAt
             })

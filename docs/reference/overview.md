@@ -379,7 +379,7 @@ that was found or a boundary that would be silent if it broke.
 | [../map-proxy-migration.md](../map-proxy-migration.md) | How the map moved behind the proxy |
 | [../architecture/integration-guide.md](../architecture/integration-guide.md) | Integration notes |
 | [../architecture/map-features.md](../architecture/map-features.md) | Map functionality |
-| [../guides/ef-database-commands.md](../guides/ef-database-commands.md) | EF Core commands |
+| [../guides/running-locally.md](../guides/running-locally.md) | The single command reference — build, run, database/EF, ops |
 
 ---
 

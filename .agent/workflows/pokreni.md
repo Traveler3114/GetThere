@@ -2,6 +2,9 @@
 description: Kako ispravno pokrenuti aplikaciju i API (bez timeout grešaka)
 ---
 
+Brzi radni tijek za pokretanje. Potpuna referenca svih naredbi (OTP, oba API-ja, baze/EF, testovi) je
+u [`docs/guides/running-locally.md`](../../docs/guides/running-locally.md).
+
 Slijedi ove korake kako bi izbjegao "HttpClient.Timeout" i greške s Android bildanjem:
 
 ### 1. Pokreni API (Backend)

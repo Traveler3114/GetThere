@@ -190,7 +190,20 @@
                         HorizontalTextAlignment="Center"
                         Style="{StaticResource DsCardSubtitle}"
                         Text="{localization:Translate Journey_NoLegsSubtitle}" />
+                    <Button
+                        Command="{Binding AddTicketsCommand}"
+                        HorizontalOptions="Center"
+                        IsVisible="{Binding HasJourney}"
+                        Style="{StaticResource DsPrimaryButton}"
+                        Text="{localization:Translate Journey_AddTickets}" />
                 </VerticalStackLayout>
+
+                <!--  Add tickets (when has legs too)  -->
+                <Button
+                    Command="{Binding AddTicketsCommand}"
+                    IsVisible="{Binding HasLegs}"
+                    Style="{StaticResource DsVioletButton}"
+                    Text="{localization:Translate Journey_AddTickets}" />
 
                 <!--  ── ACTIONS ──  -->
                 <VerticalStackLayout

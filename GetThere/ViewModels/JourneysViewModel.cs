@@ -7,6 +7,7 @@ using GetThere.Localization;
 using GetThere.Services;
 
 using GetThereShared.Contracts;
+using GetThereShared.Enums;
 
 namespace GetThere.ViewModels;
 
@@ -55,6 +56,35 @@ public partial class JourneysViewModel : BaseViewModel
     [ObservableProperty]
     private bool _hasLoadedOnce;
 
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private string _activeFilterKey = string.Empty;
+
+    [ObservableProperty]
+    private string _sortKey = string.Empty;
+
+    [ObservableProperty]
+    private bool _isSuggestionsCollapsed;
+
+    public string SortLabel => SortKey switch
+    {
+        "name" => LocalizationService.Instance["Journeys_SortNameAsc"],
+        "-name" => LocalizationService.Instance["Journeys_SortNameDesc"],
+        "startsAt" => LocalizationService.Instance["Journeys_SortDateAsc"],
+        "-startsAt" => LocalizationService.Instance["Journeys_SortDateDesc"],
+        "createdAt" => LocalizationService.Instance["Journeys_SortCreatedAsc"],
+        "-createdAt" => LocalizationService.Instance["Journeys_SortCreatedDesc"],
+        "legCount" => LocalizationService.Instance["Journeys_SortLegsAsc"],
+        "-legCount" => LocalizationService.Instance["Journeys_SortLegsDesc"],
+        _ => LocalizationService.Instance["Journeys_SortUpcoming"]
+    };
+
+    public string FilteredSummary => HasJourneys
+        ? string.Format(LocalizationService.Instance["Journeys_CountSummary"], TotalJourneys)
+        : string.Empty;
+
     public ObservableCollection<JourneyResponse> Journeys { get; } = [];
 
     public ObservableCollection<JourneySuggestionResponse> Suggestions { get; } = [];
@@ -65,6 +95,13 @@ public partial class JourneysViewModel : BaseViewModel
         _analytics = analytics;
     }
 
+    partial void OnSortKeyChanged(string value) => OnPropertyChanged(nameof(SortLabel));
+
+    private JourneyStatus? ParsedStatus => string.IsNullOrWhiteSpace(ActiveFilterKey) ? null : Enum.TryParse<JourneyStatus>(ActiveFilterKey, out var s) ? s : null;
+
+    private string? SearchForServer => string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim();
+    private string? SortForServer => string.IsNullOrWhiteSpace(SortKey) ? null : SortKey;
+
     [RelayCommand]
     private async Task Load()
     {
@@ -74,7 +111,7 @@ public partial class JourneysViewModel : BaseViewModel
 
         try
         {
-            var result = await _journeyService.ListAsync(page: _currentPage, perPage: PageSize);
+            var result = await _journeyService.ListAsync(page: _currentPage, perPage: PageSize, status: ParsedStatus, search: SearchForServer, sort: SortForServer);
             if (!result.Success)
             {
                 Fail(result.Message, "Journeys_CouldNotLoad");
@@ -141,7 +178,7 @@ public partial class JourneysViewModel : BaseViewModel
 
         try
         {
-            var result = await _journeyService.ListAsync(page: _currentPage, perPage: PageSize);
+            var result = await _journeyService.ListAsync(page: _currentPage, perPage: PageSize, status: ParsedStatus, search: SearchForServer, sort: SortForServer);
             if (result.Success)
             {
                 foreach (var journey in result.Data!.Data)
@@ -161,6 +198,60 @@ public partial class JourneysViewModel : BaseViewModel
             Fail(ex.Message, "Journeys_CouldNotLoad");
         }
         finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task FilterJourney(string? status)
+    {
+        ActiveFilterKey = status ?? string.Empty;
+        await Load();
+    }
+
+    [RelayCommand]
+    private async Task ClearJourneySearch()
+    {
+        SearchText = string.Empty;
+        await Load();
+    }
+
+    [RelayCommand]
+    private async Task SearchJourneys(string? text)
+    {
+        SearchText = text ?? string.Empty;
+        await Load();
+    }
+
+    [RelayCommand]
+    private async Task PickJourneySort()
+    {
+        if (Shell.Current is null) return;
+        var options = new[]
+        {
+            (LocalizationService.Instance["Journeys_SortUpcoming"], ""),
+            (LocalizationService.Instance["Journeys_SortDateAsc"], "startsAt"),
+            (LocalizationService.Instance["Journeys_SortDateDesc"], "-startsAt"),
+            (LocalizationService.Instance["Journeys_SortNameAsc"], "name"),
+            (LocalizationService.Instance["Journeys_SortNameDesc"], "-name"),
+            (LocalizationService.Instance["Journeys_SortCreatedDesc"], "-createdAt"),
+            (LocalizationService.Instance["Journeys_SortCreatedAsc"], "createdAt"),
+            (LocalizationService.Instance["Journeys_SortLegsDesc"], "-legCount"),
+            (LocalizationService.Instance["Journeys_SortLegsAsc"], "legCount"),
+        };
+        var labels = options.Select(o => o.Item1).ToArray();
+        var choice = await Shell.Current.DisplayActionSheetAsync(LocalizationService.Instance["Journeys_SortTitle"], LocalizationService.Instance["App_Cancel"], null, labels);
+        var matched = options.FirstOrDefault(o => o.Item1 == choice);
+        if (matched != default)
+        {
+            SortKey = matched.Item2;
+            OnPropertyChanged(nameof(SortLabel));
+            await Load();
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleSuggestions()
+    {
+        IsSuggestionsCollapsed = !IsSuggestionsCollapsed;
     }
 
     /// <summary>
