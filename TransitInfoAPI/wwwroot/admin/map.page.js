@@ -249,7 +249,8 @@ map.on('load', () => {
   const STOP_ICONS = [
     { id: 'stop-bus', file: '/images/bus.png', types: ['Bus', 'Trolleybus'] },
     { id: 'stop-tram', file: '/images/tram.png', types: ['Tram'] },
-    { id: 'stop-train', file: '/images/train.png', types: ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail'] },
+    { id: 'stop-ferry', file: '/images/ferry.png', types: ['Ferry'] },
+    { id: 'stop-train', file: '/images/train.png', types: ['Subway', 'Train', 'CableTram', 'CableCar', 'Funicular', 'Monorail'] },
     { id: 'stop-default', file: '/images/bus.png', types: [] }
   ];
 
@@ -270,7 +271,8 @@ map.on('load', () => {
   const _stationIconExpr = ['case',
     ['in', ['get', 'primaryRouteType'], ['literal', ['Bus', 'Trolleybus']]], 'stop-bus',
     ['in', ['get', 'primaryRouteType'], ['literal', ['Tram']]], 'stop-tram',
-    ['in', ['get', 'primaryRouteType'], ['literal', ['Subway', 'Train', 'Ferry', 'CableTram', 'CableCar', 'Funicular', 'Monorail']]], 'stop-train',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Ferry']]], 'stop-ferry',
+    ['in', ['get', 'primaryRouteType'], ['literal', ['Subway', 'Train', 'CableTram', 'CableCar', 'Funicular', 'Monorail']]], 'stop-train',
     'stop-bus'
   ];
 
