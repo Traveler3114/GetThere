@@ -102,3 +102,33 @@ Notes:
 3. **Autotrolej** — GTFS is fine, or keep the richer official JSON API.
 4. **Non-GTFS operators** (Arriva, Čazmatrans PDFs, intercity long tail, non-Jadrolinija ferries) →
    custom sources (HTML/PDF) with the coordinate-matcher filling stop coordinates from OSM. Low priority.
+
+---
+
+## Alert & disruption sources (for the routing-alerts feature)
+
+Separate from *schedules* (above): where each operator publishes **service alerts / disruptions**
+(cancellations, line suspensions, temporary reroutes). Researched Aug 2026. **Finding: almost no
+Croatian operator exposes GTFS-RT *service alerts* — they publish HTML "obavijesti / regulacija
+prometa" pages.** The pirnet `.pb` feeds are **trip-updates only** (delays/cancellations), not alerts.
+So most alert ingestion is **HTML scraping** via the generic alert-source engine (reuse
+`ParseHtmlRows` CSS selectors), mapping each notice → an `Alert` row. Only structured GTFS-RT alerts
+can drive OTP directly; HTML alerts display + annotate (match affected line by name).
+
+Legend: RT-alerts = a GTFS-RT feed carrying `alert` entities (rare); HTML = scrape a notices page.
+
+| Operator | GTFS-RT alerts? | HTML notices page(s) — the practical source | Notes |
+|---|---|---|---|
+| **ZET** | *Maybe* — `zet.hr/gtfs-rt-protobuf` (Transitland confirms **trip-updates**; alerts unconfirmed) | ZET "obavijesti" on `zet.hr` | Verify the `.pb` for alert entities; if present, this is the one operator that can drive OTP directly. Else scrape site. |
+| **HŽPP** (rail) | No | `hzpp.hr/hr/obavijesti` · `hzpp.hr/hr/informacije?type=info` | Track closures + replacement buses posted here. |
+| **Autotrolej** (Rijeka) | No | `autotrolej.hr/obavijesti/` · `.../kat-obavijesti/stanje-promet/` (traffic status) · `.../novosti-i-obavijesti/promjene/` (changes) | Also has an official JSON API (`api.autotrolej.hr/...`) — check for a notices endpoint before scraping. |
+| **Promet Split** | No (RT trip-updates via pirnet) | `promet-split.hr/obavijesti/category/obavijesti` | Official `api.promet-split.hr` is token-gated; may carry alerts if a key is obtained. |
+| **Pulapromet** (Pula) | No (RT trip-updates via pirnet) | `pulapromet.hr/novosti/…` (news) | Event-driven reroutes (Arena concerts) posted here. |
+| **GPP Osijek** | No | `web.gpp-osijek.com/kategorija/promet/` (traffic archive) · `.../privremena-regulacija-prometa-*` | Tram T1/T2 reroutes posted here. |
+| **Jadrolinija** (ferries) | No | `jadrolinija.hr/en/user-notifications` · `jadrolinija.hr/schedule/news` · `jadrolinija.hr/news-single/stanje-u-pomorskom-prometu` (state of maritime traffic) | **Best ferry-disruption source** — weather cancellations, retimed sailings. |
+| **HAK** (roads, NAP) | n/a (road, not transit) | NAP GeoJSON: `b2b.hak.events.geojson.hr_HR`, `b2b.hak.roadworks.geojson.hr_HR` (Basic auth) | The road layer — `Kind=Road`; feeds the post-plan re-rank. |
+
+**Implication for the plan:** the generic **HTML alert-source** path is not optional — it is the
+*primary* channel for operator alerts, since GTFS-RT alerts barely exist here. Each row above becomes
+one `Alerts:Sources` entry (url + CSS-selector field mapping + `Kind` + affected-line hint). ZET is
+the only candidate for structured GTFS-RT alerts and must be verified against the live `.pb`.
