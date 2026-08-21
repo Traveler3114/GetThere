@@ -333,8 +333,17 @@ public class TransitDbContext : IdentityDbContext<AppUser>
             entity.HasIndex(r => new { r.CustomSourceId, r.StartedAt });
         });
 
-        modelBuilder.Entity<Alert>()
-            .HasIndex(a => a.FeedId);
+        modelBuilder.Entity<Alert>(entity =>
+        {
+            entity.Property(a => a.SourceKey).HasMaxLength(512);
+            entity.Property(a => a.Kind).HasMaxLength(32);
+            entity.Property(a => a.Severity).HasMaxLength(32);
+            entity.Property(a => a.SourceUrl).HasMaxLength(2048);
+            entity.HasIndex(a => a.FeedId);
+            entity.HasIndex(a => a.OperatorId);
+            entity.HasIndex(a => a.SourceKey);
+            entity.HasIndex(a => a.Kind);
+        });
         modelBuilder.Entity<ReconciliationCandidate>()
             .HasIndex(rc => rc.SuggestedCanonicalStationId);
         modelBuilder.Entity<MobilityStation>()

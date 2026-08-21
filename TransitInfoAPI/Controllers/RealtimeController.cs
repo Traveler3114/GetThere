@@ -56,9 +56,11 @@ public class RealtimeController : ControllerBase
     public async Task<ActionResult<List<AlertResponse>>> GetAlerts(
         [FromQuery] string? stopOnestopId = null,
         [FromQuery] string? routeOnestopId = null,
+        [FromQuery] string? kind = null,
+        [FromQuery] int limit = 500,
         CancellationToken ct = default)
     {
-        var alerts = await _realtime.GetAlertsAsync(stopOnestopId, routeOnestopId, ct);
+        var alerts = await _realtime.GetAlertsAsync(stopOnestopId, routeOnestopId, kind, limit, ct);
         return Ok(alerts);
     }
 }

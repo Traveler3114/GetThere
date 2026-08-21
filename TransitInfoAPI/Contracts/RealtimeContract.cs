@@ -39,10 +39,12 @@ public class StopTimeUpdateResponse
     public long? EstimatedTime { get; set; }
 }
 
-/// <summary>Service alert from GTFS-RT, with optional affected entity references.</summary>
+/// <summary>Service alert from GTFS-RT or a scraped / HAK source.</summary>
 public class AlertResponse
 {
     public int Id { get; set; }
+    public int? FeedId { get; set; }
+    public int? OperatorId { get; set; }
     public string? HeaderText { get; set; }
     public string? DescriptionText { get; set; }
     public string? Url { get; set; }
@@ -55,4 +57,13 @@ public class AlertResponse
     public string? AffectedRouteIds { get; set; }
     public string? AffectedTripIds { get; set; }
     public string? AffectedAgencyIds { get; set; }
+
+    public string? Kind { get; set; }
+    public string? SourceKey { get; set; }
+    public string? SourceUrl { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? GeometryGeoJson { get; set; }
+    public string? Severity { get; set; }
+    public string? MatchedRouteIds { get; set; }
 }

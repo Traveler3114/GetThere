@@ -128,7 +128,11 @@ public sealed class TransitDataSeeder
         ]),
         new("hzpp", "HŽ Putnički prijevoz", SourceProvenance.Official,
         [
-            new("hzpp", FeedType.GTFSStatic, "https://www.hzpp.hr/api/v1/repository/download/852f76d2-8df3-4957-b30b-dc4b88b1caca"),
+            // The old hzpp.hr URL was a pinned repository GUID: it downloads successfully every poll
+            // and always returns the same file, whose calendar ended 2025-12-14 — so every HŽPP
+            // service read as "not running today" and rail dropped out of routing entirely. The NAP
+            // feed is the maintained official one (HTTP Basic, Feeds:BasicAuth:b2b.promet-info.hr).
+            new("hzpp", FeedType.GTFSStatic, "https://b2b.promet-info.hr/dc/b2b.gtfs.hz"),
             new("hzpp-2", FeedType.GTFSRealtime, $"{PirnetRt}/HZPP/trip_updates.pb")
         ]),
         new("sibenik", "Gradski parking Šibenik", SourceProvenance.Official,

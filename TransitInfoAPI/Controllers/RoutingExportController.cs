@@ -79,6 +79,17 @@ public class RoutingExportController(RoutingExportCache cache) : ControllerBase
         return File(bytes, "application/x-protobuf");
     }
 
+    /// <summary>
+    /// Service alerts derived from scraped operator notices that have a matched route.
+    /// OTP consumes it as a real-time-alerts updater; the route ids are the bundle's OnestopIds.
+    /// </summary>
+    [HttpGet("gtfs-rt-alerts")]
+    public async Task<IActionResult> GtfsRtAlerts([FromServices] AlertGtfsRtExporter exporter, CancellationToken ct)
+    {
+        var bytes = await exporter.ExportAsync(ct);
+        return File(bytes, "application/x-protobuf");
+    }
+
     /// <summary>Immediate OSM extract refresh — the escape hatch that makes the daily worker skippable.</summary>
     [HttpPost("osm-refresh")]
     public async Task<IActionResult> OsmRefresh([FromServices] OsmExtractDownloader downloader, CancellationToken ct)

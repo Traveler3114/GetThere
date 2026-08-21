@@ -67,6 +67,8 @@ public sealed record PlanItineraryDto(
 /// <c>TicketingAdapter.TransitInfoGlobalId</c> already references. The client can read it off the leg
 /// and ask GetThereAPI whether a ticket is purchasable — without either server calling the other.
 /// </summary>
+public sealed record PlanAlertDto(string? Header, string? Description, string? Effect);
+
 public sealed record PlanLegDto(
     string Mode,
     DateTimeOffset StartTime,
@@ -80,7 +82,8 @@ public sealed record PlanLegDto(
     string? OperatorGlobalId,
     string? TripGtfsId,
     bool RealtimeState,
-    string? Geometry);
+    string? Geometry,
+    IReadOnlyList<PlanAlertDto> Alerts);
 
 public sealed record PlanPlaceDto(string? Name, double Lat, double Lon);
 

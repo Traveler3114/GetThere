@@ -26,6 +26,8 @@
 
   // A rented-bike leg comes back as a non-transit leg with mode BICYCLE — distinguish it from walking.
   const isBike = (leg) => !leg.isTransit && /BICYCLE|BIKE/i.test(leg.mode || '');
+  const hasAlert = (leg) => leg.alerts && leg.alerts.length > 0;
+  const alertHeader = (leg) => hasAlert(leg) ? (leg.alerts[0].header || leg.alerts[0].description || '') : '';
 
   // ── Elements ────────────────────────────────────────────────────────────────
   const chrome = document.getElementById('chrome');
@@ -375,6 +377,11 @@
           b.style.background = legColor(leg);
           b.textContent = leg.routeShortName || leg.mode || '?';
         }
+        if (hasAlert(leg)) {
+          b.classList.add('alert');
+          b.title = alertHeader(leg);
+          b.textContent += ' ⚠';
+        }
         modes.appendChild(b);
       });
       card.appendChild(modes);
@@ -429,13 +436,15 @@
     if (!leg.isTransit) {
       const icon = isBike(leg) ? '🚲' : '🚶';
       const label = isBike(leg) ? t('bike') : t('walk');
-      row.innerHTML = `${icon} ${esc(label)} <span class="lt">${fmtDur((new Date(leg.endTime) - new Date(leg.startTime)) / 1000)}</span>`;
+      const alertHtml = hasAlert(leg) ? ` <span class="alert-badge" title="${esc(alertHeader(leg))}">⚠ ${esc(alertHeader(leg))}</span>` : '';
+      row.innerHTML = `${icon} ${esc(label)} <span class="lt">${fmtDur((new Date(leg.endTime) - new Date(leg.startTime)) / 1000)}</span>${alertHtml}`;
       return row;
     }
     const name = leg.routeShortName || leg.mode || '';
     const rt = leg.realtimeState ? `<span class="rt-badge">${esc(t('live'))}</span>` : '';
+    const alertHtml = hasAlert(leg) ? ` <span class="alert-badge" title="${esc(alertHeader(leg))}">⚠ ${esc(alertHeader(leg))}</span>` : '';
     row.innerHTML = `<strong>${esc(name)}</strong> ${esc(leg.from.name || '')} → ${esc(leg.to.name || '')} ` +
-      `<span class="lt">${esc(fmtTime(leg.startTime))}–${esc(fmtTime(leg.endTime))}</span>${rt}`;
+      `<span class="lt">${esc(fmtTime(leg.startTime))}–${esc(fmtTime(leg.endTime))}</span>${rt}${alertHtml}`;
     return row;
   }
 

@@ -44,6 +44,7 @@ public sealed class OtpGraphQlClient(
                 to { name lat lon }
                 route { shortName longName agency { gtfsId name } }
                 trip { gtfsId }
+                alerts { alertHeaderText alertDescriptionText alertEffect }
               }
             }
           }

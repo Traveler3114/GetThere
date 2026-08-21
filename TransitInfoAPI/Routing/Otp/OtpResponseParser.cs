@@ -73,6 +73,19 @@ public static class OtpResponseParser
         if (leg.TryGetProperty("legGeometry", out var legGeometry) && legGeometry.ValueKind == JsonValueKind.Object)
             geometry = GetString(legGeometry, "points");
 
+        var alerts = new List<PlanAlertDto>();
+        if (leg.TryGetProperty("alerts", out var alertsEl) && alertsEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var al in alertsEl.EnumerateArray())
+            {
+                if (al.ValueKind != JsonValueKind.Object) continue;
+                alerts.Add(new PlanAlertDto(
+                    Header: GetString(al, "alertHeaderText"),
+                    Description: GetString(al, "alertDescriptionText"),
+                    Effect: GetString(al, "alertEffect")));
+            }
+        }
+
         return new PlanLegDto(
             Mode: mode,
             StartTime: GetTime(leg, "startTime"),
@@ -86,7 +99,8 @@ public static class OtpResponseParser
             OperatorGlobalId: operatorGlobalId,
             TripGtfsId: tripGtfsId,
             RealtimeState: leg.TryGetProperty("realTime", out var rt) && rt.ValueKind == JsonValueKind.True,
-            Geometry: geometry);
+            Geometry: geometry,
+            Alerts: alerts);
     }
 
     private static PlanPlaceDto ParsePlace(JsonElement parent, string name)

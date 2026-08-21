@@ -115,11 +115,14 @@ builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("
 builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
 builder.Services.Configure<PlaceMatchingOptions>(builder.Configuration.GetSection("PlaceMatching"));
 builder.Services.Configure<TransitInfoAPI.Routing.RoutingOptions>(builder.Configuration.GetSection(TransitInfoAPI.Routing.RoutingOptions.SectionName));
+builder.Services.Configure<TransitInfoAPI.Services.AlertsOptions>(builder.Configuration.GetSection(TransitInfoAPI.Services.AlertsOptions.SectionName));
 
 builder.Services.AddScoped<TransitInfoAPI.Services.GtfsParser>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsBundleExporter>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GbfsExporter>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsRealtimeExporter>();
+builder.Services.AddScoped<TransitInfoAPI.Routing.Export.AlertGtfsRtExporter>();
+builder.Services.AddSingleton<TransitInfoAPI.Services.RoadAlertCache>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.GbfsRefreshService>();
 builder.Services.AddSingleton<TransitInfoAPI.Routing.RoutingExportCache>();
 builder.Services.AddSingleton<TransitInfoAPI.Routing.GraphRebuildSignal>();
@@ -187,6 +190,7 @@ builder.Services.AddScoped<RolePermissionManager>();
 builder.Services.AddHostedService<RealtimePollingWorker>();
 builder.Services.AddHostedService<FeedPollingWorker>();
 builder.Services.AddHostedService<MobilityPollingWorker>();
+builder.Services.AddHostedService<TransitInfoAPI.Workers.AlertPollingWorker>();
 builder.Services.Configure<MobilityPollingOptions>(builder.Configuration.GetSection("MobilityPolling"));
 
 // Identity
@@ -360,16 +364,20 @@ app.UseExceptionHandler(errorApp =>
             return;
         }
 
-        app.Logger.LogError(ex, "Unhandled exception");
         var pd = new Microsoft.AspNetCore.Mvc.ProblemDetails();
         if (ex is TransitInfoAPI.Exceptions.AppException appEx)
         {
+            // A deliberate domain refusal — a stale reconciliation candidate, a missing id — carrying
+            // the status it wants. Logging it as "Unhandled exception" with a stack trace made every
+            // ordinary 4xx read like a crash and buried the genuine 500s among them.
+            app.Logger.LogInformation("Request refused: {Status} {Message}", appEx.StatusCode, appEx.Message);
             pd.Status = appEx.StatusCode;
             pd.Title = appEx.ErrorCode ?? "Error";
             pd.Detail = ex.Message;
         }
         else
         {
+            app.Logger.LogError(ex, "Unhandled exception");
             pd.Status = 500;
             pd.Title = "Internal Server Error";
             pd.Detail = "An unexpected error occurred.";

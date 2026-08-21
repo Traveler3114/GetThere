@@ -24,6 +24,13 @@
     <div class="col-auto">
       <input type="text" id="filterRoute" class="form-control form-control-sm" placeholder="Route Onestop ID..." oninput="scheduleFilter()">
     </div>
+    <div class="col-auto">
+      <select id="filterKind" class="form-select form-select-sm" onchange="scheduleFilter()">
+        <option value="">All kinds</option>
+        <option value="Transit">Transit</option>
+        <option value="Road">Road</option>
+      </select>
+    </div>
   </div>
 
   <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>

@@ -415,7 +415,7 @@ public class RealtimeManager
     }
 
     public async Task<List<AlertResponse>> GetAlertsAsync(
-        string? stopOnestopId, string? routeOnestopId, CancellationToken ct)
+        string? stopOnestopId, string? routeOnestopId, string? kind, int limit, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
@@ -437,12 +437,22 @@ public class RealtimeManager
             query = query.Where(a => a.AffectedRouteIds != null && ("," + a.AffectedRouteIds + ",").Contains(needle));
         }
 
+        if (!string.IsNullOrEmpty(kind))
+            query = query.Where(a => a.Kind == kind);
+
+        // HAK publishes road events for the whole country — 170+ rows against a handful per operator.
+        // They all land in one poll cycle, so ordering by FetchedAt alone let road alerts fill a small
+        // cap and push every operator's alerts out of the response entirely. Order road alerts last so
+        // a truncated page still shows the transit alerts someone opened this screen to read.
         return await query
-            .OrderByDescending(a => a.FetchedAt)
-            .Take(50)
+            .OrderBy(a => a.Kind == "Road")
+            .ThenByDescending(a => a.FetchedAt)
+            .Take(Math.Clamp(limit, 1, 2000))
             .Select(a => new AlertResponse
             {
                 Id = a.Id,
+                FeedId = a.FeedId,
+                OperatorId = a.OperatorId,
                 HeaderText = a.HeaderText,
                 DescriptionText = a.DescriptionText,
                 Url = a.Url,
@@ -454,7 +464,15 @@ public class RealtimeManager
                 AffectedStopIds = a.AffectedStopIds,
                 AffectedRouteIds = a.AffectedRouteIds,
                 AffectedTripIds = a.AffectedTripIds,
-                AffectedAgencyIds = a.AffectedAgencyIds
+                AffectedAgencyIds = a.AffectedAgencyIds,
+                Kind = a.Kind,
+                SourceKey = a.SourceKey,
+                SourceUrl = a.SourceUrl,
+                Latitude = a.Latitude,
+                Longitude = a.Longitude,
+                GeometryGeoJson = a.GeometryGeoJson,
+                Severity = a.Severity,
+                MatchedRouteIds = a.MatchedRouteIds
             })
             .ToListAsync(ct);
     }

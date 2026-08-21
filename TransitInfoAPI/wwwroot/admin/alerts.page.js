@@ -29,18 +29,30 @@ async function loadAlerts(stopOnestopId, routeOnestopId) {
 function scheduleFilter() {
   clearTimeout(filterTimer);
   filterTimer = setTimeout(() => {
-    const stop = document.getElementById('filterStop').value.trim();
-    const route = document.getElementById('filterRoute').value.trim();
-    loadAlerts(stop || undefined, route || undefined);
-  }, 300);
+    renderAlerts();
+  }, 100);
+}
+
+function getFilteredAlerts() {
+  const kind = (document.getElementById('filterKind')?.value || '').trim();
+  const stop = (document.getElementById('filterStop')?.value || '').trim().toLowerCase();
+  const route = (document.getElementById('filterRoute')?.value || '').trim().toLowerCase();
+  return allAlerts.filter(a => {
+    if (kind && (a.kind || '') !== kind) return false;
+    if (stop && !((a.affectedStopIds || '').toLowerCase().includes(stop) || (a.headerText || '').toLowerCase().includes(stop))) return false;
+    if (route && !((a.affectedRouteIds || '').toLowerCase().includes(route) || (a.matchedRouteIds || '').toLowerCase().includes(route) || (a.headerText || '').toLowerCase().includes(route))) return false;
+    return true;
+  });
 }
 
 function renderAlerts() {
-  if (!allAlerts.length) {
-    document.getElementById('content').innerHTML = '<div class="alert alert-info">No active alerts.</div>';
+  const filtered = getFilteredAlerts();
+  if (!filtered.length) {
+    const msg = allAlerts.length ? 'No alerts match the filters.' : 'No active alerts.';
+    document.getElementById('content').innerHTML = `<div class="alert alert-info">${msg}</div>`;
     return;
   }
-  const cards = allAlerts.map(a => {
+  const cards = filtered.map(a => {
     const periodStart = a.activePeriodStart ? new Date(a.activePeriodStart).toLocaleString() : '-';
     const periodEnd = a.activePeriodEnd ? new Date(a.activePeriodEnd).toLocaleString() : '-';
     const fetched = new Date(a.fetchedAt).toLocaleString();
@@ -49,8 +61,10 @@ function renderAlerts() {
         <div class="d-flex justify-content-between align-items-start">
           <h6 class="card-title mb-1">${esc(a.headerText || 'Untitled Alert')}</h6>
           <div>
+            ${kindBadge(a.kind)}
             ${causeBadge(a.cause)}
             ${effectBadge(a.effect)}
+            ${severityBadge(a.severity)}
           </div>
         </div>
         ${a.descriptionText ? `<p class="card-text small mb-1 text-muted">${esc(a.descriptionText)}</p>` : ''}
@@ -58,11 +72,14 @@ function renderAlerts() {
           <span><strong>Period:</strong> ${periodStart} &ndash; ${periodEnd}</span>
           ${a.url ? `<span><strong>URL:</strong> <a href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a></span>` : ''}
           <span><strong>Fetched:</strong> ${fetched}</span>
+          ${a.sourceKey ? `<span><strong>Source:</strong> ${esc(a.sourceKey)}</span>` : ''}
+          ${a.matchedRouteIds ? `<span><strong>Matched routes:</strong> ${esc(a.matchedRouteIds)}</span>` : ''}
+          ${a.kind === 'Road' && a.geometryGeoJson ? `<span><strong>Geom:</strong> ${esc(a.geometryGeoJson.substring(0,80))}</span>` : ''}
         </div>
       </div>
     </div>`;
   }).join('');
-  document.getElementById('content').innerHTML = `<div>${cards}</div><small class="text-muted">${allAlerts.length} alert(s)</small>`;
+  document.getElementById('content').innerHTML = `<div>${cards}</div><small class="text-muted">${filtered.length} alert(s) (of ${allAlerts.length} total)</small>`;
 }
 
 function causeBadge(cause) {
@@ -80,14 +97,24 @@ function causeBadge(cause) {
 function effectBadge(effect) {
   if (!effect) return '';
   const map = {
-    UnknownEffect: 'bg-secondary', OtherEffect: 'bg-secondary',
-    StopMoved: 'bg-warning text-dark', NoService: 'bg-danger',
+    UnknownEffect: 'bg-secondary', OtherEffect: 'bg-secondary', OTHER_EFFECT: 'bg-secondary',
+    StopMoved: 'bg-warning text-dark', NoService: 'bg-danger', NO_SERVICE: 'bg-danger',
     ReducedService: 'bg-warning text-dark', SignificantDelays: 'bg-danger',
-    Detour: 'bg-info text-dark', AccessIssue: 'bg-warning text-dark',
+    Detour: 'bg-info text-dark', DETOUR: 'bg-info text-dark', AccessIssue: 'bg-warning text-dark',
     AdditionalService: 'bg-success', ModifiedService: 'bg-info text-dark',
     RouteDeviation: 'bg-warning text-dark'
   };
   return `<span class="badge ${map[effect] || 'bg-secondary'}">${effect}</span>`;
+}
+function kindBadge(kind) {
+  if (!kind) return '';
+  const cls = kind === 'Road' ? 'bg-dark' : kind === 'Transit' ? 'bg-primary' : 'bg-secondary';
+  return `<span class="badge ${cls} me-1">${esc(kind)}</span>`;
+}
+function severityBadge(sev) {
+  if (!sev) return '';
+  const map = { Info: 'bg-info text-dark', Warning: 'bg-warning text-dark', Severe: 'bg-danger' };
+  return `<span class="badge ${map[sev] || 'bg-secondary'} ms-1">${esc(sev)}</span>`;
 }
 
 function showError(msg) {

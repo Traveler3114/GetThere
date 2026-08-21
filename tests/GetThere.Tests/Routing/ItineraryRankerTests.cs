@@ -12,7 +12,7 @@ public class ItineraryRankerTests
 {
     private static PlanPlaceDto P => new(null, 0, 0);
     private static PlanLegDto Leg(string mode, bool transit, double meters) =>
-        new(mode, default, default, meters, transit, P, P, null, null, null, null, false, null);
+        new(mode, default, default, meters, transit, P, P, null, null, null, null, false, null, []);
     private static PlanItineraryDto Itin(int durationSec, double walkMeters, params PlanLegDto[] legs) =>
         new(durationSec, default, default, walkMeters, legs);
 

@@ -523,9 +523,21 @@ public class ReconciliationManager
             var rawStop = await _db.RawStops.FindAsync([candidate.RawStopId], ct);
             if (rawStop is not null)
             {
-                rawStop.CanonicalStationId = null;
-                rawStop.ReconciliationStatus = ReconciliationStatus.Rejected;
-                await RepointStopTimesAsync(rawStop.Id, null, ct);
+                // The stop may have been reconciled to a different station since this candidate was
+                // raised — the same race ApproveCandidateAsync refuses with a 409. Rejecting an
+                // obsolete candidate must not undo that: clearing the assignment here would unlink a
+                // correctly-matched stop and null out every stop time pointing at it, destroying good
+                // data on the one action left to a user whose only other option is refused. So when
+                // the stop has moved on, close the candidate and leave the stop alone.
+                var assignedElsewhere = rawStop.CanonicalStationId.HasValue
+                    && rawStop.CanonicalStationId != candidate.SuggestedCanonicalStationId;
+
+                if (!assignedElsewhere)
+                {
+                    rawStop.CanonicalStationId = null;
+                    rawStop.ReconciliationStatus = ReconciliationStatus.Rejected;
+                    await RepointStopTimesAsync(rawStop.Id, null, ct);
+                }
             }
         }
 

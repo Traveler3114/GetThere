@@ -18,7 +18,7 @@ namespace TransitInfoAPI.Controllers;
 [ApiController]
 [Route("plan")]
 [AllowAnonymous]
-public class PlanController(OtpGraphQlClient otp, ILogger<PlanController> logger) : ControllerBase
+public class PlanController(OtpGraphQlClient otp, TransitInfoAPI.Services.RoadAlertCache roadCache, ILogger<PlanController> logger) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Plan([FromBody] PlanRequest request, CancellationToken ct = default)
@@ -39,7 +39,10 @@ public class PlanController(OtpGraphQlClient otp, ILogger<PlanController> logger
         try
         {
             var itineraries = await otp.PlanAsync(shaped, ct);
-            return Ok(ItineraryRanker.Rank(itineraries, preference.RankBy));
+            var ranked = ItineraryRanker.Rank(itineraries, preference.RankBy);
+            var roadAlerts = await roadCache.GetAsync(ct);
+            var reRanked = await HakReRanker.AnnotateAndReRankAsync(ranked, roadAlerts, ct);
+            return Ok(reRanked);
         }
         catch (OtpPlanException ex)
         {
