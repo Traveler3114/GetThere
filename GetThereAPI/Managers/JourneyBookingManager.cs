@@ -46,15 +46,46 @@ public class JourneyBookingManager(
         db.Journeys.Add(journey);
         await db.SaveChangesAsync(ct);
 
+        var offers = quoted.Offers.ToList();
         var items = new List<BookedOfferDto>();
-        var placedHolds = new List<(decimal Amount, string Reference)>();
+        var purchasedTicketIds = new List<int>();
+        var ticketIdByOffer = new Dictionary<int, int>();
         var charged = 0m;
         var reserved = 0m;
 
         try
         {
-            foreach (var offer in quoted.Offers)
+            // ---- Phase 1: the operator calls, deliberately outside the transaction below --------
+            //
+            // PurchaseTicketAsync commits the wallet debit before it calls the operator, so that a
+            // crash in that window leaves a Pending purchase for PurchaseReconciliationWorker to
+            // settle against the operator. Enlisting it in the booking transaction would roll that
+            // debit back and leave an operator-issued ticket with no local trace of it at all. So
+            // purchases stay outside and are put back by refund in the catch instead.
+            for (var i = 0; i < offers.Count; i++)
             {
+                var offer = offers[i];
+                if (offer.Price is not > 0 || offer.TicketOptionId is null) continue;
+                if (offer.FulfillmentMode != FulfillmentModes.PurchasableNow || offer.TicketingAdapterId is not int adapterId) continue;
+
+                var idem = LegReference(journey.Id, offer.OperatorGlobalId);
+                var ticketResp = await ticketing.PurchaseTicketAsync(userId, adapterId, offer.TicketOptionId.Value, idem, ct);
+
+                ticketIdByOffer[i] = ticketResp.Id;
+                purchasedTicketIds.Add(ticketResp.Id);
+            }
+
+            // ---- Phase 2: everything local, in one transaction ---------------------------------
+            //
+            // Holds join this transaction rather than opening their own — see
+            // WalletManager.BeginIfNoneAsync — so a failure here undoes them along with the journey's
+            // reservations, and no compensating release is needed.
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+            for (var i = 0; i < offers.Count; i++)
+            {
+                var offer = offers[i];
+
                 if (offer.Price is not > 0 || offer.TicketOptionId is null)
                 {
                     // Nothing to price/hold — a buy-on-board leg with no product configured.
@@ -67,12 +98,9 @@ public class JourneyBookingManager(
                     continue;
                 }
 
-                if (offer.FulfillmentMode == FulfillmentModes.PurchasableNow && offer.TicketingAdapterId is int adapterId)
+                if (ticketIdByOffer.TryGetValue(i, out var ticketId))
                 {
-                    var idem = $"jrn-{journey.Id}-{offer.OperatorGlobalId}";
-                    var ticketResp = await ticketing.PurchaseTicketAsync(userId, adapterId, offer.TicketOptionId.Value, idem, ct);
-
-                    var ticket = await db.Tickets.FirstOrDefaultAsync(t => t.Id == ticketResp.Id, ct);
+                    var ticket = await db.Tickets.FirstOrDefaultAsync(t => t.Id == ticketId, ct);
                     if (ticket is not null) ticket.JourneyId = journey.Id;
 
                     charged += offer.Price.Value;
@@ -81,9 +109,8 @@ public class JourneyBookingManager(
                 else
                 {
                     // Buy-on-board: hold the funds.
-                    var reference = $"jrn-{journey.Id}-{offer.OperatorGlobalId}";
+                    var reference = LegReference(journey.Id, offer.OperatorGlobalId);
                     await wallet.ReserveAsync(walletEntity.Id, offer.Price.Value, $"Hold: {offer.OperatorName}", reference, ct);
-                    placedHolds.Add((offer.Price.Value, reference));
 
                     db.JourneyReservations.Add(new JourneyReservation
                     {
@@ -97,18 +124,44 @@ public class JourneyBookingManager(
             }
 
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Booking journey {JourneyId} failed; compensating", journey.Id);
-            foreach (var (amount, reference) in placedHolds)
-                await wallet.ReleaseAsync(walletEntity.Id, amount, "Release: booking failed", reference, ct);
-            db.Journeys.Remove(journey); // cascades reservations; releases any attached tickets
-            await db.SaveChangesAsync(ct);
+
+            // The phase-2 transaction has already rolled back by the time we get here — leaving the
+            // scope disposes it — so the reservations and any holds are gone with it. What survives
+            // is the journey row from before phase 1 and the purchases, which committed on purpose.
+            db.ChangeTracker.Clear();
+
+            foreach (var ticketId in purchasedTicketIds)
+                await ticketing.RefundByTicketIdAsync(ticketId, "Journey booking failed", ct);
+
+            var orphan = await db.Journeys.FirstOrDefaultAsync(j => j.Id == journey.Id, ct);
+            if (orphan is not null)
+            {
+                db.Journeys.Remove(orphan);
+                await db.SaveChangesAsync(ct);
+            }
+
             throw;
         }
 
         return new JourneyBookingResponse(journey.Id, journey.Name, items, quoted.Total, charged, reserved);
+    }
+
+    /// <summary>
+    /// Builds the wallet reference for a leg, capped to the 64 characters
+    /// <c>JourneyReservation.WalletHoldReference</c> and <c>Purchase.IdempotencyKey</c> allow.
+    /// <c>OperatorGlobalId</c> is itself 128, so a long slug would otherwise overflow both columns
+    /// and fail at SaveChanges — after the wallet had already been touched.
+    /// </summary>
+    private static string LegReference(int journeyId, string operatorGlobalId)
+    {
+        var prefix = $"jrn-{journeyId}-";
+        var room = 64 - prefix.Length;
+        return prefix + (operatorGlobalId.Length <= room ? operatorGlobalId : operatorGlobalId[..room]);
     }
 
     /// <summary>Cancels a booked journey: releases every hold back to spendable and marks it cancelled.</summary>

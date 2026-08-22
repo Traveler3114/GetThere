@@ -9,6 +9,7 @@ using GetThereShared.Contracts;
 using GetThereShared.Enums;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace GetThereAPI.Managers;
 
@@ -61,7 +62,7 @@ public class WalletManager
 
         var creditedAt = DateTime.UtcNow;
 
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await using var tx = await BeginIfNoneAsync(ct);
 
         // Atomic UPDATE prevents race conditions on concurrent top-ups.
         await _db.Database.ExecuteSqlInterpolatedAsync(
@@ -97,7 +98,7 @@ public class WalletManager
         });
 
         await _db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
 
         _logger.LogInformation("Wallet {WalletId} topped up {Amount} via {Method}, new balance {Balance}", wallet.Id, amount, paymentMethod, balanceAfter);
 
@@ -140,7 +141,7 @@ public class WalletManager
         if (amount <= 0) return;
         var at = DateTime.UtcNow;
 
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await using var tx = await BeginIfNoneAsync(ct);
 
         var rows = await _db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE Wallets SET Reserved = Reserved + {amount}, UpdatedAt = {at} WHERE Id = {walletId} AND Balance - Reserved >= {amount}", ct);
@@ -154,7 +155,7 @@ public class WalletManager
             Type = WalletTransactionType.Hold, Description = description, ReferenceId = reference, CreatedAt = at,
         });
         await _db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
     }
 
     /// <summary>Releases a hold: returns <paramref name="amount"/> from <c>Reserved</c> to spendable,
@@ -164,7 +165,7 @@ public class WalletManager
         if (amount <= 0) return;
         var at = DateTime.UtcNow;
 
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await using var tx = await BeginIfNoneAsync(ct);
 
         await _db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE Wallets SET Reserved = CASE WHEN Reserved >= {amount} THEN Reserved - {amount} ELSE 0 END, UpdatedAt = {at} WHERE Id = {walletId}", ct);
@@ -176,8 +177,21 @@ public class WalletManager
             Type = WalletTransactionType.Release, Description = description, ReferenceId = reference, CreatedAt = at,
         });
         await _db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
     }
+
+    /// <summary>
+    /// Starts a transaction only when the caller has not already opened one on this context.
+    /// <para>
+    /// <c>JourneyBookingManager.BookAsync</c> wraps a whole booking in a transaction and then calls
+    /// in here, and EF throws if a second one is started on the same context. Joining the caller's
+    /// transaction is also the behaviour that is wanted rather than merely the one that compiles: a
+    /// hold placed during a booking that later fails is undone by that rollback, instead of surviving
+    /// it and needing a compensating release.
+    /// </para>
+    /// </summary>
+    private async Task<IDbContextTransaction?> BeginIfNoneAsync(CancellationToken ct) =>
+        _db.Database.CurrentTransaction is null ? await _db.Database.BeginTransactionAsync(ct) : null;
 
     private async Task<decimal> ReadBalanceAsync(int walletId, CancellationToken ct) =>
         await _db.Wallets.AsNoTracking().Where(w => w.Id == walletId).Select(w => w.Balance).FirstAsync(ct);

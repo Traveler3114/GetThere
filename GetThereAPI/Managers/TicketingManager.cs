@@ -365,6 +365,24 @@ public class TicketingManager
     }
 
     /// <summary>
+    /// Reverses the debit behind an already-issued ticket. Used by journey booking, which purchases
+    /// leg by leg and must put back what it took when a later leg fails.
+    /// </summary>
+    internal async Task RefundByTicketIdAsync(int ticketId, string reason, CancellationToken ct)
+    {
+        var ticket = await _db.Tickets.FirstOrDefaultAsync(t => t.Id == ticketId, ct);
+        if (ticket is null) return;
+
+        var purchase = await _db.Purchases.FirstOrDefaultAsync(p => p.Id == ticket.PurchaseId, ct);
+        if (purchase is null) return;
+
+        var wallet = await _db.Wallets.FirstOrDefaultAsync(w => w.UserId == purchase.UserId, ct);
+        if (wallet is null) return;
+
+        await RefundAsync(purchase, wallet.Id, purchase.Amount, reason, ct);
+    }
+
+    /// <summary>
     /// Reverses a debit that bought nothing. Written as a credit plus a ledger row rather than by
     /// deleting the debit, so the wallet history shows what happened.
     /// </summary>
