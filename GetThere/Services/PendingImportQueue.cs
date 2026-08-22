@@ -1,9 +1,21 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 using GetThereShared.Contracts;
 
 namespace GetThere.Services;
+
+/// <summary>
+/// One queued import plus the owner it was created under.
+/// <para>
+/// The hash is of <c>AuthService.GetOwnerKeyAsync()</c>, using the same construction
+/// <c>TicketStore.DirectoryFor</c> uses, so the two stores agree on who someone is. A null hash is
+/// an entry written before this field existed — treated as "owner unknown", which prompts.
+/// </para>
+/// </summary>
+public sealed record QueuedImport(CreateImportedTicketRequest Request, string? OwnerHash);
 
 /// <summary>
 /// Imports created on the device that the server has not accepted yet.
@@ -16,30 +28,6 @@ namespace GetThere.Services;
 /// Deliberately a queue and not a sync engine. Entries only ever flow one way — device to server —
 /// and are dropped once accepted. There is no conflict resolution here because there is no conflict:
 /// nothing else can have edited a ticket the server has never seen.
-/// </para>
-/// <para>
-/// <b>Two gaps against <see cref="TicketStore"/>, which holds the same payloads.</b> Recorded here
-/// rather than fixed because neither can be verified in the environment this was audited from — the
-/// MAUI head cannot be built or run there — and the first of the two is a product decision rather
-/// than a defect with one right answer.
-/// </para>
-/// <para>
-/// <b>1. No owner.</b> <see cref="TicketStore"/> keys every file by a hash of the owner, and says
-/// why: "a device is not a person: two accounts, or an account and the guest who used the phone
-/// before them, must never see each other's tickets." This queue is one global file with no owner
-/// recorded anywhere, and <c>ImportSyncService.FlushAsync</c> gates only on
-/// <c>IsLoggedInAsync()</c> — it cannot check whose entries these are, because none of them say.
-/// So: a guest imports a ticket on a shared or second-hand phone; a different person signs in;
-/// <c>TicketsViewModel.LoadTickets</c> calls <c>FlushAsync</c>, which finds a logged-in user and
-/// pushes the first person's ticket — barcode payload included — into the second person's account.
-/// </para>
-/// <para>
-/// What makes this a decision and not a bug fix: entries created by a guest are <em>supposed</em>
-/// to migrate to whoever signs in next. That is the guest-to-account upgrade this whole path exists
-/// for, and the app has no way to know whether the guest and the new account are the same person.
-/// Recording the owner would fix the signed-in-user case cleanly; the guest case needs someone to
-/// decide whether an unclaimed ticket follows the next sign-in or is discarded at the account
-/// boundary.
 /// </para>
 /// <para>
 /// <b>2. Plaintext.</b> <see cref="TicketStore"/> encrypts with AES-GCM under a key in
@@ -66,6 +54,10 @@ public sealed class PendingImportQueue : IDisposable
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly string _path = Path.Combine(FileSystem.AppDataDirectory, "pending-imports.json");
 
+    /// <summary>Hashes an owner key the same way <c>TicketStore</c> does, so both agree on identity.</summary>
+    public static string HashOwner(string ownerKey) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ownerKey)))[..32];
+
     /// <summary>
     /// Adds a ticket to the queue.
     /// <para>
@@ -74,20 +66,20 @@ public sealed class PendingImportQueue : IDisposable
     /// the server returns the original rather than inserting a second copy.
     /// </para>
     /// </summary>
-    public async Task EnqueueAsync(CreateImportedTicketRequest request)
+    public async Task EnqueueAsync(CreateImportedTicketRequest request, string? ownerHash)
     {
         await _lock.WaitAsync();
         try
         {
             var pending = await ReadUnlockedAsync();
-            pending.RemoveAll(p => p.ClientId == request.ClientId);
-            pending.Add(request);
+            pending.RemoveAll(p => p.Request.ClientId == request.ClientId);
+            pending.Add(new QueuedImport(request, ownerHash));
             await WriteUnlockedAsync(pending);
         }
         finally { _lock.Release(); }
     }
 
-    public async Task<List<CreateImportedTicketRequest>> PeekAllAsync()
+    public async Task<List<QueuedImport>> PeekAllAsync()
     {
         await _lock.WaitAsync();
         try { return await ReadUnlockedAsync(); }
@@ -103,7 +95,7 @@ public sealed class PendingImportQueue : IDisposable
         try
         {
             var pending = await ReadUnlockedAsync();
-            if (pending.RemoveAll(p => p.ClientId == clientId) > 0)
+            if (pending.RemoveAll(p => p.Request.ClientId == clientId) > 0)
                 await WriteUnlockedAsync(pending);
         }
         finally { _lock.Release(); }
@@ -111,13 +103,67 @@ public sealed class PendingImportQueue : IDisposable
 
     public async Task<int> CountAsync() => (await PeekAllAsync()).Count;
 
-    private async Task<List<CreateImportedTicketRequest>> ReadUnlockedAsync()
+    /// <summary>Entries whose owner differs from <paramref name="ownerHash"/>, or whose owner is unknown.</summary>
+    public async Task<List<QueuedImport>> PeekForeignAsync(string ownerHash)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var pending = await ReadUnlockedAsync();
+            return pending.Where(p => p.OwnerHash is null || !string.Equals(p.OwnerHash, ownerHash, StringComparison.Ordinal)).ToList();
+        }
+        finally { _lock.Release(); }
+    }
+
+    /// <summary>Re-stamps unowned or foreign entries onto <paramref name="ownerHash"/>, after the user agrees.</summary>
+    public async Task AdoptAsync(string ownerHash)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var pending = await ReadUnlockedAsync();
+            var changed = false;
+            for (var i = 0; i < pending.Count; i++)
+            {
+                if (pending[i].OwnerHash is null || !string.Equals(pending[i].OwnerHash, ownerHash, StringComparison.Ordinal))
+                {
+                    pending[i] = pending[i] with { OwnerHash = ownerHash };
+                    changed = true;
+                }
+            }
+            if (changed)
+                await WriteUnlockedAsync(pending);
+        }
+        finally { _lock.Release(); }
+    }
+
+    private async Task<List<QueuedImport>> ReadUnlockedAsync()
     {
         try
         {
             if (!File.Exists(_path)) return [];
             var json = await File.ReadAllTextAsync(_path);
-            return JsonSerializer.Deserialize<List<CreateImportedTicketRequest>>(json, JsonOptions) ?? [];
+            var asQueued = JsonSerializer.Deserialize<List<QueuedImport>>(json, JsonOptions);
+            if (asQueued is not null)
+            {
+                if (asQueued.Count == 0) return asQueued;
+                if (asQueued.Any(q => q.Request is null))
+                {
+                    var asOld = JsonSerializer.Deserialize<List<CreateImportedTicketRequest>>(json, JsonOptions);
+                    if (asOld is not null)
+                        return asOld.Select(r => new QueuedImport(r, null)).ToList();
+                }
+                else
+                {
+                    return asQueued;
+                }
+            }
+
+            var fallback = JsonSerializer.Deserialize<List<CreateImportedTicketRequest>>(json, JsonOptions);
+            if (fallback is not null)
+                return fallback.Select(r => new QueuedImport(r, null)).ToList();
+
+            return asQueued ?? [];
         }
         catch (Exception ex)
         {
@@ -128,7 +174,7 @@ public sealed class PendingImportQueue : IDisposable
         }
     }
 
-    private async Task WriteUnlockedAsync(List<CreateImportedTicketRequest> pending)
+    private async Task WriteUnlockedAsync(List<QueuedImport> pending)
     {
         try
         {

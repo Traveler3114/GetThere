@@ -18,15 +18,18 @@ public class ImportSyncService
     private readonly ImportedTicketService _importedService;
     private readonly PendingImportQueue _queue;
     private readonly AuthService _authService;
+    private readonly IImportOwnershipPrompt _prompt;
 
     public ImportSyncService(
         ImportedTicketService importedService,
         PendingImportQueue queue,
-        AuthService authService)
+        AuthService authService,
+        IImportOwnershipPrompt prompt)
     {
         _importedService = importedService;
         _queue = queue;
         _authService = authService;
+        _prompt = prompt;
     }
 
     /// <summary>
@@ -45,25 +48,37 @@ public class ImportSyncService
     /// the next call picks up where this one stopped.
     /// </para>
     /// <para>
-    /// <b>The gate below is "someone is signed in", not "this is whose tickets these are."</b> It
-    /// cannot be the latter: <see cref="PendingImportQueue"/> records no owner, so on a device that
-    /// two people have used, this pushes the first person's queued tickets into the second person's
-    /// account. See the note on that class — the fix belongs there, and it is a product decision
-    /// rather than a one-line change, because a guest's entries are meant to follow the next
-    /// sign-in.
+    /// Before draining, entries not owned by the signed-in account prompt. The queue records the
+    /// owner hash at enqueue time, so a shared device does not silently push one person's tickets
+    /// into another's account, and a guest's unclaimed tickets are not lost without asking.
     /// </para>
     /// </remarks>
     public async Task<int> FlushAsync()
     {
         if (!await _authService.IsLoggedInAsync()) return 0;
 
-        var pending = await _queue.PeekAllAsync();
+        var owner = PendingImportQueue.HashOwner(await _authService.GetOwnerKeyAsync());
+
+        var foreign = await _queue.PeekForeignAsync(owner);
+        if (foreign.Count > 0)
+        {
+            // Never silent in either direction: pushing another person's tickets into this account
+            // is the shared-device leak, and dropping them loses a legitimate guest-to-account
+            // upgrade. The only correct answer is to ask.
+            if (!await _prompt.AskAdoptAsync(foreign.Count))
+                return 0;
+
+            await _queue.AdoptAsync(owner);
+        }
+
+        var pending = (await _queue.PeekAllAsync()).Where(p => string.Equals(p.OwnerHash, owner, StringComparison.Ordinal)).ToList();
         if (pending.Count == 0) return 0;
 
         var pushed = 0;
 
-        foreach (var request in pending)
+        foreach (var entry in pending)
         {
+            var request = entry.Request;
             try
             {
                 var result = await _importedService.CreateAsync(request);

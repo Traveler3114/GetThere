@@ -202,7 +202,7 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
             // wallet whose premise is holding tickets the user already has was the wrong way round.
             if (!await _authService.IsLoggedInAsync() || IsOfflineNow)
             {
-                await _queue.EnqueueAsync(request);
+                await _queue.EnqueueAsync(request, PendingImportQueue.HashOwner(await _authService.GetOwnerKeyAsync()));
                 _analytics.TrackEvent("ticket_imported_offline", new() { ["source"] = _source.ToString() });
                 await Shell.Current.GoToAsync("..");
                 return;
@@ -236,7 +236,7 @@ public partial class ImportTicketViewModel : BaseViewModel, IQueryAttributable
                 // The server was reachable a moment ago and is not now, or refused for a reason that
                 // is not the user's fault. Queue rather than lose what they just typed — the same
                 // ClientId means the eventual push cannot double it.
-                await _queue.EnqueueAsync(request);
+                await _queue.EnqueueAsync(request, PendingImportQueue.HashOwner(await _authService.GetOwnerKeyAsync()));
                 _analytics.TrackEvent("ticket_imported_offline", new() { ["source"] = _source.ToString() });
                 await Shell.Current.GoToAsync("..");
             }

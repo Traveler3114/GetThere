@@ -324,7 +324,7 @@ public partial class TicketsViewModel : BaseViewModel
         IsAuthenticated = pending.Count > 0;
 
         WalletTickets.Clear();
-        foreach (var t in pending.Select(WalletTicket.FromPending).OrderByDescending(t => t.SortDate))
+        foreach (var t in pending.Select(p => p.Request).Select(WalletTicket.FromPending).OrderByDescending(t => t.SortDate))
             WalletTickets.Add(t);
 
         HasImportedTickets = WalletTickets.Count > 0;

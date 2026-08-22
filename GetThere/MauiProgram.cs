@@ -168,6 +168,7 @@ public static class MauiProgram
 
         // Both own a file and a lock, so both are singletons for the same reason TicketStore is.
         builder.Services.AddSingleton<PendingImportQueue>();
+        builder.Services.AddSingleton<IImportOwnershipPrompt, ImportOwnershipPrompt>();
 
         // Extraction on the device, so importing works signed out and with no signal.
         builder.Services.AddSingleton<LocalExtractionService>();
@@ -175,7 +176,8 @@ public static class MauiProgram
         builder.Services.AddTransient(sp => new ImportSyncService(
             sp.GetRequiredService<ImportedTicketService>(),
             sp.GetRequiredService<PendingImportQueue>(),
-            sp.GetRequiredService<AuthService>()));
+            sp.GetRequiredService<AuthService>(),
+            sp.GetRequiredService<IImportOwnershipPrompt>()));
 
         var assembly = Assembly.GetExecutingAssembly();
 
