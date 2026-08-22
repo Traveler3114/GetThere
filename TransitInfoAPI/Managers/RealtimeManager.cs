@@ -685,7 +685,7 @@ public class RealtimeManager
     /// Null when the row has no usable position. A ride that has not started carries no coordinates,
     /// and that is roughly four rows in five — the ordinary case, not an error.
     /// </summary>
-    private static VehicleResponse? ToVehicle(ExtractedRow row, string feedId)
+    internal static VehicleResponse? ToVehicle(ExtractedRow row, string feedId)
     {
         var lat = Num(row, "Latitude");
         var lon = Num(row, "Longitude");
