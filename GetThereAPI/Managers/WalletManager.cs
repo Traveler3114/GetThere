@@ -151,8 +151,14 @@ public class WalletManager
         var balance = await ReadBalanceAsync(walletId, ct);
         _db.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = walletId, Amount = amount, BalanceBefore = balance, BalanceAfter = balance,
-            Type = WalletTransactionType.Hold, Description = description, ReferenceId = reference, CreatedAt = at,
+            WalletId = walletId,
+            Amount = amount,
+            BalanceBefore = balance,
+            BalanceAfter = balance,
+            Type = WalletTransactionType.Hold,
+            Description = description,
+            ReferenceId = reference,
+            CreatedAt = at,
         });
         await _db.SaveChangesAsync(ct);
         if (tx is not null) await tx.CommitAsync(ct);
@@ -173,8 +179,14 @@ public class WalletManager
         var balance = await ReadBalanceAsync(walletId, ct);
         _db.WalletTransactions.Add(new WalletTransaction
         {
-            WalletId = walletId, Amount = amount, BalanceBefore = balance, BalanceAfter = balance,
-            Type = WalletTransactionType.Release, Description = description, ReferenceId = reference, CreatedAt = at,
+            WalletId = walletId,
+            Amount = amount,
+            BalanceBefore = balance,
+            BalanceAfter = balance,
+            Type = WalletTransactionType.Release,
+            Description = description,
+            ReferenceId = reference,
+            CreatedAt = at,
         });
         await _db.SaveChangesAsync(ct);
         if (tx is not null) await tx.CommitAsync(ct);

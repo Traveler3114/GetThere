@@ -65,8 +65,18 @@ public static partial class TicketTextScraper
     /// <summary>Three-letter month name → month number, keyed on the group the month regexes capture.</summary>
     private static readonly Dictionary<string, int> MonthAbbrevToNumber = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["jan"] = 1, ["feb"] = 2, ["mar"] = 3, ["apr"] = 4, ["may"] = 5, ["jun"] = 6,
-        ["jul"] = 7, ["aug"] = 8, ["sep"] = 9, ["oct"] = 10, ["nov"] = 11, ["dec"] = 12
+        ["jan"] = 1,
+        ["feb"] = 2,
+        ["mar"] = 3,
+        ["apr"] = 4,
+        ["may"] = 5,
+        ["jun"] = 6,
+        ["jul"] = 7,
+        ["aug"] = 8,
+        ["sep"] = 9,
+        ["oct"] = 10,
+        ["nov"] = 11,
+        ["dec"] = 12
     };
 
     /// <summary>Adds whatever can be read from <paramref name="text"/> to an existing result.</summary>

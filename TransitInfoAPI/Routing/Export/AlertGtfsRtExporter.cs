@@ -3,6 +3,7 @@ using Google.Protobuf;
 using Microsoft.EntityFrameworkCore;
 
 using TransitInfoAPI.Data;
+
 using TransitRealtime;
 
 namespace TransitInfoAPI.Routing.Export;

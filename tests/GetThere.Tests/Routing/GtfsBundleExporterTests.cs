@@ -52,8 +52,13 @@ public class GtfsBundleExporterTests
         // One canonical station acting as the parent for both raw stops.
         db.CanonicalStations.Add(new CanonicalStation
         {
-            Id = 201, OnestopId = "HR-ZG-central", Name = "Central", IsActive = true,
-            Latitude = 45.81, Longitude = 15.98, CountryId = 1,
+            Id = 201,
+            OnestopId = "HR-ZG-central",
+            Name = "Central",
+            IsActive = true,
+            Latitude = 45.81,
+            Longitude = 15.98,
+            CountryId = 1,
         });
 
         // The same operator stop id "S1" imported under both versions — the collision case.
@@ -63,8 +68,13 @@ public class GtfsBundleExporterTests
 
         db.CanonicalRoutes.Add(new CanonicalRoute
         {
-            Id = 401, OnestopId = "r-ZET-1", ShortName = "1", LongName = "Line 1",
-            RouteType = RouteType.Tram, IsActive = true, OperatorId = 101,
+            Id = 401,
+            OnestopId = "r-ZET-1",
+            ShortName = "1",
+            LongName = "Line 1",
+            RouteType = RouteType.Tram,
+            IsActive = true,
+            OperatorId = 101,
         });
 
         // Trip A (version 1) is routable; trip B (version 2) has no canonical route → skipped.
@@ -74,9 +84,16 @@ public class GtfsBundleExporterTests
 
         db.Calendars.Add(new Calendar
         {
-            Id = 601, FeedVersionId = 1, ServiceId = "svc1",
-            Monday = true, Tuesday = true, Wednesday = true, Thursday = true, Friday = true,
-            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+            Id = 601,
+            FeedVersionId = 1,
+            ServiceId = "svc1",
+            Monday = true,
+            Tuesday = true,
+            Wednesday = true,
+            Thursday = true,
+            Friday = true,
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
         });
 
         // Trip A's stop times exercise all three resolution arms.

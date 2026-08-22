@@ -25,8 +25,13 @@ public class JourneyQuoteManagerTests
 
     private static TicketOption Opt(int id, string name, decimal price, int? minutes) => new()
     {
-        Id = id, Name = name, Price = price, Currency = "EUR", DurationMinutes = minutes,
-        TicketFormat = TicketFormat.QR, IsActive = true,
+        Id = id,
+        Name = name,
+        Price = price,
+        Currency = "EUR",
+        DurationMinutes = minutes,
+        TicketFormat = TicketFormat.QR,
+        IsActive = true,
     };
 
     private static QuoteLegDto Leg(string? op, string mode, bool transit, int startMin, int endMin) =>
@@ -38,10 +43,24 @@ public class JourneyQuoteManagerTests
     private static async Task SeedAsync(AppDbContext db)
     {
         db.TicketingAdapters.AddRange(
-            new TicketingAdapter { Id = 1, TransitInfoGlobalId = "gt-zet", Name = "ZET", AdapterType = "mock.zet", IsActive = true,
-                TicketOptions = [Opt(11, "30 min", 0.55m, 30), Opt(12, "60 min", 0.95m, 60), Opt(13, "90 min", 1.35m, 90)] },
-            new TicketingAdapter { Id = 2, TransitInfoGlobalId = "gt-hzpp", Name = "HŽPP", AdapterType = "mock.hzpp", IsActive = true,
-                TicketOptions = [Opt(21, "Single", 3.00m, null)] });
+            new TicketingAdapter
+            {
+                Id = 1,
+                TransitInfoGlobalId = "gt-zet",
+                Name = "ZET",
+                AdapterType = "mock.zet",
+                IsActive = true,
+                TicketOptions = [Opt(11, "30 min", 0.55m, 30), Opt(12, "60 min", 0.95m, 60), Opt(13, "90 min", 1.35m, 90)]
+            },
+            new TicketingAdapter
+            {
+                Id = 2,
+                TransitInfoGlobalId = "gt-hzpp",
+                Name = "HŽPP",
+                AdapterType = "mock.hzpp",
+                IsActive = true,
+                TicketOptions = [Opt(21, "Single", 3.00m, null)]
+            });
         await db.SaveChangesAsync();
     }
 

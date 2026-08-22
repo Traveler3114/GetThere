@@ -143,7 +143,7 @@ public sealed class GtfsBundleExporter(
 
     private static void WriteAgencies(ZipArchive zip, IReadOnlyDictionary<int, OperatorRow> operators, string timezone)
     {
-        using var w = Open(zip,"agency.txt");
+        using var w = Open(zip, "agency.txt");
         w.WriteHeader("agency_id", "agency_name", "agency_url", "agency_timezone");
         foreach (var op in operators.Values)
         {
@@ -160,7 +160,7 @@ public sealed class GtfsBundleExporter(
         IReadOnlyList<CanonicalStationRow> canonicalStations,
         Dictionary<int, string> canonicalOnestopById)
     {
-        using var w = Open(zip,"stops.txt");
+        using var w = Open(zip, "stops.txt");
         w.WriteHeader("stop_id", "stop_name", "stop_lat", "stop_lon", "location_type", "parent_station");
 
         // Parents first (not required by GTFS, but keeps the file readable).
@@ -186,7 +186,7 @@ public sealed class GtfsBundleExporter(
 
     private static void WriteRoutes(ZipArchive zip, IReadOnlyList<RouteRow> routes, IReadOnlyDictionary<int, OperatorRow> operators)
     {
-        using var w = Open(zip,"routes.txt");
+        using var w = Open(zip, "routes.txt");
         w.WriteHeader("route_id", "agency_id", "route_short_name", "route_long_name", "route_type", "route_color", "route_text_color");
         foreach (var r in routes)
         {
@@ -198,7 +198,7 @@ public sealed class GtfsBundleExporter(
 
     private async Task WriteCalendarsAsync(ZipArchive zip, HashSet<int> activeSet, CancellationToken ct)
     {
-        using var w = Open(zip,"calendar.txt");
+        using var w = Open(zip, "calendar.txt");
         w.WriteHeader("service_id", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "start_date", "end_date");
         var rows = db.Calendars.AsNoTracking()
             .Where(c => activeSet.Contains(c.FeedVersionId))
@@ -218,7 +218,7 @@ public sealed class GtfsBundleExporter(
 
     private async Task WriteCalendarDatesAsync(ZipArchive zip, HashSet<int> activeSet, CancellationToken ct)
     {
-        using var w = Open(zip,"calendar_dates.txt");
+        using var w = Open(zip, "calendar_dates.txt");
         w.WriteHeader("service_id", "date", "exception_type");
         var rows = db.CalendarDates.AsNoTracking()
             .Where(cd => activeSet.Contains(cd.FeedVersionId))
@@ -236,7 +236,7 @@ public sealed class GtfsBundleExporter(
 
     private static void WriteTrips(ZipArchive zip, IEnumerable<TripExport> trips)
     {
-        using var w = Open(zip,"trips.txt");
+        using var w = Open(zip, "trips.txt");
         w.WriteHeader("route_id", "service_id", "trip_id", "trip_headsign", "direction_id");
         foreach (var t in trips)
         {
@@ -250,7 +250,7 @@ public sealed class GtfsBundleExporter(
         ZipArchive zip, HashSet<int> activeSet, IReadOnlyDictionary<int, TripExport> tripInfo,
         StopTimeResolver resolver, ResolutionReport report, CancellationToken ct)
     {
-        using var w = Open(zip,"stop_times.txt");
+        using var w = Open(zip, "stop_times.txt");
         w.WriteHeader("trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence");
 
         // Streamed and joined through Trip so we never materialize the (potentially millions of) rows,
@@ -285,7 +285,7 @@ public sealed class GtfsBundleExporter(
 
     private static void WriteFeedInfo(ZipArchive zip)
     {
-        using var w = Open(zip,"feed_info.txt");
+        using var w = Open(zip, "feed_info.txt");
         w.WriteHeader("feed_publisher_name", "feed_publisher_url", "feed_lang", "feed_version");
         w.WriteRow("TransitInfoAPI", "https://example.invalid", "hr",
             DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));

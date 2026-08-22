@@ -91,8 +91,13 @@ public class JourneyBookingManager(
                     // Nothing to price/hold — a buy-on-board leg with no product configured.
                     db.JourneyReservations.Add(new JourneyReservation
                     {
-                        JourneyId = journey.Id, OperatorGlobalId = offer.OperatorGlobalId, OperatorName = offer.OperatorName,
-                        ProductName = offer.ProductName, Amount = 0m, Currency = offer.Currency, Status = ReservationStatus.Reserved,
+                        JourneyId = journey.Id,
+                        OperatorGlobalId = offer.OperatorGlobalId,
+                        OperatorName = offer.OperatorName,
+                        ProductName = offer.ProductName,
+                        Amount = 0m,
+                        Currency = offer.Currency,
+                        Status = ReservationStatus.Reserved,
                     });
                     items.Add(new BookedOfferDto(offer.OperatorGlobalId, offer.OperatorName, offer.ProductName, offer.Price, BookingOutcomes.BuyOnBoardUnpriced));
                     continue;
@@ -114,9 +119,14 @@ public class JourneyBookingManager(
 
                     db.JourneyReservations.Add(new JourneyReservation
                     {
-                        JourneyId = journey.Id, OperatorGlobalId = offer.OperatorGlobalId, OperatorName = offer.OperatorName,
-                        ProductName = offer.ProductName, Amount = offer.Price.Value, Currency = offer.Currency,
-                        Status = ReservationStatus.Reserved, WalletHoldReference = reference,
+                        JourneyId = journey.Id,
+                        OperatorGlobalId = offer.OperatorGlobalId,
+                        OperatorName = offer.OperatorName,
+                        ProductName = offer.ProductName,
+                        Amount = offer.Price.Value,
+                        Currency = offer.Currency,
+                        Status = ReservationStatus.Reserved,
+                        WalletHoldReference = reference,
                     });
                     reserved += offer.Price.Value;
                     items.Add(new BookedOfferDto(offer.OperatorGlobalId, offer.OperatorName, offer.ProductName, offer.Price, BookingOutcomes.Reserved));

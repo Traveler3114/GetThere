@@ -283,7 +283,7 @@ public sealed class JourneyBookingFixture : IDisposable
         await db.SaveChangesAsync();
 
         var baseTime = new DateTime(2026, 8, 18, 8, 0, 0, DateTimeKind.Utc);
-        var legs = new List<QuoteLegDto> { new(operatorGlobalId, "BUS", true, baseTime, baseTime.AddMinutes(30), 0,0,0,0) };
+        var legs = new List<QuoteLegDto> { new(operatorGlobalId, "BUS", true, baseTime, baseTime.AddMinutes(30), 0, 0, 0, 0) };
 
         return new JourneyBookingScenario
         {
@@ -335,13 +335,23 @@ public sealed class JourneyBookingFixture : IDisposable
         db.TicketOptions.AddRange(
             new TicketOption
             {
-                TicketingAdapterId = holdAdapter.Id, ExternalProductId = "hold-single", Name = "Hold Single",
-                Price = 10m, Currency = "EUR", TicketFormat = TicketFormat.QR, IsActive = true
+                TicketingAdapterId = holdAdapter.Id,
+                ExternalProductId = "hold-single",
+                Name = "Hold Single",
+                Price = 10m,
+                Currency = "EUR",
+                TicketFormat = TicketFormat.QR,
+                IsActive = true
             },
             new TicketOption
             {
-                TicketingAdapterId = buyAdapter.Id, ExternalProductId = "buy-single", Name = "Buy Single",
-                Price = 10m, Currency = "EUR", TicketFormat = TicketFormat.QR, IsActive = true
+                TicketingAdapterId = buyAdapter.Id,
+                ExternalProductId = "buy-single",
+                Name = "Buy Single",
+                Price = 10m,
+                Currency = "EUR",
+                TicketFormat = TicketFormat.QR,
+                IsActive = true
             });
         await db.SaveChangesAsync();
 

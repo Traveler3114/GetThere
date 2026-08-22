@@ -98,7 +98,7 @@ public static class HakReRanker
         {
             Alert = alert;
             Geom = geom;
-            Bbox = geom is null ? new Bbox(0,0,0,0) : ComputeBboxFromGeom(geom);
+            Bbox = geom is null ? new Bbox(0, 0, 0, 0) : ComputeBboxFromGeom(geom);
         }
     }
 
@@ -176,7 +176,7 @@ public static class HakReRanker
             foreach (var p in geom.Points) pts.Add((p[1], p[0]));
         foreach (var line in geom.MultiLines)
             foreach (var p in line) pts.Add((p[1], p[0]));
-        if (pts.Count == 0) return new Bbox(0,0,0,0);
+        if (pts.Count == 0) return new Bbox(0, 0, 0, 0);
         return ComputeBbox(pts);
     }
 
