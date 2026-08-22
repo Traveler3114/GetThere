@@ -21,6 +21,26 @@ public class RouteManager
 
     public RouteManager(TransitDbContext db) { _db = db; }
 
+    /// <summary>
+    /// Resolves feed-version ids to feed slugs in one round trip.
+    /// <para>
+    /// <c>CanonicalRoute.LastSeenFeedVersionId</c> is a bare column with no navigation property —
+    /// the relationship is not configured because <c>FeedManager</c> maintains it through raw SQL —
+    /// so this cannot be an <c>Include</c>.
+    /// </para>
+    /// </summary>
+    private async Task<Dictionary<int, string>> GetFeedSlugsAsync(IEnumerable<int?> feedVersionIds, CancellationToken ct)
+    {
+        var ids = feedVersionIds.Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        // fv.Feed.FeedId is the slug ("zet-2"); fv.FeedId is the int FK. Not interchangeable.
+        return await _db.FeedVersions.AsNoTracking()
+            .Where(fv => ids.Contains(fv.Id))
+            .Select(fv => new { fv.Id, Slug = fv.Feed.FeedId })
+            .ToDictionaryAsync(x => x.Id, x => x.Slug, ct);
+    }
+
     public async Task<List<RouteResponse>> GetAllAsync(int? operatorId, RouteType? routeType, string? q, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable().AsNoTracking();
@@ -32,7 +52,29 @@ public class RouteManager
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(r => r.LongName.Contains(q) || r.ShortName.Contains(q));
 
-        return await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage).Select(RouteMapper.ToResponseExpression).ToListAsync(ct);
+        var rows = await query.OrderBy(r => r.Id).Skip((page - 1) * perPage).Take(perPage)
+            .Select(r => new
+            {
+                Response = new RouteResponse
+                {
+                    Id = r.Id,
+                    OnestopId = r.OnestopId,
+                    Name = r.LongName,
+                    ShortName = r.ShortName,
+                    RouteType = r.RouteType.ToString(),
+                    OperatorId = r.OperatorId,
+                    OperatorName = r.Operator != null ? r.Operator.Name : null,
+                    OperatorGlobalId = r.Operator != null ? r.Operator.GlobalId : null
+                },
+                r.LastSeenFeedVersionId
+            })
+            .ToListAsync(ct);
+
+        var slugs = await GetFeedSlugsAsync(rows.Select(x => x.LastSeenFeedVersionId), ct);
+        foreach (var row in rows)
+            row.Response.FeedId = row.LastSeenFeedVersionId is int fv && slugs.TryGetValue(fv, out var slug) ? slug : null;
+
+        return rows.Select(x => x.Response).ToList();
     }
 
     public async Task<int> GetTotalCountAsync(int? operatorId, RouteType? routeType, string? q, CancellationToken ct = default)
@@ -54,7 +96,8 @@ public class RouteManager
         double? minLat, double? minLon, double? maxLat, double? maxLon,
         int limit, CancellationToken ct)
     {
-        var query = _db.CanonicalRoutes.Where(r => r.IsActive).AsQueryable();
+        IQueryable<CanonicalRoute> query = _db.CanonicalRoutes.Where(r => r.IsActive);
+        query = query.Include(r => r.Operator);
 
         if (operatorId.HasValue)
             query = query.Where(r => r.OperatorId == operatorId.Value);
@@ -72,6 +115,8 @@ public class RouteManager
 
         var routes = await query.OrderBy(r => r.Id).Take(limit).ToListAsync(ct);
 
+        var slugs = await GetFeedSlugsAsync(routes.Select(r => r.LastSeenFeedVersionId), ct);
+
         return GeoJsonGeometry.ToLineStringCollection(routes,
             r => r.Geometry,
             r => new Dictionary<string, object?>
@@ -82,16 +127,39 @@ public class RouteManager
                 ["shortName"] = r.ShortName,
                 ["routeType"] = r.RouteType.ToString(),
                 ["operatorId"] = r.OperatorId,
+                ["operatorGlobalId"] = r.Operator?.GlobalId,
+                ["feedId"] = r.LastSeenFeedVersionId is int fv && slugs.TryGetValue(fv, out var slug) ? slug : null,
                 ["shapeEdited"] = r.ShapeEdited
             });
     }
 
     public async Task<RouteResponse?> GetByIdAsync(int id, CancellationToken ct)
     {
-        return await _db.CanonicalRoutes
+        var row = await _db.CanonicalRoutes
             .Where(r => r.Id == id)
-            .Select(RouteMapper.ToResponseExpression)
+            .Select(r => new
+            {
+                Response = new RouteResponse
+                {
+                    Id = r.Id,
+                    OnestopId = r.OnestopId,
+                    Name = r.LongName,
+                    ShortName = r.ShortName,
+                    RouteType = r.RouteType.ToString(),
+                    OperatorId = r.OperatorId,
+                    OperatorName = r.Operator != null ? r.Operator.Name : null,
+                    OperatorGlobalId = r.Operator != null ? r.Operator.GlobalId : null
+                },
+                r.LastSeenFeedVersionId
+            })
             .FirstOrDefaultAsync(ct);
+
+        if (row is null) return null;
+
+        var slugs = await GetFeedSlugsAsync([row.LastSeenFeedVersionId], ct);
+        row.Response.FeedId = row.LastSeenFeedVersionId is int fv && slugs.TryGetValue(fv, out var slug) ? slug : null;
+
+        return row.Response;
     }
 
     public async Task<RouteResponse?> GetByOnestopIdAsync(string onestopId, CancellationToken ct)

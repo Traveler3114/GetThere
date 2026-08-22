@@ -179,7 +179,7 @@ public sealed class AlertPollingWorker : BackgroundService
         return body;
     }
 
-    private async Task<HttpResponseMessage> FetchWithBasicAuthAsync(HttpClient http, string url, string credential, CancellationToken ct)
+    private static async Task<HttpResponseMessage> FetchWithBasicAuthAsync(HttpClient http, string url, string credential, CancellationToken ct)
     {
         var origin = new Uri(url);
         var current = origin;
@@ -204,7 +204,7 @@ public sealed class AlertPollingWorker : BackgroundService
         throw new InvalidOperationException("Too many redirects");
     }
 
-    private async Task<HttpResponseMessage> FetchWithRedirectAsync(HttpClient http, string url, string? credential, CancellationToken ct)
+    private static async Task<HttpResponseMessage> FetchWithRedirectAsync(HttpClient http, string url, string? credential, CancellationToken ct)
     {
         var current = new Uri(url);
         for (var hop = 0; hop < 5; hop++)

@@ -38,7 +38,7 @@ public class CustomSource
     /// Its mapped records are routed to <c>MobilityManager.UpsertStationsFromRecordsAsync</c>
     /// instead of building a transit <c>FeedVersion</c>. A mobility source never enters the transit graph.
     /// </summary>
-    public bool ProducesMobility { get; set; } = false;
+    public bool ProducesMobility { get; set; }
 
     /// <summary>
     /// The window a synthesized calendar covers, for sources that publish departures with no service

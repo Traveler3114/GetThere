@@ -127,7 +127,7 @@ function loadVehicles() {
         geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
         properties: {
           vehicleId: v.vehicleId, routeId: v.routeId, tripId: v.tripId,
-          bearing: v.bearing, lastUpdated: v.lastUpdated
+          bearing: v.bearing, lastUpdated: v.lastUpdated, feedId: v.feedId
         }
       }))
     };
@@ -458,11 +458,36 @@ map.on('click', 'routes-line-edited', (e) => {
   showRouteDetails(props);
 });
 
+map.on('mouseenter', 'vehicles-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'vehicles-circle', () => { map.getCanvas().style.cursor = ''; });
+
+map.on('click', 'vehicles-circle', (e) => {
+  const p = e.features[0].properties;
+  const updated = p.lastUpdated ? new Date(p.lastUpdated).toLocaleTimeString() : '-';
+  new maplibregl.Popup()
+    .setLngLat(e.features[0].geometry.coordinates)
+    .setHTML(`<div style="font-size:0.85rem">
+        <div><strong>Feed</strong> <code>${esc(p.feedId || '-')}</code></div>
+        <div><strong>Vehicle</strong> ${esc(p.vehicleId || '-')}</div>
+        <div><strong>Route</strong> ${esc(p.routeId || '-')}</div>
+        <div><strong>Trip</strong> ${esc(p.tripId || '-')}</div>
+        <div><strong>Updated</strong> ${updated}</div>
+      </div>`)
+    .addTo(map);
+});
+
 function showStationDetails(id, props) {
   const content = document.getElementById('sidebar-content');
   const type = props.stationType || 'unknown';
   const rt = props.primaryRouteType || props.routeType || '';
   const color = getRouteColor(rt);
+  // MapLibre serialises array properties to JSON strings on GeoJSON sources.
+  const parseList = (v) => { try { return Array.isArray(v) ? v : JSON.parse(v || '[]'); } catch { return []; } };
+  const feedIds = parseList(props.feedIds);
+  const operatorIds = parseList(props.operatorGlobalIds);
+  const pills = (items) => items.length
+    ? items.map(x => `<code style="background:#eef;padding:1px 5px;border-radius:3px;margin-right:4px">${esc(x)}</code>`).join('')
+    : '<span style="color:#999">—</span>';
 
   let html = `
     <h2>${esc(props.name || 'Unknown')}</h2>
@@ -470,6 +495,8 @@ function showStationDetails(id, props) {
     <div class="info-row"><strong>Onestop ID</strong> ${esc(props.onestopId || '-')}</div>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${esc(rt) || '-'}</span></div>
     <div class="info-row"><strong>Country</strong> ${esc(props.countryName || '-')}</div>
+    <div class="info-row"><strong>Feeds</strong> ${pills(feedIds)}</div>
+    <div class="info-row"><strong>Operators</strong> ${pills(operatorIds)}</div>
     <div style="margin-top:16px;display:flex;gap:8px">
       <a class="admin-action reconcile" href="/admin/reconciliation-map.html?stationId=${encodeURIComponent(id)}">Reconcile / merge</a>
     </div>
@@ -528,6 +555,8 @@ function showRouteDetails(props) {
     <h2>${esc(name)}${edited}</h2>
     <div class="info-row"><strong>Route type</strong> <span class="route-type-badge" style="background:${color}">${esc(props.routeType) || '-'}</span></div>
     <div class="info-row"><strong>Onestop ID</strong> ${esc(props.onestopId || '-')}</div>
+    <div class="info-row"><strong>Last seen in</strong> <code>${esc(props.feedId || '—')}</code></div>
+    <div class="info-row"><strong>Operator</strong> <code>${esc(props.operatorGlobalId || '—')}</code></div>
     <div style="margin-top:16px;display:flex;gap:8px">
       <a class="admin-action edit-shape" href="/admin/shape-editor.html?routeId=${encodeURIComponent(props.id)}">Edit shape</a>
     </div>

@@ -108,12 +108,13 @@ function renderStations(list) {
     <td><code class="small">${esc(s.onestopId)}</code></td>
     <td><span class="badge bg-secondary">${formatEnumName(s.stationType)}</span></td>
     <td>${rtBadge(s.primaryRouteType)}</td>
+    <td>${(s.feedIds||[]).map(f => `<span class="badge bg-light text-dark border">${esc(f)}</span>`).join(' ') || '-'}</td>
     <td>${esc(s.countryName||'-')}</td>
     <td>${esc(s.cityName||'-')}</td>
     <td class="small text-nowrap">${typeof s.latitude === 'number' && typeof s.longitude === 'number'
       ? s.latitude.toFixed(4) + ', ' + s.longitude.toFixed(4) : '-'}</td>
-  </tr><tr class="detail-row" id="detail-${esc(s.onestopId)}"><td colspan="7"><div class="detail-inner" id="detailInner-${esc(s.onestopId)}"><i class="bi bi-hourglass-split"></i> Loading...</div></td></tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>ID</th><th>Type</th><th>Route Type</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s) shown</small>`;
+  </tr><tr class="detail-row" id="detail-${esc(s.onestopId)}"><td colspan="8"><div class="detail-inner" id="detailInner-${esc(s.onestopId)}"><i class="bi bi-hourglass-split"></i> Loading...</div></td></tr>`).join('');
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover" id="stationTable"><thead class="table-dark"><tr><th>Name</th><th>ID</th><th>Type</th><th>Route Type</th><th>Feeds</th><th>Country</th><th>City</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} station(s) shown</small>`;
 }
 
 let detailLoadingInFlight = new Set();
@@ -137,7 +138,10 @@ async function toggleDetail(row, onestopId) {
       ]);
       const operators = oR || [];
       const departures = dR || [];
-      const oHtml = operators.length ? '<h6>Operators</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>' + operators.map(op => `<tr><td>${esc(op.name)}</td><td>${esc(op.operatorType)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No operators at this station.</p>';
+      const feedsHtml = (station.feedIds||[]).map(f => `<span class="badge bg-light text-dark border">${esc(f)}</span>`).join(' ') || '-';
+      const opsHtml = (station.operatorGlobalIds||[]).map(o => `<span class="badge bg-light text-dark border">${esc(o)}</span>`).join(' ') || '-';
+      const provenanceHtml = `<div class="small mb-2"><strong>Feeds:</strong> ${feedsHtml} <strong style="margin-left:12px">Operators:</strong> ${opsHtml}</div>`;
+      let oHtml = provenanceHtml + (operators.length ? '<h6>Operators</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>' + operators.map(op => `<tr><td>${esc(op.name)}</td><td>${esc(op.operatorType)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="text-muted small">No operators at this station.</p>');
       const dHtml = departures.length ? '<h6>Departures</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Route</th><th>Headsign</th><th>Scheduled</th><th>Estimated</th><th>Delay</th></tr></thead><tbody>' + departures.map(dp => {
         const delay = dp.delaySeconds != null ? (dp.delaySeconds > 0 ? '<span class="text-danger">+' + Math.round(dp.delaySeconds/60) + 'm</span>' : '<span class="text-success">On time</span>') : '-';
         return `<tr><td>${esc(dp.routeName)}</td><td>${esc(dp.headsign)}</td><td>${dp.scheduledDeparture ? new Date(dp.scheduledDeparture).toLocaleTimeString() : '-'}</td><td>${dp.estimatedDeparture ? new Date(dp.estimatedDeparture).toLocaleTimeString() : '-'}</td><td>${delay}</td></tr>`;

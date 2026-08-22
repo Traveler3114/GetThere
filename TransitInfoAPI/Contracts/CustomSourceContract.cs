@@ -79,7 +79,7 @@ public record CreateCustomSourceRequest
     [Range(60, int.MaxValue)] public int RefreshIntervalSeconds { get; set; } = 3600;
     public DateOnly? ServiceWindowStart { get; set; }
     public DateOnly? ServiceWindowEnd { get; set; }
-    public bool ProducesMobility { get; set; } = false;
+    public bool ProducesMobility { get; set; }
     public List<CreateCustomSourceRequestItem> Requests { get; set; } = [];
 }
 

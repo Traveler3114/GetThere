@@ -16,7 +16,8 @@ public static class RouteMapper
             ShortName = r.ShortName,
             RouteType = r.RouteType.ToString(),
             OperatorId = r.OperatorId,
-            OperatorName = r.Operator != null ? r.Operator.Name : null
+            OperatorName = r.Operator != null ? r.Operator.Name : null,
+            OperatorGlobalId = r.Operator != null ? r.Operator.GlobalId : null
         };
 
     public static RouteResponse ToResponse(CanonicalRoute r) => new()
@@ -27,7 +28,8 @@ public static class RouteMapper
         ShortName = r.ShortName,
         RouteType = r.RouteType.ToString(),
         OperatorId = r.OperatorId,
-        OperatorName = r.Operator?.Name
+        OperatorName = r.Operator?.Name,
+        OperatorGlobalId = r.Operator?.GlobalId
     };
 
     public static RouteInfoResponse ToInfoResponse(CanonicalRoute r) => new()

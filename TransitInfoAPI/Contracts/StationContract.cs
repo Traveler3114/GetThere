@@ -14,6 +14,13 @@ public class StationResponse
     public string? PrimaryRouteType { get; set; }
     public string? CountryName { get; set; }
     public string? CityName { get; set; }
+
+    /// <summary>Distinct source feed slugs behind this station's raw stops. A hub reconciled from
+    /// several operators' feeds carries more than one.</summary>
+    public List<string>? FeedIds { get; set; }
+
+    /// <summary>Distinct <c>gt-</c> global ids of the operators serving this station.</summary>
+    public List<string>? OperatorGlobalIds { get; set; }
 }
 
 public class StationOperatorResponse

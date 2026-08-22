@@ -249,6 +249,7 @@ function renderStationTimeline(station, candidates) {
             <span class="route-type-badge" style="background:${rtColor}">${c.rawRouteType || '-'}</span>
             <span style="margin-left:8px;font-size:0.85rem;color:#666">${confidence} confidence</span>
             <span style="margin-left:8px;font-size:0.85rem;color:#666">${distStr}</span>
+            <span style="margin-left:8px;font-size:0.85rem"><code>${esc(c.feedId || '-')}</code></span>
           </div>
           <div class="entry-meta">${dateStr}${c.reviewedAt ? ` &middot; Reviewed by ${esc(c.reviewedByAdminId || '?')}` : ' &middot; <span style="color:#888">Awaiting review</span>'}</div>
         </div>

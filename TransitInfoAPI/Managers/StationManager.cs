@@ -110,18 +110,59 @@ public class StationManager
         return query;
     }
 
+    /// <summary>
+    /// Feed slugs and operator global ids per station, in two index-covered round trips.
+    /// <para>
+    /// Kept out of <c>StationMapper.ToResponseExpression</c> on purpose: that expression is shared
+    /// by the single-station reads, which have no use for provenance and should not pay for it.
+    /// </para>
+    /// </summary>
+    private async Task<(Dictionary<int, List<string>> Feeds, Dictionary<int, List<string>> Operators)>
+        GetProvenanceAsync(List<int> stationIds, CancellationToken ct)
+    {
+        if (stationIds.Count == 0) return ([], []);
+
+        // RawStops.CanonicalStationId is indexed (TransitDbContext.cs:219). EF 10 parameterises the
+        // id list as a JSON array, so 5000 ids is one parameter, not 5000.
+        var feedRows = await _db.RawStops.AsNoTracking()
+            .Where(rs => rs.CanonicalStationId != null && stationIds.Contains(rs.CanonicalStationId.Value))
+            .Select(rs => new { StationId = rs.CanonicalStationId!.Value, Slug = rs.FeedVersion.Feed.FeedId })
+            .Distinct()
+            .ToListAsync(ct);
+
+        var operatorRows = await _db.Set<CanonicalStationOperator>().AsNoTracking()
+            .Where(cso => stationIds.Contains(cso.CanonicalStationId))
+            .Select(cso => new { cso.CanonicalStationId, cso.Operator.GlobalId })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return (
+            feedRows.GroupBy(x => x.StationId).ToDictionary(g => g.Key, g => g.Select(x => x.Slug).Order().ToList()),
+            operatorRows.GroupBy(x => x.CanonicalStationId).ToDictionary(g => g.Key, g => g.Select(x => x.GlobalId).Order().ToList())
+        );
+    }
+
     public async Task<List<StationResponse>> GetAllAsync(
         double? lat, double? lon, double? radiusKm, int? countryId, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
         // No Include here: the query projects through StationMapper.ToResponseExpression, and EF
         // drops an Include on a projecting query — the expression pulls the country columns it needs
         // itself. The Include was silently doing nothing.
-        return await BuildQuery(countryId: countryId, lat: lat, lon: lon, radiusKm: radiusKm)
+        var stations = await BuildQuery(countryId: countryId, lat: lat, lon: lon, radiusKm: radiusKm)
             .OrderBy(cs => cs.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
+
+        var (feeds, operators) = await GetProvenanceAsync(stations.Select(s => s.Id).ToList(), ct);
+        foreach (var s in stations)
+        {
+            s.FeedIds = feeds.GetValueOrDefault(s.Id) ?? [];
+            s.OperatorGlobalIds = operators.GetValueOrDefault(s.Id) ?? [];
+        }
+
+        return stations;
     }
 
     public async Task<object> GetAllGeoJsonAsync(
@@ -132,6 +173,8 @@ public class StationManager
             .Take(limit)
             .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
+
+        var (feeds, operators) = await GetProvenanceAsync(allStations.Select(s => s.Id).ToList(), ct);
 
         return GeoJsonGeometry.ToPointCollection(allStations,
             s => s.Latitude, s => s.Longitude,
@@ -144,7 +187,9 @@ public class StationManager
                 ["routeType"] = s.PrimaryRouteType,
                 ["primaryRouteType"] = s.PrimaryRouteType,
                 ["countryName"] = s.CountryName,
-                ["cityName"] = s.CityName
+                ["cityName"] = s.CityName,
+                ["feedIds"] = feeds.GetValueOrDefault(s.Id) ?? [],
+                ["operatorGlobalIds"] = operators.GetValueOrDefault(s.Id) ?? []
             });
     }
 

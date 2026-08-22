@@ -31,7 +31,7 @@ async function loadVehicles() {
 function filterVehicles() {
   const q = document.getElementById('filterOperator').value.toLowerCase();
   let filtered = allVehicles;
-  if (q) filtered = filtered.filter(v => (v.routeId||'').toLowerCase().includes(q) || (v.tripId||'').toLowerCase().includes(q) || (v.vehicleId||'').toLowerCase().includes(q));
+  if (q) filtered = filtered.filter(v => (v.routeId||'').toLowerCase().includes(q) || (v.tripId||'').toLowerCase().includes(q) || (v.vehicleId||'').toLowerCase().includes(q) || (v.feedId||'').toLowerCase().includes(q));
   renderVehicles(filtered);
 }
 
@@ -41,6 +41,7 @@ function renderVehicles(list) {
     return;
   }
   const rows = list.map(v => `<tr>
+    <td><code>${esc(v.feedId||'-')}</code></td>
     <td><code>${esc(v.vehicleId)}</code></td>
     <td>${esc(v.routeId||'-')}</td>
     <td>${esc(v.tripId||'-')}</td>
@@ -49,7 +50,7 @@ function renderVehicles(list) {
     <td>${v.bearing != null ? v.bearing.toFixed(0) + '&deg;' : '-'}</td>
     <td class="small">${v.lastUpdated ? new Date(v.lastUpdated).toLocaleTimeString() : '-'}</td>
   </tr>`).join('');
-  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover table-sm"><thead class="table-dark"><tr><th>Vehicle ID</th><th>Route</th><th>Trip</th><th>Location</th><th>Bearing</th><th>Last Updated</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} vehicle(s) shown</small>`;
+  document.getElementById('content').innerHTML = `<div class="table-responsive"><table class="table table-striped table-hover table-sm"><thead class="table-dark"><tr><th>Feed</th><th>Vehicle ID</th><th>Route</th><th>Trip</th><th>Location</th><th>Bearing</th><th>Last Updated</th></tr></thead><tbody>${rows}</tbody></table></div><small class="text-muted">${list.length} vehicle(s) shown</small>`;
 }
 
 function togglePause() {
