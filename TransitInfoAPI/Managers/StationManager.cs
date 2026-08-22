@@ -124,13 +124,18 @@ public class StationManager
 
         // RawStops.CanonicalStationId is indexed (TransitDbContext.cs:219). EF 10 parameterises the
         // id list as a JSON array, so 5000 ids is one parameter, not 5000.
+        // Matches the liveness test FeedManager uses when activating stations (FeedManager.cs:1397):
+        // a deactivated raw stop or a superseded feed version is not a feed this station comes from.
         var feedRows = await _db.RawStops.AsNoTracking()
-            .Where(rs => rs.CanonicalStationId != null && stationIds.Contains(rs.CanonicalStationId.Value))
+            .Where(rs => rs.CanonicalStationId != null
+                && rs.IsActive
+                && rs.FeedVersion.IsActive
+                && stationIds.Contains(rs.CanonicalStationId.Value))
             .Select(rs => new { StationId = rs.CanonicalStationId!.Value, Slug = rs.FeedVersion.Feed.FeedId })
             .Distinct()
             .ToListAsync(ct);
 
-        var operatorRows = await _db.Set<CanonicalStationOperator>().AsNoTracking()
+        var operatorRows = await _db.CanonicalStationOperators.AsNoTracking()
             .Where(cso => stationIds.Contains(cso.CanonicalStationId))
             .Select(cso => new { cso.CanonicalStationId, cso.Operator.GlobalId })
             .Distinct()
@@ -213,12 +218,24 @@ public class StationManager
 
     public async Task<List<StationResponse>> SearchAsync(string? q, RouteType? routeType, int? countryId, string? countryName, string? stationType, int page = 1, int perPage = 50, CancellationToken ct = default)
     {
-        return await BuildQuery(q, routeType, countryId, countryName, stationType)
+        // Provenance is filled here as well as in GetAllAsync: this is the endpoint the admin
+        // stations table actually reads (/stations/search), so leaving it out renders an empty
+        // Feeds column on the one page that displays it.
+        var stations = await BuildQuery(q, routeType, countryId, countryName, stationType)
             .OrderBy(cs => cs.Id)
             .Skip((page - 1) * perPage)
             .Take(perPage)
             .Select(StationMapper.ToResponseExpression)
             .ToListAsync(ct);
+
+        var (feeds, operators) = await GetProvenanceAsync(stations.Select(s => s.Id).ToList(), ct);
+        foreach (var s in stations)
+        {
+            s.FeedIds = feeds.GetValueOrDefault(s.Id) ?? [];
+            s.OperatorGlobalIds = operators.GetValueOrDefault(s.Id) ?? [];
+        }
+
+        return stations;
     }
 
     public async Task<List<StationOperatorResponse>> GetOperatorsAsync(string onestopId, CancellationToken ct)

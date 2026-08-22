@@ -96,7 +96,7 @@ public class RouteManager
         double? minLat, double? minLon, double? maxLat, double? maxLon,
         int limit, CancellationToken ct)
     {
-        IQueryable<CanonicalRoute> query = _db.CanonicalRoutes.Where(r => r.IsActive);
+        IQueryable<CanonicalRoute> query = _db.CanonicalRoutes.AsNoTracking().Where(r => r.IsActive);
         query = query.Include(r => r.Operator);
 
         if (operatorId.HasValue)
@@ -164,10 +164,31 @@ public class RouteManager
 
     public async Task<RouteResponse?> GetByOnestopIdAsync(string onestopId, CancellationToken ct)
     {
-        return await _db.CanonicalRoutes
+        var row = await _db.CanonicalRoutes
             .Where(r => r.OnestopId == onestopId)
-            .Select(RouteMapper.ToResponseExpression)
+            .Select(r => new
+            {
+                Response = new RouteResponse
+                {
+                    Id = r.Id,
+                    OnestopId = r.OnestopId,
+                    Name = r.LongName,
+                    ShortName = r.ShortName,
+                    RouteType = r.RouteType.ToString(),
+                    OperatorId = r.OperatorId,
+                    OperatorName = r.Operator != null ? r.Operator.Name : null,
+                    OperatorGlobalId = r.Operator != null ? r.Operator.GlobalId : null
+                },
+                r.LastSeenFeedVersionId
+            })
             .FirstOrDefaultAsync(ct);
+
+        if (row is null) return null;
+
+        var slugs = await GetFeedSlugsAsync([row.LastSeenFeedVersionId], ct);
+        row.Response.FeedId = row.LastSeenFeedVersionId is int fv && slugs.TryGetValue(fv, out var slug) ? slug : null;
+
+        return row.Response;
     }
 
     public async Task<CanonicalRoute?> GetEntityByIdAsync(int id, CancellationToken ct)
