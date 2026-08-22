@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 
@@ -124,13 +125,13 @@ public partial class JourneyTicketPickerViewModel : BaseViewModel
         IEnumerable<WalletTicket> query = _allTickets;
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
-            var term = SearchText.Trim().ToLowerInvariant();
+            var term = SearchText.Trim();
             query = query.Where(t =>
-                (t.TicketName?.ToLowerInvariant().Contains(term) ?? false) ||
-                (t.RouteDescription?.ToLowerInvariant().Contains(term) ?? false) ||
-                (t.OriginName?.ToLowerInvariant().Contains(term) ?? false) ||
-                (t.DestinationName?.ToLowerInvariant().Contains(term) ?? false) ||
-                (t.OperatorNameSnapshot?.ToLowerInvariant().Contains(term) ?? false));
+                (t.TicketName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (t.RouteDescription?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (t.OriginName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (t.DestinationName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (t.OperatorNameSnapshot?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         // Keep sort stable: by ValidFrom desc, then name — matches wallet default

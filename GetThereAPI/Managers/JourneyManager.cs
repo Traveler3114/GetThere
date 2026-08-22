@@ -40,8 +40,9 @@ public class JourneyManager
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLowerInvariant();
-            query = query.Where(j => j.Name.ToLower().Contains(term) || (j.Notes != null && j.Notes.ToLower().Contains(term)));
+            // Case-insensitivity comes from the database collation — see ImportedTicketManager.
+            var term = search.Trim();
+            query = query.Where(j => j.Name.Contains(term) || (j.Notes != null && j.Notes.Contains(term)));
         }
 
         // Sorting: default keeps upcoming-first semantics; explicit sort overrides it.

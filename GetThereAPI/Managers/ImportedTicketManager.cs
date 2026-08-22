@@ -49,13 +49,17 @@ public class ImportedTicketManager
             query = hasJourney.Value ? query.Where(t => t.JourneyId != null) : query.Where(t => t.JourneyId == null);
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLowerInvariant();
+            // No ToLower() here: the database collation is case-insensitive, so LIKE '%term%'
+            // already matches regardless of case. Lowering both sides added a LOWER() around every
+            // column for no behavioural gain, and tripped CA1304/CA1311/CA1862 under -warnaserror.
+            // ToLowerInvariant() is not an option — EF Core cannot translate it.
+            var term = search.Trim();
             query = query.Where(t =>
-                (t.TicketName != null && t.TicketName.ToLower().Contains(term)) ||
-                (t.RouteDescription != null && t.RouteDescription.ToLower().Contains(term)) ||
-                (t.OriginName != null && t.OriginName.ToLower().Contains(term)) ||
-                (t.DestinationName != null && t.DestinationName.ToLower().Contains(term)) ||
-                (t.OperatorNameSnapshot != null && t.OperatorNameSnapshot.ToLower().Contains(term)));
+                (t.TicketName != null && t.TicketName.Contains(term)) ||
+                (t.RouteDescription != null && t.RouteDescription.Contains(term)) ||
+                (t.OriginName != null && t.OriginName.Contains(term)) ||
+                (t.DestinationName != null && t.DestinationName.Contains(term)) ||
+                (t.OperatorNameSnapshot != null && t.OperatorNameSnapshot.Contains(term)));
         }
 
         query = sort?.ToLowerInvariant() switch
