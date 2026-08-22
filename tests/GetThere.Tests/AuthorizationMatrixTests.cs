@@ -124,6 +124,35 @@ public class AuthorizationMatrixTests
     }
 
     /// <summary>
+    /// The mirror of the admin test above. A user-facing controller gated on a permission the User
+    /// role does not hold is a 403 for every ordinary account — which is how settings.manage
+    /// shipped: SettingsController.Update required it and UserRoleDefaults never granted it.
+    /// </summary>
+    [Fact]
+    public void User_facing_endpoints_are_gated_only_on_permissions_the_user_role_holds()
+    {
+        var offenders = new List<string>();
+
+        foreach (var action in ActionsOf<SettingsController>()
+            .Concat(ActionsOf<ProfileController>())
+            .Concat(ActionsOf<WalletController>())
+            .Concat(ActionsOf<ImportedTicketsController>())
+            .Concat(ActionsOf<JourneysController>()))
+        {
+            foreach (var policy in PoliciesOn(action))
+            {
+                // WalletsTopUp is deliberately excluded from UserRoleDefaults — see PermissionKeys.cs
+                if (policy == PermissionKeys.WalletsTopUp) continue;
+                if (!PermissionKeys.UserRoleDefaults.Contains(policy))
+                    offenders.Add($"{action.DeclaringType!.Name}.{action.Name} -> {policy}");
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "User-facing endpoints require permissions the User role is not granted: " + string.Join(", ", offenders));
+    }
+
+    /// <summary>
     /// The upload endpoint accepts a 10 MB file and runs image, archive and PDF parsing on it, so
     /// it must not sit on the global limiter alone.
     /// </summary>

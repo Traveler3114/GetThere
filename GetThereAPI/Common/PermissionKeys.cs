@@ -78,7 +78,7 @@ public static class PermissionKeys
         TicketsView, TicketsCreate,
         WalletsView, WalletsManage,
         ProfileView, ProfileManage,
-        SettingsView,
+        SettingsView, SettingsManage,
         ImportedTicketsView, ImportedTicketsCreate, ImportedTicketsManage,
         JourneysView, JourneysCreate, JourneysManage
     ];
