@@ -4,5 +4,6 @@ public enum FeedType
 {
     GTFSStatic,
     GTFSRealtime,
-    GBFS
+    GBFS,
+    AlertSource
 }

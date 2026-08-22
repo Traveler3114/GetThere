@@ -40,5 +40,9 @@ public class Feed
     public int? CustomSourceId { get; set; }
     public CustomSource? CustomSource { get; set; }
 
+    /// <summary>Set when this feed is an alert scraper rather than a timetable source.</summary>
+    public int? AlertSourceId { get; set; }
+    public AlertSource? AlertSource { get; set; }
+
     public ICollection<FeedVersion> FeedVersions { get; set; } = [];
 }

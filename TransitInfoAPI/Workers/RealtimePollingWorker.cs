@@ -10,6 +10,7 @@ public class RealtimePollingOptions
     public int MaxConsecutiveFailuresBeforeDeactivate { get; set; } = 10;
     public int VehicleStaleCutoffMinutes { get; set; } = 5;
     public int InitialDelaySeconds { get; set; } = 10;
+    public int StaleAfterMinutes { get; set; } = 15;
 }
 
 public class RealtimePollingWorker : BackgroundService

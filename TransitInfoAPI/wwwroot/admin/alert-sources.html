@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alert sources - Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link rel="stylesheet" href="style.css">
+<script src="/admin/admin-auth.js"></script>
+</head>
+<body class="bs">
+<div id="shell"></div>
+<div id="page">
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="text-muted small mb-0">
+      Operator disruption pages, and the selectors that read them.
+    </p>
+    <div class="d-flex gap-2">
+      <button class="btn btn-success btn-sm" onclick="showAddModal()"><i class="bi bi-plus-lg"></i> Add source</button>
+      <button class="btn btn-outline-primary btn-sm" onclick="loadSources()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+  </div>
+
+  <div id="loading" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Loading...</div>
+  <div id="error" class="alert alert-danger d-none"></div>
+  <div id="content" class="d-none"></div>
+</div>
+</div>
+
+<div class="modal fade" id="addModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add alert source</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="addError" class="alert alert-danger d-none"></div>
+        <div class="mb-3">
+          <label class="form-label small">Operator</label>
+          <select class="form-select form-select-sm" id="addOperator"></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">SourceKey</label>
+          <input class="form-control form-control-sm" id="addSourceKey" placeholder="e.g. hzpp-info">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label small">Kind</label>
+            <select class="form-select form-select-sm" id="addKind">
+              <option value="Transit">Transit</option>
+              <option value="Road">Road</option>
+            </select>
+          </div>
+          <div class="col">
+            <label class="form-label small">Format</label>
+            <select class="form-select form-select-sm" id="addFormat">
+              <option value="Html">Html</option>
+              <option value="GeoJson">GeoJson</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">URL (semicolon-separated for multiple)</label>
+          <input class="form-control form-control-sm" id="addUrl" placeholder="https://...">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">ItemSelector</label>
+          <input class="form-control form-control-sm" id="addItemSelector" placeholder="e.g. article.card">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">Interval minutes</label>
+          <input type="number" class="form-control form-control-sm" id="addInterval" value="15" min="1" max="1440">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-success btn-sm" onclick="createSource()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="previewModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="previewWarnings" class="alert alert-warning d-none"></div>
+        <div id="previewContent"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit alert source</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="editError" class="alert alert-danger d-none"></div>
+        <input type="hidden" id="editId">
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label small">Kind</label>
+            <select class="form-select form-select-sm" id="editKind">
+              <option value="Transit">Transit</option>
+              <option value="Road">Road</option>
+            </select>
+          </div>
+          <div class="col">
+            <label class="form-label small">Format</label>
+            <select class="form-select form-select-sm" id="editFormat">
+              <option value="Html">Html</option>
+              <option value="GeoJson">GeoJson</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">URL</label>
+          <input class="form-control form-control-sm" id="editUrl">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">ItemSelector</label>
+          <input class="form-control form-control-sm" id="editItemSelector">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">TitleSelector</label>
+          <input class="form-control form-control-sm" id="editTitleSelector">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">DescriptionSelector</label>
+          <input class="form-control form-control-sm" id="editDescriptionSelector">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">DateSelector</label>
+          <input class="form-control form-control-sm" id="editDateSelector">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">LinkSelector</label>
+          <input class="form-control form-control-sm" id="editLinkSelector">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small">CategorySelector</label>
+          <input class="form-control form-control-sm" id="editCategorySelector">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label small">Interval minutes</label>
+            <input type="number" class="form-control form-control-sm" id="editInterval" min="1" max="1440">
+          </div>
+          <div class="col">
+            <label class="form-label small">Active</label>
+            <select class="form-select form-select-sm" id="editIsActive">
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveEdit()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/admin/admin-shell.js"></script>
+<script>
+  Shell.mountLegacy({ active: 'alert-sources', crumb: 'Network', title: 'Alert sources' });
+</script>
+<script src="alert-sources.page.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

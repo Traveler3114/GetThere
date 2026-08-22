@@ -485,6 +485,31 @@ public record RawCalendarDateRecord
     public int ExceptionType { get; set; }
 }
 
+public record RawVehicleRecord
+{
+    public string VehicleId { get; set; } = string.Empty;
+    public string? RouteId { get; set; }
+    public string? TripId { get; set; }
+    public string? RouteShortName { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public double? Bearing { get; set; }
+    public double? Speed { get; set; }
+    public DateTime? LastUpdated { get; set; }
+    public string? OccupancyStatus { get; set; }
+    public string? CongestionLevel { get; set; }
+}
+
+public record RawTripUpdateRecord
+{
+    public string TripId { get; set; } = string.Empty;
+    public string? RouteId { get; set; }
+    public string? StopId { get; set; }
+    public int? StopSequence { get; set; }
+    public int DelaySeconds { get; set; }
+    public long? EstimatedTime { get; set; }
+}
+
 internal record ShapePointRecord
 {
     public string ShapeId { get; set; } = string.Empty;

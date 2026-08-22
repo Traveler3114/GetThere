@@ -38,7 +38,7 @@ Legend: ⚡ verified downloading; 🔒 token-gated; — none/unknown. GTFS-RT co
 | # | Operator | Region | GTFS (static) | GTFS-RT | Other / unofficial | Ingest as |
 |---|---|---|---|---|---|---|
 | 1 | **ZET** | Zagreb | `zet.hr/gtfs-scheduled/latest` ⚡ | `zet.hr/gtfs-rt-protobuf` (test-labelled) | zet-uzivo.com | Feed (live) |
-| 2 | **HŽPP** (rail) | national | `hzpp.hr/api/v1/repository/download/852f76d2-8df3-4957-b30b-dc4b88b1caca` (transitous) | pirnet `…/HZPP/trip_updates.pb` | data.gov.hr mirror | Feed (live) |
+| 2 | **HŽPP** (rail) | national | `hzpp.hr/api/v1/repository/download/852f76d2-8df3-4957-b30b-dc4b88b1caca` (transitous) | pirnet `https://rt.gtfs.baguette.pirnet.si/gtfs-rt/HZPP/trip_updates.pb` | data.gov.hr mirror | Feed (live) |
 | 3 | **Promet Split** | Split | `gitlab.com/…/vekejsn/gtfs-generators/…/split-gtfs/latest/split_gtfs.zip` ⚡ (20.7 MB) | pirnet `…/prometSplit/trip_updates.pb` | official `api.promet-split.hr` 🔒 (401); `api.split.prometko.si` | Feed (GTFS + RT) |
 | 4 | **Autotrolej** | Rijeka | `gitlab.com/…/rijeka-gtfs/…/autotrolej_gtfs.zip` | pirnet `…/autotrolej/trip-updates.pb` | official API `api.autotrolej.hr/api/open/v1/voznired/*` ⚡ + live GPS | Feed (GTFS) **or** JSON custom source |
 | 5 | **Liburnija Zadar** | Zadar | `gitlab.com/…/zadar-gtfs/…/zadar_gtfs.zip` ⚡ (8.5 MB) | pirnet `…/liburnijaZadar/trip_updates.pb` | HTML `liburnija-zadar.hr/red-voznje/` | Feed |
@@ -71,7 +71,7 @@ Legend: ⚡ verified downloading; 🔒 token-gated; — none/unknown. GTFS-RT co
 | 32 | **Presečki Grupa** | intercity (Krapina) | — | — | aggregator PDF/HTML | Low prio |
 | 33 | **AP Varaždin** | Varaždin | — | — | aggregator PDF/HTML (dup CSV row = same op) | Low prio |
 | 34 | **Brioni Pula** | intercity (Pula) | — | — | directories; Nomago partnership | Low prio |
-| 35 | **FlixBus** | pan-EU | unofficial Transitland mirror `transit.land/feeds/f-u-flixbus` | — | flixbus.com trip-search JSON | Defer (ToS) |
+| 35 | **FlixBus** | pan-EU | unofficial Transitland mirror `transit.land/feeds/f-u-flixbus` | — | WIMB `global.api.flixbus.com/gis/v2/timetable/{station}/departures?from={now}&to={now+90m}&apiKey=…` (JSON) — `flixbus.com/robots.txt` disallows `/track/station/` | Custom source (ships **disabled**, `ReverseEngineered`) |
 
 Notes:
 - **Rows 11–20 are NEW** operators/feeds transitous surfaced that the original CSV never listed — free extra coverage.
@@ -139,4 +139,6 @@ to `CanonicalRoute` → synthesize a GTFS-RT alerts feed for OTP.
 
 Notes: HŽPP has a `/api/v1/*` JSON API but it returns **401** (auth-gated) — scrape the info page
 instead. Promet Split's `api.promet-split.hr` is likewise token-gated. Selectors **will drift** — the
-ingester should log a warning (not throw) when a source yields 0 items.
+ingester should log a warning (not throw) when a source yields 0 items. Alert sources are now `Feed`
+rows of type `AlertSource` (`AlertSource` table, managed at `/admin/alert-sources.html` and seeded
+idempotently), not `appsettings.json` `Alerts:Sources`.

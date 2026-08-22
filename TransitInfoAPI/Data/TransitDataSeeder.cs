@@ -50,8 +50,18 @@ public sealed class TransitDataSeeder
                 await UpsertFeedAsync(op, feed, roster.Provenance, ct);
 
             if (roster.CustomSource is not null)
-                await UpsertAutotrolejSourceAsync(op, ct);
+            {
+                if (roster.Slug == "flixbus")
+                    await UpsertFlixbusSourceAsync(op, ct);
+                else
+                    await UpsertAutotrolejSourceAsync(op, ct);
+            }
         }
+
+        foreach (var seed in AlertSourceRoster)
+            await UpsertAlertSourceAsync(seed, ct);
+
+        await UpsertHzppInterpolateAsync(ct);
 
         await UpsertNextbikeAsync(ct);
     }
@@ -108,8 +118,98 @@ public sealed class TransitDataSeeder
         }
     ];
 
+    // FlixBus "Where Is My Ride" — JSON, so it is a custom source rather than a GTFS-RT feed.
+    // One request per hub: each ride carries its whole call list, so a handful of hubs covers the
+    // country, and DistinctBy collapses rides that appear at two of them.
+    //
+    // Seeded INACTIVE. flixbus.com/robots.txt disallows /track/station/, which is the surface this
+    // reads, and docs/operator-data-sources.md marks FlixBus "Defer (ToS)". Activating it is a
+    // deliberate act in the admin console — do not flip this default.
+    private const string FlixbusKey = "7781b8fa-07cf-4ab7-8b62-1f3178523ba0";
+
+    private static CustomSourceRequest FlixbusStation(int order, string stationUuid) => new()
+    {
+        SortOrder = order,
+        TargetSection = TransitSection.Vehicles,
+        Url = $"https://global.api.flixbus.com/gis/v2/timetable/{stationUuid}/departures"
+            + $"?from={{now}}&to={{now+90m}}&apiKey={FlixbusKey}",
+        HttpMethod = "GET",
+        Format = CustomSourceFormat.Json,
+        DataPath = "rides",
+        DistinctBy = "VehicleId",
+        Mappings =
+        [
+            new CustomSourceMapping { SortOrder = 1, SourceExpression = "id",                            TargetField = "VehicleId",       Kind = MappingKind.Direct },
+            new CustomSourceMapping { SortOrder = 2, SourceExpression = "location.coordinates.latitude",  TargetField = "Latitude",        Kind = MappingKind.Direct },
+            new CustomSourceMapping { SortOrder = 3, SourceExpression = "location.coordinates.longitude", TargetField = "Longitude",       Kind = MappingKind.Direct },
+            new CustomSourceMapping { SortOrder = 4, SourceExpression = "location.updated_at",            TargetField = "LastUpdated",     Kind = MappingKind.Direct },
+            new CustomSourceMapping { SortOrder = 5, SourceExpression = "line.code",                      TargetField = "RouteId",         Kind = MappingKind.Direct },
+            new CustomSourceMapping { SortOrder = 6, SourceExpression = "line.code",                      TargetField = "RouteShortName",  Kind = MappingKind.Direct },
+            new CustomSourceMapping { SortOrder = 7, SourceExpression = "location.speed_category",        TargetField = "CongestionLevel", Kind = MappingKind.Direct }
+        ]
+    };
+
+    private static readonly IReadOnlyList<CustomSourceRequest> FlixbusRequests =
+    [
+        FlixbusStation(1, "dcbdbe76-9603-11e6-9066-549f350fcb0c"), // Zagreb (Bus Station)
+        FlixbusStation(2, "dcc29b84-9603-11e6-9066-549f350fcb0c"), // Split bus station
+        FlixbusStation(3, "dcc297e0-9603-11e6-9066-549f350fcb0c"), // Rijeka bus station
+        FlixbusStation(4, "ed2bcf0b-5a7e-4780-b7bc-a2a2848741f5")  // Zagreb Airport
+    ];
+
+    private sealed record AlertSourceSeed(
+        string SourceKey, string OperatorSlug, string Kind, string Format, string Url,
+        string? ItemSelector = null, string? TitleSelector = null, string? DescriptionSelector = null,
+        string? DateSelector = null, string? CategorySelector = null);
+
+    private static readonly IReadOnlyList<AlertSourceSeed> AlertSourceRoster =
+    [
+        new("zet-izmjene", "zet", "Transit", "Html",
+            "https://www.zet.hr/aktualnosti/izmjene-u-prometu/31",
+            ItemSelector: "a[href*=\"/izmjene-u-prometu/\"]"),
+        new("hzpp-info", "hzpp", "Transit", "Html",
+            "https://www.hzpp.hr/hr/informacije?type=info",
+            ItemSelector: "div.accordion-item.railway-works-accordion",
+            TitleSelector: "button, .accordion-button, h3, h4",
+            DescriptionSelector: "div.text-container",
+            CategorySelector: "div.status"),
+        new("autotrolej-obavijesti", "autotrolej", "Transit", "Html",
+            "https://www.autotrolej.hr/obavijesti/",
+            ItemSelector: "div.news-content",
+            TitleSelector: "h3 a, h4 a", DescriptionSelector: "p",
+            DateSelector: "div.news-meta", CategorySelector: "div.news-meta"),
+        new("split-obavijesti", "promet-split", "Transit", "Html",
+            "https://www.promet-split.hr/obavijesti/category/obavijesti",
+            ItemSelector: "article.c-article-card",
+            TitleSelector: "h2, h3, .c-article-card__title, a",
+            DescriptionSelector: ".c-article-card__summary",
+            DateSelector: ".c-article-card__date",
+            CategorySelector: ".c-article-card__label"),
+        new("osijek-promet", "gpp-osijek", "Transit", "Html",
+            "https://web.gpp-osijek.com/kategorija/promet/",
+            ItemSelector: "div.entry-main",
+            TitleSelector: "h2 a, h3 a, .entry-title a",
+            DescriptionSelector: ".entry-content",
+            DateSelector: ".entry-date", CategorySelector: ".entry-category"),
+        new("pulapromet-novosti", "pulapromet", "Transit", "Html",
+            "https://www.pulapromet.hr/novosti",
+            ItemSelector: "a[href*=\"/novosti/detaljnije/\"]"),
+        new("jadrolinija-notices", "jadrolinija", "Transit", "Html",
+            "https://www.jadrolinija.hr/en/user-notifications;https://www.jadrolinija.hr/news-single/stanje-u-pomorskom-prometu",
+            ItemSelector: "article.card",
+            TitleSelector: ".card__title, h3, h2, a",
+            DescriptionSelector: ".card__data, p, .card__text",
+            CategorySelector: ".card__label"),
+        new("hak-events", "hak", "Road", "GeoJson",
+            "https://b2b.promet-info.hr/dc/b2b.hak.events.geojson.hr_HR",
+            ItemSelector: "features"),
+        new("hak-roadworks", "hak", "Road", "GeoJson",
+            "https://b2b.promet-info.hr/dc/b2b.hak.roadworks.geojson.hr_HR",
+            ItemSelector: "features")
+    ];
+
     /// <summary>One feed of one operator. The static feed keeps the slug; GTFS-RT takes <c>{slug}-2</c>.</summary>
-    private sealed record FeedSeed(string FeedId, FeedType FeedType, string? Url);
+    private sealed record FeedSeed(string FeedId, FeedType FeedType, string? Url, bool IsActive = true);
 
     private sealed record OperatorSeed(
         string Slug,
@@ -230,7 +330,14 @@ public sealed class TransitDataSeeder
         new("presecki-grupa", "Presečki Grupa", SourceProvenance.Official, []),
         new("ap-varazdin", "Autobusni prijevoz Varaždin", SourceProvenance.Official, []),
         new("brioni", "Brioni", SourceProvenance.Official, []),
-        new("flixbus", "FlixBus", SourceProvenance.UnofficialMirror, [])
+        // Hrvatski autoklub — publishes the national road-event and roadworks GeoJSON via the NAP.
+        // It owns no transit feeds; it exists so its road alerts have an operator, because
+        // Feed.OperatorId is non-nullable.
+        new("hak", "Hrvatski autoklub", SourceProvenance.Official, []),
+        new("flixbus", "FlixBus", SourceProvenance.ReverseEngineered,
+        [
+            new("flixbus-2", FeedType.GTFSStatic, null, IsActive: false)
+        ], CustomSource: FlixbusRequests),
     ];
 
     // ── Shared upserts ────────────────────────────────────────────────────────────────────────
@@ -276,7 +383,7 @@ public sealed class TransitDataSeeder
             FeedId = seed.FeedId,
             FeedType = seed.FeedType,
             Url = seed.Url,
-            IsActive = true,
+            IsActive = seed.IsActive,
             RefreshIntervalSeconds = 3600,
             OperatorId = op.Id,
             CustomSourceId = customSourceId,
@@ -309,11 +416,126 @@ public sealed class TransitDataSeeder
         }
     }
 
+    private async Task UpsertFlixbusSourceAsync(Operator op, CancellationToken ct)
+    {
+        var source = await UpsertCustomSourceAsync(op.Id, "flixbus", FlixbusRequests, ct, producesRealtime: true);
+        // Ensure feed flixbus-2 is linked to the realtime custom source
+        var feed = await _db.Feeds.FirstOrDefaultAsync(f => f.FeedId == "flixbus-2", ct);
+        if (feed is not null)
+        {
+            if (feed.CustomSourceId != source.Id || feed.IsActive != false)
+            {
+                feed.CustomSourceId = source.Id;
+                feed.IsActive = false;
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("Linked feed 'flixbus-2' to realtime custom source {SourceId}", source.Id);
+            }
+        }
+        else
+        {
+            _db.Feeds.Add(new Feed
+            {
+                OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, "flixbus-2"),
+                FeedId = "flixbus-2",
+                FeedType = FeedType.GTFSStatic,
+                IsActive = false,
+                RefreshIntervalSeconds = 3600,
+                OperatorId = op.Id,
+                CustomSourceId = source.Id,
+                Provenance = SourceProvenance.ReverseEngineered
+            });
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Created feed 'flixbus-2' backed by realtime custom source {SourceId}", source.Id);
+        }
+    }
+
+    private async Task UpsertHzppInterpolateAsync(CancellationToken ct)
+    {
+        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == "gt-hzpp", ct);
+        if (op is null) return;
+
+        var source = await UpsertCustomSourceAsync(op.Id, "hzpp-3", [], ct, producesRealtime: true, extractorKey: "gtfs-interpolate", authConfig: """{"sourceFeedId":"hzpp-2"}""");
+
+        var feed = await _db.Feeds.FirstOrDefaultAsync(f => f.FeedId == "hzpp-3", ct);
+        if (feed is null)
+        {
+            _db.Feeds.Add(new Feed
+            {
+                OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, "hzpp-3"),
+                FeedId = "hzpp-3",
+                FeedType = FeedType.GTFSRealtime,
+                IsActive = true,
+                RefreshIntervalSeconds = 30,
+                OperatorId = op.Id,
+                CustomSourceId = source.Id,
+                Provenance = SourceProvenance.Official
+            });
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Created feed 'hzpp-3' interpolated realtime for operator '{OnestopId}'", op.OnestopId);
+        }
+        else
+        {
+            if (feed.CustomSourceId != source.Id || feed.OperatorId != op.Id)
+            {
+                feed.CustomSourceId = source.Id;
+                feed.OperatorId = op.Id;
+                await _db.SaveChangesAsync(ct);
+            }
+        }
+    }
+
+    private async Task UpsertAlertSourceAsync(AlertSourceSeed seed, CancellationToken ct)
+    {
+        var existing = await _db.AlertSources.FirstOrDefaultAsync(a => a.SourceKey == seed.SourceKey, ct);
+        if (existing is not null) return;
+
+        var op = await _db.Operators.FirstOrDefaultAsync(o => o.GlobalId == "gt-" + seed.OperatorSlug, ct);
+        if (op is null)
+        {
+            _logger.LogWarning("Alert source '{SourceKey}' operator 'gt-{Slug}' not found — skipping", seed.SourceKey, seed.OperatorSlug);
+            return;
+        }
+
+        var alertSource = new AlertSource
+        {
+            SourceKey = seed.SourceKey,
+            Kind = seed.Kind,
+            Format = seed.Format,
+            Url = seed.Url,
+            ItemSelector = seed.ItemSelector,
+            TitleSelector = seed.TitleSelector,
+            DescriptionSelector = seed.DescriptionSelector,
+            DateSelector = seed.DateSelector,
+            CategorySelector = seed.CategorySelector,
+            IntervalMinutes = 15,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.AlertSources.Add(alertSource);
+        await _db.SaveChangesAsync(ct);
+
+        _db.Feeds.Add(new Feed
+        {
+            OnestopId = _onestopId.GenerateFeedOnestopId(0, 0, seed.SourceKey),
+            FeedId = seed.SourceKey,
+            FeedType = FeedType.AlertSource,
+            IsActive = true,
+            RefreshIntervalSeconds = 900,
+            OperatorId = op.Id,
+            AlertSourceId = alertSource.Id,
+            Provenance = SourceProvenance.Official
+        });
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Created alert source '{SourceKey}' for operator '{OnestopId}'", seed.SourceKey, op.OnestopId);
+    }
+
     private async Task<CustomSource> UpsertCustomSourceAsync(
         int operatorId,
         string name,
         IReadOnlyList<CustomSourceRequest> requests,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool producesRealtime = false,
+        string? extractorKey = null,
+        string? authConfig = null)
     {
         var source = await _db.CustomSources
             .Include(cs => cs.Requests).ThenInclude(r => r.Mappings)
@@ -329,7 +551,10 @@ public sealed class TransitDataSeeder
                 Kind = CustomSourceKind.Http,
                 RefreshIntervalSeconds = 3600,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                ProducesRealtime = producesRealtime,
+                ExtractorKey = extractorKey,
+                AuthConfig = authConfig
             };
             foreach (var request in requests)
                 source.Requests.Add(CopyRequest(request));
@@ -342,11 +567,14 @@ public sealed class TransitDataSeeder
         // Existing source: repair drift. Requests are replaced wholesale whenever they do not match
         // the sealed definition — this is what fixes a stale localhost test source for Autotrolej
         // on a database seeded before the real URLs existed.
-        var needsRepair = source.OperatorId != operatorId || !ShapedRequestsMatch(source, requests);
+        var needsRepair = source.OperatorId != operatorId || source.ProducesRealtime != producesRealtime || source.ExtractorKey != extractorKey || source.AuthConfig != authConfig || !ShapedRequestsMatch(source, requests);
         if (!needsRepair) return source;
 
         _logger.LogInformation("Repairing custom source '{Name}': replacing requests and reconciling its definition", name);
         source.OperatorId = operatorId;
+        source.ProducesRealtime = producesRealtime;
+        source.ExtractorKey = extractorKey;
+        source.AuthConfig = authConfig;
         _db.CustomSourceMappings.RemoveRange(source.Requests.SelectMany(r => r.Mappings));
         _db.CustomSourceRequests.RemoveRange(source.Requests);
         source.Requests.Clear();

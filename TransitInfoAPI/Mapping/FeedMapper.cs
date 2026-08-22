@@ -25,7 +25,9 @@ public static class FeedMapper
             LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
             LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
             LicenseRedistributionAllowed = f.LicenseRedistributionAllowed,
-            Provenance = f.Provenance.ToString()
+            Provenance = f.Provenance.ToString(),
+            IsStale = false,
+            LastUpdated = null
         };
 
     public static FeedResponse ToResponse(Feed f) => new()
@@ -45,6 +47,8 @@ public static class FeedMapper
         LicenseCommercialUseAllowed = f.LicenseCommercialUseAllowed,
         LicenseShareAlikeOptional = f.LicenseShareAlikeOptional,
         LicenseRedistributionAllowed = f.LicenseRedistributionAllowed,
-        Provenance = f.Provenance.ToString()
+        Provenance = f.Provenance.ToString(),
+        IsStale = false,
+        LastUpdated = null
     };
 }

@@ -41,6 +41,13 @@ public class CustomSource
     public bool ProducesMobility { get; set; }
 
     /// <summary>
+    /// When true, this source produces live vehicles and trip updates rather than a timetable.
+    /// Its rows go to <c>RealtimeManager</c>'s in-memory caches and it **never** builds a
+    /// <c>FeedVersion</c> — realtime is ephemeral and must not enter the transit graph.
+    /// </summary>
+    public bool ProducesRealtime { get; set; }
+
+    /// <summary>
     /// The window a synthesized calendar covers, for sources that publish departures with no service
     /// calendar of their own. Null means the completer will not invent one.
     /// </summary>

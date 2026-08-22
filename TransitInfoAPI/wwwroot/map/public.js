@@ -102,7 +102,8 @@ function loadVehicles() {
         geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
         properties: {
           vehicleId: v.vehicleId, routeId: v.routeId, tripId: v.tripId,
-          bearing: v.bearing, lastUpdated: v.lastUpdated
+          bearing: v.bearing, lastUpdated: v.lastUpdated,
+          isRealtime: v.isRealtime, feedId: v.feedId, routeShortName: v.routeShortName
         }
       }))
     };
@@ -236,19 +237,28 @@ map.on('load', () => {
     }
   });
 
-  // Vehicle dots
+  // Vehicle dots — estimated (interpolated) positions are muted
   map.addLayer({
     id: 'vehicles-circle',
     type: 'circle',
     source: vehiclesSource,
     paint: {
       'circle-radius': 6,
-      'circle-color': '#7b2d8e',
+      'circle-color': ['case', ['==', ['get', 'isRealtime'], false], '#9aa0a6', '#7b2d8e'],
       'circle-stroke-width': 2,
       'circle-stroke-color': '#fff',
       'circle-opacity': 0.9
     }
   });
+
+  // Legend note for estimated positions
+  (function () {
+    const legend = document.createElement('div');
+    legend.style.cssText = 'position:absolute;bottom:8px;left:8px;background:rgba(255,255,255,0.9);padding:4px 8px;border-radius:4px;font-size:11px;color:#333;z-index:1';
+    legend.textContent = '○ estimated positions are computed from the schedule';
+    const container = document.getElementById('map');
+    if (container) container.appendChild(legend);
+  })();
 
   // Vehicle bearing arrows
   const arrowSvg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><polygon points="8,2 14,13 2,13" fill="%23fff" stroke="%237b2d8e" stroke-width="1.5"/></svg>';
@@ -379,6 +389,24 @@ map.on('click', 'routes-line', (e) => {
   showRouteDetails(props);
 });
 
+map.on('click', 'vehicles-circle', (e) => showVehiclePopup(e));
+map.on('click', 'vehicles-arrow', (e) => showVehiclePopup(e));
+map.on('mouseenter', 'vehicles-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'vehicles-circle', () => { map.getCanvas().style.cursor = ''; });
+map.on('mouseenter', 'vehicles-arrow', () => { map.getCanvas().style.cursor = 'pointer'; });
+map.on('mouseleave', 'vehicles-arrow', () => { map.getCanvas().style.cursor = ''; });
+
+function showVehiclePopup(e) {
+  const p = e.features[0].properties;
+  const updated = p.lastUpdated ? new Date(p.lastUpdated) : null;
+  const age = updated ? Math.round((Date.now() - updated.getTime()) / 60000) + ' min ago' : '-';
+  const realtimeLabel = p.isRealtime === false ? 'estimated' : 'realtime';
+  new maplibregl.Popup()
+    .setLngLat(e.features[0].geometry.coordinates)
+    .setHTML(`<div style="font-size:0.85rem"><div><strong>Route</strong> ${esc(p.routeShortName || p.routeId || '-')} <span style="font-size:0.75em;color:#666">(${esc(realtimeLabel)})</span></div><div><strong>Vehicle</strong> ${esc(p.vehicleId || '-')}</div><div><strong>Feed</strong> ${esc(p.feedId || '-')}</div><div><strong>Updated</strong> ${updated ? updated.toLocaleTimeString() : '-'} (${esc(age)})</div></div>`)
+    .addTo(map);
+}
+
 function showStationDetails(id, props) {
   const content = document.getElementById('sidebar-content');
   const type = props.stationType || 'unknown';
@@ -405,9 +433,24 @@ function showStationDetails(id, props) {
     }
     let depHtml = '<h3>Next departures</h3>';
     deps.forEach(d => {
-      const time = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
-      const delay = d.delaySeconds ? ` (${Math.round(d.delaySeconds / 60)} min delay)` : '';
-      depHtml += `<div class="departure-item"><strong>${time}</strong> ${d.headsign ? esc(d.headsign) + ' — ' : ''}${esc(d.routeName || '')}${delay}</div>`;
+      const hasRt = d.delaySeconds !== null && d.delaySeconds !== undefined;
+      const schedTime = d.scheduledDeparture ? new Date(d.scheduledDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+      const estTime = d.estimatedDeparture ? new Date(d.estimatedDeparture).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : schedTime;
+      let timeHtml;
+      if (!hasRt) {
+        timeHtml = `<strong>${schedTime}</strong>`;
+      } else if (d.delaySeconds === 0) {
+        timeHtml = `<strong>${schedTime}</strong> <span style="font-size:0.85em;color:#198754">(on time)</span>`;
+      } else {
+        const mins = Math.round(d.delaySeconds / 60);
+        const label = mins > 0 ? `+${mins}` : `${mins}`;
+        if (estTime !== schedTime) {
+          timeHtml = `<span style="text-decoration:line-through;color:#999;margin-right:4px">${schedTime}</span><strong style="color:${mins>0?'#dc3545':'#198754'}">${estTime}</strong> <span style="font-size:0.8em">(${label} min)</span>`;
+        } else {
+          timeHtml = `<strong>${schedTime}</strong> <span style="font-size:0.8em">(${label} min)</span>`;
+        }
+      }
+      depHtml += `<div class="departure-item">${timeHtml} ${d.headsign ? esc(d.headsign) + ' — ' : ''}${esc(d.routeName || '')}${hasRt ? ' 🔴' : ''}</div>`;
     });
     document.querySelector('.departures').innerHTML = depHtml;
   }).catch(() => {

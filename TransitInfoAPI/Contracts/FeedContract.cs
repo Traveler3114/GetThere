@@ -26,6 +26,9 @@ public class FeedResponse
 
     /// <summary>Official, UnofficialMirror or ReverseEngineered — how this feed relates to its publisher.</summary>
     public string Provenance { get; set; } = "Official";
+
+    public bool IsStale { get; set; }
+    public DateTime? LastUpdated { get; set; }
 }
 
 /// <summary>A specific import version of a feed snapshot, including service-level metadata and import status.</summary>

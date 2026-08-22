@@ -21,6 +21,7 @@ public class TransitDbContext : IdentityDbContext<AppUser>
     public DbSet<CustomSourceRequest> CustomSourceRequests { get; set; } = null!;
     public DbSet<CustomSourceMapping> CustomSourceMappings { get; set; } = null!;
     public DbSet<CustomSourceRun> CustomSourceRuns { get; set; } = null!;
+    public DbSet<AlertSource> AlertSources { get; set; } = null!;
     public DbSet<Agency> Agencies { get; set; } = null!;
     public DbSet<CanonicalStation> CanonicalStations { get; set; } = null!;
     public DbSet<CanonicalStationOperator> CanonicalStationOperators { get; set; } = null!;
@@ -306,6 +307,12 @@ public class TransitDbContext : IdentityDbContext<AppUser>
         // ── Custom sources ────────────────────────────────────────────────────────────────────
         // Deletes stay Restrict here as everywhere else, so removing a source with runs or requests
         // is an explicit, ordered operation in the manager rather than a silent cascade.
+        // ── Alert sources ─────────────────────────────────────────────────────────────────────
+        modelBuilder.Entity<AlertSource>(entity =>
+        {
+            entity.HasIndex(a => a.SourceKey).IsUnique();
+        });
+
         modelBuilder.Entity<CustomSource>(entity =>
         {
             entity.Property(cs => cs.Name).HasMaxLength(200);

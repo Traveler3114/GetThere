@@ -44,7 +44,13 @@ public enum TransitSection
     StopTimes,
     Calendar,
     CalendarDates,
-    MobilityStations
+    MobilityStations,
+
+    /// <summary>Live vehicle positions. Ephemeral — never becomes a FeedVersion.</summary>
+    Vehicles,
+
+    /// <summary>Per-stop realtime delays. Ephemeral — never becomes a FeedVersion.</summary>
+    TripUpdates
 }
 
 /// <summary>How a single source value becomes a target field.</summary>

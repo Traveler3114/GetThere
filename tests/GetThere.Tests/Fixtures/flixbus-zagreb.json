@@ -1,0 +1,123 @@
+{
+  "rides": [
+    {
+      "id": "ride-001",
+      "location": { "coordinates": { "latitude": 45.8131, "longitude": 15.9775 }, "updated_at": "2026-08-22T10:00:00Z", "speed_category": "1" },
+      "line": { "code": "LB1", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 42 } },
+      "calls": []
+    },
+    {
+      "id": "ride-002",
+      "location": { "coordinates": { "latitude": 45.815, "longitude": 16.0 }, "updated_at": "2026-08-22T10:01:00Z", "speed_category": "2" },
+      "line": { "code": "LB2", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-003",
+      "location": { "coordinates": { "latitude": 45.82, "longitude": 15.98 }, "updated_at": "2026-08-22T10:02:00Z", "speed_category": "3" },
+      "line": { "code": "LB1", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": -10 } },
+      "calls": []
+    },
+    {
+      "id": "ride-004",
+      "location": { "coordinates": { "latitude": 44.8125, "longitude": 20.4651 }, "updated_at": "2026-08-22T10:03:00Z", "speed_category": "1" },
+      "line": { "code": "LB3", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 120 } },
+      "calls": []
+    },
+    {
+      "id": "ride-005",
+      "location": { "coordinates": { "latitude": 45.345, "longitude": 14.312 }, "updated_at": "2026-08-22T10:04:00Z", "speed_category": "2" },
+      "line": { "code": "LB4", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-006",
+      "location": { "coordinates": { "latitude": 45.1, "longitude": 15.2 }, "updated_at": "2099-01-01T00:00:00Z", "speed_category": "1" },
+      "line": { "code": "FUTURE", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-007",
+      "location": { "coordinates": { "latitude": 45.5, "longitude": 15.5 }, "updated_at": "2026-08-22T10:05:00Z", "speed_category": "1" },
+      "line": { "code": "LB5", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 5 } },
+      "calls": []
+    },
+    {
+      "id": "ride-008",
+      "location": { "coordinates": { "latitude": 45.6, "longitude": 15.6 }, "updated_at": "2026-08-22T10:06:00Z", "speed_category": "2" },
+      "line": { "code": "LB6", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-009",
+      "location": { "coordinates": { "latitude": 45.7, "longitude": 15.7 }, "updated_at": "2026-08-22T10:07:00Z", "speed_category": "3" },
+      "line": { "code": "LB7", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-010",
+      "location": { "coordinates": { "latitude": 45.8, "longitude": 15.8 }, "updated_at": "2026-08-22T10:08:00Z", "speed_category": "1" },
+      "line": { "code": "LB8", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-011",
+      "location": { "coordinates": { "latitude": 45.9, "longitude": 15.9 }, "updated_at": "2026-08-22T10:09:00Z", "speed_category": "2" },
+      "line": { "code": "LB9", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-012",
+      "location": null,
+      "line": { "code": "LB10", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-013",
+      "location": null,
+      "line": { "code": "LB11", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-014",
+      "location": null,
+      "line": { "code": "LB12", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-015",
+      "location": null,
+      "line": { "code": "LB13", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-016",
+      "location": null,
+      "line": { "code": "LB14", "direction": "outbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    },
+    {
+      "id": "ride-017",
+      "location": null,
+      "line": { "code": "LB15", "direction": "inbound" },
+      "status": { "deviation": { "deviation_seconds": 0 } },
+      "calls": []
+    }
+  ]
+}

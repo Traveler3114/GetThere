@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 
+using TransitInfoAPI.Common;
 using TransitInfoAPI.Contracts;
 using TransitInfoAPI.Data;
 using TransitInfoAPI.Entities;
@@ -18,6 +21,7 @@ public class RealtimeManager
     private readonly ILogger<RealtimeManager> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ExternalFeedSource _externalFeedSource;
+    private readonly SecretProtector _secrets;
     private readonly int _vehicleStaleCutoffMinutes;
     private readonly int _maxFailuresBeforeDeactivate;
     // In-memory only — does not survive restart. Acceptable: high churn, low value after restart.
@@ -25,15 +29,20 @@ public class RealtimeManager
     private readonly ConcurrentDictionary<string, VehicleResponse> _vehicleCache = new();
     private readonly Dictionary<int, int> _feedFailureCounts = [];
     private readonly object _failureLock = new();
+    private sealed record FeedFreshness(DateTime? LastSourceTimestamp, DateTime LastChangedAt, int ConsecutiveUnchangedPolls);
+    private readonly ConcurrentDictionary<int, FeedFreshness> _feedFreshness = new();
+    private readonly ConcurrentDictionary<int, bool> _staleWarned = new();
+    private readonly int _staleAfterMinutes;
 
-    private record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
+    public record StopTimeUpdateData(int DelaySeconds, long? EstimatedTimeUnix);
 
-    private record TripUpdateBundle(
+    public record TripUpdateBundle(
         Dictionary<int, StopTimeUpdateData> BySequence,
         Dictionary<string, StopTimeUpdateData> ByStopId,
         string? RouteId,
         int? DirectionId,
-        string? StartTime);
+        string? StartTime,
+        string? StartDate);
 
     private volatile ConcurrentDictionary<string, TripUpdateBundle> _tripUpdateCache = new();
 
@@ -47,13 +56,16 @@ public class RealtimeManager
         ILogger<RealtimeManager> logger,
         IServiceScopeFactory scopeFactory,
         ExternalFeedSource externalFeedSource,
+        SecretProtector secrets,
         Microsoft.Extensions.Options.IOptions<RealtimePollingOptions> options)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
         _externalFeedSource = externalFeedSource;
+        _secrets = secrets;
         _vehicleStaleCutoffMinutes = options.Value.VehicleStaleCutoffMinutes;
         _maxFailuresBeforeDeactivate = options.Value.MaxConsecutiveFailuresBeforeDeactivate;
+        _staleAfterMinutes = options.Value.StaleAfterMinutes;
     }
 
     public async Task PollAllFeedsAsync(CancellationToken ct)
@@ -63,7 +75,10 @@ public class RealtimeManager
         {
             var db = scope.ServiceProvider.GetRequiredService<TransitDbContext>();
             activeRtFeeds = await db.Feeds
-                .Where(f => f.IsActive && f.FeedType == FeedType.GTFSRealtime && f.Url != null)
+                .Include(f => f.CustomSource).ThenInclude(cs => cs!.Requests).ThenInclude(r => r.Mappings)
+                .Where(f => f.IsActive
+                         && ((f.FeedType == FeedType.GTFSRealtime && f.Url != null)
+                          || (f.CustomSource != null && f.CustomSource.ProducesRealtime)))
                 .ToListAsync(ct);
         }
 
@@ -73,7 +88,9 @@ public class RealtimeManager
         {
             try
             {
-                var feedUpdates = await PollFeedAsync(feed, innerCt);
+                var feedUpdates = feed.CustomSource?.ProducesRealtime == true
+                    ? await PollCustomRealtimeAsync(feed, innerCt)
+                    : await PollFeedAsync(feed, innerCt);
                 lock (_failureLock) _feedFailureCounts.Remove(feed.Id);
                 _logger.LogDebug("Feed {FeedId} polled successfully", feed.FeedId);
 
@@ -152,6 +169,124 @@ public class RealtimeManager
             if (_vehicleCache.TryGetValue(key, out var v) && v.LastUpdated < cutoff)
                 _vehicleCache.TryRemove(key, out _);
         }
+    }
+
+    /// <summary>
+    /// A realtime source described as configuration rather than protobuf. Runs the same
+    /// CustomSourceEngine the static importer uses, so fetching, auth, SSRF guarding, pagination,
+    /// dedupe and mapping are all the code that already exists.
+    /// </summary>
+    private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollCustomRealtimeAsync(
+        Feed feed, CancellationToken ct)
+    {
+        ConcurrentDictionary<string, TripUpdateBundle> tripUpdates = [];
+        var source = feed.CustomSource!;
+
+        using var scope = _scopeFactory.CreateScope();
+
+        // A derived source computes its vehicles instead of fetching them.
+        if (!string.IsNullOrWhiteSpace(source.ExtractorKey))
+        {
+            var registry = scope.ServiceProvider.GetRequiredService<TransitInfoAPI.Core.RealtimeExtractorRegistry>();
+            var extractor = registry.For(source.ExtractorKey);
+            if (extractor is null)
+            {
+                _logger.LogWarning("Feed {FeedId} names unknown realtime extractor '{Key}'", feed.FeedId, source.ExtractorKey);
+                return tripUpdates;
+            }
+            List<VehicleResponse> vehicles;
+            try
+            {
+                vehicles = await extractor.ExtractAsync(source, feed, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // Fail soft, matching the configured-source path below. Reaching the caller's
+                // failure counter would deactivate the feed over a transient computation fault.
+                _logger.LogWarning(ex, "Realtime extractor '{Key}' failed for feed {FeedId}", source.ExtractorKey, feed.FeedId);
+                return tripUpdates;
+            }
+            DateTime? newest = null;
+            foreach (var vehicle in vehicles)
+            {
+                UpdateVehicleCache(feed.FeedId, vehicle);
+                if (newest is null || vehicle.LastUpdated > newest) newest = vehicle.LastUpdated;
+            }
+            RecordFreshness(feed.Id, newest);
+            return tripUpdates;
+        }
+
+        var engine = scope.ServiceProvider.GetRequiredService<CustomSourceEngine>();
+        var vehicleCount = 0;
+        DateTime? newestCustom = null;
+
+        foreach (var request in source.Requests.OrderBy(r => r.SortOrder))
+        {
+            if (request.TargetSection is not (TransitSection.Vehicles or TransitSection.TripUpdates))
+                continue;
+
+            ExtractionResult result;
+            try
+            {
+                result = await engine.ExecuteAsync(request, _secrets.Unprotect(source.AuthConfig), null, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // Fail soft. Throwing here would reach the caller's consecutive-failure counter and
+                // eventually deactivate a feed over one malformed response.
+                _logger.LogWarning(ex, "Realtime custom source {FeedId} request {Section} failed", feed.FeedId, request.TargetSection);
+                continue;
+            }
+
+            foreach (var warning in result.Warnings)
+                _logger.LogWarning("Realtime custom source {FeedId}: {Warning}", feed.FeedId, warning);
+
+            // ExecuteAsync returns raw flattened rows — it does not map them. Every other caller
+            // applies mappings itself (CustomHttpSource.cs:259, MobilityPollingWorker.cs:192,
+            // CustomSourceManager.cs:439). Omitting it here meant ToVehicle looked for "VehicleId"
+            // in a row keyed "id" and dropped every vehicle, silently, because a null return is
+            // also the ordinary "no GPS on this ride yet" case.
+            var mapped = CustomSourceEngine.ApplyMappings(result.Rows, [.. request.Mappings]);
+
+            // Deduplicated after mapping so DistinctBy names a target field rather than whatever the
+            // operator called it in their own payload.
+            mapped = CustomSourceEngine.Deduplicate(mapped, request.DistinctBy, out _);
+
+            if (request.TargetSection == TransitSection.Vehicles)
+            {
+                foreach (var row in mapped)
+                {
+                    var vehicle = ToVehicle(row, feed.FeedId);
+                    if (vehicle is null) continue;   // no position on this row — the common case
+                    UpdateVehicleCache(feed.FeedId, vehicle);
+                    vehicleCount++;
+                    if (newestCustom is null || vehicle.LastUpdated > newestCustom)
+                        newestCustom = vehicle.LastUpdated;
+                }
+
+                // The failure this whole phase exists to fix was invisible because "no rows mapped"
+                // and "no ride has moved yet" produced identical output. They are different faults
+                // and must read differently in the log.
+                if (mapped.Count > 0 && vehicleCount == 0)
+                {
+                    _logger.LogWarning(
+                        "Realtime custom source {FeedId}: {RowCount} rows mapped but none yielded a position — "
+                        + "check that the request's mappings target VehicleId/Latitude/Longitude.",
+                        feed.FeedId, mapped.Count);
+                }
+            }
+            else
+            {
+                MergeTripUpdateRows(mapped, tripUpdates);
+            }
+        }
+
+        RecordFreshness(feed.Id, newestCustom);
+
+        _logger.LogInformation("Realtime custom source {FeedId}: {Vehicles} vehicles, {Trips} trip updates",
+            feed.FeedId, vehicleCount, tripUpdates.Count);
+
+        return tripUpdates;
     }
 
     private async Task<ConcurrentDictionary<string, TripUpdateBundle>> PollFeedAsync(Feed feed, CancellationToken ct)
@@ -242,6 +377,7 @@ public class RealtimeManager
                     var routeId = tripDesc?.RouteId;
                     var directionId = tripDesc?.HasDirectionId == true ? (int?)tripDesc.DirectionId : null;
                     var startTime = tripDesc?.StartTime;
+                    var startDate = tripDesc?.StartDate;
 
                     // Debug, not Information: this is one line per trip update, per feed, per poll —
                     // a city feed emits thousands every cycle, which buried everything else in the
@@ -253,7 +389,7 @@ public class RealtimeManager
                             feed.FeedId, tripId, routeId, directionId, startTime, bySequence.Count, byStopId.Count, hasNonZeroDelay,
                             string.Join(",", bySequence.Values.Concat(byStopId.Values).Where(v => v.DelaySeconds != 0).Take(5).Select(v => v.DelaySeconds)));
                     }
-                    tripUpdates[tripId] = new TripUpdateBundle(bySequence, byStopId, routeId, directionId, startTime);
+                    tripUpdates[tripId] = new TripUpdateBundle(bySequence, byStopId, routeId, directionId, startTime, startDate);
                 }
                 else
                     _logger.LogDebug("TripUpdate for trip {TripId} on feed {FeedId} has neither stop_id nor stop_sequence — unmatchable", tripId, feed.FeedId);
@@ -350,6 +486,11 @@ public class RealtimeManager
         {
             _logger.LogWarning(ex, "Failed to persist alerts for feed {FeedId}", feed.FeedId);
         }
+
+        DateTime? sourceTimestamp = null;
+        if (feedMessage.Header.HasTimestamp && feedMessage.Header.Timestamp > 0)
+            sourceTimestamp = DateTime.UnixEpoch.AddSeconds(feedMessage.Header.Timestamp);
+        RecordFreshness(feed.Id, sourceTimestamp);
 
         return tripUpdates;
     }
@@ -535,7 +676,204 @@ public class RealtimeManager
             RouteId = bundle.RouteId,
             DirectionId = bundle.DirectionId,
             StartTime = bundle.StartTime,
+            StartDate = bundle.StartDate,
             StopTimeUpdates = stopTimeUpdates
         };
+    }
+
+    /// <summary>
+    /// Null when the row has no usable position. A ride that has not started carries no coordinates,
+    /// and that is roughly four rows in five — the ordinary case, not an error.
+    /// </summary>
+    private static VehicleResponse? ToVehicle(ExtractedRow row, string feedId)
+    {
+        var lat = Num(row, "Latitude");
+        var lon = Num(row, "Longitude");
+        if (lat is null || lon is null || !GeoBounds.IsUsable(lat.Value, lon.Value)) return null;
+
+        var vehicleId = Str(row, "VehicleId");
+        if (string.IsNullOrWhiteSpace(vehicleId)) return null;
+
+        // Clamped, unlike the GTFS-RT path. See the KNOWN GAP note in PollAllFeedsAsync: an
+        // unclamped future timestamp is never evicted, and the cache key includes an
+        // operator-supplied id, so those entries accumulate without bound.
+        var reported = Date(row, "LastUpdated");
+        var lastUpdated = reported is null ? DateTime.UtcNow
+            : reported.Value > DateTime.UtcNow ? DateTime.UtcNow : reported.Value;
+
+        return new VehicleResponse
+        {
+            VehicleId = vehicleId,
+            FeedId = feedId,
+            RouteId = Str(row, "RouteId"),
+            TripId = Str(row, "TripId"),
+            RouteShortName = Str(row, "RouteShortName"),
+            IsRealtime = true,
+            Latitude = lat.Value,
+            Longitude = lon.Value,
+            Bearing = Num(row, "Bearing"),
+            Speed = Num(row, "Speed"),
+            LastUpdated = lastUpdated,
+            OccupancyStatus = Str(row, "OccupancyStatus"),
+            CongestionLevel = Str(row, "CongestionLevel")
+        };
+    }
+
+    private static void MergeTripUpdateRows(List<ExtractedRow> rows, ConcurrentDictionary<string, TripUpdateBundle> tripUpdates)
+    {
+        var byTrip = new Dictionary<string, List<ExtractedRow>>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            var tripId = Str(row, "TripId");
+            if (string.IsNullOrWhiteSpace(tripId)) continue;
+            if (!byTrip.TryGetValue(tripId, out var list)) byTrip[tripId] = list = [];
+            list.Add(row);
+        }
+
+        foreach (var (tripId, tripRows) in byTrip)
+        {
+            var bySequence = new Dictionary<int, StopTimeUpdateData>();
+            var byStopId = new Dictionary<string, StopTimeUpdateData>(StringComparer.Ordinal);
+            string? routeId = null;
+
+            foreach (var row in tripRows)
+            {
+                var delayVal = Num(row, "DelaySeconds");
+                var delay = delayVal.HasValue ? (int)delayVal.Value : 0;
+                // EstimatedTime is unix seconds
+                long? estimated = null;
+                var estStr = Str(row, "EstimatedTime");
+                if (long.TryParse(estStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var estLong))
+                    estimated = estLong;
+                else
+                {
+                    var estNum = Num(row, "EstimatedTime");
+                    if (estNum.HasValue) estimated = (long)estNum.Value;
+                }
+
+                var data = new StopTimeUpdateData(delay, estimated);
+
+                var stopSeqVal = Num(row, "StopSequence");
+                if (stopSeqVal.HasValue)
+                {
+                    var seq = (int)stopSeqVal.Value;
+                    if (seq > 0) bySequence[seq] = data;
+                }
+                var stopId = Str(row, "StopId");
+                if (!string.IsNullOrWhiteSpace(stopId))
+                    byStopId[stopId] = data;
+
+                var rid = Str(row, "RouteId");
+                if (!string.IsNullOrWhiteSpace(rid)) routeId = rid;
+            }
+
+            var bundle = new TripUpdateBundle(bySequence, byStopId, routeId, null, null, null);
+            tripUpdates[tripId] = bundle;
+        }
+    }
+
+    private static string? Str(ExtractedRow row, string key)
+    {
+        if (!row.TryGetValue(key, out var value) || value is null) return null;
+        if (value is JsonElement je)
+            return je.ValueKind == JsonValueKind.String ? je.GetString() : je.GetRawText().Trim('"');
+        var s = value.ToString();
+        return string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+
+    private static double? Num(ExtractedRow row, string key)
+    {
+        if (!row.TryGetValue(key, out var value) || value is null) return null;
+
+        double? parsed = value switch
+        {
+            JsonElement { ValueKind: JsonValueKind.Number } number => number.GetDouble(),
+            JsonElement { ValueKind: JsonValueKind.String } text => Parse(text.GetString()),
+            JsonElement => null,
+            double d => d,
+            long l => l,
+            int i => i,
+            _ => Parse(value.ToString())
+        };
+
+        return parsed is { } result && double.IsFinite(result) ? result : null;
+
+        static double? Parse(string? raw) =>
+            double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var fromText) ? fromText : null;
+    }
+
+    private static DateTime? Date(ExtractedRow row, string key)
+    {
+        if (!row.TryGetValue(key, out var value) || value is null) return null;
+        string? raw = null;
+        if (value is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.String) raw = je.GetString();
+            else if (je.ValueKind == JsonValueKind.Number && je.TryGetInt64(out var l)) return DateTime.UnixEpoch.AddSeconds(l);
+            else raw = je.GetRawText().Trim('"');
+        }
+        else raw = value.ToString();
+
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        raw = raw.Trim();
+
+        // Try unix seconds numeric
+        if (long.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var unix))
+        {
+            // Heuristic: if value is large plausible unix seconds ( > 1e9) treat as unix
+            if (unix > 1_000_000_000 && unix < 4_000_000_000)
+                return DateTime.UnixEpoch.AddSeconds(unix);
+        }
+        if (double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var dUnix))
+        {
+            if (dUnix > 1_000_000_000 && dUnix < 4_000_000_000)
+                return DateTime.UnixEpoch.AddSeconds((long)dUnix);
+        }
+
+        // Try ISO 8601
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var dt))
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+
+        return null;
+    }
+
+    private void RecordFreshness(int feedId, DateTime? sourceTimestamp)
+    {
+        var now = DateTime.UtcNow;
+        var existing = _feedFreshness.GetOrAdd(feedId, _ => new FeedFreshness(sourceTimestamp, now, 0));
+        // If first time or timestamp changed, reset
+        if (existing.LastSourceTimestamp != sourceTimestamp)
+        {
+            var fresh = new FeedFreshness(sourceTimestamp, now, 0);
+            _feedFreshness[feedId] = fresh;
+            // Clear stale warning for fresh data
+            _staleWarned.TryRemove(feedId, out _);
+            return;
+        }
+
+        // Equal timestamp -> increment
+        var updated = new FeedFreshness(sourceTimestamp, existing.LastChangedAt, existing.ConsecutiveUnchangedPolls + 1);
+        _feedFreshness[feedId] = updated;
+
+        // Check staleness
+        if (now - updated.LastChangedAt > TimeSpan.FromMinutes(_staleAfterMinutes))
+        {
+            if (_staleWarned.TryAdd(feedId, true))
+            {
+                _logger.LogWarning("Realtime feed {FeedId} is stale: source timestamp {Timestamp} unchanged for {Minutes} minutes", feedId, sourceTimestamp, _staleAfterMinutes);
+            }
+        }
+    }
+
+    public bool IsStaleFeed(int feedId)
+    {
+        if (!_feedFreshness.TryGetValue(feedId, out var freshness)) return false;
+        return DateTime.UtcNow - freshness.LastChangedAt > TimeSpan.FromMinutes(_staleAfterMinutes);
+    }
+
+    public DateTime? GetLastSourceTimestamp(int feedId)
+    {
+        if (_feedFreshness.TryGetValue(feedId, out var f)) return f.LastSourceTimestamp;
+        return null;
     }
 }

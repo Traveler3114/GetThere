@@ -28,6 +28,7 @@ public class TripUpdateResponse
     public string? RouteId { get; set; }
     public int? DirectionId { get; set; }
     public string? StartTime { get; set; }
+    public string? StartDate { get; set; }
     public List<StopTimeUpdateResponse> StopTimeUpdates { get; set; } = [];
 }
 

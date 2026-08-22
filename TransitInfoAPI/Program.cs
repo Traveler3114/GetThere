@@ -115,7 +115,6 @@ builder.Services.Configure<FeedImportOptions>(builder.Configuration.GetSection("
 builder.Services.Configure<RealtimePollingOptions>(builder.Configuration.GetSection("RealtimePolling"));
 builder.Services.Configure<PlaceMatchingOptions>(builder.Configuration.GetSection("PlaceMatching"));
 builder.Services.Configure<TransitInfoAPI.Routing.RoutingOptions>(builder.Configuration.GetSection(TransitInfoAPI.Routing.RoutingOptions.SectionName));
-builder.Services.Configure<TransitInfoAPI.Services.AlertsOptions>(builder.Configuration.GetSection(TransitInfoAPI.Services.AlertsOptions.SectionName));
 
 builder.Services.AddScoped<TransitInfoAPI.Services.GtfsParser>();
 builder.Services.AddScoped<TransitInfoAPI.Routing.Export.GtfsBundleExporter>();
@@ -149,6 +148,7 @@ builder.Services.AddScoped<StationManager>();
 builder.Services.AddScoped<RouteManager>();
 builder.Services.AddScoped<OperatorManager>();
 builder.Services.AddScoped<FeedManager>();
+builder.Services.AddScoped<AlertSourceManager>();
 builder.Services.AddScoped<CountryManager>();
 // Missing here meant PlacesController could not be activated at all: every one of its four actions
 // answered 500 from the DI container before reaching any code, so the admin Places page has never
@@ -168,7 +168,11 @@ builder.Services.AddScoped<TransitInfoAPI.Core.TransitSourceResolver>();
 
 // Register an ICustomExtractor to take over a source that configuration cannot describe.
 builder.Services.AddScoped<TransitInfoAPI.Core.CustomExtractorRegistry>();
+builder.Services.AddSingleton<TransitInfoAPI.Services.InterpolationTripCache>();
+builder.Services.AddScoped<TransitInfoAPI.Core.IRealtimeExtractor, TransitInfoAPI.Services.InterpolatedVehicleExtractor>();
+builder.Services.AddScoped<TransitInfoAPI.Core.RealtimeExtractorRegistry>();
 builder.Services.AddScoped<TransitInfoAPI.Services.CustomSourceEngine>();
+builder.Services.AddScoped<TransitInfoAPI.Services.AlertSourceExtractor>();
 builder.Services.AddScoped<TransitInfoAPI.Services.CustomHttpSource>();
 builder.Services.AddScoped<TransitDocumentCompleter>();
 builder.Services.AddScoped<CustomSourceManager>();

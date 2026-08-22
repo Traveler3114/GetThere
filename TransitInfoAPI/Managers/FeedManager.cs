@@ -48,6 +48,7 @@ public class FeedManager
     private readonly Services.ImportLogStore _logStore;
     private readonly TransitSourceResolver _sources;
     private readonly Routing.IGraphRebuildSignal _graphRebuild;
+    private readonly RealtimeManager _realtime;
     private readonly int _bulkCommandTimeoutSeconds;
     private static readonly GeometryFactory GeometryFactory = new(new PrecisionModel(), 4326);
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> _feedLocks = new();
@@ -69,7 +70,8 @@ public class FeedManager
         Services.ImportLogStore logStore,
         TransitSourceResolver sources,
         Microsoft.Extensions.Options.IOptions<FeedImportOptions> importOptions,
-        Routing.IGraphRebuildSignal graphRebuild)
+        Routing.IGraphRebuildSignal graphRebuild,
+        RealtimeManager realtime)
     {
         _db = db;
         _logger = logger;
@@ -82,6 +84,7 @@ public class FeedManager
         _sources = sources;
         _bulkCommandTimeoutSeconds = importOptions.Value.BulkCommandTimeoutSeconds;
         _graphRebuild = graphRebuild;
+        _realtime = realtime;
     }
 
     public async Task<(List<FeedResponse> Feeds, int Total)> GetAllAsync(int page = 1, int perPage = 50, bool showInternal = false, CancellationToken ct = default)
@@ -102,16 +105,28 @@ public class FeedManager
             .Select(FeedMapper.ToResponseExpression)
             .ToListAsync(ct);
 
+        foreach (var f in feeds)
+        {
+            f.IsStale = _realtime.IsStaleFeed(f.Id);
+            f.LastUpdated = _realtime.GetLastSourceTimestamp(f.Id);
+        }
+
         return (feeds, total);
     }
 
     public async Task<FeedResponse?> GetByIdAsync(int id, CancellationToken ct)
     {
-        return await _db.Feeds
+        var feed = await _db.Feeds
             .AsNoTracking()
             .Where(f => f.Id == id)
             .Select(FeedMapper.ToResponseExpression)
             .FirstOrDefaultAsync(ct);
+        if (feed is not null)
+        {
+            feed.IsStale = _realtime.IsStaleFeed(feed.Id);
+            feed.LastUpdated = _realtime.GetLastSourceTimestamp(feed.Id);
+        }
+        return feed;
     }
 
     public async Task<Feed> CreateAsync(
@@ -586,11 +601,11 @@ public class FeedManager
     /// </summary>
     public async Task<List<Feed>> GetActiveImportableFeedsAsync(CancellationToken ct)
     {
-        // Mobility custom sources never enter the transit graph — they are polled by MobilityPollingWorker.
+        // Mobility and realtime custom sources never enter the transit graph — they are polled by their own workers.
         return await _db.Feeds
             .Where(f => f.IsActive
                 && ((f.FeedType == FeedType.GTFSStatic && f.Url != null)
-                    || (f.CustomSourceId != null && !_db.CustomSources.Any(cs => cs.Id == f.CustomSourceId && cs.ProducesMobility))))
+                    || (f.CustomSourceId != null && !_db.CustomSources.Any(cs => cs.Id == f.CustomSourceId && (cs.ProducesMobility || cs.ProducesRealtime)))))
             .ToListAsync(ct);
     }
 

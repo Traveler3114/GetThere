@@ -71,6 +71,22 @@ comment records why:
 Keeping last-known-good data per feed means one operator's flaky endpoint degrades only that
 operator's data, and only after it goes stale — not the whole realtime view for one cycle.
 
+### Realtime from custom sources
+
+Realtime is no longer limited to GTFS-RT protobuf. A `CustomSource` with `ProducesRealtime = true`
+is polled by the same `RealtimeManager` through `CustomSourceEngine`, so fetching, auth, SSRF
+guarding, pagination, dedupe and mapping reuse existing code. Its `Requests` target
+`TransitSection.Vehicles` (live positions) and/or `TransitSection.TripUpdates` (per-stop delays);
+both are ephemeral and never create a `FeedVersion` or write to the transit graph. Request URLs may
+contain `{now}`, `{now+90m}`, `{today}` tokens via `ApplyTimeTokens`.
+
+A `CustomSource` may also delegate to a `IRealtimeExtractor` via `ExtractorKey`. The built-in
+`gtfs-interpolate` extractor synthesizes vehicle positions by interpolating along the schedule using the
+trip's `trip_updates` delay — useful for operators that publish delays without positions (e.g. HŽPP).
+`FlixBus` is a seeded `ProducesRealtime` custom source using the WIMB JSON API
+(`global.api.flixbus.com/gis/v2/timetable/{station}/departures`); it ships disabled because
+`flixbus.com/robots.txt` disallows `/track/station/`.
+
 ### Vehicle staleness
 
 Vehicles are keyed `{feedId}:{vehicleId}` — feed-scoped, because vehicle IDs are only unique within a
@@ -110,8 +126,9 @@ they populate; matching on either is what makes this work across operators.
 The estimated time is always `scheduledDeparture + delay` rather than any absolute timestamp the feed
 supplies, which keeps schedule and realtime on one clock.
 
-`DepartureResponse.IsRealtime` tells the client which of these happened, so the UI can distinguish a
-live estimate from a timetable.
+`DepartureResponse.DelaySeconds` being non-null tells the client a live estimate exists; `null` means
+no realtime data for this departure, so the UI can distinguish a live estimate from a timetable. A
+`delaySeconds` of `0` explicitly means “on time”.
 
 ---
 

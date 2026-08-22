@@ -114,7 +114,7 @@ public partial class CustomSourceEngine
 
         while (page < MaxPages)
         {
-            var url = ApplyPagination(request.Url, pagination, page, totalSoFar, cursor);
+            var url = ApplyTimeTokens(ApplyPagination(request.Url, pagination, page, totalSoFar, cursor), DateTime.UtcNow);
 
             // The SSRF check now lives inside SendFollowingRedirectsAsync, which applies it to this
             // URL and to every redirect hop after it — the hops being the part a pre-flight check
@@ -1088,6 +1088,36 @@ public partial class CustomSourceEngine
             _logger.LogWarning("Auth config could not be applied: {Message}", ex.Message);
         }
     }
+
+    [GeneratedRegex(@"\{now(?:([+-])(\d{1,4})([mh]))?\}|\{today\}", RegexOptions.IgnoreCase)]
+    private static partial Regex TimeTokenPattern();
+
+    /// <summary>
+    /// Substitutes {now}, {now+90m}, {now-15m}, {now+2h} and {today} into a request URL.
+    /// <para>
+    /// Deliberately tiny — minutes and hours only. An endpoint that wants "departures in the next
+    /// 90 minutes" cannot be expressed without this, and anything larger starts turning the config
+    /// into the bad programming language the CustomSource docs warn about. Unknown tokens are left
+    /// untouched rather than throwing, because a literal brace in a URL is legal.
+    /// </para>
+    /// </summary>
+    internal static string ApplyTimeTokens(string url, DateTime utcNow) =>
+        TimeTokenPattern().Replace(url, m =>
+        {
+            if (m.Value.Equals("{today}", StringComparison.OrdinalIgnoreCase))
+                return utcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            var moment = utcNow;
+            if (m.Groups[1].Success)
+            {
+                var amount = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                if (m.Groups[1].Value == "-") amount = -amount;
+                moment = m.Groups[3].Value.Equals("h", StringComparison.OrdinalIgnoreCase)
+                    ? utcNow.AddHours(amount)
+                    : utcNow.AddMinutes(amount);
+            }
+            return moment.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        });
 
     [GeneratedRegex(@"\{([^}]+)\}")]
     private static partial Regex PlaceholderPattern();
